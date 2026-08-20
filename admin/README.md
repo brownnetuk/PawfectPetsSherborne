@@ -49,14 +49,27 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   client/emergency/vet/security fields; "Edit" on a pet row covers its full profile. Off-lead
   consent is deliberately read-only in the pet edit form — it's a customer-signed acknowledgment
   from the intake form, not something staff overwrite from here.
-- **Bookings** / **Invoices** — global lists across all customers, inline status changes, and
-  their own "New" flow with a customer picker (the customer-detail versions reuse the same
-  create calls with the customer pre-selected).
+- **Bookings** / **Invoices** — global lists across all customers, inline status changes, edit
+  and delete on each row, and their own "New" flow with a customer picker (the customer-detail
+  versions reuse the same create/edit/delete calls with the customer pre-selected).
 - **Activity** — a read-only global CRM feed; activity itself is created from a customer's page
   so it's always tied to that customer.
+- **Staff** — list, create, and delete staff logins. Deleting is blocked server-side if it would
+  remove the last remaining account; self-delete is blocked in the UI while signed in as that
+  account. JWT is stateless, so a deleted account's existing token still works until it expires —
+  there's no server-side session to revoke.
 
 ## Auth model
 
 The backend guards every route by default; only the specific endpoints the public intake form
 itself calls (`POST /customers`, `GET/PATCH /customers/:id`, `POST /animals`) are marked public.
 Everything in this app requires a valid staff JWT.
+
+## Look and feel
+
+The logo, colour palette (forest green `#1f3b2c` / warm orange `#e8963c` / sage-cream background),
+and font pairing (Fraunces for headings, Work Sans for body) are pulled from the live marketing
+site, [pawfectpetssherborne.co.uk](https://pawfectpetssherborne.co.uk), so the dashboard reads as
+the same product rather than a generic admin theme. The logo file lives at
+`src/assets/logo.png`; the palette and fonts are defined as CSS variables at the top of
+`src/index.css`.
