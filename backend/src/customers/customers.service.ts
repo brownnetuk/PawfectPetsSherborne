@@ -75,7 +75,11 @@ export class CustomersService {
   }
 
   findAll(): Promise<Customer[]> {
-    return this.customerModel.find().select('-security.alarmInstructionsEncrypted').exec();
+    return this.customerModel
+      .find()
+      .select('-security.alarmInstructionsEncrypted')
+      .sort({ createdAt: -1 })
+      .exec();
   }
 
   async findOne(id: string): Promise<Customer> {

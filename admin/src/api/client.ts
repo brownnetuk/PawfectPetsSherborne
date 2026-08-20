@@ -1,0 +1,143 @@
+import type {
+  Animal,
+  Booking,
+  Customer,
+  CrmActivity,
+  Invoice,
+  LineItem,
+  Staff,
+} from '../types';
+
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+
+let authToken: string | null = null;
+let onUnauthorized: (() => void) | null = null;
+
+export function setAuthToken(token: string | null) {
+  authToken = token;
+}
+
+export function setUnauthorizedHandler(handler: () => void) {
+  onUnauthorized = handler;
+}
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      ...options?.headers,
+    },
+  });
+  if (res.status === 401) {
+    onUnauthorized?.();
+    throw new Error('Session expired. Please log in again.');
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const message = Array.isArray(body.message) ? body.message.join('; ') : body.message;
+    throw new Error(message || `Request failed (${res.status})`);
+  }
+  return res.status === 204 ? (undefined as T) : res.json();
+}
+
+// --- auth ---
+export function login(email: string, password: string): Promise<{ accessToken: string; staff: Staff }> {
+  return request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+}
+export function me(): Promise<Staff> {
+  return request('/auth/me');
+}
+export function registerStaff(name: string, email: string, password: string): Promise<Staff> {
+  return request('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) });
+}
+
+// --- customers ---
+export function listCustomers(): Promise<Customer[]> {
+  return request('/customers');
+}
+export function getCustomer(id: string): Promise<Customer> {
+  return request(`/customers/${id}`);
+}
+export function createLead(name: string, email: string): Promise<Customer> {
+  return request('/customers/leads', { method: 'POST', body: JSON.stringify({ name, email }) });
+}
+export function deleteCustomer(id: string): Promise<void> {
+  return request(`/customers/${id}`, { method: 'DELETE' });
+}
+export async function getAlarmInstructions(id: string): Promise<string | null> {
+  const { instructions } = await request<{ instructions: string | null }>(
+    `/customers/${id}/alarm-instructions`,
+  );
+  return instructions;
+}
+
+// --- animals ---
+export function listAnimals(customerId: string): Promise<Animal[]> {
+  return request(`/animals?customer=${customerId}`);
+}
+
+// --- bookings ---
+export function listBookings(customerId?: string): Promise<Booking[]> {
+  return request(`/bookings${customerId ? `?customer=${customerId}` : ''}`);
+}
+export interface CreateBookingInput {
+  customer: string;
+  animals: string[];
+  serviceType: string;
+  startDate: string;
+  endDate: string;
+  notes?: string;
+  price?: number;
+}
+export function createBooking(input: CreateBookingInput): Promise<Booking> {
+  return request('/bookings', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateBookingStatus(id: string, status: string): Promise<Booking> {
+  return request(`/bookings/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+}
+export function deleteBooking(id: string): Promise<void> {
+  return request(`/bookings/${id}`, { method: 'DELETE' });
+}
+
+// --- invoices ---
+export function listInvoices(customerId?: string): Promise<Invoice[]> {
+  return request(`/invoices${customerId ? `?customer=${customerId}` : ''}`);
+}
+export interface CreateInvoiceInput {
+  customer: string;
+  booking?: string;
+  lineItems: LineItem[];
+  tax?: number;
+  issueDate: string;
+  dueDate: string;
+}
+export function createInvoice(input: CreateInvoiceInput): Promise<Invoice> {
+  return request('/invoices', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateInvoiceStatus(id: string, status: string): Promise<Invoice> {
+  return request(`/invoices/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+}
+export function deleteInvoice(id: string): Promise<void> {
+  return request(`/invoices/${id}`, { method: 'DELETE' });
+}
+
+// --- CRM ---
+export function listActivities(customerId?: string): Promise<CrmActivity[]> {
+  return request(`/crm/activities${customerId ? `?customer=${customerId}` : ''}`);
+}
+export interface CreateActivityInput {
+  customer: string;
+  type: string;
+  subject: string;
+  description?: string;
+  dueDate?: string;
+  createdBy: string;
+}
+export function createActivity(input: CreateActivityInput): Promise<CrmActivity> {
+  return request('/crm/activities', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateActivity(id: string, patch: Partial<CrmActivity>): Promise<CrmActivity> {
+  return request(`/crm/activities/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+}

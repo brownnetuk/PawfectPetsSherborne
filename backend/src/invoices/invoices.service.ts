@@ -34,11 +34,18 @@ export class InvoicesService {
 
   findAll(customerId?: string): Promise<Invoice[]> {
     const filter = customerId ? { customer: customerId } : {};
-    return this.invoiceModel.find(filter).exec();
+    return this.invoiceModel
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .populate('customer', 'name email')
+      .exec();
   }
 
   async findOne(id: string): Promise<Invoice> {
-    const invoice = await this.invoiceModel.findById(id).exec();
+    const invoice = await this.invoiceModel
+      .findById(id)
+      .populate('customer', 'name email')
+      .exec();
     if (!invoice) {
       throw new NotFoundException(`Invoice ${id} not found`);
     }

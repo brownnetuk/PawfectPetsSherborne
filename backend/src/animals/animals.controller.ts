@@ -8,6 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { Public } from '../auth/public.decorator';
 import { AnimalsService } from './animals.service';
 import { CreateAnimalDto } from './dto/create-animal.dto';
 import { UpdateAnimalDto } from './dto/update-animal.dto';
@@ -16,6 +17,8 @@ import { UpdateAnimalDto } from './dto/update-animal.dto';
 export class AnimalsController {
   constructor(private readonly animalsService: AnimalsService) {}
 
+  // Public: the intake form creates one Animal per pet on submit.
+  @Public()
   @Post()
   create(@Body() dto: CreateAnimalDto) {
     return this.animalsService.create(dto);

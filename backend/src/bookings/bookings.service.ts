@@ -15,11 +15,20 @@ export class BookingsService {
 
   findAll(customerId?: string): Promise<Booking[]> {
     const filter = customerId ? { customer: customerId } : {};
-    return this.bookingModel.find(filter).populate('animals').exec();
+    return this.bookingModel
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .populate('animals')
+      .populate('customer', 'name email')
+      .exec();
   }
 
   async findOne(id: string): Promise<Booking> {
-    const booking = await this.bookingModel.findById(id).populate('animals').exec();
+    const booking = await this.bookingModel
+      .findById(id)
+      .populate('animals')
+      .populate('customer', 'name email')
+      .exec();
     if (!booking) {
       throw new NotFoundException(`Booking ${id} not found`);
     }

@@ -17,7 +17,11 @@ export class CrmService {
 
   findAll(customerId?: string): Promise<CrmActivity[]> {
     const filter = customerId ? { customer: customerId } : {};
-    return this.activityModel.find(filter).sort({ createdAt: -1 }).exec();
+    return this.activityModel
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .populate('customer', 'name email')
+      .exec();
   }
 
   async findOne(id: string): Promise<CrmActivity> {

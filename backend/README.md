@@ -10,13 +10,15 @@ and CRM system.
 - `class-validator` / `class-transformer` for request validation, enforced globally via
   `ValidationPipe` (`whitelist`, `forbidNonWhitelisted`, `transform`)
 - Field-level encryption (AES-256-GCM, Node `crypto`) for sensitive data at rest
+- JWT staff auth (`@nestjs/jwt` + `passport-jwt`), guarding every route by default
 
 ## Getting started
 
 ```bash
 npm install
-cp .env.example .env   # then fill in MONGODB_URI and ENCRYPTION_KEY
+cp .env.example .env   # then fill in MONGODB_URI, ENCRYPTION_KEY, and JWT_SECRET
 npm run start:dev
+npm run seed:staff -- "Your Name" you@example.com "a-strong-password"   # first staff login
 ```
 
 ### Environment variables
@@ -26,10 +28,28 @@ npm run start:dev
 | `PORT`           | HTTP port (default `3000`)                                              |
 | `MONGODB_URI`    | Mongo connection string (Atlas `mongodb+srv://…` or local `mongodb://…`) |
 | `ENCRYPTION_KEY` | Secret used to derive the AES-256-GCM key for encrypted fields — generate with `openssl rand -hex 32` |
+| `JWT_SECRET`     | Secret used to sign staff login JWTs — generate with `openssl rand -hex 32` |
 
 **Windows/Atlas note:** if the app hangs or fails to connect with `mongodb+srv://` URIs, the
 local network's DNS resolver may not support SRV/TXT lookups. `main.ts` pins Node's DNS
 resolver to `1.1.1.1`/`8.8.8.8` at startup to work around this — safe to remove once network DNS is fixed.
+
+## Auth
+
+Every route requires a staff JWT (`Authorization: Bearer <token>`) by default — enforced by a
+global `JwtAuthGuard` (`APP_GUARD`). Routes the public [intake form](../frontend) itself calls
+are opted out with `@Public()`:
+
+- `POST /customers` and `PATCH /customers/:id` — the form creates or completes its own record
+- `GET /customers/:id` — pre-fills screen 1 from a staff-sent lead link
+- `POST /animals` — one call per pet on submit
+- `POST /auth/login`
+
+Everything else — including `POST /customers/leads` (staff creates a lead link),
+`GET /customers/:id/alarm-instructions`, and all of `/bookings`, `/invoices`, `/crm`, and
+`POST /auth/register` — requires a token. There's no open self-registration: the first staff
+account comes from `npm run seed:staff -- "<name>" <email> <password>`; every account after that
+is added by an already-logged-in staff member via `POST /auth/register`.
 
 ## Domain model
 
