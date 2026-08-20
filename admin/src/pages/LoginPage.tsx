@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import logo from '../assets/logo.png';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -27,8 +28,13 @@ export default function LoginPage() {
   return (
     <div className="login-page">
       <div className="login-card">
-        <h1>PawfectPets Sherborne</h1>
-        <p style={{ color: 'var(--muted)', marginTop: -8 }}>Staff sign in</p>
+        <span className="login-logo">
+          <img src={logo} alt="Pawfect Pets Sherborne" />
+        </span>
+        <h1>Pawfect Pets Sherborne</h1>
+        <p className="login-tagline" style={{ marginTop: 0, marginBottom: 22 }}>
+          Staff sign in
+        </p>
         {error && <div className="error-banner">{error}</div>}
         <form onSubmit={handleSubmit}>
           <div className="field">
