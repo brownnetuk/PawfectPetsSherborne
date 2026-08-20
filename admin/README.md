@@ -45,7 +45,10 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   belongs, and duplicating it would just be two sources of truth for the same data.
 - **Customer detail** — tabs for overview (client/emergency/vet/security/agreement — alarm
   instructions are only decrypted on demand via "Reveal"), pets, bookings, invoices, and CRM
-  activity, plus per-customer booking/invoice/activity creation.
+  activity, plus per-customer booking/invoice/activity creation. "Edit" on the overview covers
+  client/emergency/vet/security fields; "Edit" on a pet row covers its full profile. Off-lead
+  consent is deliberately read-only in the pet edit form — it's a customer-signed acknowledgment
+  from the intake form, not something staff overwrite from here.
 - **Bookings** / **Invoices** — global lists across all customers, inline status changes, and
   their own "New" flow with a customer picker (the customer-detail versions reuse the same
   create calls with the customer pre-selected).
