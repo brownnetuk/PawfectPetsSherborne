@@ -107,6 +107,14 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
         onChange={(v) => set('aggressionToPeople', v === 'yes')}
         required
       />
+      {value.aggressionToPeople && (
+        <TextField
+          label="Please give details"
+          value={value.aggressionToPeopleDetails ?? ''}
+          onChange={(v) => set('aggressionToPeopleDetails', v)}
+          required
+        />
+      )}
       <ChoiceGroup
         label="Aggression to other animals"
         value={
@@ -116,6 +124,14 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
         onChange={(v) => set('aggressionToOtherAnimals', v === 'yes')}
         required
       />
+      {value.aggressionToOtherAnimals && (
+        <TextField
+          label="Please give details"
+          value={value.aggressionToOtherAnimalsDetails ?? ''}
+          onChange={(v) => set('aggressionToOtherAnimalsDetails', v)}
+          required
+        />
+      )}
       <ChoiceGroup
         label="Travels well in car"
         value={value.travelsWellInCar}

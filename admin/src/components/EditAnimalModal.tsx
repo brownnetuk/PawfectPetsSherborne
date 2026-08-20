@@ -26,8 +26,14 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
   const [hasCollar, setHasCollar] = useState(animal.hasCollar);
   const [temperamentNotes, setTemperamentNotes] = useState(animal.temperamentNotes ?? '');
   const [aggressionToPeople, setAggressionToPeople] = useState(animal.aggressionToPeople);
+  const [aggressionToPeopleDetails, setAggressionToPeopleDetails] = useState(
+    animal.aggressionToPeopleDetails ?? '',
+  );
   const [aggressionToOtherAnimals, setAggressionToOtherAnimals] = useState(
     animal.aggressionToOtherAnimals,
+  );
+  const [aggressionToOtherAnimalsDetails, setAggressionToOtherAnimalsDetails] = useState(
+    animal.aggressionToOtherAnimalsDetails ?? '',
   );
   const [travelsWellInCar, setTravelsWellInCar] = useState<TriState>(animal.travelsWellInCar);
   const [chasesLivestock, setChasesLivestock] = useState<TriState>(animal.chasesLivestock);
@@ -49,6 +55,14 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
       setError('Medication details are required.');
       return;
     }
+    if (aggressionToPeople && !aggressionToPeopleDetails) {
+      setError('Please give details about aggression to people.');
+      return;
+    }
+    if (aggressionToOtherAnimals && !aggressionToOtherAnimalsDetails) {
+      setError('Please give details about aggression to other animals.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -65,7 +79,11 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
         hasCollar,
         temperamentNotes: temperamentNotes || undefined,
         aggressionToPeople,
+        aggressionToPeopleDetails: aggressionToPeople ? aggressionToPeopleDetails : undefined,
         aggressionToOtherAnimals,
+        aggressionToOtherAnimalsDetails: aggressionToOtherAnimals
+          ? aggressionToOtherAnimalsDetails
+          : undefined,
         travelsWellInCar,
         chasesLivestock,
         allergies: { status: allergyStatus, details: allergyDetails || undefined },
@@ -168,6 +186,28 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
             Aggression to animals
           </label>
         </div>
+        {aggressionToPeople && (
+          <div className="field">
+            <label>Aggression to people — details</label>
+            <input
+              type="text"
+              value={aggressionToPeopleDetails}
+              onChange={(e) => setAggressionToPeopleDetails(e.target.value)}
+              required
+            />
+          </div>
+        )}
+        {aggressionToOtherAnimals && (
+          <div className="field">
+            <label>Aggression to other animals — details</label>
+            <input
+              type="text"
+              value={aggressionToOtherAnimalsDetails}
+              onChange={(e) => setAggressionToOtherAnimalsDetails(e.target.value)}
+              required
+            />
+          </div>
+        )}
 
         <div className="field-row" style={{ marginTop: 14 }}>
           <div className="field">

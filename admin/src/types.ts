@@ -62,7 +62,9 @@ export interface Animal {
   hasCollar: boolean;
   temperamentNotes?: string;
   aggressionToPeople: boolean;
+  aggressionToPeopleDetails?: string;
   aggressionToOtherAnimals: boolean;
+  aggressionToOtherAnimalsDetails?: string;
   travelsWellInCar: TriState;
   chasesLivestock: TriState;
   allergies: { status: TriState; details?: string };

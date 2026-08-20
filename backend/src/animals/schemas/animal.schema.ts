@@ -101,8 +101,14 @@ export class Animal extends Document {
   @Prop({ required: true })
   aggressionToPeople: boolean;
 
+  @Prop()
+  aggressionToPeopleDetails?: string;
+
   @Prop({ required: true })
   aggressionToOtherAnimals: boolean;
+
+  @Prop()
+  aggressionToOtherAnimalsDetails?: string;
 
   @Prop({ type: String, enum: TriState, required: true })
   travelsWellInCar: TriState;

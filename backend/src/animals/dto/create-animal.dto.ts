@@ -92,8 +92,18 @@ export class CreateAnimalDto {
   @IsBoolean()
   aggressionToPeople: boolean;
 
+  @ValidateIf((o) => o.aggressionToPeople)
+  @IsNotEmpty()
+  @IsString()
+  aggressionToPeopleDetails?: string;
+
   @IsBoolean()
   aggressionToOtherAnimals: boolean;
+
+  @ValidateIf((o) => o.aggressionToOtherAnimals)
+  @IsNotEmpty()
+  @IsString()
+  aggressionToOtherAnimalsDetails?: string;
 
   @IsEnum(TriState)
   travelsWellInCar: TriState;

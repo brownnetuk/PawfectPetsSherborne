@@ -130,6 +130,10 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
       if (pet.hasCollar === null) return 'Please let us know if this pet has a collar.';
       if (pet.aggressionToPeople === null || pet.aggressionToOtherAnimals === null)
         return 'Please answer the aggression questions.';
+      if (pet.aggressionToPeople && !pet.aggressionToPeopleDetails)
+        return 'Please provide details about aggression to people.';
+      if (pet.aggressionToOtherAnimals && !pet.aggressionToOtherAnimalsDetails)
+        return 'Please provide details about aggression to other animals.';
       if (!pet.travelsWellInCar || !pet.chasesLivestock) return 'Please answer all required questions.';
       if (pet.medication.onMedication && !pet.medication.details)
         return 'Please provide medication details.';

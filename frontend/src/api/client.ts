@@ -62,7 +62,11 @@ export function submitAnimal(customerId: string, pet: PetDetails) {
     hasCollar: pet.hasCollar,
     temperamentNotes: pet.temperamentNotes || undefined,
     aggressionToPeople: pet.aggressionToPeople,
+    aggressionToPeopleDetails: pet.aggressionToPeople ? pet.aggressionToPeopleDetails : undefined,
     aggressionToOtherAnimals: pet.aggressionToOtherAnimals,
+    aggressionToOtherAnimalsDetails: pet.aggressionToOtherAnimals
+      ? pet.aggressionToOtherAnimalsDetails
+      : undefined,
     travelsWellInCar: pet.travelsWellInCar,
     chasesLivestock: pet.chasesLivestock,
     allergies: pet.allergies,

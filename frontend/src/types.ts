@@ -78,7 +78,9 @@ export interface PetDetails {
   hasCollar: boolean | null;
   temperamentNotes?: string;
   aggressionToPeople: boolean | null;
+  aggressionToPeopleDetails?: string;
   aggressionToOtherAnimals: boolean | null;
+  aggressionToOtherAnimalsDetails?: string;
   travelsWellInCar: TriState | '';
   chasesLivestock: TriState | '';
   allergies: AllergyInfo;
