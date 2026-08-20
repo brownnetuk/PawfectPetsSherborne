@@ -51,10 +51,13 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   from the intake form, not something staff overwrite from here. A status dropdown next to the
   overview badge moves a customer between pending/active/inactive via a staff-only
   `PATCH /customers/:id/status`, kept separate from the customer PATCH the public intake form
-  itself uses. "New pet" on the Pets tab registers a pet directly (`POST /animals`, the same
-  endpoint the intake form uses) for cases where a customer's pet wasn't added that way — it does
-  collect off-lead consent for dogs, since the endpoint requires it, but the form is explicit that
-  this should only be used when the customer has confirmed consent with staff directly.
+  itself uses. "New pet" on the Pets tab first asks staff to choose between two paths: "Add
+  manually" opens a form that registers the pet directly (`POST /animals`, the same endpoint the
+  intake form uses) — it does collect off-lead consent for dogs, since the endpoint requires it,
+  but is explicit that this should only be used when the customer has confirmed consent with
+  staff directly. "Send a link to the customer" instead hands you a `VITE_INTAKE_URL/intake/<id>
+  /add-pet` link (see [`frontend`](../frontend/README.md#add-a-pet-link)) so the customer can add
+  the pet's details themselves.
 - **Bookings** / **Invoices** — global lists across all customers, inline status changes, edit
   and delete on each row, and their own "New" flow with a customer picker (the customer-detail
   versions reuse the same create/edit/delete calls with the customer pre-selected).

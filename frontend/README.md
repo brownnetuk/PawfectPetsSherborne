@@ -43,6 +43,22 @@ the form still works standalone: it falls back to a fresh registration that `POS
 `Customer` on submit instead of `PATCH`ing an existing one. That fallback exists because there's
 no staff-facing UI yet to generate/send these links — a reasonable stopgap, not a hidden feature.
 
+## Add a pet link
+
+For an existing, already-registered customer adding another pet, staff can send a second kind
+of link instead (from the admin app's "New pet" → "Send a link to the customer"):
+
+```
+https://<this-app>/intake/<customerId>/add-pet
+```
+
+This routes to `src/intake/AddPetFlow.tsx` rather than the full `IntakeForm` — a trimmed-down
+flow that starts straight at "how many pets" and only ever calls `POST /animals`. It deliberately
+never calls `PATCH /customers/:id`: that endpoint's payload is the customer's *entire* record, so
+resending it here (with the customer/emergency/security/agreement fields all back at their empty
+defaults, since this flow never asks for them) would silently blank out whatever's already on
+file. Adding a pet this way should never risk their other data.
+
 ## Screen flow
 
 `src/intake/IntakeForm.tsx` drives a wizard over the screens from the intake-form spec:
