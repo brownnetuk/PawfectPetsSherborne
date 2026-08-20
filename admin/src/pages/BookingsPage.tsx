@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
+import EditBookingModal from '../components/EditBookingModal';
+import { PencilIcon, TrashIcon } from '../components/icons';
 import Modal from '../components/Modal';
 import type { Animal, Booking, BookingStatus, Customer } from '../types';
 
@@ -13,6 +15,9 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
+  const [deletingBooking, setDeletingBooking] = useState<Booking | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   function refresh() {
     api.listBookings().then(setBookings).catch((err) => setError(err.message));
@@ -22,6 +27,18 @@ export default function BookingsPage() {
   async function handleStatusChange(id: string, status: string) {
     await api.updateBookingStatus(id, status);
     refresh();
+  }
+
+  async function handleDelete() {
+    if (!deletingBooking) return;
+    setDeleting(true);
+    try {
+      await api.deleteBooking(deletingBooking._id);
+      setDeletingBooking(null);
+      refresh();
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -46,6 +63,7 @@ export default function BookingsPage() {
                 <th>Dates</th>
                 <th>Status</th>
                 <th>Price</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -66,6 +84,20 @@ export default function BookingsPage() {
                     </select>
                   </td>
                   <td>{b.price != null ? `£${b.price.toFixed(2)}` : '—'}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 2 }}>
+                      <button className="icon-btn" title="Edit" onClick={() => setEditingBooking(b)}>
+                        <PencilIcon />
+                      </button>
+                      <button
+                        className="icon-btn icon-btn-danger"
+                        title="Delete"
+                        onClick={() => setDeletingBooking(b)}
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -81,6 +113,29 @@ export default function BookingsPage() {
             refresh();
           }}
         />
+      )}
+      {editingBooking && (
+        <EditBookingModal
+          booking={editingBooking}
+          onClose={() => setEditingBooking(null)}
+          onSaved={() => {
+            setEditingBooking(null);
+            refresh();
+          }}
+        />
+      )}
+      {deletingBooking && (
+        <Modal title="Delete booking?" onClose={() => setDeletingBooking(null)}>
+          <p>This permanently deletes this booking.</p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeletingBooking(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'Deleting…' : 'Delete booking'}
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );

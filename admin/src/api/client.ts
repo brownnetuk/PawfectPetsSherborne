@@ -55,6 +55,12 @@ export function me(): Promise<Staff> {
 export function registerStaff(name: string, email: string, password: string): Promise<Staff> {
   return request('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) });
 }
+export function listStaff(): Promise<Staff[]> {
+  return request('/auth/staff');
+}
+export function deleteStaff(id: string): Promise<void> {
+  return request(`/auth/staff/${id}`, { method: 'DELETE' });
+}
 
 // --- customers ---
 export function listCustomers(): Promise<Customer[]> {
@@ -105,6 +111,9 @@ export function createBooking(input: CreateBookingInput): Promise<Booking> {
 }
 export function updateBookingStatus(id: string, status: string): Promise<Booking> {
   return request(`/bookings/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+}
+export function updateBooking(id: string, patch: Record<string, unknown>): Promise<Booking> {
+  return request(`/bookings/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
 }
 export function deleteBooking(id: string): Promise<void> {
   return request(`/bookings/${id}`, { method: 'DELETE' });

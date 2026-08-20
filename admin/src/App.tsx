@@ -7,6 +7,7 @@ import CustomerDetailPage from './pages/CustomerDetailPage';
 import BookingsPage from './pages/BookingsPage';
 import InvoicesPage from './pages/InvoicesPage';
 import ActivityPage from './pages/ActivityPage';
+import StaffPage from './pages/StaffPage';
 
 function ProtectedLayout() {
   const { staff, loading } = useAuth();
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/bookings" element={<BookingsPage />} />
         <Route path="/invoices" element={<InvoicesPage />} />
         <Route path="/activity" element={<ActivityPage />} />
+        <Route path="/staff" element={<StaffPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
