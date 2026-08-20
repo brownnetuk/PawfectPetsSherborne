@@ -34,6 +34,17 @@ npm run seed:staff -- "Your Name" you@example.com "a-strong-password"   # first 
 local network's DNS resolver may not support SRV/TXT lookups. `main.ts` pins Node's DNS
 resolver to `1.1.1.1`/`8.8.8.8` at startup to work around this — safe to remove once network DNS is fixed.
 
+## Build for production
+
+```bash
+npm run build      # nest build -> dist/
+npm run start:prod # node dist/main
+```
+
+This is exactly what Render runs (see [`render.yaml`](../render.yaml) at the repo root) — no
+separate production config needed. `PORT`, `MONGODB_URI`, `ENCRYPTION_KEY`, and `JWT_SECRET` must
+all be set in the environment `start:prod` runs in.
+
 ## Auth
 
 Every route requires a staff JWT (`Authorization: Bearer <token>`) by default — enforced by a

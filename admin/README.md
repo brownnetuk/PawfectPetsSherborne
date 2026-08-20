@@ -23,6 +23,18 @@ npm run seed:staff -- "Your Name" you@example.com "a-strong-password"
 There's no open self-registration — the first account comes from that script; every account
 after that is added by an already-logged-in staff member via `POST /auth/register`.
 
+## Build for production
+
+```bash
+npm run build    # tsc -b && vite build -> dist/
+npm run preview  # serve that build locally to sanity-check it before deploying
+```
+
+Like `frontend`, `VITE_API_URL` (and here also `VITE_INTAKE_URL`) are baked in at build time, so
+they must be correct in the environment the build runs in. Render (see
+[`render.yaml`](../render.yaml)) runs `npm install && npm run build` and serves `dist/` as a
+static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) resolve correctly.
+
 ## What's here
 
 - **Login** — JWT-based; the token is kept in `localStorage` and attached to every API call.

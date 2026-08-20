@@ -21,6 +21,30 @@ flutter run --dart-define=API_BASE_URL=http://localhost:3000
 
 Log in with a staff account seeded via `backend`'s `npm run seed:staff` — there's no self-registration.
 
+## Build for production
+
+`API_BASE_URL` is compiled in at build time (same idea as Vite's `VITE_*` vars), so pass
+`--dart-define` on the actual build command, not just `flutter run`:
+
+```bash
+# Web — no extra SDK needed, works on any machine with Flutter installed
+flutter build web --dart-define=API_BASE_URL=https://pawfectpets-backend.onrender.com
+# output: build/web/ (serve as a static site)
+
+# Android — needs the Android SDK (Android Studio) on the build machine
+flutter build apk --release --dart-define=API_BASE_URL=https://pawfectpets-backend.onrender.com
+# output: build/app/outputs/flutter-apk/app-release.apk
+# (flutter build appbundle for a Play Store upload instead of a sideloadable APK)
+
+# iOS — needs a Mac with Xcode; won't run on Windows/Linux at all
+flutter build ios --release --dart-define=API_BASE_URL=https://pawfectpets-backend.onrender.com
+# then archive/sign/upload via Xcode, as with any iOS app
+```
+
+Omitting `--dart-define` silently falls back to the default in
+[`lib/config.dart`](lib/config.dart) (the deployed backend) — fine for most builds, but worth
+being deliberate about for anything other than the standard production target.
+
 ## What's here
 
 - **Login** — staff JWT, held in `flutter_secure_storage` and restored on launch.

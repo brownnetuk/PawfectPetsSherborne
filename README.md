@@ -48,6 +48,11 @@ Seed a staff login before using `admin` or `mobile`:
 cd backend && npm run seed:staff -- "Your Name" you@example.com "a-strong-password"
 ```
 
+Each app's own README has a "Build for production" section with the exact commands (and, for
+`frontend`/`admin`/`mobile`, what gets baked in at build time vs. read at runtime) — see
+[`backend`](backend/README.md#build-for-production), [`frontend`](frontend/README.md#build-for-production),
+[`admin`](admin/README.md#build-for-production), [`mobile`](mobile/README.md#build-for-production).
+
 ## Deployment
 
 **Render** ([`render.yaml`](render.yaml)) is live and is where the app actually runs: a single

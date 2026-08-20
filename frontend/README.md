@@ -16,6 +16,18 @@ npm run dev
 Requires the backend running (see `../backend/README.md`) — the form calls it directly via
 `VITE_API_URL`.
 
+## Build for production
+
+```bash
+npm run build    # tsc -b && vite build -> dist/
+npm run preview  # serve that build locally to sanity-check it before deploying
+```
+
+`VITE_API_URL` is baked in at build time (Vite inlines `import.meta.env.VITE_*` values into the
+bundle), so it must be set correctly in the environment the build runs in — not just at runtime.
+Render (see [`render.yaml`](../render.yaml)) runs `npm install && npm run build` and serves
+`dist/` as a static site with an SPA rewrite so `/intake/:id` resolves correctly.
+
 ## How a customer reaches the form
 
 Staff pre-create a minimal lead record (`POST /customers/leads` with just `name` + `email`) and
