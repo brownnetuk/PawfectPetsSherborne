@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import * as api from '../api/client';
 import Badge from '../components/Badge';
+import EditAnimalModal from '../components/EditAnimalModal';
+import EditCustomerModal from '../components/EditCustomerModal';
 import Modal from '../components/Modal';
 import type { Animal, Booking, Customer, CrmActivity, Invoice } from '../types';
 import { useAuth } from '../auth/AuthContext';
@@ -23,6 +25,7 @@ export default function CustomerDetailPage() {
   const [copied, setCopied] = useState(false);
   const [alarmInstructions, setAlarmInstructions] = useState<string | null>(null);
   const [showDelete, setShowDelete] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
   function refresh() {
     if (!id) return;
@@ -73,6 +76,9 @@ export default function CustomerDetailPage() {
               {copied ? 'Copied!' : 'Copy registration link'}
             </button>
           )}
+          <button className="btn btn-secondary" onClick={() => setShowEdit(true)}>
+            Edit
+          </button>
           <button className="btn btn-danger" onClick={() => setShowDelete(true)}>
             Delete
           </button>
@@ -94,7 +100,7 @@ export default function CustomerDetailPage() {
           onRevealAlarm={revealAlarm}
         />
       )}
-      {tab === 'pets' && <PetsTab animals={animals} />}
+      {tab === 'pets' && <PetsTab animals={animals} onChange={refresh} />}
       {tab === 'bookings' && (
         <BookingsTab customer={customer} animals={animals} bookings={bookings} onChange={refresh} />
       )}
@@ -120,6 +126,18 @@ export default function CustomerDetailPage() {
             </button>
           </div>
         </Modal>
+      )}
+
+      {showEdit && (
+        <EditCustomerModal
+          customer={customer}
+          onClose={() => setShowEdit(false)}
+          onSaved={() => {
+            setShowEdit(false);
+            setAlarmInstructions(null);
+            refresh();
+          }}
+        />
       )}
     </div>
   );
@@ -221,7 +239,9 @@ function OverviewTab({
   );
 }
 
-function PetsTab({ animals }: { animals: Animal[] }) {
+function PetsTab({ animals, onChange }: { animals: Animal[]; onChange: () => void }) {
+  const [editing, setEditing] = useState<Animal | null>(null);
+
   if (animals.length === 0) return <div className="empty-state">No pets registered yet.</div>;
   return (
     <div className="card" style={{ padding: 0 }}>
@@ -234,21 +254,37 @@ function PetsTab({ animals }: { animals: Animal[] }) {
             <th>Sex</th>
             <th>Age</th>
             <th>Vaccinated</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           {animals.map((a) => (
-            <tr key={a._id}>
+            <tr key={a._id} onClick={() => setEditing(a)}>
               <td>{a.name}</td>
               <td>{a.species}</td>
               <td>{a.breed}</td>
               <td>{a.sex}</td>
               <td>{a.age}</td>
               <td>{a.vaccinated ? 'Yes' : 'No'}</td>
+              <td onClick={(e) => e.stopPropagation()}>
+                <button className="btn-link" onClick={() => setEditing(a)}>
+                  Edit
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+      {editing && (
+        <EditAnimalModal
+          animal={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            onChange();
+          }}
+        />
+      )}
     </div>
   );
 }

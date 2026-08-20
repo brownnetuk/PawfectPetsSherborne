@@ -98,10 +98,23 @@ export class CustomersService {
       this.validateEmergencyVet(dto.emergencyVet);
     }
 
-    const update: Record<string, unknown> = { ...dto };
-    if (dto.security) {
-      update.security = this.encryptSecurity(dto as CreateCustomerDto);
+    const { security, ...rest } = dto;
+    const update: Record<string, unknown> = { ...rest };
+
+    // Field-level ($set via dot notation) rather than replacing the whole `security`
+    // subdocument: the client is never given the plaintext alarm instructions back, so
+    // an edit that only touches e.g. keysProvided must not blow away the existing
+    // encrypted value just because alarmInstructions wasn't resent.
+    if (security) {
+      const { alarmInstructions, ...securityRest } = security;
+      for (const [key, value] of Object.entries(securityRest)) {
+        update[`security.${key}`] = value;
+      }
+      if (alarmInstructions) {
+        update['security.alarmInstructionsEncrypted'] = this.encryptionService.encrypt(alarmInstructions);
+      }
     }
+
     // A signed agreement means the public intake form is submitting the completed
     // record (whether it started as a staff-created lead or a fresh submission).
     if (dto.agreement?.signedName) {

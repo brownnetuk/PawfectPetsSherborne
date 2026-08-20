@@ -72,10 +72,16 @@ export async function getAlarmInstructions(id: string): Promise<string | null> {
   );
   return instructions;
 }
+export function updateCustomer(id: string, patch: Record<string, unknown>): Promise<Customer> {
+  return request(`/customers/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+}
 
 // --- animals ---
 export function listAnimals(customerId: string): Promise<Animal[]> {
   return request(`/animals?customer=${customerId}`);
+}
+export function updateAnimal(id: string, patch: Record<string, unknown>): Promise<Animal> {
+  return request(`/animals/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
 }
 
 // --- bookings ---
