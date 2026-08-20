@@ -84,10 +84,16 @@ export async function getAlarmInstructions(id: string): Promise<string | null> {
 export function updateCustomer(id: string, patch: Record<string, unknown>): Promise<Customer> {
   return request(`/customers/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
 }
+export function updateCustomerStatus(id: string, status: string): Promise<Customer> {
+  return request(`/customers/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+}
 
 // --- animals ---
 export function listAnimals(customerId: string): Promise<Animal[]> {
   return request(`/animals?customer=${customerId}`);
+}
+export function createAnimal(input: Record<string, unknown>): Promise<Animal> {
+  return request('/animals', { method: 'POST', body: JSON.stringify(input) });
 }
 export function updateAnimal(id: string, patch: Record<string, unknown>): Promise<Animal> {
   return request(`/animals/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });

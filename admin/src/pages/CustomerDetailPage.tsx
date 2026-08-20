@@ -7,10 +7,21 @@ import EditBookingModal from '../components/EditBookingModal';
 import EditCustomerModal from '../components/EditCustomerModal';
 import { PencilIcon, TrashIcon } from '../components/icons';
 import Modal from '../components/Modal';
-import type { ActivityType, Animal, Booking, Customer, CrmActivity, Invoice } from '../types';
+import NewAnimalModal from '../components/NewAnimalModal';
+import type {
+  ActivityType,
+  Animal,
+  Booking,
+  Customer,
+  CustomerStatus,
+  CrmActivity,
+  Invoice,
+} from '../types';
 import { useAuth } from '../auth/AuthContext';
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
+
+const CUSTOMER_STATUSES: CustomerStatus[] = ['pending', 'active', 'inactive'];
 
 type Tab = 'overview' | 'pets' | 'bookings' | 'invoices' | 'activity';
 
@@ -63,13 +74,30 @@ export default function CustomerDetailPage() {
     navigate('/customers');
   }
 
+  async function handleStatusChange(status: string) {
+    if (!id) return;
+    await api.updateCustomerStatus(id, status);
+    refresh();
+  }
+
   return (
     <div>
       <div className="page-header">
         <div>
           <h1>{customer.name}</h1>
-          <div style={{ marginTop: 6 }}>
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
             <Badge value={customer.status} />
+            <select
+              value={customer.status}
+              onChange={(e) => handleStatusChange(e.target.value)}
+              style={{ width: 'auto', padding: '4px 8px', fontSize: '0.82rem' }}
+            >
+              {CUSTOMER_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s.charAt(0).toUpperCase() + s.slice(1)}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -102,7 +130,7 @@ export default function CustomerDetailPage() {
           onRevealAlarm={revealAlarm}
         />
       )}
-      {tab === 'pets' && <PetsTab animals={animals} onChange={refresh} />}
+      {tab === 'pets' && <PetsTab customerId={customer._id} animals={animals} onChange={refresh} />}
       {tab === 'bookings' && (
         <BookingsTab customer={customer} animals={animals} bookings={bookings} onChange={refresh} />
       )}
@@ -241,42 +269,71 @@ function OverviewTab({
   );
 }
 
-function PetsTab({ animals, onChange }: { animals: Animal[]; onChange: () => void }) {
+function PetsTab({
+  customerId,
+  animals,
+  onChange,
+}: {
+  customerId: string;
+  animals: Animal[];
+  onChange: () => void;
+}) {
   const [editing, setEditing] = useState<Animal | null>(null);
+  const [showNew, setShowNew] = useState(false);
 
-  if (animals.length === 0) return <div className="empty-state">No pets registered yet.</div>;
   return (
-    <div className="card" style={{ padding: 0 }}>
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Species</th>
-            <th>Breed</th>
-            <th>Sex</th>
-            <th>Age</th>
-            <th>Vaccinated</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {animals.map((a) => (
-            <tr key={a._id} onClick={() => setEditing(a)}>
-              <td>{a.name}</td>
-              <td>{a.species}</td>
-              <td>{a.breed}</td>
-              <td>{a.sex}</td>
-              <td>{a.age}</td>
-              <td>{a.vaccinated ? 'Yes' : 'No'}</td>
-              <td onClick={(e) => e.stopPropagation()}>
-                <button className="btn-link" onClick={() => setEditing(a)}>
-                  Edit
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+          New pet
+        </button>
+      </div>
+      {animals.length === 0 ? (
+        <div className="empty-state">No pets registered yet.</div>
+      ) : (
+        <div className="card" style={{ padding: 0 }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Species</th>
+                <th>Breed</th>
+                <th>Sex</th>
+                <th>Age</th>
+                <th>Vaccinated</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {animals.map((a) => (
+                <tr key={a._id} onClick={() => setEditing(a)}>
+                  <td>{a.name}</td>
+                  <td>{a.species}</td>
+                  <td>{a.breed}</td>
+                  <td>{a.sex}</td>
+                  <td>{a.age}</td>
+                  <td>{a.vaccinated ? 'Yes' : 'No'}</td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <button className="btn-link" onClick={() => setEditing(a)}>
+                      Edit
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {showNew && (
+        <NewAnimalModal
+          customerId={customerId}
+          onClose={() => setShowNew(false)}
+          onCreated={() => {
+            setShowNew(false);
+            onChange();
+          }}
+        />
+      )}
       {editing && (
         <EditAnimalModal
           animal={editing}

@@ -12,6 +12,7 @@ import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { UpdateCustomerStatusDto } from './dto/update-customer-status.dto';
 
 @Controller('customers')
 export class CustomersController {
@@ -53,6 +54,13 @@ export class CustomersController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateCustomerDto) {
     return this.customersService.update(id, dto);
+  }
+
+  // Staff-only (deliberately not @Public()): the public intake form's own PATCH
+  // above only ever sets status via the completeness check, never directly.
+  @Patch(':id/status')
+  updateStatus(@Param('id') id: string, @Body() dto: UpdateCustomerStatusDto) {
+    return this.customersService.updateStatus(id, dto.status);
   }
 
   @Delete(':id')

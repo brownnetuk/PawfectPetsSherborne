@@ -2,6 +2,7 @@ export type CustomerStatus = 'pending' | 'active' | 'inactive';
 export type Species = 'dog' | 'cat' | 'other';
 export type Sex = 'male' | 'female';
 export type TriState = 'yes' | 'no' | 'unsure';
+export type LeadMode = 'on_lead' | 'off_lead';
 export type ServiceType = 'boarding' | 'daycare' | 'grooming' | 'walking';
 export type BookingStatus = 'requested' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
 export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
