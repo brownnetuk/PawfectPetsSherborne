@@ -1,12 +1,13 @@
 import { Controller, Get } from '@nestjs/common';
-import { AppService } from './app.service';
+import { Public } from './auth/public.decorator';
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
-
-  @Get()
-  getHello(): string {
-    return this.appService.getHello();
+  // Public: hosting platforms (Render, uptime monitors) ping this to check
+  // the service is alive — it must not require a staff JWT.
+  @Public()
+  @Get('health')
+  health() {
+    return { status: 'ok' };
   }
 }
