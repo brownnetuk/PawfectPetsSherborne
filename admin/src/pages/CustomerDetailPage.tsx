@@ -7,6 +7,7 @@ import EditBookingModal from '../components/EditBookingModal';
 import EditCustomerModal from '../components/EditCustomerModal';
 import { PencilIcon, TrashIcon } from '../components/icons';
 import Modal from '../components/Modal';
+import AddPetChoiceModal from '../components/AddPetChoiceModal';
 import NewAnimalModal from '../components/NewAnimalModal';
 import type {
   ActivityType,
@@ -279,12 +280,13 @@ function PetsTab({
   onChange: () => void;
 }) {
   const [editing, setEditing] = useState<Animal | null>(null);
+  const [showChoice, setShowChoice] = useState(false);
   const [showNew, setShowNew] = useState(false);
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowChoice(true)}>
           New pet
         </button>
       </div>
@@ -323,6 +325,16 @@ function PetsTab({
             </tbody>
           </table>
         </div>
+      )}
+      {showChoice && (
+        <AddPetChoiceModal
+          customerId={customerId}
+          onClose={() => setShowChoice(false)}
+          onChooseManual={() => {
+            setShowChoice(false);
+            setShowNew(true);
+          }}
+        />
       )}
       {showNew && (
         <NewAnimalModal

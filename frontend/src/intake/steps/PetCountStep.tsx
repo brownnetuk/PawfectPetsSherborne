@@ -1,15 +1,22 @@
 interface Props {
   value: number;
   onChange: (value: number) => void;
+  title?: string;
+  subtitle?: string;
 }
 
 const OPTIONS = [1, 2, 3, 4, 5, 6];
 
-export default function PetCountStep({ value, onChange }: Props) {
+export default function PetCountStep({
+  value,
+  onChange,
+  title = 'How many pets?',
+  subtitle = "We'll ask for details on each one next.",
+}: Props) {
   return (
     <div>
-      <h2>How many pets?</h2>
-      <p className="subtitle">We'll ask for details on each one next.</p>
+      <h2>{title}</h2>
+      <p className="subtitle">{subtitle}</p>
       <div className="choice-group">
         {OPTIONS.map((n) => (
           <button
