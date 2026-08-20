@@ -4,9 +4,10 @@ import type { SecurityData } from '../../types';
 interface Props {
   value: SecurityData;
   onChange: (value: SecurityData) => void;
+  resuming?: boolean;
 }
 
-export default function SecurityStep({ value, onChange }: Props) {
+export default function SecurityStep({ value, onChange, resuming }: Props) {
   const set = <K extends keyof SecurityData>(key: K, v: SecurityData[K]) =>
     onChange({ ...value, [key]: v });
 
@@ -26,7 +27,11 @@ export default function SecurityStep({ value, onChange }: Props) {
         value={value.alarmInstructions ?? ''}
         onChange={(v) => set('alarmInstructions', v)}
         multiline
-        hint="Stored encrypted — only accessible to authorised staff when needed."
+        hint={
+          resuming
+            ? 'Stored encrypted — only accessible to authorised staff when needed. Leave blank to keep what you already gave us unchanged.'
+            : 'Stored encrypted — only accessible to authorised staff when needed.'
+        }
       />
       <TextField
         label="Any further information"

@@ -40,6 +40,13 @@ export class AnimalsService {
     return this.animalModel.find(filter).exec();
   }
 
+  // Minimal, non-sensitive fields only (no medical/temperament/aggression data) --
+  // backs a @Public() endpoint the intake form uses to detect "this customer
+  // already has pets on file" without exposing their full profiles.
+  findSummaryForCustomer(customerId: string): Promise<Pick<Animal, '_id' | 'name' | 'species' | 'breed'>[]> {
+    return this.animalModel.find({ customer: customerId }).select('name species breed').exec();
+  }
+
   async findOne(id: string): Promise<Animal> {
     const animal = await this.animalModel.findById(id).exec();
     if (!animal) {

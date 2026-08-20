@@ -29,6 +29,19 @@ export class AnimalsController {
     return this.animalsService.findAll(customer);
   }
 
+  // Public: lets the intake form check "does this customer already have pets on
+  // file" (to skip re-collecting them on a review/update-info pass) without the
+  // broader, staff-only findAll() above -- which would otherwise let an
+  // unauthenticated caller list every animal in the system by omitting the
+  // customer filter. Declared before the plain :id route below since it's a
+  // literal, more specific path (Nest/Express match by segment count, so there's
+  // no real ambiguity, but the order keeps intent obvious).
+  @Public()
+  @Get('for-customer/:customerId')
+  findSummaryForCustomer(@Param('customerId') customerId: string) {
+    return this.animalsService.findSummaryForCustomer(customerId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.animalsService.findOne(id);

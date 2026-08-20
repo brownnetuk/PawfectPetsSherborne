@@ -5,6 +5,10 @@ export enum CustomerStatus {
   PENDING = 'pending',
   ACTIVE = 'active',
   INACTIVE = 'inactive',
+  // Set by staff on an already-registered customer to prompt them to review and
+  // refresh their details via the same public registration link. Distinct from
+  // PENDING (a brand-new lead that's never completed registration).
+  UPDATE_INFO = 'update_info',
 }
 
 @Schema({ _id: false })

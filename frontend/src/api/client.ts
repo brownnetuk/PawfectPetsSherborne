@@ -1,4 +1,4 @@
-import type { CustomerRecord, IntakeState, PetDetails } from '../types';
+import type { AnimalSummary, CustomerRecord, IntakeState, PetDetails } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
@@ -20,6 +20,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export function fetchCustomer(id: string): Promise<CustomerRecord> {
   return request(`/customers/${id}`);
+}
+
+export function fetchAnimalSummaries(customerId: string): Promise<AnimalSummary[]> {
+  return request(`/animals/for-customer/${customerId}`);
 }
 
 export function submitCustomer(

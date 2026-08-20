@@ -10,7 +10,17 @@ export interface CustomerRecord {
   address?: string;
   telephone?: string;
   mobile?: string;
-  status: 'pending' | 'active' | 'inactive';
+  status: 'pending' | 'active' | 'inactive' | 'update_info';
+  emergencyContact?: EmergencyContactData;
+  emergencyVet?: EmergencyVetData;
+  security?: SecurityData;
+}
+
+export interface AnimalSummary {
+  _id: string;
+  name: string;
+  species: Species;
+  breed: string;
 }
 
 export interface EmergencyContactData {

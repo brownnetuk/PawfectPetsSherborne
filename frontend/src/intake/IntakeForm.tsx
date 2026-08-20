@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fetchCustomer, submitAnimal, submitCustomer } from '../api/client';
-import type { IntakeState, PetDetails } from '../types';
+import { fetchAnimalSummaries, fetchCustomer, submitAnimal, submitCustomer } from '../api/client';
+import type { AnimalSummary, IntakeState, PetDetails } from '../types';
 import ProgressBar from './ProgressBar';
 import WelcomeStep from './steps/WelcomeStep';
 import ClientDetailsStep from './steps/ClientDetailsStep';
@@ -54,6 +54,7 @@ type LoadState = 'loading' | 'ready' | 'not-found';
 export default function IntakeForm({ customerId }: { customerId: string | null }) {
   const [state, setState] = useState<IntakeState>(() => initialState(customerId));
   const [loadState, setLoadState] = useState<LoadState>(customerId ? 'loading' : 'ready');
+  const [existingPets, setExistingPets] = useState<AnimalSummary[]>([]);
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -61,8 +62,8 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
 
   useEffect(() => {
     if (!customerId) return;
-    fetchCustomer(customerId)
-      .then((customer) => {
+    Promise.all([fetchCustomer(customerId), fetchAnimalSummaries(customerId)])
+      .then(([customer, animals]) => {
         setState((s) => ({
           ...s,
           client: {
@@ -72,37 +73,60 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
             mobile: customer.mobile ?? '',
             email: customer.email,
           },
+          emergencyContact: customer.emergencyContact
+            ? { ...customer.emergencyContact }
+            : s.emergencyContact,
+          emergencyVet: customer.emergencyVet ? { ...customer.emergencyVet } : s.emergencyVet,
+          security: customer.security
+            ? {
+                keysProvided: customer.security.keysProvided,
+                // Never prefilled: the backend only exposes the encrypted
+                // ciphertext to authorised staff, not this public endpoint.
+                // Left blank, the backend's PATCH leaves the existing value
+                // untouched, so there's no need to round-trip it here.
+                alarmInstructions: '',
+                furtherInformation: customer.security.furtherInformation ?? '',
+              }
+            : s.security,
         }));
+        setExistingPets(animals);
         setLoadState('ready');
       })
       .catch(() => setLoadState('not-found'));
   }, [customerId]);
 
-  const petSteps = state.petCount;
-  const totalSteps = 7 + petSteps;
-  const securityStepIndex = 5 + petSteps;
+  // A customer who already has pets on file reviews/updates everything else
+  // here, but pets themselves are skipped entirely rather than re-collected --
+  // resubmitting would create duplicate Animal records (submitAnimal always
+  // POSTs), not update the existing ones. Adding another pet or editing one
+  // already on file goes through the separate, dedicated flows for that.
+  const skipPets = existingPets.length > 0;
+  const petSteps = skipPets ? 0 : state.petCount;
+  const securityStepIndex = skipPets ? 4 : 5 + petSteps;
   const agreementStepIndex = securityStepIndex + 1;
+  const totalSteps = agreementStepIndex + 1;
 
   useEffect(() => {
+    if (skipPets) return;
     setState((s) => {
       const pets = [...s.pets];
       while (pets.length < s.petCount) pets.push(emptyPet());
       while (pets.length > s.petCount) pets.pop();
       return { ...s, pets };
     });
-  }, [state.petCount]);
+  }, [state.petCount, skipPets]);
 
   const stepLabel = useMemo(() => {
     if (step === 0) return 'Welcome';
     if (step === 1) return 'Your details';
     if (step === 2) return 'Emergency contact';
     if (step === 3) return 'Emergency vet';
-    if (step === 4) return 'Pets';
-    if (step >= 5 && step < securityStepIndex) return `Pet ${step - 4} of ${petSteps}`;
+    if (!skipPets && step === 4) return 'Pets';
+    if (!skipPets && step >= 5 && step < securityStepIndex) return `Pet ${step - 4} of ${petSteps}`;
     if (step === securityStepIndex) return 'Security';
     if (step === agreementStepIndex) return 'Agreement';
     return '';
-  }, [step, petSteps, securityStepIndex, agreementStepIndex]);
+  }, [step, skipPets, petSteps, securityStepIndex, agreementStepIndex]);
 
   function validateStep(): string | null {
     if (step === 1) {
@@ -121,7 +145,7 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
       if (!v.practiceName || !v.address || !v.telephone) return 'Please fill in all required fields.';
       if (!v.alternativeVetAuthorised) return 'Please acknowledge alternative vet care authorisation.';
     }
-    if (step >= 5 && step < securityStepIndex) {
+    if (!skipPets && step >= 5 && step < securityStepIndex) {
       const pet = state.pets[step - 5];
       if (!pet) return null;
       if (!pet.breed || !pet.name || !pet.sex || !pet.age) return 'Please fill in all required fields.';
@@ -172,8 +196,10 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
     setError(null);
     try {
       const customer = await submitCustomer(state);
-      for (const pet of state.pets) {
-        await submitAnimal(customer._id, pet);
+      if (!skipPets) {
+        for (const pet of state.pets) {
+          await submitAnimal(customer._id, pet);
+        }
       }
       setSubmitted(true);
     } catch (err) {
@@ -212,7 +238,9 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
       <div className="card">
         {error && <div className="error-banner">{error}</div>}
 
-        {step === 0 && <WelcomeStep name={state.client.name} isLead={!!customerId} />}
+        {step === 0 && (
+          <WelcomeStep name={state.client.name} isLead={!!customerId} existingPets={existingPets} />
+        )}
         {step === 1 && (
           <ClientDetailsStep value={state.client} onChange={(client) => setState((s) => ({ ...s, client }))} />
         )}
@@ -228,13 +256,13 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
             onChange={(emergencyVet) => setState((s) => ({ ...s, emergencyVet }))}
           />
         )}
-        {step === 4 && (
+        {!skipPets && step === 4 && (
           <PetCountStep
             value={state.petCount}
             onChange={(petCount) => setState((s) => ({ ...s, petCount }))}
           />
         )}
-        {step >= 5 && step < securityStepIndex && state.pets[step - 5] && (
+        {!skipPets && step >= 5 && step < securityStepIndex && state.pets[step - 5] && (
           <PetDetailsStep
             index={step - 5}
             total={petSteps}
@@ -252,6 +280,7 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
           <SecurityStep
             value={state.security}
             onChange={(security) => setState((s) => ({ ...s, security }))}
+            resuming={skipPets || !!customerId}
           />
         )}
         {step === agreementStepIndex && (

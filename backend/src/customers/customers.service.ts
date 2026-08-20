@@ -83,7 +83,13 @@ export class CustomersService {
   }
 
   async findOne(id: string): Promise<Customer> {
-    const customer = await this.customerModel.findById(id).exec();
+    // This also serves the public intake form (GET /customers/:id, @Public()),
+    // which has no legitimate use for the encrypted ciphertext -- decryption only
+    // ever happens via the dedicated staff-only getAlarmInstructions() below.
+    const customer = await this.customerModel
+      .findById(id)
+      .select('-security.alarmInstructionsEncrypted')
+      .exec();
     if (!customer) {
       throw new NotFoundException(`Customer ${id} not found`);
     }
@@ -150,7 +156,12 @@ export class CustomersService {
 
   /** Decrypts alarm instructions for authorised operational use (e.g. dispatching staff to the property). */
   async getAlarmInstructions(id: string): Promise<string | null> {
-    const customer = await this.findOne(id);
+    // Queries the model directly rather than via findOne(), which deliberately
+    // excludes this ciphertext from its (also publicly-reachable) result.
+    const customer = await this.customerModel.findById(id).exec();
+    if (!customer) {
+      throw new NotFoundException(`Customer ${id} not found`);
+    }
     const ciphertext = customer.security?.alarmInstructionsEncrypted;
     return ciphertext ? this.encryptionService.decrypt(ciphertext) : null;
   }

@@ -22,7 +22,12 @@ import { useAuth } from '../auth/AuthContext';
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
 
-const CUSTOMER_STATUSES: CustomerStatus[] = ['pending', 'active', 'inactive'];
+const CUSTOMER_STATUSES: CustomerStatus[] = ['pending', 'active', 'inactive', 'update_info'];
+
+function statusLabel(status: string): string {
+  const words = status.split('_');
+  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
 
 type Tab = 'overview' | 'pets' | 'bookings' | 'invoices' | 'activity';
 
@@ -95,16 +100,20 @@ export default function CustomerDetailPage() {
             >
               {CUSTOMER_STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {s.charAt(0).toUpperCase() + s.slice(1)}
+                  {statusLabel(s)}
                 </option>
               ))}
             </select>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          {customer.status === 'pending' && (
+          {(customer.status === 'pending' || customer.status === 'update_info') && (
             <button className="btn btn-secondary" onClick={copyLink}>
-              {copied ? 'Copied!' : 'Copy registration link'}
+              {copied
+                ? 'Copied!'
+                : customer.status === 'update_info'
+                  ? 'Copy update link'
+                  : 'Copy registration link'}
             </button>
           )}
           <button className="btn btn-secondary" onClick={() => setShowEdit(true)}>

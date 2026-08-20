@@ -1,4 +1,4 @@
-export type CustomerStatus = 'pending' | 'active' | 'inactive';
+export type CustomerStatus = 'pending' | 'active' | 'inactive' | 'update_info';
 export type Species = 'dog' | 'cat' | 'other';
 export type Sex = 'male' | 'female';
 export type TriState = 'yes' | 'no' | 'unsure';
