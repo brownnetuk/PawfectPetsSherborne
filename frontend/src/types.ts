@@ -16,11 +16,28 @@ export interface CustomerRecord {
   security?: SecurityData;
 }
 
-export interface AnimalSummary {
+export interface AnimalRecord {
   _id: string;
-  name: string;
   species: Species;
   breed: string;
+  name: string;
+  sex: Sex;
+  age: number;
+  vaccinated: boolean;
+  vaccineExpiryDate?: string;
+  colourMarkings?: string;
+  microchipNumber?: string;
+  hasCollar: boolean;
+  temperamentNotes?: string;
+  aggressionToPeople: boolean;
+  aggressionToPeopleDetails?: string;
+  aggressionToOtherAnimals: boolean;
+  aggressionToOtherAnimalsDetails?: string;
+  travelsWellInCar: TriState;
+  chasesLivestock: TriState;
+  allergies: AllergyInfo;
+  medication: MedicationInfo;
+  offLeadConsent?: OffLeadConsentData;
 }
 
 export interface EmergencyContactData {
@@ -76,6 +93,7 @@ export interface OffLeadConsentData {
 
 export interface PetDetails {
   key: string; // client-side only, for React list keys
+  _id?: string; // set when this is an existing animal being reviewed/edited, not a new one
   species: Species;
   breed: string;
   name: string;

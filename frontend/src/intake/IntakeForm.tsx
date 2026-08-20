@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fetchAnimalSummaries, fetchCustomer, submitAnimal, submitCustomer } from '../api/client';
-import type { AnimalSummary, IntakeState, PetDetails } from '../types';
+import {
+  fetchAnimalsForCustomer,
+  fetchCustomer,
+  submitAnimal,
+  submitCustomer,
+  updateAnimal,
+} from '../api/client';
+import type { AnimalRecord, IntakeState, PetDetails } from '../types';
 import ProgressBar from './ProgressBar';
 import WelcomeStep from './steps/WelcomeStep';
 import ClientDetailsStep from './steps/ClientDetailsStep';
@@ -36,12 +42,46 @@ function emptyPet(): PetDetails {
   };
 }
 
+function petFromRecord(a: AnimalRecord): PetDetails {
+  return {
+    key: a._id,
+    _id: a._id,
+    species: a.species,
+    breed: a.breed,
+    name: a.name,
+    sex: a.sex,
+    age: String(a.age),
+    vaccinated: a.vaccinated,
+    vaccineExpiryDate: a.vaccineExpiryDate ? a.vaccineExpiryDate.slice(0, 10) : '',
+    colourMarkings: a.colourMarkings ?? '',
+    microchipNumber: a.microchipNumber ?? '',
+    hasCollar: a.hasCollar,
+    temperamentNotes: a.temperamentNotes ?? '',
+    aggressionToPeople: a.aggressionToPeople,
+    aggressionToPeopleDetails: a.aggressionToPeopleDetails ?? '',
+    aggressionToOtherAnimals: a.aggressionToOtherAnimals,
+    aggressionToOtherAnimalsDetails: a.aggressionToOtherAnimalsDetails ?? '',
+    travelsWellInCar: a.travelsWellInCar,
+    chasesLivestock: a.chasesLivestock,
+    allergies: { status: a.allergies.status, details: a.allergies.details ?? '' },
+    medication: { onMedication: a.medication.onMedication, details: a.medication.details ?? '' },
+    // Only mode/signature -- the stored record also carries acknowledgedAt/date
+    // (set server-side when consent was first given), which the update DTO
+    // rejects as unexpected properties if resubmitted verbatim.
+    offLeadConsent: a.offLeadConsent
+      ? { mode: a.offLeadConsent.mode, signature: a.offLeadConsent.signature }
+      : undefined,
+  };
+}
+
 function initialState(customerId: string | null): IntakeState {
   return {
     customerId,
     client: { name: '', address: '', telephone: '', mobile: '', email: '' },
     emergencyContact: { sameAsClient: false },
     emergencyVet: { practiceName: '', address: '', telephone: '', email: '', alternativeVetAuthorised: false },
+    // Once existing pets load, this becomes "how many *additional* pets" rather
+    // than a total -- see existingCount below.
     petCount: 1,
     pets: [emptyPet()],
     security: { keysProvided: false, alarmInstructions: '', furtherInformation: '' },
@@ -54,7 +94,9 @@ type LoadState = 'loading' | 'ready' | 'not-found';
 export default function IntakeForm({ customerId }: { customerId: string | null }) {
   const [state, setState] = useState<IntakeState>(() => initialState(customerId));
   const [loadState, setLoadState] = useState<LoadState>(customerId ? 'loading' : 'ready');
-  const [existingPets, setExistingPets] = useState<AnimalSummary[]>([]);
+  // How many of state.pets (from the front) are existing animals being
+  // reviewed/edited, vs. new ones appended after the "any more pets" step.
+  const [existingCount, setExistingCount] = useState(0);
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -62,7 +104,7 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
 
   useEffect(() => {
     if (!customerId) return;
-    Promise.all([fetchCustomer(customerId), fetchAnimalSummaries(customerId)])
+    Promise.all([fetchCustomer(customerId), fetchAnimalsForCustomer(customerId)])
       .then(([customer, animals]) => {
         setState((s) => ({
           ...s,
@@ -88,45 +130,58 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
                 furtherInformation: customer.security.furtherInformation ?? '',
               }
             : s.security,
+          petCount: animals.length > 0 ? 0 : 1,
+          pets: animals.length > 0 ? animals.map(petFromRecord) : s.pets,
         }));
-        setExistingPets(animals);
+        setExistingCount(animals.length);
         setLoadState('ready');
       })
       .catch(() => setLoadState('not-found'));
   }, [customerId]);
 
-  // A customer who already has pets on file reviews/updates everything else
-  // here, but pets themselves are skipped entirely rather than re-collected --
-  // resubmitting would create duplicate Animal records (submitAnimal always
-  // POSTs), not update the existing ones. Adding another pet or editing one
-  // already on file goes through the separate, dedicated flows for that.
-  const skipPets = existingPets.length > 0;
-  const petSteps = skipPets ? 0 : state.petCount;
-  const securityStepIndex = skipPets ? 4 : 5 + petSteps;
+  // step 4..(countStepIndex-1): existing pets, reviewed/edited in place.
+  // countStepIndex: "any more pets to add?" (or the original "how many pets?"
+  // when there are no existing ones to review first).
+  // (countStepIndex+1)..securityStepIndex-1: new pets, one step per additional pet.
+  const countStepIndex = 4 + existingCount;
+  const additionalCount = state.petCount;
+  const securityStepIndex = countStepIndex + additionalCount + 1;
   const agreementStepIndex = securityStepIndex + 1;
   const totalSteps = agreementStepIndex + 1;
 
+  function petIndexForStep(s: number): number | null {
+    if (s >= 4 && s < countStepIndex) return s - 4;
+    if (s > countStepIndex && s < securityStepIndex) return existingCount + (s - countStepIndex - 1);
+    return null;
+  }
+
+  // Grows/shrinks only the *new*-pet tail of state.pets -- the existing-pet
+  // prefix (set once when animals load, above) is never touched here.
   useEffect(() => {
-    if (skipPets) return;
     setState((s) => {
+      const targetLength = existingCount + additionalCount;
       const pets = [...s.pets];
-      while (pets.length < s.petCount) pets.push(emptyPet());
-      while (pets.length > s.petCount) pets.pop();
+      while (pets.length < targetLength) pets.push(emptyPet());
+      while (pets.length > targetLength) pets.pop();
       return { ...s, pets };
     });
-  }, [state.petCount, skipPets]);
+  }, [additionalCount, existingCount]);
 
   const stepLabel = useMemo(() => {
     if (step === 0) return 'Welcome';
     if (step === 1) return 'Your details';
     if (step === 2) return 'Emergency contact';
     if (step === 3) return 'Emergency vet';
-    if (!skipPets && step === 4) return 'Pets';
-    if (!skipPets && step >= 5 && step < securityStepIndex) return `Pet ${step - 4} of ${petSteps}`;
+    if (step === countStepIndex) return existingCount > 0 ? 'Any more pets?' : 'Pets';
+    const petIndex = petIndexForStep(step);
+    if (petIndex !== null) {
+      const total = existingCount + additionalCount;
+      return `Pet ${petIndex + 1} of ${total}`;
+    }
     if (step === securityStepIndex) return 'Security';
     if (step === agreementStepIndex) return 'Agreement';
     return '';
-  }, [step, skipPets, petSteps, securityStepIndex, agreementStepIndex]);
+  }, [step, countStepIndex, existingCount, additionalCount, securityStepIndex, agreementStepIndex]);
 
   function validateStep(): string | null {
     if (step === 1) {
@@ -145,8 +200,9 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
       if (!v.practiceName || !v.address || !v.telephone) return 'Please fill in all required fields.';
       if (!v.alternativeVetAuthorised) return 'Please acknowledge alternative vet care authorisation.';
     }
-    if (!skipPets && step >= 5 && step < securityStepIndex) {
-      const pet = state.pets[step - 5];
+    const petIndex = petIndexForStep(step);
+    if (petIndex !== null) {
+      const pet = state.pets[petIndex];
       if (!pet) return null;
       if (!pet.breed || !pet.name || !pet.sex || !pet.age) return 'Please fill in all required fields.';
       if (pet.vaccinated === null) return 'Please let us know if this pet is vaccinated.';
@@ -196,8 +252,10 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
     setError(null);
     try {
       const customer = await submitCustomer(state);
-      if (!skipPets) {
-        for (const pet of state.pets) {
+      for (const pet of state.pets) {
+        if (pet._id) {
+          await updateAnimal(pet._id, customer._id, pet);
+        } else {
           await submitAnimal(customer._id, pet);
         }
       }
@@ -232,6 +290,8 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
     return <ThankYouStep name={state.client.name} />;
   }
 
+  const petIndex = petIndexForStep(step);
+
   return (
     <>
       <ProgressBar current={step + 1} total={totalSteps} label={stepLabel} />
@@ -239,7 +299,7 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
         {error && <div className="error-banner">{error}</div>}
 
         {step === 0 && (
-          <WelcomeStep name={state.client.name} isLead={!!customerId} existingPets={existingPets} />
+          <WelcomeStep name={state.client.name} isLead={!!customerId} existingPetCount={existingCount} />
         )}
         {step === 1 && (
           <ClientDetailsStep value={state.client} onChange={(client) => setState((s) => ({ ...s, client }))} />
@@ -256,21 +316,28 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
             onChange={(emergencyVet) => setState((s) => ({ ...s, emergencyVet }))}
           />
         )}
-        {!skipPets && step === 4 && (
+        {step === countStepIndex && (
           <PetCountStep
             value={state.petCount}
             onChange={(petCount) => setState((s) => ({ ...s, petCount }))}
+            allowZero={existingCount > 0}
+            title={existingCount > 0 ? 'Any other pets to add?' : undefined}
+            subtitle={
+              existingCount > 0
+                ? "Let us know how many more you'd like to register — choose None if that's everything."
+                : undefined
+            }
           />
         )}
-        {!skipPets && step >= 5 && step < securityStepIndex && state.pets[step - 5] && (
+        {petIndex !== null && state.pets[petIndex] && (
           <PetDetailsStep
-            index={step - 5}
-            total={petSteps}
-            value={state.pets[step - 5]}
+            index={petIndex}
+            total={existingCount + additionalCount}
+            value={state.pets[petIndex]}
             onChange={(pet) =>
               setState((s) => {
                 const pets = [...s.pets];
-                pets[step - 5] = pet;
+                pets[petIndex] = pet;
                 return { ...s, pets };
               })
             }
@@ -280,7 +347,7 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
           <SecurityStep
             value={state.security}
             onChange={(security) => setState((s) => ({ ...s, security }))}
-            resuming={skipPets || !!customerId}
+            resuming={!!customerId}
           />
         )}
         {step === agreementStepIndex && (

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreateAnimalDto } from './dto/create-animal.dto';
+import { PublicUpdateAnimalDto } from './dto/public-update-animal.dto';
 import { UpdateAnimalDto } from './dto/update-animal.dto';
 import { Animal, Species } from './schemas/animal.schema';
 
@@ -40,13 +41,6 @@ export class AnimalsService {
     return this.animalModel.find(filter).exec();
   }
 
-  // Minimal, non-sensitive fields only (no medical/temperament/aggression data) --
-  // backs a @Public() endpoint the intake form uses to detect "this customer
-  // already has pets on file" without exposing their full profiles.
-  findSummaryForCustomer(customerId: string): Promise<Pick<Animal, '_id' | 'name' | 'species' | 'breed'>[]> {
-    return this.animalModel.find({ customer: customerId }).select('name species breed').exec();
-  }
-
   async findOne(id: string): Promise<Animal> {
     const animal = await this.animalModel.findById(id).exec();
     if (!animal) {
@@ -56,6 +50,24 @@ export class AnimalsService {
   }
 
   async update(id: string, dto: UpdateAnimalDto): Promise<Animal> {
+    this.validateOffLeadConsent(dto, false);
+    const animal = await this.animalModel.findByIdAndUpdate(id, dto, { new: true }).exec();
+    if (!animal) {
+      throw new NotFoundException(`Animal ${id} not found`);
+    }
+    return animal;
+  }
+
+  // Backs the public, customer-scoped update route: the intake form's "review my
+  // existing pets" flow, not staff editing (that goes through the plain update()
+  // above). Ownership is checked against the animal's own `customer` field rather
+  // than trusted from the request -- PublicUpdateAnimalDto has no `customer` field
+  // at all, so there's nothing here for a caller to reassign.
+  async updateForCustomer(id: string, customerId: string, dto: PublicUpdateAnimalDto): Promise<Animal> {
+    const existing = await this.animalModel.findById(id).exec();
+    if (!existing || existing.customer.toString() !== customerId) {
+      throw new NotFoundException(`Animal ${id} not found`);
+    }
     this.validateOffLeadConsent(dto, false);
     const animal = await this.animalModel.findByIdAndUpdate(id, dto, { new: true }).exec();
     if (!animal) {

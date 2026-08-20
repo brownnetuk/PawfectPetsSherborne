@@ -1,4 +1,4 @@
-import type { AnimalSummary, CustomerRecord, IntakeState, PetDetails } from '../types';
+import type { AnimalRecord, CustomerRecord, IntakeState, PetDetails } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
@@ -22,7 +22,7 @@ export function fetchCustomer(id: string): Promise<CustomerRecord> {
   return request(`/customers/${id}`);
 }
 
-export function fetchAnimalSummaries(customerId: string): Promise<AnimalSummary[]> {
+export function fetchAnimalsForCustomer(customerId: string): Promise<AnimalRecord[]> {
   return request(`/animals/for-customer/${customerId}`);
 }
 
@@ -54,9 +54,8 @@ export function submitCustomer(
     : request('/customers', { method: 'POST', body: JSON.stringify(payload) });
 }
 
-export function submitAnimal(customerId: string, pet: PetDetails) {
-  const payload = {
-    customer: customerId,
+function animalPayload(pet: PetDetails) {
+  return {
     species: pet.species,
     breed: pet.breed,
     name: pet.name,
@@ -80,5 +79,18 @@ export function submitAnimal(customerId: string, pet: PetDetails) {
     medication: pet.medication,
     offLeadConsent: pet.species === 'dog' ? pet.offLeadConsent : undefined,
   };
-  return request('/animals', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function submitAnimal(customerId: string, pet: PetDetails) {
+  return request('/animals', {
+    method: 'POST',
+    body: JSON.stringify({ customer: customerId, ...animalPayload(pet) }),
+  });
+}
+
+export function updateAnimal(id: string, customerId: string, pet: PetDetails) {
+  return request(`/animals/${id}/for-customer/${customerId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(animalPayload(pet)),
+  });
 }

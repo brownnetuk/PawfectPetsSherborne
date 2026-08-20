@@ -3,6 +3,7 @@ interface Props {
   onChange: (value: number) => void;
   title?: string;
   subtitle?: string;
+  allowZero?: boolean;
 }
 
 const OPTIONS = [1, 2, 3, 4, 5, 6];
@@ -12,20 +13,22 @@ export default function PetCountStep({
   onChange,
   title = 'How many pets?',
   subtitle = "We'll ask for details on each one next.",
+  allowZero,
 }: Props) {
+  const options = allowZero ? [0, ...OPTIONS] : OPTIONS;
   return (
     <div>
       <h2>{title}</h2>
       <p className="subtitle">{subtitle}</p>
       <div className="choice-group">
-        {OPTIONS.map((n) => (
+        {options.map((n) => (
           <button
             key={n}
             type="button"
             className={`choice-btn${value === n ? ' active' : ''}`}
             onClick={() => onChange(n)}
           >
-            {n}
+            {n === 0 ? 'None' : n}
           </button>
         ))}
       </div>

@@ -1,12 +1,10 @@
-import type { AnimalSummary } from '../../types';
-
 interface Props {
   name: string;
   isLead: boolean;
-  existingPets?: AnimalSummary[];
+  existingPetCount?: number;
 }
 
-export default function WelcomeStep({ name, isLead, existingPets = [] }: Props) {
+export default function WelcomeStep({ name, isLead, existingPetCount = 0 }: Props) {
   return (
     <div>
       <h1>Welcome{name ? `, ${name}` : ''}</h1>
@@ -21,11 +19,11 @@ export default function WelcomeStep({ name, isLead, existingPets = [] }: Props) 
           registration — just fill in your details as you go.
         </p>
       )}
-      {existingPets.length > 0 && (
+      {existingPetCount > 0 && (
         <p className="field-hint">
-          You have {existingPets.length} pet{existingPets.length > 1 ? 's' : ''} on file (
-          {existingPets.map((p) => p.name).join(', ')}) — we'll skip past re-entering them. To add
-          another pet or update one already on file, get in touch with us directly.
+          You have {existingPetCount} pet{existingPetCount > 1 ? 's' : ''} on file — we'll show
+          you their details to review and update, and ask afterwards if you'd like to add any
+          more.
         </p>
       )}
     </div>
