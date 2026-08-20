@@ -83,23 +83,26 @@ export class Customer extends Document {
   @Prop({ required: true })
   name: string;
 
-  @Prop({ required: true })
-  address: string;
+  // Optional at the schema level so staff can pre-create a minimal lead
+  // (name + email only); the public intake form fills in the rest and
+  // CustomersService enforces completeness before flipping status to active.
+  @Prop()
+  address?: string;
 
   @Prop()
   telephone?: string;
 
-  @Prop({ required: true })
-  mobile: string;
+  @Prop()
+  mobile?: string;
 
   @Prop({ required: true })
   email: string;
 
-  @Prop({ type: EmergencyContactSchema, required: true })
-  emergencyContact: EmergencyContact;
+  @Prop({ type: EmergencyContactSchema })
+  emergencyContact?: EmergencyContact;
 
-  @Prop({ type: EmergencyVetSchema, required: true })
-  emergencyVet: EmergencyVet;
+  @Prop({ type: EmergencyVetSchema })
+  emergencyVet?: EmergencyVet;
 
   @Prop({ type: SecurityArrangementsSchema, default: {} })
   security: SecurityArrangements;

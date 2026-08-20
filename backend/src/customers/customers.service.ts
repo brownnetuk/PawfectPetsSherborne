@@ -2,7 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { EncryptionService } from '../common/encryption/encryption.service';
-import { CreateCustomerDto } from './dto/create-customer.dto';
+import { CreateCustomerDto, EmergencyContactDto, EmergencyVetDto } from './dto/create-customer.dto';
+import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { Customer, CustomerStatus } from './schemas/customer.schema';
 
@@ -13,8 +14,7 @@ export class CustomersService {
     private readonly encryptionService: EncryptionService,
   ) {}
 
-  private validateEmergencyContact(dto: CreateCustomerDto) {
-    const { emergencyContact } = dto;
+  private validateEmergencyContact(emergencyContact: EmergencyContactDto) {
     if (
       !emergencyContact.sameAsClient &&
       !emergencyContact.telephone &&
@@ -31,6 +31,12 @@ export class CustomersService {
     }
   }
 
+  private validateEmergencyVet(emergencyVet: EmergencyVetDto) {
+    if (!emergencyVet.alternativeVetAuthorised) {
+      throw new BadRequestException('Alternative vet care authorisation must be acknowledged');
+    }
+  }
+
   private encryptSecurity(dto: CreateCustomerDto) {
     const { security } = dto;
     if (!security) return undefined;
@@ -44,12 +50,8 @@ export class CustomersService {
   }
 
   async create(dto: CreateCustomerDto): Promise<Customer> {
-    this.validateEmergencyContact(dto);
-    if (!dto.emergencyVet.alternativeVetAuthorised) {
-      throw new BadRequestException(
-        'Alternative vet care authorisation must be acknowledged',
-      );
-    }
+    this.validateEmergencyContact(dto.emergencyContact);
+    this.validateEmergencyVet(dto.emergencyVet);
 
     const created = new this.customerModel({
       ...dto,
@@ -58,6 +60,16 @@ export class CustomersService {
         ? { ...dto.agreement, signedAt: new Date(), date: new Date() }
         : undefined,
       status: CustomerStatus.ACTIVE,
+    });
+    return created.save();
+  }
+
+  /** Staff pre-create a minimal record; the public intake form link points at its id. */
+  createLead(dto: CreateLeadDto): Promise<Customer> {
+    const created = new this.customerModel({
+      name: dto.name,
+      email: dto.email,
+      status: CustomerStatus.PENDING,
     });
     return created.save();
   }
@@ -75,10 +87,24 @@ export class CustomersService {
   }
 
   async update(id: string, dto: UpdateCustomerDto): Promise<Customer> {
+    if (dto.emergencyContact) {
+      this.validateEmergencyContact(dto.emergencyContact);
+    }
+    if (dto.emergencyVet) {
+      this.validateEmergencyVet(dto.emergencyVet);
+    }
+
     const update: Record<string, unknown> = { ...dto };
     if (dto.security) {
       update.security = this.encryptSecurity(dto as CreateCustomerDto);
     }
+    // A signed agreement means the public intake form is submitting the completed
+    // record (whether it started as a staff-created lead or a fresh submission).
+    if (dto.agreement?.signedName) {
+      update.agreement = { ...dto.agreement, signedAt: new Date(), date: new Date() };
+      update.status = CustomerStatus.ACTIVE;
+    }
+
     const customer = await this.customerModel
       .findByIdAndUpdate(id, update, { new: true })
       .exec();

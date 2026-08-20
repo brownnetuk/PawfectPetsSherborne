@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
+import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 
 @Controller('customers')
@@ -18,6 +19,11 @@ export class CustomersController {
   @Post()
   create(@Body() dto: CreateCustomerDto) {
     return this.customersService.create(dto);
+  }
+
+  @Post('leads')
+  createLead(@Body() dto: CreateLeadDto) {
+    return this.customersService.createLead(dto);
   }
 
   @Get()
