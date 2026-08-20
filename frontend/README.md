@@ -37,11 +37,36 @@ send the customer a link in the shape:
 https://<this-app>/intake/<customerId>
 ```
 
-Visiting that link fetches the record and pre-fills screen 1 (name/email) per the spec — the
-customer never re-enters what staff already captured. If the link is missing or doesn't resolve,
-the form still works standalone: it falls back to a fresh registration that `POST`s a brand new
-`Customer` on submit instead of `PATCH`ing an existing one. That fallback exists because there's
-no staff-facing UI yet to generate/send these links — a reasonable stopgap, not a hidden feature.
+Visiting that link fetches the record and pre-fills the whole form — client details, emergency
+contact, emergency vet, and security (see below) — the customer never re-enters what staff already
+captured. If the link is missing or doesn't resolve, the form still works standalone: it falls
+back to a fresh registration that `POST`s a brand new `Customer` on submit instead of `PATCH`ing
+an existing one.
+
+## Reviewing / updating an existing customer
+
+The same `/intake/<customerId>` link also serves a second purpose: staff set a customer's status
+to "Update info" (in the admin app) to prompt them to review and refresh their own details — the
+form behaves the same way whether the customer is `pending` or `update_info`, since either way the
+goal is "fill in/confirm everything below," and submitting always flips status to `active`
+(existing backend behaviour, unrelated to this).
+
+A few things only make sense once you know a customer can already have real data on file:
+
+- **Alarm instructions are never pre-filled.** `GET /customers/:id` (this is a public,
+  unauthenticated route) doesn't return the encrypted ciphertext at all, let alone the plaintext —
+  decryption only ever happens through a separate staff-only endpoint. The field hint says "leave
+  blank to keep what you already gave us unchanged," which is true: the backend's `PATCH` only
+  touches `alarmInstructionsEncrypted` when the submitted value is non-empty.
+- **Pets are skipped entirely if the customer already has any.** `IntakeForm.tsx` checks
+  `GET /animals/for-customer/:customerId` (also public, but scoped to that one customer and
+  limited to name/species/breed — no medical or temperament data) after loading the customer. If
+  that comes back non-empty, the pet-count and pet-detail steps are removed from the wizard
+  outright, and submit never calls `POST /animals`. This isn't an oversight — submitting always
+  creates new `Animal` records, so re-running the pet steps for a customer who already has pets
+  would duplicate them rather than update them. The Welcome screen tells the customer how many
+  pets are already on file and points them elsewhere (the [add-a-pet
+  link](#add-a-pet-link) or contacting staff) to add or change one.
 
 ## Add a pet link
 

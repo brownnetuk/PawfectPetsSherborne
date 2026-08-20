@@ -49,9 +49,14 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   client/emergency/vet/security fields; "Edit" on a pet row covers its full profile. Off-lead
   consent is deliberately read-only in the pet edit form — it's a customer-signed acknowledgment
   from the intake form, not something staff overwrite from here. A status dropdown next to the
-  overview badge moves a customer between pending/active/inactive via a staff-only
+  overview badge moves a customer between pending/active/inactive/update_info via a staff-only
   `PATCH /customers/:id/status`, kept separate from the customer PATCH the public intake form
-  itself uses. "New pet" on the Pets tab first asks staff to choose between two paths: "Add
+  itself uses. Setting a customer to "Update info" (rather than "Pending") is how staff prompt an
+  already-registered customer to review and refresh their details — "Copy registration link" (it
+  reads "Copy update link" for this status) hands you the same `VITE_INTAKE_URL/intake/<id>` link
+  as a brand-new lead would get, but the intake form behaves differently once it sees the customer
+  already has data on file: see [`frontend`](../frontend/README.md#reviewing--updating-an-existing-customer).
+  "New pet" on the Pets tab first asks staff to choose between two paths: "Add
   manually" opens a form that registers the pet directly (`POST /animals`, the same endpoint the
   intake form uses) — it does collect off-lead consent for dogs, since the endpoint requires it,
   but is explicit that this should only be used when the customer has confirmed consent with
