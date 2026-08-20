@@ -25,7 +25,10 @@ export class CrmService {
   }
 
   async findOne(id: string): Promise<CrmActivity> {
-    const activity = await this.activityModel.findById(id).exec();
+    const activity = await this.activityModel
+      .findById(id)
+      .populate('customer', 'name email')
+      .exec();
     if (!activity) {
       throw new NotFoundException(`CRM activity ${id} not found`);
     }
@@ -33,7 +36,10 @@ export class CrmService {
   }
 
   async update(id: string, dto: UpdateCrmActivityDto): Promise<CrmActivity> {
-    const activity = await this.activityModel.findByIdAndUpdate(id, dto, { new: true }).exec();
+    const activity = await this.activityModel
+      .findByIdAndUpdate(id, dto, { new: true })
+      .populate('customer', 'name email')
+      .exec();
     if (!activity) {
       throw new NotFoundException(`CRM activity ${id} not found`);
     }

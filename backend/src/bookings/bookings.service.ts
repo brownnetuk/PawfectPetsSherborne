@@ -36,7 +36,11 @@ export class BookingsService {
   }
 
   async update(id: string, dto: UpdateBookingDto): Promise<Booking> {
-    const booking = await this.bookingModel.findByIdAndUpdate(id, dto, { new: true }).exec();
+    const booking = await this.bookingModel
+      .findByIdAndUpdate(id, dto, { new: true })
+      .populate('animals')
+      .populate('customer', 'name email')
+      .exec();
     if (!booking) {
       throw new NotFoundException(`Booking ${id} not found`);
     }

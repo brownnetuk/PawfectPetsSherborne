@@ -61,7 +61,10 @@ export class InvoicesService {
     if (dto.status === InvoiceStatus.PAID) {
       update.paidAt = new Date();
     }
-    const invoice = await this.invoiceModel.findByIdAndUpdate(id, update, { new: true }).exec();
+    const invoice = await this.invoiceModel
+      .findByIdAndUpdate(id, update, { new: true })
+      .populate('customer', 'name email')
+      .exec();
     if (!invoice) {
       throw new NotFoundException(`Invoice ${id} not found`);
     }
