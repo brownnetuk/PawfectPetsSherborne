@@ -168,24 +168,14 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
           <textarea value={temperamentNotes} onChange={(e) => setTemperamentNotes(e.target.value)} />
         </div>
 
-        <div className="field-row">
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
-            <input
-              type="checkbox"
-              checked={aggressionToPeople}
-              onChange={(e) => setAggressionToPeople(e.target.checked)}
-            />
-            Aggression to people
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
-            <input
-              type="checkbox"
-              checked={aggressionToOtherAnimals}
-              onChange={(e) => setAggressionToOtherAnimals(e.target.checked)}
-            />
-            Aggression to animals
-          </label>
-        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontWeight: 400 }}>
+          <input
+            type="checkbox"
+            checked={aggressionToPeople}
+            onChange={(e) => setAggressionToPeople(e.target.checked)}
+          />
+          Aggression to people
+        </label>
         {aggressionToPeople && (
           <div className="field">
             <label>Aggression to people — details</label>
@@ -197,6 +187,15 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
             />
           </div>
         )}
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontWeight: 400 }}>
+          <input
+            type="checkbox"
+            checked={aggressionToOtherAnimals}
+            onChange={(e) => setAggressionToOtherAnimals(e.target.checked)}
+          />
+          Aggression to animals
+        </label>
         {aggressionToOtherAnimals && (
           <div className="field">
             <label>Aggression to other animals — details</label>
