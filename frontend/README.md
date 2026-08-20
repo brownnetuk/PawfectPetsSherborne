@@ -58,20 +58,26 @@ A few things only make sense once you know a customer can already have real data
   decryption only ever happens through a separate staff-only endpoint. The field hint says "leave
   blank to keep what you already gave us unchanged," which is true: the backend's `PATCH` only
   touches `alarmInstructionsEncrypted` when the submitted value is non-empty.
-- **Pets are skipped entirely if the customer already has any.** `IntakeForm.tsx` checks
-  `GET /animals/for-customer/:customerId` (also public, but scoped to that one customer and
-  limited to name/species/breed — no medical or temperament data) after loading the customer. If
-  that comes back non-empty, the pet-count and pet-detail steps are removed from the wizard
-  outright, and submit never calls `POST /animals`. This isn't an oversight — submitting always
-  creates new `Animal` records, so re-running the pet steps for a customer who already has pets
-  would duplicate them rather than update them. The Welcome screen tells the customer how many
-  pets are already on file and points them elsewhere (the [add-a-pet
-  link](#add-a-pet-link) or contacting staff) to add or change one.
+- **Existing pets are shown for review, not re-collected from scratch.** `IntakeForm.tsx` fetches
+  the customer's own animals in full via `GET /animals/for-customer/:customerId` (also public, but
+  scoped to that one customer) and renders one editable `PetDetailsStep` per pet, prefilled —
+  vaccination, behaviour, everything. After the last one, a "how many more pets?" step (with a
+  "None" option) asks whether to add any new ones, which get their own blank steps appended after.
+  On submit, a pet with an `_id` (one that was fetched, not newly added) is `PATCH`ed via
+  `PATCH /animals/:id/for-customer/:customerId` — a public route scoped by comparing the animal's
+  own `customer` field against the URL's `:customerId`, using a DTO with no `customer` field at
+  all so there's nothing in the body to reassign — while a pet without an `_id` is `POST`ed as
+  before. This distinction matters: submitting always creates a new record for anything sent to
+  `POST /animals`, so re-running the old pet-count flow for a customer who already has pets would
+  have duplicated them rather than updated them.
 
 ## Add a pet link
 
-For an existing, already-registered customer adding another pet, staff can send a second kind
-of link instead (from the admin app's "New pet" → "Send a link to the customer"):
+For an existing, already-registered customer adding another pet — and *only* that, nothing else on
+their record — staff can send a second kind of link instead (from the admin app's "New pet" →
+"Send a link to the customer"). The "Update info" flow above can also add pets (via its "how many
+more?" step) alongside reviewing everything else, so reach for this link when a pet is genuinely
+the only thing that needs adding and the rest of the wizard would just be unnecessary friction:
 
 ```
 https://<this-app>/intake/<customerId>/add-pet
