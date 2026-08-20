@@ -5,7 +5,7 @@ import Badge from '../components/Badge';
 import EditAnimalModal from '../components/EditAnimalModal';
 import EditCustomerModal from '../components/EditCustomerModal';
 import Modal from '../components/Modal';
-import type { Animal, Booking, Customer, CrmActivity, Invoice } from '../types';
+import type { ActivityType, Animal, Booking, Customer, CrmActivity, Invoice } from '../types';
 import { useAuth } from '../auth/AuthContext';
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
@@ -710,20 +710,154 @@ function ActivityTab({
       ) : (
         <div className="card">
           {activity.map((a) => (
-            <div key={a._id} style={{ padding: '10px 0', borderBottom: '1px solid #eef1f2' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <strong>{a.subject}</strong>
-                <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
-                  {new Date(a.createdAt).toLocaleString()}
-                </span>
-              </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
-                {a.type} · {a.createdBy}
-              </div>
-              {a.description && <div style={{ marginTop: 4 }}>{a.description}</div>}
-            </div>
+            <ActivityItem key={a._id} activity={a} onChange={onChange} />
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
+
+function ActivityItem({ activity, onChange }: { activity: CrmActivity; onChange: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [type, setType] = useState(activity.type);
+  const [subject, setSubject] = useState(activity.subject);
+  const [description, setDescription] = useState(activity.description ?? '');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    if (!subject.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.updateActivity(activity._id, {
+        type,
+        subject,
+        description: description || undefined,
+      });
+      setEditing(false);
+      onChange();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save changes');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDelete() {
+    await api.deleteActivity(activity._id);
+    onChange();
+  }
+
+  if (editing) {
+    return (
+      <div style={{ padding: '10px 0', borderBottom: '1px solid #eef1f2' }}>
+        {error && <div className="error-banner">{error}</div>}
+        <div className="field-row">
+          <div className="field">
+            <label>Type</label>
+            <select value={type} onChange={(e) => setType(e.target.value as ActivityType)}>
+              <option value="note">Note</option>
+              <option value="call">Call</option>
+              <option value="email">Email</option>
+              <option value="task">Task</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>Subject</label>
+            <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} required />
+          </div>
+        </div>
+        <div className="field">
+          <label>Description</label>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => setEditing(false)} disabled={submitting}>
+            Cancel
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={submitting}>
+            {submitting ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: '10px 0', borderBottom: '1px solid #eef1f2' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <strong>{activity.subject}</strong>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <span style={{ fontSize: '0.8rem', color: 'var(--muted)', marginRight: 6 }}>
+            {new Date(activity.createdAt).toLocaleString()}
+          </span>
+          <button className="icon-btn" title="Edit" onClick={() => setEditing(true)}>
+            <PencilIcon />
+          </button>
+          <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setShowDelete(true)}>
+            <TrashIcon />
+          </button>
+        </div>
+      </div>
+      <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
+        {activity.type} · {activity.createdBy}
+      </div>
+      {activity.description && <div style={{ marginTop: 4 }}>{activity.description}</div>}
+
+      {showDelete && (
+        <Modal title="Delete activity?" onClose={() => setShowDelete(false)}>
+          <p>This permanently deletes this activity entry.</p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setShowDelete(false)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete}>
+              Delete
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );

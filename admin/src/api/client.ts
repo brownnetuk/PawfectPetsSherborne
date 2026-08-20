@@ -39,7 +39,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     const message = Array.isArray(body.message) ? body.message.join('; ') : body.message;
     throw new Error(message || `Request failed (${res.status})`);
   }
-  return res.status === 204 ? (undefined as T) : res.json();
+  // DELETE handlers return 200 with an empty body (not 204), so gate on actual
+  // body content rather than status code to avoid "Unexpected end of JSON input".
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 // --- auth ---
@@ -146,4 +149,7 @@ export function createActivity(input: CreateActivityInput): Promise<CrmActivity>
 }
 export function updateActivity(id: string, patch: Partial<CrmActivity>): Promise<CrmActivity> {
   return request(`/crm/activities/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+}
+export function deleteActivity(id: string): Promise<void> {
+  return request(`/crm/activities/${id}`, { method: 'DELETE' });
 }

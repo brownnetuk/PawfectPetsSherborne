@@ -12,7 +12,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     const message = Array.isArray(body.message) ? body.message.join('; ') : body.message;
     throw new Error(message || `Request failed (${res.status})`);
   }
-  return res.status === 204 ? (undefined as T) : res.json();
+  // Gate on actual body content rather than status code: NestJS's default DELETE
+  // handlers return 200 with an empty body, not 204.
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 export function fetchCustomer(id: string): Promise<CustomerRecord> {

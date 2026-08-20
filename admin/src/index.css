@@ -418,3 +418,25 @@ tbody tr:hover {
   font-size: 1.1rem;
   padding: 6px;
 }
+
+.icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.icon-btn:hover {
+  background: #f0f2f3;
+  color: var(--ink);
+}
+
+.icon-btn.icon-btn-danger:hover {
+  background: #fdecea;
+  color: var(--error);
+}
