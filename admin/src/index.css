@@ -508,6 +508,45 @@ table input:focus {
    styled as one combined control (input left, button right, no seam). */
 .item-picker {
   display: flex;
+  position: relative;
+}
+
+/* Live suggestions dropdown while typing in the Item Details field --
+   complements the chevron button's full ProductPickerModal for browsing. */
+.item-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 20;
+}
+.item-suggestion-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+.item-suggestion-row:hover {
+  background: #fafbfc;
+}
+.item-suggestion-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.item-suggestion-price {
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .item-picker input {
   flex: 1;

@@ -355,6 +355,67 @@ function QuotesTab() {
   );
 }
 
+function ItemDescriptionInput({
+  value,
+  products,
+  onChange,
+  onSelectProduct,
+  onOpenPicker,
+}: {
+  value: string;
+  products: Product[];
+  onChange: (value: string) => void;
+  onSelectProduct: (product: Product) => void;
+  onOpenPicker: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const q = value.trim().toLowerCase();
+  const suggestions = q ? products.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 8) : [];
+
+  function selectSuggestion(product: Product) {
+    onSelectProduct(product);
+    setOpen(false);
+  }
+
+  return (
+    <div className="item-picker">
+      <input
+        type="text"
+        placeholder="Type or click to select an item"
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => {
+          if (q) setOpen(true);
+        }}
+        onBlur={() => setTimeout(() => setOpen(false), 120)}
+        required
+      />
+      <button type="button" className="item-picker-btn" onClick={onOpenPicker} aria-label="Choose from products">
+        <ChevronDownIcon />
+      </button>
+      {open && suggestions.length > 0 && (
+        <div className="item-suggestions">
+          {suggestions.map((p) => (
+            <div
+              key={p._id}
+              className="item-suggestion-row"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => selectSuggestion(p)}
+            >
+              <span className="item-suggestion-name">{p.name}</span>
+              <span className="item-suggestion-price">£{p.price.toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ItemTable({
   lineItems,
   products,
@@ -400,23 +461,13 @@ function ItemTable({
           {lineItems.map((item, i) => (
             <tr key={i}>
               <td>
-                <div className="item-picker">
-                  <input
-                    type="text"
-                    placeholder="Type or click to select an item"
-                    value={item.description}
-                    onChange={(e) => handleDescriptionChange(i, e.target.value)}
-                    required
-                  />
-                  <button
-                    type="button"
-                    className="item-picker-btn"
-                    onClick={() => setPickerIndex(i)}
-                    aria-label="Choose from products"
-                  >
-                    <ChevronDownIcon />
-                  </button>
-                </div>
+                <ItemDescriptionInput
+                  value={item.description}
+                  products={products}
+                  onChange={(value) => handleDescriptionChange(i, value)}
+                  onSelectProduct={(product) => selectProduct(i, product)}
+                  onOpenPicker={() => setPickerIndex(i)}
+                />
               </td>
               <td>
                 <input
