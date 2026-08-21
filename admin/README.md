@@ -157,10 +157,14 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   it's invoice-specific, not general business branding — shown to customers on invoices so they
   know where to send payment; not encrypted, since it's meant to be disclosed. **Products**, a
   reusable catalog (`/products` — Product Code, Name, Description, Price) for invoice/quote line
-  items, now also supports edit, not just add/delete. Both `InvoiceTermsCard` and `ProductsCard`
-  share one "New"/"Edit" modal component (taking an optional existing record) rather than separate
-  Add and Edit components. Neither Invoice Terms nor Products is wired into invoice/quote
-  line-item entry itself yet — both stay freeform for now, so Products in particular is still a
+  items, now also supports edit, not just add/delete. Its column headers are sortable — click one
+  to sort ascending, click again for descending; the `SortIcon` on each header shows which column
+  is active and in which direction. Sorting is client-side over the already-fetched list, and the
+  small `SortableTh` component behind it isn't Product-specific, so another settings table can
+  reuse it. Both `InvoiceTermsCard` and `ProductsCard` share one "New"/"Edit" modal component
+  (taking an optional existing record) rather than separate Add and Edit components. Neither
+  Invoice Terms nor Products is wired into invoice/quote line-item entry itself yet — both stay
+  freeform for now, so Products in particular is still a
   reference list staff copy details from rather than a picker.
 
 ## Sending email via Microsoft 365
