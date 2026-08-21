@@ -126,3 +126,11 @@ export interface CrmActivity {
   createdBy: string;
   createdAt: string;
 }
+
+export interface EmailSettings {
+  tenantId: string;
+  clientId: string;
+  fromAddress: string;
+  fromName: string;
+  clientSecretConfigured: boolean;
+}

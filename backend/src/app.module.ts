@@ -11,6 +11,7 @@ import { AnimalsModule } from './animals/animals.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { CrmModule } from './crm/crm.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { CrmModule } from './crm/crm.module';
     BookingsModule,
     InvoicesModule,
     CrmModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],

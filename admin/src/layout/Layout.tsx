@@ -7,7 +7,7 @@ import {
   CustomersIcon,
   InvoicesIcon,
   LogoutIcon,
-  StaffIcon,
+  SettingsIcon,
 } from '../components/icons';
 
 function initials(name: string | undefined): string {
@@ -54,9 +54,9 @@ export default function Layout() {
             <ActivityIcon />
             Activity
           </NavLink>
-          <NavLink to="/staff" className={({ isActive }) => (isActive ? 'active' : '')}>
-            <StaffIcon />
-            Staff
+          <NavLink to="/settings" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <SettingsIcon />
+            Settings
           </NavLink>
         </nav>
       </aside>

@@ -3,6 +3,7 @@ import type {
   Booking,
   Customer,
   CrmActivity,
+  EmailSettings,
   Invoice,
   LineItem,
   Staff,
@@ -167,4 +168,15 @@ export function updateActivity(id: string, patch: Partial<CrmActivity>): Promise
 }
 export function deleteActivity(id: string): Promise<void> {
   return request(`/crm/activities/${id}`, { method: 'DELETE' });
+}
+
+// --- settings ---
+export function getEmailSettings(): Promise<EmailSettings> {
+  return request('/settings/email');
+}
+export function updateEmailSettings(patch: Record<string, unknown>): Promise<EmailSettings> {
+  return request('/settings/email', { method: 'PATCH', body: JSON.stringify(patch) });
+}
+export function sendTestEmail(to: string): Promise<void> {
+  return request('/settings/email/test', { method: 'POST', body: JSON.stringify({ to }) });
 }
