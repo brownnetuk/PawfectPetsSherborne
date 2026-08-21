@@ -82,7 +82,11 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   this app's CSS (copied by hand — there's no shared token source between a PDF and CSS) and the
   real logo. Each section (a pet's whole profile, including its off-lead consent and signature, is
   one section) is measured before it's drawn, so a section that doesn't fit the rest of the current
-  page moves to a fresh one entirely rather than splitting across the page break.
+  page moves to a fresh one entirely rather than splitting across the page break. The terms &
+  conditions section pulls the same `termsHtml` uploaded in Settings → Business Info, converted
+  into headings/paragraphs/lists by `htmlToBlocks()` — the same content the customer actually saw
+  and signed against on the intake form, rather than a separately-maintained copy. Falls back to a
+  short hardcoded list if nothing's been uploaded yet.
 - **Bookings** / **Invoices** — global lists across all customers, inline status changes, edit
   and delete on each row, and their own "New" flow with a customer picker (the customer-detail
   versions reuse the same create/edit/delete calls with the customer pre-selected).
