@@ -109,6 +109,15 @@ with optional `dueDate`/`completed` for task tracking.
 
 ### Settings (`/settings`)
 
+`GET/PATCH /settings/business` read and update the one `BusinessInfo` document (a singleton, same
+pattern as `EmailSettings` below) — the business's own name/address/town/postcode/email/website
+and a logo, meant to brand invoices, email templates, and other generated documents. The logo is
+a base64 data URI stored on the document itself rather than a file on disk, since Render's
+filesystem doesn't persist across deploys. All fields are plain `@IsString()` and always written
+as sent (no "blank means leave unchanged" special-casing), so the default Express JSON body limit
+(100kb) was raised to 5mb in `main.ts` to fit a logo upload — nothing else in the app sends a
+payload anywhere near that size.
+
 `GET/PATCH /settings/email` read and update the one `EmailSettings` document (a singleton, not a
 collection — Microsoft 365 Graph API credentials for sending mail from the app: tenant ID, client
 ID, an encrypted client secret, from address/name). `POST /settings/email/test` sends a real email

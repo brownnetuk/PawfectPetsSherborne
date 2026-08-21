@@ -88,7 +88,14 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   versions reuse the same create/edit/delete calls with the customer pre-selected).
 - **Activity** — a read-only global CRM feed; activity itself is created from a customer's page
   so it's always tied to that customer.
-- **Settings** — tabbed (`/settings`): **Staff** lists, creates, and deletes staff logins (still
+- **Settings** — tabbed (`/settings`): **Business Info** (shown first, and the default tab) holds
+  the business's own name, address, town, postcode, email, and website, plus a logo — the
+  letterhead details invoices and email templates draw from. All fields are plain strings saved
+  as-is (no "leave blank to keep unchanged" special case, unlike Email's secret below), so clearing
+  one to blank and saving genuinely clears it. The logo is uploaded as a file but stored as a
+  base64 data URI on the settings document itself (same approach as a customer's signature image)
+  rather than as a file on disk, since Render's filesystem doesn't persist across deploys.
+  **Staff** lists, creates, and deletes staff logins (still
   backed by `/auth/staff`, unchanged from before this was under Settings). Deleting is blocked
   server-side if it would remove the last remaining account; self-delete is blocked in the UI
   while signed in as that account. JWT is stateless, so a deleted account's existing token still
