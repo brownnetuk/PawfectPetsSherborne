@@ -490,10 +490,11 @@ function ProductPickerModal({
   onSelect: (product: Product) => void;
 }) {
   const [search, setSearch] = useState('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const q = search.toLowerCase();
-  const filtered = products.filter(
-    (p) => p.name.toLowerCase().includes(q) || (p.description ?? '').toLowerCase().includes(q),
-  );
+  const filtered = products
+    .filter((p) => p.name.toLowerCase().includes(q) || (p.description ?? '').toLowerCase().includes(q))
+    .sort((a, b) => (sortDir === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)));
 
   function handleSelect(product: Product) {
     onSelect(product);
@@ -501,7 +502,20 @@ function ProductPickerModal({
   }
 
   return (
-    <Modal title="Select an Item" onClose={onClose} wide>
+    <Modal
+      title="Select an Item"
+      onClose={onClose}
+      wide
+      headerActions={
+        <button
+          type="button"
+          className="sort-toggle-btn"
+          onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+        >
+          {sortDir === 'asc' ? 'A → Z' : 'Z → A'}
+        </button>
+      }
+    >
       <div className="field">
         <input
           type="text"
