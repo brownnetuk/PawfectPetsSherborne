@@ -31,6 +31,14 @@ export default function CustomersPage() {
   const [viewingEnquiry, setViewingEnquiry] = useState<Enquiry | null>(null);
   const [deletingEnquiry, setDeletingEnquiry] = useState<Enquiry | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const [convertError, setConvertError] = useState<string | null>(null);
+  const [convertedCustomer, setConvertedCustomer] = useState<{
+    id: string;
+    name: string;
+    email: string;
+    link: string;
+  } | null>(null);
 
   function refresh() {
     api
@@ -58,6 +66,39 @@ export default function CustomersPage() {
       refreshEnquiries();
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleConvertEnquiry() {
+    if (!viewingEnquiry) return;
+    if (!viewingEnquiry.email) {
+      setConvertError('This enquiry has no email address — add one before converting to a customer.');
+      return;
+    }
+    setConverting(true);
+    setConvertError(null);
+    try {
+      const customer = await api.createLead(viewingEnquiry.name, viewingEnquiry.email);
+      const patch: Record<string, unknown> = {};
+      if (viewingEnquiry.address) patch.address = viewingEnquiry.address;
+      if (viewingEnquiry.phone) patch.mobile = viewingEnquiry.phone;
+      if (Object.keys(patch).length > 0) {
+        await api.updateCustomer(customer._id, patch);
+      }
+      await api.deleteEnquiry(viewingEnquiry._id);
+      setConvertedCustomer({
+        id: customer._id,
+        name: viewingEnquiry.name,
+        email: viewingEnquiry.email,
+        link: `${INTAKE_URL}/intake/${customer._id}`,
+      });
+      setViewingEnquiry(null);
+      refresh();
+      refreshEnquiries();
+    } catch (err) {
+      setConvertError(err instanceof Error ? err.message : 'Failed to convert enquiry to a customer');
+    } finally {
+      setConverting(false);
     }
   }
 
@@ -142,7 +183,13 @@ export default function CustomersPage() {
             </thead>
             <tbody>
               {enquiries.map((e) => (
-                <tr key={e._id} onClick={() => setViewingEnquiry(e)}>
+                <tr
+                  key={e._id}
+                  onClick={() => {
+                    setViewingEnquiry(e);
+                    setConvertError(null);
+                  }}
+                >
                   <td>{e.name}</td>
                   <td>{e.email || e.phone || '—'}</td>
                   <td>{e.servicesInterested.length > 0 ? e.servicesInterested.map(serviceLabel).join(', ') : '—'}</td>
@@ -205,12 +252,25 @@ export default function CustomersPage() {
           </dl>
           <div className="section-title">Notes</div>
           <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{viewingEnquiry.notes || '—'}</p>
+          {convertError && <div className="error-banner">{convertError}</div>}
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setViewingEnquiry(null)}>
               Close
             </button>
+            <button className="btn btn-primary" onClick={handleConvertEnquiry} disabled={converting}>
+              {converting ? 'Converting…' : 'Convert to Customer'}
+            </button>
           </div>
         </Modal>
+      )}
+
+      {convertedCustomer && (
+        <RegistrationLinkModal
+          name={convertedCustomer.name}
+          email={convertedCustomer.email}
+          link={convertedCustomer.link}
+          onDone={() => setConvertedCustomer(null)}
+        />
       )}
 
       {deletingEnquiry && (
@@ -324,15 +384,86 @@ function NewEnquiryModal({ onClose, onCreated }: { onClose: () => void; onCreate
   );
 }
 
+function RegistrationLinkModal({
+  name,
+  email,
+  link,
+  onDone,
+}: {
+  name: string;
+  email: string;
+  link: string;
+  onDone: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function copyLink() {
+    await navigator.clipboard.writeText(link);
+    setCopied(true);
+  }
+
+  async function sendEmail() {
+    setSending(true);
+    setSendResult(null);
+    try {
+      await api.sendTriggeredEmail('registration', email, name, link);
+      setSendResult({ ok: true, message: `Email sent to ${email}.` });
+    } catch (err) {
+      setSendResult({ ok: false, message: err instanceof Error ? err.message : 'Failed to send email' });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Modal title="Send registration link" onClose={onDone}>
+      <p style={{ color: 'var(--muted)' }}>
+        {name}'s record is ready. Send them this link to complete their registration.
+      </p>
+      <div className="link-copy-box">{link}</div>
+      {sendResult && (
+        <div
+          className={sendResult.ok ? undefined : 'error-banner'}
+          style={
+            sendResult.ok
+              ? {
+                  background: 'var(--sage-badge)',
+                  color: 'var(--brand-green)',
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  marginTop: 14,
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                }
+              : { marginTop: 14 }
+          }
+        >
+          {sendResult.message}
+        </div>
+      )}
+      <div className="modal-actions">
+        <button className="btn btn-secondary" onClick={copyLink}>
+          {copied ? 'Copied!' : 'Copy link'}
+        </button>
+        <button className="btn btn-secondary" onClick={sendEmail} disabled={sending}>
+          {sending ? 'Sending…' : 'Send email'}
+        </button>
+        <button className="btn btn-primary" onClick={onDone}>
+          Done
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [created, setCreated] = useState<{ id: string; link: string } | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -348,66 +479,8 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
     }
   }
 
-  async function copyLink() {
-    if (!created) return;
-    await navigator.clipboard.writeText(created.link);
-    setCopied(true);
-  }
-
-  async function sendEmail() {
-    if (!created) return;
-    setSending(true);
-    setSendResult(null);
-    try {
-      await api.sendTriggeredEmail('registration', email, name, created.link);
-      setSendResult({ ok: true, message: `Email sent to ${email}.` });
-    } catch (err) {
-      setSendResult({ ok: false, message: err instanceof Error ? err.message : 'Failed to send email' });
-    } finally {
-      setSending(false);
-    }
-  }
-
   if (created) {
-    return (
-      <Modal title="Send registration link" onClose={onCreated}>
-        <p style={{ color: 'var(--muted)' }}>
-          {name}'s record is ready. Send them this link to complete their registration.
-        </p>
-        <div className="link-copy-box">{created.link}</div>
-        {sendResult && (
-          <div
-            className={sendResult.ok ? undefined : 'error-banner'}
-            style={
-              sendResult.ok
-                ? {
-                    background: 'var(--sage-badge)',
-                    color: 'var(--brand-green)',
-                    padding: '10px 14px',
-                    borderRadius: 8,
-                    marginTop: 14,
-                    fontSize: '0.85rem',
-                    fontWeight: 500,
-                  }
-                : { marginTop: 14 }
-            }
-          >
-            {sendResult.message}
-          </div>
-        )}
-        <div className="modal-actions">
-          <button className="btn btn-secondary" onClick={copyLink}>
-            {copied ? 'Copied!' : 'Copy link'}
-          </button>
-          <button className="btn btn-secondary" onClick={sendEmail} disabled={sending}>
-            {sending ? 'Sending…' : 'Send email'}
-          </button>
-          <button className="btn btn-primary" onClick={onCreated}>
-            Done
-          </button>
-        </div>
-      </Modal>
-    );
+    return <RegistrationLinkModal name={name} email={email} link={created.link} onDone={onCreated} />;
   }
 
   return (
