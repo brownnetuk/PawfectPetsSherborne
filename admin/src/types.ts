@@ -6,6 +6,7 @@ export type LeadMode = 'on_lead' | 'off_lead';
 export type ServiceType = 'boarding' | 'daycare' | 'grooming' | 'walking';
 export type BookingStatus = 'requested' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
 export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'declined' | 'expired';
 export type ActivityType = 'note' | 'call' | 'email' | 'task' | 'status_change';
 
 export interface Staff {
@@ -112,6 +113,21 @@ export interface Invoice {
   issueDate: string;
   dueDate: string;
   paidAt?: string;
+  createdAt: string;
+}
+
+export interface Quote {
+  _id: string;
+  customer: CustomerRef | string;
+  booking?: string;
+  quoteNumber: string;
+  lineItems: LineItem[];
+  subtotal: number;
+  tax: number;
+  total: number;
+  status: QuoteStatus;
+  issueDate: string;
+  validUntil: string;
   createdAt: string;
 }
 

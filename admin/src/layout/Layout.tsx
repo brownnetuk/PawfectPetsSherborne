@@ -53,7 +53,7 @@ export default function Layout() {
           </NavLink>
           <NavLink to="/invoices" className={({ isActive }) => (isActive ? 'active' : '')}>
             <InvoicesIcon />
-            Invoices
+            Invoices &amp; Quotes
           </NavLink>
           <NavLink to="/activity" className={({ isActive }) => (isActive ? 'active' : '')}>
             <ActivityIcon />

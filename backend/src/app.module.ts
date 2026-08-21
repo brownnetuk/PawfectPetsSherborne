@@ -10,6 +10,7 @@ import { CustomersModule } from './customers/customers.module';
 import { AnimalsModule } from './animals/animals.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { InvoicesModule } from './invoices/invoices.module';
+import { QuotesModule } from './quotes/quotes.module';
 import { CrmModule } from './crm/crm.module';
 import { SettingsModule } from './settings/settings.module';
 import { EnquiriesModule } from './enquiries/enquiries.module';
@@ -29,6 +30,7 @@ import { EnquiriesModule } from './enquiries/enquiries.module';
     AnimalsModule,
     BookingsModule,
     InvoicesModule,
+    QuotesModule,
     CrmModule,
     SettingsModule,
     EnquiriesModule,

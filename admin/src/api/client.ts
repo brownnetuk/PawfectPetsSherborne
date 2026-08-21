@@ -10,6 +10,7 @@ import type {
   Enquiry,
   Invoice,
   LineItem,
+  Quote,
   Staff,
 } from '../types';
 
@@ -150,6 +151,25 @@ export function updateInvoiceStatus(id: string, status: string): Promise<Invoice
 }
 export function deleteInvoice(id: string): Promise<void> {
   return request(`/invoices/${id}`, { method: 'DELETE' });
+}
+
+// --- quotes ---
+export function listQuotes(customerId?: string): Promise<Quote[]> {
+  return request(`/quotes${customerId ? `?customer=${customerId}` : ''}`);
+}
+export interface CreateQuoteInput {
+  customer: string;
+  booking?: string;
+  lineItems: LineItem[];
+  tax?: number;
+  issueDate: string;
+  validUntil: string;
+}
+export function createQuote(input: CreateQuoteInput): Promise<Quote> {
+  return request('/quotes', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateQuoteStatus(id: string, status: string): Promise<Quote> {
+  return request(`/quotes/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
 }
 
 // --- CRM ---
