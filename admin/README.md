@@ -77,10 +77,43 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   versions reuse the same create/edit/delete calls with the customer pre-selected).
 - **Activity** — a read-only global CRM feed; activity itself is created from a customer's page
   so it's always tied to that customer.
-- **Staff** — list, create, and delete staff logins. Deleting is blocked server-side if it would
-  remove the last remaining account; self-delete is blocked in the UI while signed in as that
-  account. JWT is stateless, so a deleted account's existing token still works until it expires —
-  there's no server-side session to revoke.
+- **Settings** — tabbed (`/settings`): **Staff** lists, creates, and deletes staff logins (still
+  backed by `/auth/staff`, unchanged from before this was under Settings). Deleting is blocked
+  server-side if it would remove the last remaining account; self-delete is blocked in the UI
+  while signed in as that account. JWT is stateless, so a deleted account's existing token still
+  works until it expires — there's no server-side session to revoke. **Email** holds the Microsoft
+  365 connection used to send email from the app (see below) — tenant ID, client ID, client
+  secret, and a from address/name, plus a "send a test email" button. The secret is encrypted at
+  rest (`EncryptionService`, same as alarm instructions) and never sent back to the browser once
+  saved; the field shows "Configured — leave blank to keep unchanged" instead.
+
+## Sending email via Microsoft 365
+
+Settings → Email stores Microsoft Graph application credentials and uses them for
+application-only (client credentials) auth — no per-user sign-in, no delegated permissions, and
+no SMTP AUTH (which Microsoft has been phasing out tenant-by-tenant). To set it up:
+
+1. In the [Azure Portal](https://portal.azure.com), go to **Microsoft Entra ID → App
+   registrations → New registration**. Any name/account type is fine for a single-tenant setup.
+2. Under **API permissions**, add **Microsoft Graph → Application permissions → `Mail.Send`**,
+   then **Grant admin consent** for the tenant (this step needs a Global/Application
+   Administrator — application permissions don't work without it).
+3. Under **Certificates & secrets → New client secret**, create one and copy the **value**
+   immediately — Azure only shows it once.
+4. From the app's **Overview** page, copy the **Application (client) ID** and **Directory
+   (tenant) ID**.
+5. In Settings → Email, paste the tenant ID, client ID, and client secret, set **From address** to
+   a real mailbox in the tenant (a shared mailbox or a licensed user, e.g.
+   `bookings@pawfectpetssherborne.co.uk`) — `Mail.Send` at the application level can send as any
+   mailbox in the tenant, so this is just which one you want mail to come from — and save.
+6. Use **Send a test email** to confirm. A failure here surfaces Microsoft's own error text (e.g.
+   `AADSTS...` errors from a wrong tenant/client ID, or a Graph error if the from address isn't a
+   real mailbox), which is usually specific enough to point at what's wrong.
+
+This round only wires up the settings and a verified send path (`POST /settings/email/test` →
+`SettingsService.sendTestEmail`, in `backend/src/settings/settings.service.ts`) — there's no
+compose-and-send UI yet. Any future "email this customer" feature should reuse
+`SettingsService`'s token-exchange/send logic rather than duplicating it.
 
 ## Auth model
 

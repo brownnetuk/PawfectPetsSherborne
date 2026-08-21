@@ -107,6 +107,16 @@ Line items with server-computed `subtotal`/`tax`/`total` and an auto-generated
 Freeform activity log per customer — `note` | `call` | `email` | `task` | `status_change` —
 with optional `dueDate`/`completed` for task tracking.
 
+### Settings (`/settings`)
+
+Doesn't follow the standard REST shape below — it's a singleton, not a collection. `GET/PATCH
+/settings/email` read and update the one `EmailSettings` document (Microsoft 365 Graph API
+credentials for sending mail from the app: tenant ID, client ID, an encrypted client secret, from
+address/name). `POST /settings/email/test` sends a real email via Microsoft Graph's
+application-only (client credentials) flow, to verify the saved credentials actually work — see
+[`admin`](../admin/README.md#sending-email-via-microsoft-365) for the Azure setup this requires
+and what staff see. None of this is `@Public()` — it's staff-only like everything else.
+
 ## API summary
 
 All resources follow the same REST shape: `POST /`, `GET /`, `GET /:id`, `PATCH /:id`,
