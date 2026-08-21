@@ -8,11 +8,13 @@ import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { EncryptionModule } from './common/encryption/encryption.module';
 import { CustomersModule } from './customers/customers.module';
 import { AnimalsModule } from './animals/animals.module';
+import { BankAccountsModule } from './bank-accounts/bank-accounts.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { InvoiceTermsModule } from './invoice-terms/invoice-terms.module';
 import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
+import { PaymentsModule } from './payments/payments.module';
 import { ProductsModule } from './products/products.module';
 import { CrmModule } from './crm/crm.module';
 import { SettingsModule } from './settings/settings.module';
@@ -31,11 +33,13 @@ import { EnquiriesModule } from './enquiries/enquiries.module';
     AuthModule,
     CustomersModule,
     AnimalsModule,
+    BankAccountsModule,
     BookingsModule,
     InvoicesModule,
     QuotesModule,
     InvoiceTermsModule,
     PaymentMethodsModule,
+    PaymentsModule,
     ProductsModule,
     CrmModule,
     SettingsModule,

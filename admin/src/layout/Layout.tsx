@@ -6,6 +6,7 @@ import {
   BookingsIcon,
   CustomersIcon,
   EnquiriesIcon,
+  FinancialIcon,
   InvoicesIcon,
   LogoutIcon,
   SettingsIcon,
@@ -54,6 +55,10 @@ export default function Layout() {
           <NavLink to="/invoices" className={({ isActive }) => (isActive ? 'active' : '')}>
             <InvoicesIcon />
             Invoices &amp; Quotes
+          </NavLink>
+          <NavLink to="/financial" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <FinancialIcon />
+            Financial
           </NavLink>
           <NavLink to="/activity" className={({ isActive }) => (isActive ? 'active' : '')}>
             <ActivityIcon />

@@ -159,6 +159,14 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   edit mode specifically, since a document's Terms/Issue date are pre-filled from its saved values
   on open and must NOT trigger a recalculation before staff actually touch either field, or opening
   Edit would silently overwrite an already-correct (possibly manually-adjusted) date.
+- **Financial** (`/financial`) — tabbed: **Bank Account** and **Payments**, each just a named list
+  (`BankAccount`/`Payment` — currently `name` only) rendered by the shared `NamedListCard`
+  component (`admin/src/components/NamedListCard.tsx`): Create new/Edit/Delete against a plain
+  `{ name }` CRUD endpoint, parameterized by title/description/noun so the same component also
+  backs Settings → Financial → Payment Methods below. Scaffolding for a later build that ties
+  actual bank account details and recorded payments to a customer's invoices — not to be confused
+  with the existing Settings → Invoices → **Bank Details** card, which holds the one set of
+  account details shown *on* invoices, a separate concern.
 - **Activity** — a read-only global CRM feed; activity itself is created from a customer's page
   so it's always tied to that customer.
 - **Settings** — tabbed (`/settings`): **Business Info** (shown first, and the default tab) holds
@@ -280,6 +288,11 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   small `SortableTh` component behind it isn't Product-specific, so another settings table can
   reuse it. Both `InvoiceTermsCard` and `ProductsCard` share one "New"/"Edit" modal component
   (taking an optional existing record) rather than separate Add and Edit components.
+  **Financial**, a single **Payment Methods** card (`/payment-methods` — e.g. "Bank Transfer",
+  "Cash", "Card") built with the same `NamedListCard` the top-level Financial *page* uses for Bank
+  Account/Payments (see above) — a same-named settings tab and a same-named top-level page, but
+  two different things: this one is a small reference list for tagging how a customer paid, not
+  bank account details or a payments ledger.
 
 ## Sending email via Microsoft 365
 

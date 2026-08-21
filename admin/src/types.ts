@@ -156,6 +156,18 @@ export interface PaymentMethod {
   createdAt: string;
 }
 
+export interface BankAccount {
+  _id: string;
+  name: string;
+  createdAt: string;
+}
+
+export interface Payment {
+  _id: string;
+  name: string;
+  createdAt: string;
+}
+
 export interface Product {
   _id: string;
   productCode: string;

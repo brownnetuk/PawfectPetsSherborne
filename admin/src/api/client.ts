@@ -1,5 +1,6 @@
 import type {
   Animal,
+  BankAccount,
   Booking,
   BusinessInfo,
   Customer,
@@ -11,6 +12,7 @@ import type {
   Invoice,
   InvoiceTerm,
   LineItem,
+  Payment,
   PaymentMethod,
   Product,
   Quote,
@@ -227,6 +229,40 @@ export function updatePaymentMethod(id: string, input: PaymentMethodInput): Prom
 }
 export function deletePaymentMethod(id: string): Promise<void> {
   return request(`/payment-methods/${id}`, { method: 'DELETE' });
+}
+
+// --- bank accounts ---
+export function listBankAccounts(): Promise<BankAccount[]> {
+  return request('/bank-accounts');
+}
+export interface BankAccountInput {
+  name: string;
+}
+export function createBankAccount(input: BankAccountInput): Promise<BankAccount> {
+  return request('/bank-accounts', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateBankAccount(id: string, input: BankAccountInput): Promise<BankAccount> {
+  return request(`/bank-accounts/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deleteBankAccount(id: string): Promise<void> {
+  return request(`/bank-accounts/${id}`, { method: 'DELETE' });
+}
+
+// --- payments ---
+export function listPayments(): Promise<Payment[]> {
+  return request('/payments');
+}
+export interface PaymentInput {
+  name: string;
+}
+export function createPayment(input: PaymentInput): Promise<Payment> {
+  return request('/payments', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updatePayment(id: string, input: PaymentInput): Promise<Payment> {
+  return request(`/payments/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deletePayment(id: string): Promise<void> {
+  return request(`/payments/${id}`, { method: 'DELETE' });
 }
 
 // --- products ---

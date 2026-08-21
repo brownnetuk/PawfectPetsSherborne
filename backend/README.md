@@ -201,12 +201,17 @@ the Due Date/Valid Until field when a term is picked. `endOfMonth` wins over `pl
 are somehow set; a fixed day-count doesn't make sense for "end of month" since months have
 different lengths.
 
-### PaymentMethod (`/payment-methods`)
+### PaymentMethod (`/payment-methods`), BankAccount (`/bank-accounts`), Payment (`/payments`)
 
-Standard `POST`/`GET`/`PATCH`/`DELETE`, surfaced under Settings → Financial. Currently just a
-`name` — a named list (e.g. "Bank Transfer", "Cash", "Card") not yet linked to anything else;
-scaffolding for a later build that ties actual bank account details and recorded payments to one
-of these.
+Three named lists, currently identical in shape (`name` only) and each standard
+`POST`/`GET`/`PATCH`/`DELETE` — scaffolding for a later build that ties actual bank account
+details and recorded payments to a customer's invoices. `PaymentMethod` is surfaced under
+Settings → Financial (e.g. "Bank Transfer", "Cash", "Card"); `BankAccount`/`Payment` have their
+own top-level **Financial** page (`admin/src/pages/FinancialPage.tsx`, "Bank Account"/"Payments"
+tabs) rather than living under Settings, since they're expected to grow into a real feature
+staff use day-to-day rather than one-off configuration. All three share one admin component,
+`NamedListCard` (`admin/src/components/NamedListCard.tsx`), parameterized by title/description/
+noun and the four CRUD functions — see `admin/README.md`.
 
 ### CRM activity (`/crm/activities`)
 
