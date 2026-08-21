@@ -385,15 +385,15 @@ function ItemTable({
 
   return (
     <div>
-      <table>
+      <table className="item-table">
         <thead>
           <tr>
             <th>Item Details</th>
-            <th>Quantity</th>
-            <th>Rate (£)</th>
-            <th>Discount %</th>
-            <th>Amount</th>
-            <th></th>
+            <th style={{ width: 80 }}>Quantity</th>
+            <th style={{ width: 100 }}>Rate (£)</th>
+            <th style={{ width: 100 }}>Discount %</th>
+            <th style={{ width: 100 }}>Amount</th>
+            <th style={{ width: 40 }}></th>
           </tr>
         </thead>
         <tbody>
@@ -425,7 +425,7 @@ function ItemTable({
                   step="1"
                   value={item.quantity}
                   onChange={(e) => updateItem(i, { quantity: Number(e.target.value) })}
-                  style={{ width: 70 }}
+                  style={{ width: '100%' }}
                   required
                 />
               </td>
@@ -436,7 +436,7 @@ function ItemTable({
                   step="0.01"
                   value={item.unitPrice}
                   onChange={(e) => updateItem(i, { unitPrice: Number(e.target.value) })}
-                  style={{ width: 90 }}
+                  style={{ width: '100%' }}
                   required
                 />
               </td>
@@ -448,7 +448,7 @@ function ItemTable({
                   step="1"
                   value={item.discountPercent ?? 0}
                   onChange={(e) => updateItem(i, { discountPercent: Number(e.target.value) })}
-                  style={{ width: 70 }}
+                  style={{ width: '100%' }}
                 />
               </td>
               <td>£{lineItemAmount(item).toFixed(2)}</td>

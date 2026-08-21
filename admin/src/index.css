@@ -434,6 +434,14 @@ tbody tr:last-child td {
   gap: 0 14px;
 }
 
+/* Item Table (invoice/quote line items): fixed layout so the narrow
+   Quantity/Rate/Discount/Amount columns keep their given widths and Item
+   Details -- the only column without one -- absorbs the rest of the row,
+   instead of every column being squeezed toward equal width. */
+.item-table {
+  table-layout: fixed;
+}
+
 /* Inputs inside a table (the invoice/quote Item Table) aren't wrapped in a
    .field, so they'd otherwise fall back to bare browser styling -- match
    them to .field input above so the whole form looks consistent. */
