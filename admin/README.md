@@ -93,23 +93,36 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   each row, and its own "New" flow with a customer picker (the customer-detail version reuses the
   same create/edit/delete calls with the customer pre-selected).
 - **Invoices & Quotes** (`/invoices`) — tabbed: **Invoices** and **Quotes**, each a global list
-  across all customers with inline status changes, plus a per-row **Actions** dropdown
+  across all customers with inline status changes, an `openedAt`-driven **Read** badge next to the
+  status pill once the sent email's tracking pixel has fired (see `backend/README.md`'s "Open
+  tracking" — it's a separate indicator, not a status value, since being opened doesn't change
+  where a document sits in its own status lifecycle), and a per-row **Actions** dropdown
   (`ActionsMenu`, closes on an outside click or after picking an item): **View / Edit** opens the
-  same form described below; **Send** calls `POST /invoices/:id/send` (or `/quotes/:id/send`),
-  which emails the customer using the "Invoice Template"/"Quote Template" configured under
-  Settings → Email Templates and marks the document `sent` if it was still a `draft` — the button
-  shows "Sending…" and is disabled for that row while in flight, and a failure (most commonly: no
-  template configured yet) surfaces in the tab's error banner rather than being silent; **Delete**
-  opens the same confirmation modal as before (names the invoice/quote number before it
-  permanently deletes). There's no deposit or payment-amount tracking — Send only emails the
-  current line items/total. A `Quote` is
+  same form described below; **Send** opens `SendPreviewModal` rather than sending immediately —
+  it fetches the configured "Invoice Template"/"Quote Template" and the real document's own data
+  (actual line items, dates, totals, customer), renders them through the same
+  `interpolateSubject`/`interpolateBody`/`buildItemsTableHtml` used by the Settings template
+  Preview (`admin/src/utils/emailTemplate.ts` — shared by both, so there's only one copy of this
+  logic on the frontend), and shows exactly what's about to be emailed with Cancel/Send buttons;
+  if no template is configured yet, the modal says so and offers only Close. Confirming calls
+  `POST /invoices/:id/send` (or `/quotes/:id/send`), which emails the customer and marks the
+  document `sent` if it was still a `draft` — the underlying Actions button still shows
+  "Sending…"/disables for that row while in flight, and a failure (most commonly: no template
+  configured) surfaces in the tab's error banner rather than being silent. **Delete** opens the
+  same confirmation modal as before (names the invoice/quote number before it permanently
+  deletes). There's no deposit or payment-amount tracking — Send only emails the current line
+  items/total. A `Quote` is
   its own backend model (`/quotes`), not an Invoice with a different status — mirrors `Invoice`
   field-for-field except `dueDate` becomes `validUntil` (a quote hasn't been billed, so nothing is
   "due" yet) and its status lifecycle is `draft → sent → accepted | declined | expired` rather
   than Invoice's `draft → sent → paid | overdue | cancelled`, since a quote and an invoice
   represent different stages of a sale. Invoice/quote numbers come from a staff-editable template
   and next-number counter, not a fixed pattern — see Settings → Invoices → "Document Numbering"
-  below.
+  below. `customerLabel()`/`customerId()` treat a populated `customer` of `null` as "(deleted
+  customer)" rather than throwing — the backend's `Invoice`/`Quote` type says `customer` is always
+  a `CustomerRef` or a string, but `populate()` genuinely returns `null` for a dangling reference
+  once the customer a document pointed at is deleted, so the list/edit views degrade gracefully
+  (an empty "Select a customer…" in Edit) instead of crashing the whole page.
 
   Create and Edit both use one `DocumentFormModal` (parameterized by `kind: 'invoice' | 'quote'`
   and an optional `existing` record — `null` means create), shown as a wide modal with three card
@@ -198,23 +211,31 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   `contentEditable` div driven by `document.execCommand` (bold/italic/underline, heading/paragraph
   style, alignment, lists, a link, a table skeleton), plus a `<>` toggle to a raw-HTML `<textarea>`
   for hand-editing markup or typing a `{{placeholder}}`/`{{#if}}` block directly — no new
-  dependency. `EditTemplateModal` guards contentEditable's lack of a native `required` on submit
-  (stripped-tags check) since the browser can't enforce that itself the way it does for the
-  textarea. Body here is used as raw HTML at send time (aside from placeholder substitution), not
-  escaped — see `backend/README.md`'s `sendTemplatedEmail`/`interpolateBody`. Opening "Set up" on
-  either for the first time prefills a starter body (`INVOICE_TEMPLATE_STARTER`/
-  `QUOTE_TEMPLATE_STARTER`) with a header bar, `{{items_table}}`, a Sub Total/Total mini-table, and
-  the document's number/dates, so staff start from a working layout rather than a blank editor.
+  dependency. Its DOM-sync effect (pushing the `value` prop into the contentEditable div) depends
+  on `sourceMode` as well as `value`: the content div unmounts while the source `<textarea>` is
+  showing, so a fresh (empty) one is mounted when switching back, and since `value` itself hasn't
+  changed at that point, depending on it alone would leave that fresh div permanently blank.
+  `EditTemplateModal` guards contentEditable's lack of a native `required` on submit (stripped-tags
+  check) since the browser can't enforce that itself the way it does for the textarea. Body here is
+  used as raw HTML at send time (aside from placeholder substitution), not escaped — see
+  `backend/README.md`'s `sendTemplatedEmail`/`interpolateBody`. Opening "Set up" on either for the
+  first time prefills a starter body (`buildDocumentTemplateStarter()`, shared by
+  `INVOICE_TEMPLATE_STARTER`/`QUOTE_TEMPLATE_STARTER`) whose sections (document details, items,
+  totals) are each their own bordered/shaded card rather than bare tables directly on the page
+  background — the latter is what an earlier, flatter version of this starter actually looked like
+  in a real inbox, and reads as visibly unfinished, so every logical section gets a `card`-style
+  container now.
 
   A "Preview" button next to "Save template" runs the same interpolation client-side, trigger-aware:
   the original three preview against a sample customer plus the real, currently saved Business
   Info, exactly as before; `invoice`/`quote` preview against `SAMPLE_LINE_ITEMS` (its computed
   subtotal is reused as both `{{subtotal}}` and `{{total}}`, so the two always agree) run through
-  `buildSampleItemsTableHtml()` — a hand-kept copy of the backend's `buildItemsTableHtml()`, same
-  markup — plus sample dates/numbers, with `{{#if subject}}` and friends actually resolving so
-  staff see the real conditional behavior, not the raw `{{#if}}...{{/if}}` tags.
-  `interpolateSubject`/`interpolateBody`/`stripConditionals` client-side are a hand-kept copy of
-  the backend's (see `backend/README.md`), so what's previewed matches what's actually sent.
+  the shared `buildItemsTableHtml()` (`admin/src/utils/emailTemplate.ts` — also used by
+  `SendPreviewModal` above, with a real document's line items instead of the sample ones) plus
+  sample dates/numbers, with `{{#if subject}}` and friends actually resolving so staff see the real
+  conditional behavior, not the raw `{{#if}}...{{/if}}` tags. `interpolateSubject`/`interpolateBody`/
+  `stripConditionals`, also in that shared file, are a hand-kept copy of the backend's (see
+  `backend/README.md`), so what's previewed matches what's actually sent.
   **Invoices** holds four
   cards, in this order: **Document Numbering**, an independent-save form for
   `invoiceNumberTemplate`/`invoiceNextNumber`/`quoteNumberTemplate`/`quoteNextNumber` (see

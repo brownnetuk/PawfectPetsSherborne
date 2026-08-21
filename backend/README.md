@@ -237,15 +237,38 @@ invoice/quote) inserts its value unescaped instead, since those are themselves a
 caller built (`buildItemsTableHtml()` in `backend/src/common/invoice-email.util.ts`, from the
 invoice/quote's actual line items) rather than user-authored text. The admin app's template editor
 keeps a hand-written copy of this same conditional/escaping/interpolation logic for its "Preview"
-button (including a matching `buildSampleItemsTableHtml()` for invoice/quote), so what staff
-preview matches what actually sends -- see `admin/README.md`.
+button, so what staff preview matches what actually sends -- see `admin/README.md` (the shared
+`buildItemsTableHtml()` lives in `admin/src/utils/emailTemplate.ts`, also used to render an actual
+Send-confirmation preview against a real invoice/quote's own data, not just the template editor's
+sample data).
 
 `POST /invoices/:id/send` and `POST /quotes/:id/send` load the document (customer populated),
 call `sendTemplatedEmail` with its data (`customer_name`, `subject`, `subtotal`, `total`,
 `invoice_number`/`quote_number`, and the relevant dates, formatted `DD/MM/YYYY` via
-`formatUkDate()`), then -- if the document was still `draft` -- transition it to `sent`, the same
-way manually picking "sent" from the status dropdown would. There's no deposit or payment-amount
-tracking anywhere in the app; "Send" only emails the current line items/total, nothing more.
+`formatUkDate()`), append a tracking-pixel `<img>` to the rendered body (see below), then -- if
+the document was still `draft` -- transition it to `sent`, the same way manually picking "sent"
+from the status dropdown would. There's no deposit or payment-amount tracking anywhere in the
+app; "Send" only emails the current line items/total, nothing more.
+
+**Open tracking.** `sendTemplatedEmail`'s optional `appendHtml` param is added to the rendered
+body after interpolation, unconditionally -- not a placeholder, so it can't be silently dropped by
+editing the template. `InvoicesService.sendEmail()`/`QuotesService.sendEmail()` pass
+`trackingPixelHtml(pixelUrl)` (`backend/src/common/tracking-pixel.util.ts`), an invisible 1x1
+`<img>` pointing at the new public `GET /invoices/:id/pixel.gif` / `GET /quotes/:id/pixel.gif`.
+When the recipient's mail client loads it, the route stamps `openedAt` (first time only --
+`updateOne` with an `$exists: false` guard, so it's a genuine "first opened at" rather than a last-
+seen timestamp) and always responds 200 with a static transparent GIF regardless of whether the id
+resolves, since a broken image is the only signal a mail client could show either way. `openedAt`
+is deliberately its own field rather than a `status` value: whether a customer has opened an
+invoice has no bearing on where it sits in the `draft`/`sent`/`paid`/`overdue`/`cancelled`
+lifecycle (both could be true at once), so the admin surfaces it as a separate "Read" badge next
+to the status pill instead -- see `admin/README.md`.
+
+Building the pixel's URL needs this backend's own publicly-reachable origin, which nothing else
+here has a reason to know (CORS is wide open, and every other response is same-request JSON) --
+`PUBLIC_API_URL` is a new env var for it (`backend/src/common/tracking-pixel.util.ts`'s
+`publicApiUrl()`), falling back to `http://localhost:$PORT` for local dev. Must be set to the real
+deployed backend URL in production (`render.yaml`) or opened-invoice tracking silently 404s.
 
 Everything under `/settings/*` is staff-only except `GET /settings/terms` (see above), which the
 public intake form needs to read.
