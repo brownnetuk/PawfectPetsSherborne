@@ -1,7 +1,28 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsDateString, IsMongoId, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreatePaymentDto {
-  @IsNotEmpty()
+  @IsMongoId()
+  invoice: string;
+
+  @IsDateString()
+  date: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  amount: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  charges?: number;
+
+  @IsOptional()
   @IsString()
-  name: string;
+  paymentMethod?: string;
+
+  @IsMongoId()
+  account: string;
 }

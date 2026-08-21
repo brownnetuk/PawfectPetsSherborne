@@ -1,11 +1,21 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { InvoicesModule } from '../invoices/invoices.module';
+import { BusinessInfo, BusinessInfoSchema } from '../settings/schemas/business-info.schema';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 import { Payment, PaymentSchema } from './schemas/payment.schema';
 
 @Module({
-  imports: [MongooseModule.forFeature([{ name: Payment.name, schema: PaymentSchema }])],
+  imports: [
+    MongooseModule.forFeature([
+      { name: Payment.name, schema: PaymentSchema },
+      { name: BusinessInfo.name, schema: BusinessInfoSchema },
+    ]),
+    // Needed so PaymentsService can deduct/reverse a payment's amount against
+    // the invoice it's recorded on (see InvoicesService.applyPayment/reversePayment).
+    InvoicesModule,
+  ],
   controllers: [PaymentsController],
   providers: [PaymentsService],
 })

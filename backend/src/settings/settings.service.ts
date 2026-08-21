@@ -44,6 +44,8 @@ export class SettingsService {
       invoiceNextNumber: doc?.invoiceNextNumber ?? 1,
       quoteNumberTemplate: doc?.quoteNumberTemplate ?? 'QUO-{year}-{seq}',
       quoteNextNumber: doc?.quoteNextNumber ?? 1,
+      paymentNumberTemplate: doc?.paymentNumberTemplate ?? 'PAY-{year}-{seq}',
+      paymentNextNumber: doc?.paymentNextNumber ?? 1,
     };
   }
 
@@ -75,6 +77,8 @@ export class SettingsService {
     if (dto.invoiceNextNumber !== undefined) update.invoiceNextNumber = dto.invoiceNextNumber;
     if (dto.quoteNumberTemplate !== undefined) update.quoteNumberTemplate = dto.quoteNumberTemplate;
     if (dto.quoteNextNumber !== undefined) update.quoteNextNumber = dto.quoteNextNumber;
+    if (dto.paymentNumberTemplate !== undefined) update.paymentNumberTemplate = dto.paymentNumberTemplate;
+    if (dto.paymentNextNumber !== undefined) update.paymentNextNumber = dto.paymentNextNumber;
     await this.businessInfoModel.findOneAndUpdate({}, update, { upsert: true }).exec();
     return this.getBusinessInfo();
   }

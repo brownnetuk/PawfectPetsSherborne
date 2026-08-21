@@ -81,4 +81,14 @@ export class UpdateBusinessInfoDto {
   @IsInt()
   @Min(1)
   quoteNextNumber?: number;
+
+  @IsOptional()
+  @IsString()
+  paymentNumberTemplate?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  paymentNextNumber?: number;
 }

@@ -68,6 +68,11 @@ export class Invoice extends Document {
   @Prop()
   paidAt?: Date;
 
+  // Running total of Payment records applied against this invoice -- see
+  // InvoicesService.applyPayment()/reversePayment(), called by PaymentsService.
+  @Prop({ default: 0 })
+  amountPaid?: number;
+
   // Stamped by GET /invoices/:id/pixel.gif (a 1x1 tracking pixel appended to
   // the sent email body) the first time the customer's mail client loads it --
   // an "opened" signal shown as a separate badge alongside status, not a

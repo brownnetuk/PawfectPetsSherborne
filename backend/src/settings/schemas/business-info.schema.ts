@@ -76,6 +76,12 @@ export class BusinessInfo extends Document {
 
   @Prop({ default: 1 })
   quoteNextNumber?: number;
+
+  @Prop({ default: 'PAY-{year}-{seq}' })
+  paymentNumberTemplate?: string;
+
+  @Prop({ default: 1 })
+  paymentNextNumber?: number;
 }
 
 export const BusinessInfoSchema = SchemaFactory.createForClass(BusinessInfo);

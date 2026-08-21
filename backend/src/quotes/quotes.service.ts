@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { buildItemsTableHtml, formatUkDate } from '../common/invoice-email.util';
-import { formatDocumentNumber } from '../common/document-number.util';
+import { formatDocumentNumber, nextSequenceNumber } from '../common/document-number.util';
 import { publicApiUrl, trackingPixelHtml } from '../common/tracking-pixel.util';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
@@ -28,13 +28,11 @@ export class QuotesService {
   }
 
   // Same atomic get-and-increment approach as InvoicesService.nextInvoiceNumber --
-  // see that method's comment.
+  // see nextSequenceNumber() for the full rationale.
   private async nextQuoteNumber(): Promise<string> {
-    const before = await this.businessInfoModel
-      .findOneAndUpdate({}, { $inc: { quoteNextNumber: 1 } }, { upsert: true, new: false })
-      .exec();
-    const seq = before?.quoteNextNumber ?? 1;
-    const template = before?.quoteNumberTemplate || 'QUO-{year}-{seq}';
+    const seq = await nextSequenceNumber(this.businessInfoModel, 'quoteNextNumber');
+    const info = await this.businessInfoModel.findOne().exec();
+    const template = info?.quoteNumberTemplate || 'QUO-{year}-{seq}';
     return formatDocumentNumber(template, seq);
   }
 
