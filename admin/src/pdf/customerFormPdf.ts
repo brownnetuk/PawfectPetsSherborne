@@ -1,10 +1,23 @@
 import { jsPDF } from 'jspdf';
+import logoUrl from '../assets/logo.png';
 import type { Animal, Customer } from '../types';
 
 const MARGIN = 40;
 const PAGE_WIDTH = 595.28; // A4, points
 const PAGE_HEIGHT = 841.89;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
+const HEADER_HEIGHT = 74;
+const FOOTER_HEIGHT = 30;
+const CONTENT_BOTTOM = PAGE_HEIGHT - MARGIN - FOOTER_HEIGHT + 14;
+
+// Brand palette -- kept in sync by hand with the CSS variables in
+// admin/src/index.css (there's no shared token source between the two).
+const GREEN: [number, number, number] = [31, 59, 44]; // --brand-green
+const ACCENT: [number, number, number] = [232, 150, 60]; // --accent
+const ACCENT_DARK: [number, number, number] = [204, 122, 36]; // --accent-dark
+const MUTED: [number, number, number] = [111, 125, 114]; // --muted
+const BORDER: [number, number, number] = [227, 232, 222]; // --border
+const INK: [number, number, number] = [35, 44, 38]; // --ink
 
 // Mirrors the terms text in frontend/src/intake/steps/AgreementStep.tsx -- kept
 // in sync manually since the two apps don't share code.
@@ -19,232 +32,370 @@ const TERMS = [
   'This agreement remains in effect for all future bookings unless the client notifies PawfectPets Sherborne of a change in circumstances.',
 ];
 
-class PdfWriter {
-  doc = new jsPDF({ unit: 'pt', format: 'a4' });
-  y = MARGIN;
+/** A pre-measured, self-contained chunk of content: know its height before drawing it. */
+interface Block {
+  height: number;
+  draw: (doc: jsPDF, y: number) => void;
+}
 
-  private ensureSpace(h: number) {
-    if (this.y + h > PAGE_HEIGHT - MARGIN) {
-      this.doc.addPage();
-      this.y = MARGIN;
-    }
-  }
+function fieldBlock(doc: jsPDF, label: string, value: string): Block {
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  const lines = doc.splitTextToSize(value || '—', CONTENT_WIDTH - 150) as string[];
+  const height = lines.length * 13 + 6;
+  return {
+    height,
+    draw(doc, y) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...MUTED);
+      doc.text(label.toUpperCase(), MARGIN, y);
+      doc.setTextColor(...INK);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      lines.forEach((line, i) => doc.text(line, MARGIN + 150, y + i * 13));
+    },
+  };
+}
 
-  title(text: string) {
-    this.ensureSpace(24);
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(18);
-    this.doc.setTextColor(31, 59, 44);
-    this.doc.text(text, MARGIN, this.y);
-    this.doc.setTextColor(0, 0, 0);
-    this.y += 22;
-  }
+function paragraphBlock(doc: jsPDF, text: string): Block {
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9.5);
+  const lines = doc.splitTextToSize(text, CONTENT_WIDTH) as string[];
+  const height = lines.length * 12 + 8;
+  return {
+    height,
+    draw(doc, y) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9.5);
+      doc.setTextColor(...INK);
+      lines.forEach((line, i) => doc.text(line, MARGIN, y + i * 12));
+    },
+  };
+}
 
-  subtitle(text: string) {
-    this.ensureSpace(20);
-    this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(10);
-    this.doc.setTextColor(100, 100, 100);
-    this.doc.text(text, MARGIN, this.y);
-    this.doc.setTextColor(0, 0, 0);
-    this.y += 26;
-  }
+function subheadingBlock(text: string): Block {
+  return {
+    height: 20,
+    draw(doc, y) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(...ACCENT_DARK);
+      doc.text(text, MARGIN, y);
+      doc.setTextColor(...INK);
+    },
+  };
+}
 
-  heading(text: string) {
-    this.ensureSpace(28);
-    this.y += 4;
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(13);
-    this.doc.setTextColor(31, 59, 44);
-    this.doc.text(text, MARGIN, this.y);
-    this.doc.setTextColor(0, 0, 0);
-    this.y += 8;
-    this.doc.setDrawColor(210, 214, 205);
-    this.doc.line(MARGIN, this.y, PAGE_WIDTH - MARGIN, this.y);
-    this.y += 14;
-  }
+function numberedListBlock(doc: jsPDF, items: string[]): Block {
+  doc.setFontSize(9);
+  const wrapped = items.map((item, i) => doc.splitTextToSize(`${i + 1}. ${item}`, CONTENT_WIDTH - 12) as string[]);
+  const height = wrapped.reduce((sum, lines) => sum + lines.length * 12 + 4, 0);
+  return {
+    height,
+    draw(doc, y) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...INK);
+      let cursor = y;
+      wrapped.forEach((lines) => {
+        lines.forEach((line, idx) => doc.text(line, MARGIN + (idx === 0 ? 0 : 12), cursor + idx * 12));
+        cursor += lines.length * 12 + 4;
+      });
+    },
+  };
+}
 
-  subheading(text: string) {
-    this.ensureSpace(18);
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(11);
-    this.doc.text(text, MARGIN, this.y);
-    this.y += 16;
-  }
+function signatureBlock(dataUrl: string, label: string): Block {
+  const w = 200;
+  const h = 65;
+  return {
+    // 4 (image-to-line) + 12 (line-to-caption) + 20 trailing -- matches the
+    // ~19-20pt baseline-to-next-content gap every other block type leaves,
+    // so a heading landing right after a signature doesn't crowd its caption.
+    height: h + 36,
+    draw(doc, y) {
+      try {
+        doc.addImage(dataUrl, 'PNG', MARGIN, y, w, h);
+      } catch {
+        // Malformed/legacy signature data -- skip the image rather than fail the whole PDF.
+      }
+      doc.setDrawColor(...BORDER);
+      doc.line(MARGIN, y + h + 4, MARGIN + w, y + h + 4);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(...MUTED);
+      doc.text(label, MARGIN, y + h + 16);
+      doc.setTextColor(...INK);
+    },
+  };
+}
 
-  field(label: string, value: string) {
-    const size = 10;
-    this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(size);
-    const lines = this.doc.splitTextToSize(value || '—', CONTENT_WIDTH - 150) as string[];
-    this.ensureSpace(lines.length * 13 + 4);
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(8.5);
-    this.doc.setTextColor(110, 110, 110);
-    this.doc.text(label.toUpperCase(), MARGIN, this.y);
-    this.doc.setTextColor(0, 0, 0);
-    this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(size);
-    lines.forEach((line, i) => this.doc.text(line, MARGIN + 150, this.y + i * 13));
-    this.y += lines.length * 13 + 6;
-  }
-
-  paragraph(text: string) {
-    this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(9.5);
-    const lines = this.doc.splitTextToSize(text, CONTENT_WIDTH) as string[];
-    this.ensureSpace(lines.length * 12 + 4);
-    lines.forEach((line, i) => this.doc.text(line, MARGIN, this.y + i * 12));
-    this.y += lines.length * 12 + 8;
-  }
-
-  numberedList(items: string[]) {
-    this.doc.setFontSize(9);
-    items.forEach((item, i) => {
-      this.doc.setFont('helvetica', 'normal');
-      const lines = this.doc.splitTextToSize(`${i + 1}. ${item}`, CONTENT_WIDTH - 12) as string[];
-      this.ensureSpace(lines.length * 12 + 4);
-      lines.forEach((line, idx) => this.doc.text(line, MARGIN + (idx === 0 ? 0 : 12), this.y + idx * 12));
-      this.y += lines.length * 12 + 4;
-    });
-  }
-
-  signatureImage(dataUrl: string, label: string) {
-    const w = 200;
-    const h = 65;
-    this.ensureSpace(h + 20);
-    try {
-      this.doc.addImage(dataUrl, 'PNG', MARGIN, this.y, w, h);
-    } catch {
-      // Malformed/legacy signature data -- skip the image rather than fail the whole PDF.
-    }
-    this.doc.setDrawColor(200, 200, 200);
-    this.doc.line(MARGIN, this.y + h + 4, MARGIN + w, this.y + h + 4);
-    this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(8);
-    this.doc.setTextColor(110, 110, 110);
-    this.doc.text(label, MARGIN, this.y + h + 16);
-    this.doc.setTextColor(0, 0, 0);
-    this.y += h + 26;
-  }
-
-  spacer(h = 10) {
-    this.y += h;
-  }
+function spacerBlock(h: number): Block {
+  return { height: h, draw: () => {} };
 }
 
 function yesNo(v: boolean): string {
   return v ? 'Yes' : 'No';
 }
 
-export function buildCustomerFormPdf(
-  customer: Customer,
-  animals: Animal[],
-  alarmInstructions: string | null,
-): jsPDF {
-  const w = new PdfWriter();
+async function loadLogoDataUrl(): Promise<string | null> {
+  try {
+    const res = await fetch(logoUrl);
+    const blob = await res.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
 
-  w.title('PawfectPets Sherborne');
-  w.subtitle(
-    `Registration form — ${customer.name}${
-      customer.agreement?.signedAt ? ` — signed ${new Date(customer.agreement.signedAt).toLocaleDateString('en-GB')}` : ''
-    }`,
-  );
+class PdfWriter {
+  doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  y = MARGIN;
+  private pageCount = 1;
 
-  w.heading('Client details');
-  w.field('Name', customer.name);
-  w.field('Email', customer.email);
-  w.field('Mobile', customer.mobile ?? '');
-  w.field('Telephone', customer.telephone ?? '');
-  w.field('Address', customer.address ?? '');
+  drawHeader(logo: string | null, subtitle: string) {
+    const doc = this.doc;
+    doc.setFillColor(...GREEN);
+    doc.rect(0, 0, PAGE_WIDTH, HEADER_HEIGHT, 'F');
 
-  w.heading('Emergency contact');
-  const ec = customer.emergencyContact;
-  if (ec?.sameAsClient) {
-    w.field('Contact', 'Same as client');
-  } else {
-    w.field('Name', ec?.name ?? '');
-    w.field('Address', ec?.address ?? '');
-    w.field('Telephone', ec?.telephone ?? '');
-    w.field('Mobile', ec?.mobile ?? '');
-    w.field('Email', ec?.email ?? '');
+    const badgeCx = MARGIN + 17;
+    const badgeCy = HEADER_HEIGHT / 2;
+    doc.setFillColor(255, 255, 255);
+    doc.circle(badgeCx, badgeCy, 19, 'F');
+    if (logo) {
+      try {
+        doc.addImage(logo, 'PNG', badgeCx - 14, badgeCy - 14, 28, 28);
+      } catch {
+        // ignore malformed logo data
+      }
+    }
+
+    doc.setFont('times', 'bold');
+    doc.setFontSize(19);
+    doc.setTextColor(255, 255, 255);
+    doc.text('PawfectPets Sherborne', MARGIN + 46, badgeCy - 3);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(224, 233, 226);
+    doc.text(subtitle, MARGIN + 46, badgeCy + 14);
+
+    doc.setTextColor(...INK);
+    this.y = HEADER_HEIGHT + 26;
   }
 
-  w.heading('Emergency vet');
-  const ev = customer.emergencyVet;
-  w.field('Practice', ev?.practiceName ?? '');
-  w.field('Address', ev?.address ?? '');
-  w.field('Telephone', ev?.telephone ?? '');
-  w.field('Email', ev?.email ?? '');
-  w.field('Alternative care authorised', ev ? yesNo(ev.alternativeVetAuthorised) : '—');
+  private newPage() {
+    this.doc.addPage();
+    this.pageCount += 1;
+    this.y = MARGIN;
+  }
 
-  w.heading('Security arrangements');
-  w.field('Keys provided', customer.security ? yesNo(customer.security.keysProvided) : '—');
-  w.field('Alarm instructions', alarmInstructions || '(none provided)');
-  w.field('Further information', customer.security?.furtherInformation ?? '');
-
-  for (const animal of animals) {
-    w.heading(`Pet — ${animal.name}`);
-    w.field('Species', animal.species);
-    w.field('Breed', animal.breed);
-    w.field('Sex', animal.sex);
-    w.field('Age', String(animal.age));
-    w.field(
-      'Vaccinated',
-      animal.vaccinated
-        ? `Yes (expires ${animal.vaccineExpiryDate ? new Date(animal.vaccineExpiryDate).toLocaleDateString('en-GB') : 'unknown'})`
-        : 'No',
-    );
-    w.field('Colour / markings', animal.colourMarkings ?? '');
-    w.field('Microchip number', animal.microchipNumber ?? '');
-    w.field('Has collar', yesNo(animal.hasCollar));
-    w.field('Temperament notes', animal.temperamentNotes ?? '');
-    w.field(
-      'Aggression to people',
-      animal.aggressionToPeople ? `Yes — ${animal.aggressionToPeopleDetails ?? ''}` : 'No',
-    );
-    w.field(
-      'Aggression to other animals',
-      animal.aggressionToOtherAnimals ? `Yes — ${animal.aggressionToOtherAnimalsDetails ?? ''}` : 'No',
-    );
-    w.field('Travels well in car', animal.travelsWellInCar);
-    w.field('Chases livestock', animal.chasesLivestock);
-    w.field(
-      'Allergies',
-      animal.allergies.status === 'no' ? 'No' : `${animal.allergies.status} — ${animal.allergies.details ?? ''}`,
-    );
-    w.field(
-      'On medication',
-      animal.medication.onMedication ? `Yes — ${animal.medication.details ?? ''}` : 'No',
-    );
-
-    if (animal.species === 'dog' && animal.offLeadConsent) {
-      w.subheading('Off-lead consent');
-      w.field('Lead', animal.offLeadConsent.mode === 'off_lead' ? 'Off lead' : 'On lead');
-      if (animal.offLeadConsent.mode === 'off_lead') {
-        w.paragraph(
-          `I consent to ${animal.name} being exercised off the lead, and understand this is at my own risk.`,
-        );
-        if (animal.offLeadConsent.signature) {
-          w.signatureImage(animal.offLeadConsent.signature, `Off-lead consent signature — ${animal.name}`);
-        }
-      }
+  private ensureSpace(h: number) {
+    if (this.y + h > CONTENT_BOTTOM) {
+      this.newPage();
     }
   }
 
-  w.heading('Terms & conditions');
-  w.numberedList(TERMS);
+  /**
+   * Renders a heading followed by its blocks, keeping the whole section
+   * together on one page when it's short enough to fit a fresh page --
+   * rather than letting it split awkwardly mid-way. A section too tall for
+   * even a full page still flows across pages field-by-field, never cutting
+   * a single field/paragraph/image in half.
+   */
+  section(title: string, blocks: Block[]) {
+    // A fixed gap ahead of every heading, regardless of what block preceded
+    // it -- blocks size their own trailing margin for "another block like
+    // me" (a field, a line of a paragraph), which isn't always enough
+    // clearance for a 14pt bold heading landing right after.
+    const preGap = 10;
+    const headingHeight = preGap + 23;
+    const total = headingHeight + blocks.reduce((sum, b) => sum + b.height, 0);
+    const remaining = CONTENT_BOTTOM - this.y;
+    const fitsFreshPage = total <= CONTENT_BOTTOM - MARGIN;
+    if (total > remaining && fitsFreshPage && this.y > MARGIN) {
+      this.newPage();
+    }
 
-  w.heading('Client agreement');
-  w.field('Signed by', customer.agreement?.signedName ?? '');
-  w.field(
-    'Signed at',
-    customer.agreement?.signedAt ? new Date(customer.agreement.signedAt).toLocaleString('en-GB') : '',
-  );
-  if (customer.agreement?.signatureImage) {
-    w.spacer(4);
-    w.signatureImage(customer.agreement.signatureImage, 'Client signature');
+    this.ensureSpace(headingHeight);
+    this.y += preGap;
+    const doc = this.doc;
+    doc.setFont('times', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor(...GREEN);
+    doc.text(title, MARGIN, this.y);
+    doc.setTextColor(...INK);
+    this.y += 7;
+    doc.setDrawColor(...ACCENT);
+    doc.setLineWidth(1.6);
+    doc.line(MARGIN, this.y, MARGIN + 46, this.y);
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.75);
+    doc.line(MARGIN + 46, this.y, PAGE_WIDTH - MARGIN, this.y);
+    doc.setLineWidth(1);
+    this.y += 16;
+
+    for (const block of blocks) {
+      this.ensureSpace(block.height);
+      block.draw(doc, this.y);
+      this.y += block.height;
+    }
   }
+
+  finish(generatedNote: string) {
+    const total = this.doc.getNumberOfPages();
+    for (let i = 1; i <= total; i++) {
+      this.doc.setPage(i);
+      this.doc.setDrawColor(...BORDER);
+      this.doc.setLineWidth(0.75);
+      this.doc.line(MARGIN, PAGE_HEIGHT - MARGIN - 16, PAGE_WIDTH - MARGIN, PAGE_HEIGHT - MARGIN - 16);
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.setFontSize(8);
+      this.doc.setTextColor(...MUTED);
+      this.doc.text(generatedNote, MARGIN, PAGE_HEIGHT - MARGIN - 4);
+      this.doc.text(`Page ${i} of ${total}`, PAGE_WIDTH - MARGIN, PAGE_HEIGHT - MARGIN - 4, { align: 'right' });
+      this.doc.setTextColor(...INK);
+    }
+  }
+}
+
+export async function buildCustomerFormPdf(
+  customer: Customer,
+  animals: Animal[],
+  alarmInstructions: string | null,
+): Promise<jsPDF> {
+  const logo = await loadLogoDataUrl();
+  const w = new PdfWriter();
+  const doc = w.doc;
+
+  const subtitle = `Registration form — ${customer.name}${
+    customer.agreement?.signedAt
+      ? ` — signed ${new Date(customer.agreement.signedAt).toLocaleDateString('en-GB')}`
+      : ''
+  }`;
+  w.drawHeader(logo, subtitle);
+
+  w.section('Client details', [
+    fieldBlock(doc, 'Name', customer.name),
+    fieldBlock(doc, 'Email', customer.email),
+    fieldBlock(doc, 'Mobile', customer.mobile ?? ''),
+    fieldBlock(doc, 'Telephone', customer.telephone ?? ''),
+    fieldBlock(doc, 'Address', customer.address ?? ''),
+  ]);
+
+  const ec = customer.emergencyContact;
+  w.section(
+    'Emergency contact',
+    ec?.sameAsClient
+      ? [fieldBlock(doc, 'Contact', 'Same as client')]
+      : [
+          fieldBlock(doc, 'Name', ec?.name ?? ''),
+          fieldBlock(doc, 'Address', ec?.address ?? ''),
+          fieldBlock(doc, 'Telephone', ec?.telephone ?? ''),
+          fieldBlock(doc, 'Mobile', ec?.mobile ?? ''),
+          fieldBlock(doc, 'Email', ec?.email ?? ''),
+        ],
+  );
+
+  const ev = customer.emergencyVet;
+  w.section('Emergency vet', [
+    fieldBlock(doc, 'Practice', ev?.practiceName ?? ''),
+    fieldBlock(doc, 'Address', ev?.address ?? ''),
+    fieldBlock(doc, 'Telephone', ev?.telephone ?? ''),
+    fieldBlock(doc, 'Email', ev?.email ?? ''),
+    fieldBlock(doc, 'Alternative care authorised', ev ? yesNo(ev.alternativeVetAuthorised) : '—'),
+  ]);
+
+  w.section('Security arrangements', [
+    fieldBlock(doc, 'Keys provided', customer.security ? yesNo(customer.security.keysProvided) : '—'),
+    fieldBlock(doc, 'Alarm instructions', alarmInstructions || '(none provided)'),
+    fieldBlock(doc, 'Further information', customer.security?.furtherInformation ?? ''),
+  ]);
+
+  for (const animal of animals) {
+    const blocks: Block[] = [
+      fieldBlock(doc, 'Species', animal.species),
+      fieldBlock(doc, 'Breed', animal.breed),
+      fieldBlock(doc, 'Sex', animal.sex),
+      fieldBlock(doc, 'Age', String(animal.age)),
+      fieldBlock(
+        doc,
+        'Vaccinated',
+        animal.vaccinated
+          ? `Yes (expires ${animal.vaccineExpiryDate ? new Date(animal.vaccineExpiryDate).toLocaleDateString('en-GB') : 'unknown'})`
+          : 'No',
+      ),
+      fieldBlock(doc, 'Colour / markings', animal.colourMarkings ?? ''),
+      fieldBlock(doc, 'Microchip number', animal.microchipNumber ?? ''),
+      fieldBlock(doc, 'Has collar', yesNo(animal.hasCollar)),
+      fieldBlock(doc, 'Temperament notes', animal.temperamentNotes ?? ''),
+      fieldBlock(
+        doc,
+        'Aggression to people',
+        animal.aggressionToPeople ? `Yes — ${animal.aggressionToPeopleDetails ?? ''}` : 'No',
+      ),
+      fieldBlock(
+        doc,
+        'Aggression to other animals',
+        animal.aggressionToOtherAnimals ? `Yes — ${animal.aggressionToOtherAnimalsDetails ?? ''}` : 'No',
+      ),
+      fieldBlock(doc, 'Travels well in car', animal.travelsWellInCar),
+      fieldBlock(doc, 'Chases livestock', animal.chasesLivestock),
+      fieldBlock(
+        doc,
+        'Allergies',
+        animal.allergies.status === 'no' ? 'No' : `${animal.allergies.status} — ${animal.allergies.details ?? ''}`,
+      ),
+      fieldBlock(
+        doc,
+        'On medication',
+        animal.medication.onMedication ? `Yes — ${animal.medication.details ?? ''}` : 'No',
+      ),
+    ];
+
+    if (animal.species === 'dog' && animal.offLeadConsent) {
+      blocks.push(spacerBlock(6));
+      blocks.push(subheadingBlock('Off-lead consent'));
+      blocks.push(fieldBlock(doc, 'Lead', animal.offLeadConsent.mode === 'off_lead' ? 'Off lead' : 'On lead'));
+      if (animal.offLeadConsent.mode === 'off_lead') {
+        blocks.push(
+          paragraphBlock(
+            doc,
+            `I consent to ${animal.name} being exercised off the lead, and understand this is at my own risk.`,
+          ),
+        );
+        if (animal.offLeadConsent.signature) {
+          blocks.push(signatureBlock(animal.offLeadConsent.signature, `Off-lead consent signature — ${animal.name}`));
+        }
+      }
+    }
+
+    w.section(`Pet — ${animal.name}`, blocks);
+  }
+
+  w.section('Terms & conditions', [numberedListBlock(doc, TERMS)]);
+
+  const agreementBlocks: Block[] = [
+    fieldBlock(doc, 'Signed by', customer.agreement?.signedName ?? ''),
+    fieldBlock(
+      doc,
+      'Signed at',
+      customer.agreement?.signedAt ? new Date(customer.agreement.signedAt).toLocaleString('en-GB') : '',
+    ),
+  ];
+  if (customer.agreement?.signatureImage) {
+    agreementBlocks.push(spacerBlock(4));
+    agreementBlocks.push(signatureBlock(customer.agreement.signatureImage, 'Client signature'));
+  }
+  w.section('Client agreement', agreementBlocks);
+
+  w.finish(`Generated ${new Date().toLocaleDateString('en-GB')} · PawfectPets Sherborne`);
 
   return w.doc;
 }
