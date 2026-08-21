@@ -188,8 +188,9 @@ persisted value — e.g. from a Settings edit — before anything ever called th
 `nextSequenceNumber()` detects "field was absent" from the pre-increment snapshot and, in that one
 case, issues a follow-up `$set` correcting the stored value from `1` to `2` before returning `1`
 for the current call — every other call is a single atomic `$inc` exactly as before. Both the
-template and the next number for all three counters are staff-editable via Settings → Invoices →
-"Document Numbering" (see `admin/README.md`), letting staff skip ahead or realign the sequence.
+template and the next number for all three counters are staff-editable via Settings → Business
+Info → "Document Numbering" (see `admin/README.md`), letting staff skip ahead or realign the
+sequence.
 
 ### InvoiceTerm (`/invoice-terms`) and Product (`/products`)
 

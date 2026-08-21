@@ -363,6 +363,8 @@ function BusinessInfoTab() {
           <TermsPreviewModal html={previewHtml} onClose={() => setPreviewHtml(null)} />
         )}
       </div>
+
+      <DocumentNumberingCard />
     </>
   );
 }
@@ -1291,7 +1293,6 @@ function TemplatePreviewModal({
 function InvoicesSettingsTab() {
   return (
     <div>
-      <DocumentNumberingCard />
       <InvoiceTermsCard />
       <BankDetailsCard />
       <ProductsCard />

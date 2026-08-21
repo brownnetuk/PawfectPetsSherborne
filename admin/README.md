@@ -119,8 +119,8 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   "due" yet) and its status lifecycle is `draft → sent → accepted | declined | expired` rather
   than Invoice's `draft → sent → paid | overdue | cancelled`, since a quote and an invoice
   represent different stages of a sale. Invoice/quote numbers come from a staff-editable template
-  and next-number counter, not a fixed pattern — see Settings → Invoices → "Document Numbering"
-  below. `customerLabel()`/`customerId()` treat a populated `customer` of `null` as "(deleted
+  and next-number counter, not a fixed pattern — see Settings → Business Info → "Document
+  Numbering" below. `customerLabel()`/`customerId()` treat a populated `customer` of `null` as "(deleted
   customer)" rather than throwing — the backend's `Invoice`/`Quote` type says `customer` is always
   a `CustomerRef` or a string, but `populate()` genuinely returns `null` for a dangling reference
   once the customer a document pointed at is deleted, so the list/edit views degrade gracefully
@@ -210,7 +210,16 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   filename; terms uploaded before this button existed only ever had their parsed HTML stored, so
   downloading those specifically isn't possible until re-uploaded — the error message says so
   rather than a generic failure. The public intake form's agreement step reads the parsed content
-  via `GET /settings/terms` — see `frontend/README.md`.
+  via `GET /settings/terms` — see `frontend/README.md`. **Document Numbering**, below Terms and
+  Conditions, is an independent-save form for
+  `invoiceNumberTemplate`/`invoiceNextNumber`/`quoteNumberTemplate`/`quoteNextNumber`/
+  `paymentNumberTemplate`/`paymentNextNumber` (see "Document numbering" in `backend/README.md`) —
+  the template fields accept free text with `{year}`/`{seq}` placeholders (defaulting to
+  `INV-{year}-{seq}`/`QUO-{year}-{seq}`/`PAY-{year}-{seq}`), and the next-number fields are plain
+  integer inputs so staff can jump the sequence ahead (e.g. to clear past whatever numbers already
+  existed before a counter was introduced) or realign it to match an external paper sequence.
+  Surfaced here rather than under Invoices since it spans invoices, quotes, and payments alike, not
+  just invoice-specific settings.
   **Staff** lists, creates, and deletes staff logins (still
   backed by `/auth/staff`, unchanged from before this was under Settings). Deleting is blocked
   server-side if it would remove the last remaining account; self-delete is blocked in the UI
@@ -282,15 +291,8 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   conditional behavior, not the raw `{{#if}}...{{/if}}` tags. `interpolateSubject`/`interpolateBody`/
   `stripConditionals`, also in that shared file, are a hand-kept copy of the backend's (see
   `backend/README.md`), so what's previewed matches what's actually sent.
-  **Invoices** holds four
-  cards, in this order: **Document Numbering**, an independent-save form for
-  `invoiceNumberTemplate`/`invoiceNextNumber`/`quoteNumberTemplate`/`quoteNextNumber`/
-  `paymentNumberTemplate`/`paymentNextNumber` (see "Document numbering" in `backend/README.md`) —
-  the template fields accept free text with `{year}`/`{seq}` placeholders (defaulting to
-  `INV-{year}-{seq}`/`QUO-{year}-{seq}`/`PAY-{year}-{seq}`), and the next-number fields are plain
-  integer inputs so staff can jump the sequence ahead (e.g. to clear past whatever numbers already
-  existed before a counter was introduced) or realign it to match an external paper sequence.
-  **Invoice Terms**, a small library of reusable free-text terms with add/edit/delete
+  **Invoices** holds three
+  cards, in this order: **Invoice Terms**, a small library of reusable free-text terms with add/edit/delete
   (`/invoice-terms`), each with a **Plus Days** column — how many days after the issue date the
   term's due date falls, or a fixed "End of the month" checkbox instead (always the last working
   day, Mon–Fri, of the issue date's month — a fixed day-count doesn't make sense when months have
