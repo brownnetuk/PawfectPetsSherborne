@@ -5,6 +5,7 @@ import {
   ActivityIcon,
   BookingsIcon,
   CustomersIcon,
+  EnquiriesIcon,
   InvoicesIcon,
   LogoutIcon,
   SettingsIcon,
@@ -38,6 +39,10 @@ export default function Layout() {
           Pawfect Pets
         </div>
         <nav>
+          <NavLink to="/enquiries" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <EnquiriesIcon />
+            Enquiries
+          </NavLink>
           <NavLink to="/customers" className={({ isActive }) => (isActive ? 'active' : '')}>
             <CustomersIcon />
             Customers

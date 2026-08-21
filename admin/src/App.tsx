@@ -4,6 +4,7 @@ import Layout from './layout/Layout';
 import LoginPage from './pages/LoginPage';
 import CustomersPage from './pages/CustomersPage';
 import CustomerDetailPage from './pages/CustomerDetailPage';
+import EnquiriesPage from './pages/EnquiriesPage';
 import BookingsPage from './pages/BookingsPage';
 import InvoicesPage from './pages/InvoicesPage';
 import ActivityPage from './pages/ActivityPage';
@@ -22,6 +23,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedLayout />}>
         <Route path="/" element={<Navigate to="/customers" replace />} />
+        <Route path="/enquiries" element={<EnquiriesPage />} />
         <Route path="/customers" element={<CustomersPage />} />
         <Route path="/customers/:id" element={<CustomerDetailPage />} />
         <Route path="/bookings" element={<BookingsPage />} />
