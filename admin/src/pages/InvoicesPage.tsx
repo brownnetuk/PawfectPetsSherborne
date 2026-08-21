@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import Modal from '../components/Modal';
-import { PencilIcon, TrashIcon } from '../components/icons';
+import { ChevronDownIcon, PencilIcon, TrashIcon } from '../components/icons';
 import type { Customer, Invoice, InvoiceStatus, InvoiceTerm, LineItem, Product, Quote, QuoteStatus } from '../types';
 
 const INVOICE_STATUSES: InvoiceStatus[] = ['draft', 'sent', 'paid', 'overdue', 'cancelled'];
@@ -358,16 +358,19 @@ function QuotesTab() {
 function ItemTable({
   lineItems,
   products,
-  datalistId,
   onChange,
 }: {
   lineItems: LineItem[];
   products: Product[];
-  datalistId: string;
   onChange: (items: LineItem[]) => void;
 }) {
+  const [pickerIndex, setPickerIndex] = useState<number | null>(null);
+
   function updateItem(i: number, patch: Partial<LineItem>) {
     onChange(lineItems.map((item, idx) => (idx === i ? { ...item, ...patch } : item)));
+  }
+  function selectProduct(i: number, product: Product) {
+    updateItem(i, { description: product.name, unitPrice: product.price });
   }
   function handleDescriptionChange(i: number, value: string) {
     const product = products.find((p) => p.name === value);
@@ -397,15 +400,23 @@ function ItemTable({
           {lineItems.map((item, i) => (
             <tr key={i}>
               <td>
-                <input
-                  type="text"
-                  list={datalistId}
-                  placeholder="Type or click to select an item"
-                  value={item.description}
-                  onChange={(e) => handleDescriptionChange(i, e.target.value)}
-                  style={{ width: '100%' }}
-                  required
-                />
+                <div className="item-picker">
+                  <input
+                    type="text"
+                    placeholder="Type or click to select an item"
+                    value={item.description}
+                    onChange={(e) => handleDescriptionChange(i, e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="item-picker-btn"
+                    onClick={() => setPickerIndex(i)}
+                    aria-label="Choose from products"
+                  >
+                    <ChevronDownIcon />
+                  </button>
+                </div>
               </td>
               <td>
                 <input
@@ -455,15 +466,76 @@ function ItemTable({
           ))}
         </tbody>
       </table>
-      <datalist id={datalistId}>
-        {products.map((p) => (
-          <option key={p._id} value={p.name} />
-        ))}
-      </datalist>
       <button type="button" className="btn-link" onClick={addItem} style={{ marginTop: 8 }}>
         + Add New Row
       </button>
+      {pickerIndex !== null && (
+        <ProductPickerModal
+          products={products}
+          onClose={() => setPickerIndex(null)}
+          onSelect={(product) => selectProduct(pickerIndex, product)}
+        />
+      )}
     </div>
+  );
+}
+
+function ProductPickerModal({
+  products,
+  onClose,
+  onSelect,
+}: {
+  products: Product[];
+  onClose: () => void;
+  onSelect: (product: Product) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const q = search.toLowerCase();
+  const filtered = products.filter(
+    (p) => p.name.toLowerCase().includes(q) || (p.description ?? '').toLowerCase().includes(q),
+  );
+
+  function handleSelect(product: Product) {
+    onSelect(product);
+    onClose();
+  }
+
+  return (
+    <Modal title="Select an Item" onClose={onClose}>
+      <div className="field">
+        <input
+          type="text"
+          placeholder="Search products…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          autoFocus
+        />
+      </div>
+      <div className="card" style={{ padding: 0, maxHeight: 360, overflowY: 'auto' }}>
+        {filtered.length === 0 ? (
+          <div className="empty-state">{products.length === 0 ? 'No products yet.' : 'No products found.'}</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((p) => (
+                <tr key={p._id} onClick={() => handleSelect(p)}>
+                  <td>{p.name}</td>
+                  <td style={{ color: 'var(--muted)' }}>{p.description || '—'}</td>
+                  <td>£{p.price.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -578,7 +650,6 @@ function DocumentFormModal({
   const number = existing ? (isInvoice ? (existing as Invoice).invoiceNumber : (existing as Quote).quoteNumber) : null;
   const title = `${existing ? 'Edit' : 'New'} ${isInvoice ? 'Invoice' : 'Quote'}`;
   const dateLabel = isInvoice ? 'Due date' : 'Valid until';
-  const datalistId = `product-items-${kind}`;
 
   return (
     <Modal title={title} onClose={onClose} xl>
@@ -643,7 +714,7 @@ function DocumentFormModal({
 
         <div className="card">
           <div className="section-title">Item Table</div>
-          <ItemTable lineItems={lineItems} products={products} datalistId={datalistId} onChange={setLineItems} />
+          <ItemTable lineItems={lineItems} products={products} onChange={setLineItems} />
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
             <div style={{ width: 260 }}>
               <div

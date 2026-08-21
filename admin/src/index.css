@@ -434,6 +434,55 @@ tbody tr:last-child td {
   gap: 0 14px;
 }
 
+/* Inputs inside a table (the invoice/quote Item Table) aren't wrapped in a
+   .field, so they'd otherwise fall back to bare browser styling -- match
+   them to .field input above so the whole form looks consistent. */
+table input[type='text'],
+table input[type='number'] {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  font-family: inherit;
+  background: white;
+  color: var(--ink);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+table input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(232, 150, 60, 0.2);
+}
+
+/* The Item Details cell's text input plus its "browse products" trigger,
+   styled as one combined control (input left, button right, no seam). */
+.item-picker {
+  display: flex;
+}
+.item-picker input {
+  flex: 1;
+  min-width: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+}
+.item-picker-btn {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-top-right-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
+  background: #fafbfc;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.item-picker-btn:hover {
+  background: var(--border);
+  color: var(--ink);
+}
+
 .error-banner {
   background: var(--error-light);
   border: 1px solid #f3c3bd;
