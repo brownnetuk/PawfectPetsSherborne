@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as api from '../api/client';
+import ActionsMenu from '../components/ActionsMenu';
 import Modal from '../components/Modal';
 import { ChevronDownIcon } from '../components/icons';
 import { buildItemsTableHtml, interpolateBody, interpolateSubject } from '../utils/emailTemplate';
@@ -198,57 +199,6 @@ function SendPreviewModal({
   );
 }
 
-function ActionsMenu({
-  onEdit,
-  onSend,
-  onDelete,
-  sending,
-}: {
-  onEdit: () => void;
-  onSend: () => void;
-  onDelete: () => void;
-  sending: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [open]);
-
-  function choose(fn: () => void) {
-    setOpen(false);
-    fn();
-  }
-
-  return (
-    <div className="actions-menu" ref={ref}>
-      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpen((o) => !o)}>
-        Actions <ChevronDownIcon />
-      </button>
-      {open && (
-        <div className="actions-menu-list">
-          <button type="button" onClick={() => choose(onEdit)}>
-            View / Edit
-          </button>
-          <button type="button" onClick={() => choose(onSend)} disabled={sending}>
-            {sending ? 'Sending…' : 'Send'}
-          </button>
-          <div className="actions-menu-divider" />
-          <button type="button" className="actions-menu-danger" onClick={() => choose(onDelete)}>
-            Delete
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function InvoicesPage() {
   const [tab, setTab] = useState<Tab>('invoices');
 
@@ -371,10 +321,15 @@ function InvoicesTab() {
                   <td>{new Date(inv.dueDate).toLocaleDateString()}</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <ActionsMenu
-                      onEdit={() => setEditing(inv)}
-                      onSend={() => setSendPreview(inv)}
-                      onDelete={() => setDeleting(inv)}
-                      sending={sendingId === inv._id}
+                      items={[
+                        { label: 'View / Edit', onClick: () => setEditing(inv) },
+                        {
+                          label: sendingId === inv._id ? 'Sending…' : 'Send',
+                          onClick: () => setSendPreview(inv),
+                          disabled: sendingId === inv._id,
+                        },
+                        { label: 'Delete', onClick: () => setDeleting(inv), danger: true, dividerBefore: true },
+                      ]}
                     />
                   </td>
                 </tr>
@@ -535,10 +490,15 @@ function QuotesTab() {
                   <td>{new Date(q.validUntil).toLocaleDateString()}</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <ActionsMenu
-                      onEdit={() => setEditing(q)}
-                      onSend={() => setSendPreview(q)}
-                      onDelete={() => setDeleting(q)}
-                      sending={sendingId === q._id}
+                      items={[
+                        { label: 'View / Edit', onClick: () => setEditing(q) },
+                        {
+                          label: sendingId === q._id ? 'Sending…' : 'Send',
+                          onClick: () => setSendPreview(q),
+                          disabled: sendingId === q._id,
+                        },
+                        { label: 'Delete', onClick: () => setDeleting(q), danger: true, dividerBefore: true },
+                      ]}
                     />
                   </td>
                 </tr>

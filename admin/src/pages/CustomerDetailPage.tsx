@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import * as api from '../api/client';
+import ActionsMenu from '../components/ActionsMenu';
 import Badge from '../components/Badge';
 import EditAnimalModal from '../components/EditAnimalModal';
 import EditBookingModal from '../components/EditBookingModal';
@@ -9,6 +10,7 @@ import { PencilIcon, TrashIcon } from '../components/icons';
 import Modal from '../components/Modal';
 import AddPetChoiceModal from '../components/AddPetChoiceModal';
 import NewAnimalModal from '../components/NewAnimalModal';
+import ViewAnimalModal from '../components/ViewAnimalModal';
 import { buildCustomerFormPdf } from '../pdf/customerFormPdf';
 import type {
   ActivityType,
@@ -158,28 +160,30 @@ export default function CustomerDetailPage() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          {(customer.status === 'pending' || customer.status === 'update_info') && (
-            <>
-              <button className="btn btn-secondary" onClick={sendLinkEmail} disabled={sendingEmail}>
-                {sendingEmail ? 'Sending…' : 'Send email'}
-              </button>
-            </>
-          )}
-          <button className="btn btn-secondary" onClick={handleViewPdf} disabled={pdfLoading}>
-            {pdfLoading ? 'Preparing…' : 'View'}
-          </button>
-          <button className="btn btn-secondary" onClick={() => setShowEdit(true)}>
-            Edit
-          </button>
-          <button
-            className="btn btn-danger"
-            onClick={() => {
-              setDeleteError(null);
-              setShowDelete(true);
-            }}
-          >
-            Delete
-          </button>
+          <ActionsMenu
+            items={[
+              ...(customer.status === 'pending' || customer.status === 'update_info'
+                ? [
+                    {
+                      label: sendingEmail ? 'Sending…' : 'Send email',
+                      onClick: sendLinkEmail,
+                      disabled: sendingEmail,
+                    },
+                  ]
+                : []),
+              { label: pdfLoading ? 'Preparing…' : 'View', onClick: handleViewPdf, disabled: pdfLoading },
+              { label: 'Edit', onClick: () => setShowEdit(true) },
+              {
+                label: 'Delete',
+                onClick: () => {
+                  setDeleteError(null);
+                  setShowDelete(true);
+                },
+                danger: true,
+                dividerBefore: true,
+              },
+            ]}
+          />
         </div>
       </div>
 
@@ -404,6 +408,7 @@ function PetsTab({
   onChange: () => void;
 }) {
   const customerId = customer._id;
+  const [viewing, setViewing] = useState<Animal | null>(null);
   const [editing, setEditing] = useState<Animal | null>(null);
   const [showChoice, setShowChoice] = useState(false);
   const [showNew, setShowNew] = useState(false);
@@ -433,14 +438,17 @@ function PetsTab({
             </thead>
             <tbody>
               {animals.map((a) => (
-                <tr key={a._id} onClick={() => setEditing(a)}>
+                <tr key={a._id} onClick={() => setViewing(a)}>
                   <td>{a.name}</td>
                   <td>{a.species}</td>
                   <td>{a.breed}</td>
                   <td>{a.sex}</td>
                   <td>{a.age}</td>
                   <td>{a.vaccinated ? 'Yes' : 'No'}</td>
-                  <td onClick={(e) => e.stopPropagation()}>
+                  <td onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 12 }}>
+                    <button className="btn-link" onClick={() => setViewing(a)}>
+                      View
+                    </button>
                     <button className="btn-link" onClick={() => setEditing(a)}>
                       Edit
                     </button>
@@ -473,6 +481,7 @@ function PetsTab({
           }}
         />
       )}
+      {viewing && <ViewAnimalModal animal={viewing} onClose={() => setViewing(null)} />}
       {editing && (
         <EditAnimalModal
           animal={editing}
