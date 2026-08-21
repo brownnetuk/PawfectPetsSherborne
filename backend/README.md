@@ -130,8 +130,19 @@ fixed `EmailTrigger` enum: `registration` | `update_info` | `add_pet`) instead o
 `GET` lists all configured templates, `PUT /settings/email-templates/:trigger` upserts the one for
 that trigger, `DELETE /settings/email-templates/:trigger` removes it. `POST /settings/email/send`
 (body: `{trigger, to, name, link}`) looks up the template for that trigger, interpolates
-`{{name}}`/`{{link}}` into its subject/body, and sends it the same way `/settings/email/test`
-does -- this is what backs the "Send email" button next to "Copy link" throughout the admin app.
+`{{name}}`/`{{link}}` plus seven `{{business*}}` placeholders pulled from `BusinessInfo`
+(`businessName`/`businessAddress`/`businessTown`/`businessPostcode`/`businessTelephone`/
+`businessEmail`/`businessWebsite`) into its subject/body, and sends it the same way
+`/settings/email/test` does -- this is what backs the "Send email" button next to "Copy link"
+throughout the admin app.
+
+The body is sent as HTML (subject stays plain text -- subjects don't support markup) so a
+`{{logo}}` placeholder can render the business's actual logo. The rest of the (staff-authored)
+body is HTML-escaped before placeholders are substituted in, and every non-`logo` placeholder
+value is escaped the same way -- `{{logo}}` is the one exception, since its whole point is to
+insert a raw `<img>` tag. The admin app's template editor keeps a hand-written copy of this same
+escaping/interpolation logic for its "Preview" button, so what staff preview matches what
+actually sends -- see `admin/README.md`.
 
 None of `/settings/*` is `@Public()` — it's staff-only like everything else.
 

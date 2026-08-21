@@ -109,8 +109,16 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   always, whether or not each has a template yet, so it's obvious what still needs setting up.
   Each is one document — editing "the registration template" is an upsert on that trigger, not a
   pick-from-a-list, so a "Send email" click never has to guess which of several templates to use.
-  Subject/body support `{{name}}` and `{{link}}` placeholders, interpolated server-side at send
-  time; body is sent as plain text.
+  Subject/body support `{{name}}`/`{{link}}` plus seven business placeholders sourced from
+  Business Info (`{{businessName}}`, `{{businessAddress}}`, `{{businessTown}}`,
+  `{{businessPostcode}}`, `{{businessTelephone}}`, `{{businessEmail}}`, `{{businessWebsite}}`) and
+  `{{logo}}` (the actual logo image), all interpolated server-side at send time; body is sent as
+  HTML so `{{logo}}` can render (subject stays plain text). A "Preview" button next to "Save
+  template" runs the same interpolation client-side — a sample customer plus the real, currently
+  saved Business Info — so staff see the actual rendered email, logo included, before saving.
+
+  The preview's interpolation logic is a hand-kept copy of the backend's (see
+  `backend/README.md`), so what's previewed matches what's actually sent.
 
 ## Sending email via Microsoft 365
 
