@@ -7,7 +7,12 @@ import {
   Patch,
   Post,
   Query,
+  Res,
+  StreamableFile,
 } from '@nestjs/common';
+import type { Response } from 'express';
+import { Public } from '../auth/public.decorator';
+import { transparentGifBuffer } from '../common/tracking-pixel.util';
 import { InvoicesService } from './invoices.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
@@ -44,5 +49,17 @@ export class InvoicesController {
   @Post(':id/send')
   sendEmail(@Param('id') id: string) {
     return this.invoicesService.sendEmail(id);
+  }
+
+  // Public: this is fetched by the recipient's mail client, not the admin app --
+  // it never carries a staff JWT. Ignores an invalid/already-deleted id rather
+  // than erroring, since a 404 image just renders as broken in the email either
+  // way and there's nothing useful to report back to a mail client.
+  @Public()
+  @Get(':id/pixel.gif')
+  async pixel(@Param('id') id: string, @Res({ passthrough: true }) res: Response) {
+    await this.invoicesService.markOpened(id).catch(() => {});
+    res.set({ 'Content-Type': 'image/gif', 'Cache-Control': 'no-store, no-cache, must-revalidate' });
+    return new StreamableFile(transparentGifBuffer());
   }
 }

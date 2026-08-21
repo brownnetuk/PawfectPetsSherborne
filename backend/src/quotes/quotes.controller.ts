@@ -7,7 +7,12 @@ import {
   Patch,
   Post,
   Query,
+  Res,
+  StreamableFile,
 } from '@nestjs/common';
+import type { Response } from 'express';
+import { Public } from '../auth/public.decorator';
+import { transparentGifBuffer } from '../common/tracking-pixel.util';
 import { QuotesService } from './quotes.service';
 import { CreateQuoteDto } from './dto/create-quote.dto';
 import { UpdateQuoteDto } from './dto/update-quote.dto';
@@ -44,5 +49,14 @@ export class QuotesController {
   @Post(':id/send')
   sendEmail(@Param('id') id: string) {
     return this.quotesService.sendEmail(id);
+  }
+
+  // See InvoicesController.pixel() -- same public tracking-pixel pattern.
+  @Public()
+  @Get(':id/pixel.gif')
+  async pixel(@Param('id') id: string, @Res({ passthrough: true }) res: Response) {
+    await this.quotesService.markOpened(id).catch(() => {});
+    res.set({ 'Content-Type': 'image/gif', 'Cache-Control': 'no-store, no-cache, must-revalidate' });
+    return new StreamableFile(transparentGifBuffer());
   }
 }

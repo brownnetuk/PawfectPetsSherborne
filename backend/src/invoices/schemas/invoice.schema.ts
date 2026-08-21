@@ -67,6 +67,14 @@ export class Invoice extends Document {
 
   @Prop()
   paidAt?: Date;
+
+  // Stamped by GET /invoices/:id/pixel.gif (a 1x1 tracking pixel appended to
+  // the sent email body) the first time the customer's mail client loads it --
+  // an "opened" signal shown as a separate badge alongside status, not a
+  // status value itself, since being opened has no bearing on where an
+  // invoice actually sits in its draft/sent/paid/overdue/cancelled lifecycle.
+  @Prop()
+  openedAt?: Date;
 }
 
 export const InvoiceSchema = SchemaFactory.createForClass(Invoice);

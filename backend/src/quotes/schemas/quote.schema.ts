@@ -65,6 +65,11 @@ export class Quote extends Document {
 
   @Prop()
   subject?: string;
+
+  // See Invoice.openedAt (../../invoices/schemas/invoice.schema.ts) -- same
+  // tracking-pixel mechanism, GET /quotes/:id/pixel.gif.
+  @Prop()
+  openedAt?: Date;
 }
 
 export const QuoteSchema = SchemaFactory.createForClass(Quote);

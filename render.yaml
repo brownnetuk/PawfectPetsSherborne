@@ -14,6 +14,8 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: PUBLIC_API_URL
+        sync: false
 
   - type: web
     name: pawfectpets-frontend

@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { buildItemsTableHtml, formatUkDate } from '../common/invoice-email.util';
 import { formatDocumentNumber } from '../common/document-number.util';
+import { publicApiUrl, trackingPixelHtml } from '../common/tracking-pixel.util';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
@@ -99,6 +100,7 @@ export class QuotesService {
     if (!customer?.email) {
       throw new BadRequestException('This customer has no email address on file.');
     }
+    const pixelUrl = `${publicApiUrl()}/quotes/${id}/pixel.gif`;
     await this.settingsService.sendTemplatedEmail(
       EmailTrigger.QUOTE,
       customer.email,
@@ -112,10 +114,16 @@ export class QuotesService {
         total: quote.total.toFixed(2),
       },
       { items_table: buildItemsTableHtml(quote.lineItems) },
+      trackingPixelHtml(pixelUrl),
     );
     if (quote.status === QuoteStatus.DRAFT) {
       return this.update(id, { status: QuoteStatus.SENT });
     }
     return quote;
+  }
+
+  /** First-open only -- called by the public GET /quotes/:id/pixel.gif when the sent email's tracking pixel loads. */
+  async markOpened(id: string): Promise<void> {
+    await this.quoteModel.updateOne({ _id: id, openedAt: { $exists: false } }, { openedAt: new Date() }).exec();
   }
 }

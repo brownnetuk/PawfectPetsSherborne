@@ -270,6 +270,7 @@ export class SettingsService {
     to: string,
     vars: Record<string, string | undefined>,
     rawVars: Record<string, string> = {},
+    appendHtml = '',
   ): Promise<void> {
     const template = await this.emailTemplateModel.findOne({ trigger }).exec();
     if (!template) {
@@ -300,7 +301,10 @@ export class SettingsService {
     // always has.
     const htmlBody = trigger === EmailTrigger.INVOICE || trigger === EmailTrigger.QUOTE;
     const subject = interpolateSubject(template.subject, allVars);
-    const body = interpolateBody(template.body, allVars, allRawVars, htmlBody);
+    // appendHtml (currently just the tracking pixel) isn't a placeholder --
+    // it's always added regardless of what the staff-authored template does
+    // or doesn't reference, so it can't be silently lost by editing the body.
+    const body = interpolateBody(template.body, allVars, allRawVars, htmlBody) + appendHtml;
 
     const settings = await this.getSendableSettings();
     const token = await this.getAccessToken(settings.tenantId, settings.clientId, settings.clientSecret);
