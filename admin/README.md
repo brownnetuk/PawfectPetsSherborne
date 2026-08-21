@@ -108,10 +108,12 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   `POST /invoices/:id/send` (or `/quotes/:id/send`), which emails the customer and marks the
   document `sent` if it was still a `draft` — the underlying Actions button still shows
   "Sending…"/disables for that row while in flight, and a failure (most commonly: no template
-  configured) surfaces in the tab's error banner rather than being silent. **Delete** opens the
+  configured) surfaces in the tab's error banner rather than being silent. **Payments** (Invoices
+  tab only, not Quotes — a quote hasn't been billed yet) opens `RecordPaymentModal` (see
+  "Financial" below) against that invoice. **Delete** opens the
   same confirmation modal as before (names the invoice/quote number before it permanently
-  deletes). There's no deposit or payment-amount tracking — Send only emails the current line
-  items/total. A `Quote` is
+  deletes). Send only emails the current line items/total — it doesn't reference `amountPaid` or
+  any payments recorded since. A `Quote` is
   its own backend model (`/quotes`), not an Invoice with a different status — mirrors `Invoice`
   field-for-field except `dueDate` becomes `validUntil` (a quote hasn't been billed, so nothing is
   "due" yet) and its status lifecycle is `draft → sent → accepted | declined | expired` rather
@@ -159,24 +161,35 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   edit mode specifically, since a document's Terms/Issue date are pre-filled from its saved values
   on open and must NOT trigger a recalculation before staff actually touch either field, or opening
   Edit would silently overwrite an already-correct (possibly manually-adjusted) date.
-- **Financial** (`/financial`) — tabbed: **Bank Account** and **Payments**. **Payments** is just a
-  named list (`Payment` — currently `name` only) rendered by the shared `NamedListCard` component
-  (`admin/src/components/NamedListCard.tsx`): Create new/Edit/Delete against a plain `{ name }`
-  CRUD endpoint, parameterized by title/description/noun so the same component also backs
-  Settings → Finance → Payment Methods below. **Bank Account** has real fields already
-  (`BankAccountsCard`/`BankAccountModal`, both in `FinancialPage.tsx`/`BankAccountModal.tsx`
-  rather than `NamedListCard`, which only ever handles a single name): **Type** (a select,
-  Bank/Savings, defaulting to Bank), **Account Name**, **Sort Code**, **Account Number**, shown as
-  table columns in that order, plus a `currentBalance` (defaults to `0`, not derived from
-  anything yet — there's no transaction ledger to sum). Clicking a row (not its Edit/Delete icons)
-  opens `ViewBankAccountModal`, a read-only Account Details `kv-grid` plus a **Transactions**
-  section (Month/Year selects, defaulting to the current month/year, and a settings gear button
-  that's currently a no-op) — always shows "No transactions for this period." since there's no
-  transaction data yet, same scaffolding-ahead-of-the-feature spirit as `currentBalance`. Both are
-  scaffolding for a later build that ties actual bank account details and recorded payments to a
-  customer's invoices — not to be confused with the
-  existing Settings → Invoices → **Bank Details** card, which holds the one set of account details
-  shown *on* invoices, a separate concern.
+- **Financial** (`/financial`) — tabbed: **Bank Account** and **Payments**. **Bank Account** has
+  real fields (`BankAccountsCard`/`BankAccountModal`, both in `FinancialPage.tsx`/
+  `BankAccountModal.tsx`): **Type** (a select, Bank/Savings, defaulting to Bank), **Account Name**,
+  **Sort Code**, **Account Number**, shown as table columns in that order, plus a `currentBalance`
+  (defaults to `0`, not derived from anything yet — there's no transaction ledger to sum). Clicking
+  a row (not its Edit/Delete icons) opens `ViewBankAccountModal`, a read-only Account Details
+  `kv-grid` plus a **Transactions** section (Month/Year selects, defaulting to the current
+  month/year, and a settings gear button that's currently a no-op) — always shows "No transactions
+  for this period." since there's no transaction ledger yet, same scaffolding-ahead-of-the-feature
+  spirit as `currentBalance`. Not to be confused with the existing Settings → Invoices →
+  **Bank Details** card, which holds the one set of account details shown *on* invoices, a separate
+  concern.
+
+  **Payments** (`PaymentsCard` in `FinancialPage.tsx`) is a read-mostly table of every recorded
+  `Payment` — Payment ID/Date/Invoice/Amount/Charges/Payment Method/Account, Delete only, no Create
+  button here since a payment is always recorded against a specific invoice (see **Payments** in
+  the invoice Actions menu above), not created ad hoc. Deleting one shows a confirmation naming its
+  Payment ID and explains that it restores the amount to the invoice's outstanding balance — see
+  `InvoicesService.reversePayment()` in `backend/README.md`. `RecordPaymentModal`
+  (`admin/src/components/RecordPaymentModal.tsx`) is the actual creation form, opened from an
+  invoice row rather than from this page: **Date** (defaults to today), **Amount (£)** (required)
+  and **Charges (£)** (optional) side by side, a **Payment Method** dropdown sourced from
+  `GET /payment-methods` (Settings → Finance → Payment Methods below), and an **Account** dropdown
+  sourced from `GET /bank-accounts` (this page's Bank Account tab), shown as "Name (Bank/Savings)".
+  No invoice-number field or deposit-percentage option — the invoice is already fixed by which row's
+  Actions menu opened the modal, and a fractional-deposit shortcut wasn't requested. Submitting
+  deducts the amount from the invoice's balance and, once fully covered, flips its status to
+  `paid` server-side (see `InvoicesService.applyPayment()` in `backend/README.md`) — the Invoices
+  page's own status pill/dropdown reflects this immediately on refresh, no separate polling needed.
 - **Activity** — a read-only global CRM feed; activity itself is created from a customer's page
   so it's always tied to that customer.
 - **Settings** — tabbed (`/settings`): **Business Info** (shown first, and the default tab) holds
@@ -271,12 +284,13 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   `backend/README.md`), so what's previewed matches what's actually sent.
   **Invoices** holds four
   cards, in this order: **Document Numbering**, an independent-save form for
-  `invoiceNumberTemplate`/`invoiceNextNumber`/`quoteNumberTemplate`/`quoteNextNumber` (see
-  "Document numbering" in `backend/README.md`) — the template fields accept free text with
-  `{year}`/`{seq}` placeholders (defaulting to `INV-{year}-{seq}`/`QUO-{year}-{seq}`), and the
-  next-number fields are plain integer inputs so staff can jump the sequence ahead (e.g. to clear
-  past whatever numbers already existed before this counter was introduced) or realign it to match
-  an external paper sequence. **Invoice Terms**, a small library of reusable free-text terms with add/edit/delete
+  `invoiceNumberTemplate`/`invoiceNextNumber`/`quoteNumberTemplate`/`quoteNextNumber`/
+  `paymentNumberTemplate`/`paymentNextNumber` (see "Document numbering" in `backend/README.md`) —
+  the template fields accept free text with `{year}`/`{seq}` placeholders (defaulting to
+  `INV-{year}-{seq}`/`QUO-{year}-{seq}`/`PAY-{year}-{seq}`), and the next-number fields are plain
+  integer inputs so staff can jump the sequence ahead (e.g. to clear past whatever numbers already
+  existed before a counter was introduced) or realign it to match an external paper sequence.
+  **Invoice Terms**, a small library of reusable free-text terms with add/edit/delete
   (`/invoice-terms`), each with a **Plus Days** column — how many days after the issue date the
   term's due date falls, or a fixed "End of the month" checkbox instead (always the last working
   day, Mon–Fri, of the issue date's month — a fixed day-count doesn't make sense when months have
@@ -299,10 +313,12 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   reuse it. Both `InvoiceTermsCard` and `ProductsCard` share one "New"/"Edit" modal component
   (taking an optional existing record) rather than separate Add and Edit components.
   **Finance**, a single **Payment Methods** card (`/payment-methods` — e.g. "Bank Transfer",
-  "Cash", "Card") built with the same `NamedListCard` the top-level **Financial** page (`/financial`,
-  see above) uses for Bank Account/Payments — deliberately named differently from that page despite
-  sharing a component, since they're two different things: this one is a small reference list for
-  tagging how a customer paid, not bank account details or a payments ledger.
+  "Cash", "Card") built with the shared `NamedListCard` component
+  (`admin/src/components/NamedListCard.tsx`) — deliberately named differently from the top-level
+  **Financial** page (`/financial`, see above) despite the naming similarity, since they're two
+  different things: this one is a small reference list for tagging how a customer paid (feeding the
+  Payment Method dropdown in `RecordPaymentModal`), not bank account details or the payments ledger
+  itself.
 
 ## Sending email via Microsoft 365
 

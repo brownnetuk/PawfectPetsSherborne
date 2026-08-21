@@ -137,7 +137,9 @@ with a server-computed `subtotal`/`total` — `sum(quantity × unitPrice × (1 �
 100))`, and `total` simply equals `subtotal` since there's no tax field — an auto-generated
 `invoiceNumber` (see Document Numbering below), and an optional free-text `subject`. Status
 lifecycle: `draft` → `sent` → `paid` | `overdue` | `cancelled`; `paidAt` is stamped when status
-transitions to `paid`. Fully editable and deletable via the standard `PATCH`/`DELETE /:id`, plus
+transitions to `paid`. `amountPaid` (default `0`) is a running total maintained by recorded
+`Payment`s, not user-editable directly — see "PaymentMethod/BankAccount/Payment" below. Fully
+editable and deletable via the standard `PATCH`/`DELETE /:id`, plus
 `POST /:id/send` to email it to the customer (see "Settings" below) — all three wired into the
 admin UI's per-row "Actions" menu (View/Edit, Send, Delete) — see `admin/README.md`. An edit that
 includes `lineItems` recomputes `subtotal`/`total` server-side the same way creation does.
@@ -163,22 +165,31 @@ documents at different stages of a sale, not the same document in a different st
 
 ### Document numbering
 
-`invoiceNumber`/`quoteNumber` come from `formatDocumentNumber()` (`backend/src/common/document-number.util.ts`)
-applied to a staff-editable template — `invoiceNumberTemplate`/`quoteNumberTemplate` on the
-`BusinessInfo` settings singleton, defaulting to `INV-{year}-{seq}`/`QUO-{year}-{seq}` — with
+`invoiceNumber`/`quoteNumber`/`paymentId` come from `formatDocumentNumber()`
+(`backend/src/common/document-number.util.ts`) applied to a staff-editable template —
+`invoiceNumberTemplate`/`quoteNumberTemplate`/`paymentNumberTemplate` on the `BusinessInfo`
+settings singleton, defaulting to `INV-{year}-{seq}`/`QUO-{year}-{seq}`/`PAY-{year}-{seq}` — with
 `{year}` substituted for the current year and `{seq}` for the next sequence number,
-zero-padded to 5 digits. The sequence itself is `invoiceNextNumber`/`quoteNextNumber`, also on
-`BusinessInfo`: `InvoicesService.nextInvoiceNumber()`/`QuotesService.nextQuoteNumber()` read and
-increment it in one atomic `findOneAndUpdate` (`$inc`, `new: false` so the returned document is
-the pre-increment value — the number this document should use), so two documents created at once
-can never collide, and it upserts the settings document with a default of `1` if it doesn't exist
-yet. This replaced an earlier `countDocuments()`-based scheme, which reissued a stale, colliding
-number after a document was deleted (the count drops, so the next `count + 1` reuses a number
-already taken) — now numbers are never reused, matching how real invoice/quote numbering needs to
-behave. Both the template and the next number are staff-editable via Settings → Invoices →
-"Document Numbering" (see `admin/README.md`), letting staff skip ahead or realign the sequence —
-useful the first time this shipped, to bump `invoiceNextNumber` past whatever `INV-<year>-<seq>`
-numbers already existed under the old scheme.
+zero-padded to 5 digits. The sequence itself is `invoiceNextNumber`/`quoteNextNumber`/
+`paymentNextNumber`, also on `BusinessInfo`, read and incremented by the shared
+`nextSequenceNumber(model, field)` helper in the same util file: one atomic `findOneAndUpdate`
+(`$inc`, `new: false` so the returned document is the pre-increment value — the number this call
+should use), so two documents created at once can never collide. This replaced an earlier
+`countDocuments()`-based scheme, which reissued a stale, colliding number after a document was
+deleted (the count drops, so the next `count + 1` reuses a number already taken) — now numbers are
+never reused, matching how real invoice/quote/payment numbering needs to behave.
+
+A genuinely brand-new counter field (never previously set on the `BusinessInfo` document) needs
+one extra correction: MongoDB's `$inc` treats a missing field as starting from `0`, one lower than
+this app's counters, which are meant to start at `1` — left alone, the first two calls on a truly
+virgin field would both return `1` (a real bug, hit and fixed while wiring up `paymentNextNumber`;
+it never surfaced for `invoiceNextNumber`/`quoteNextNumber` only because both already held a real
+persisted value — e.g. from a Settings edit — before anything ever called them on a blank field).
+`nextSequenceNumber()` detects "field was absent" from the pre-increment snapshot and, in that one
+case, issues a follow-up `$set` correcting the stored value from `1` to `2` before returning `1`
+for the current call — every other call is a single atomic `$inc` exactly as before. Both the
+template and the next number for all three counters are staff-editable via Settings → Invoices →
+"Document Numbering" (see `admin/README.md`), letting staff skip ahead or realign the sequence.
 
 ### InvoiceTerm (`/invoice-terms`) and Product (`/products`)
 
@@ -203,17 +214,45 @@ different lengths.
 
 ### PaymentMethod (`/payment-methods`), BankAccount (`/bank-accounts`), Payment (`/payments`)
 
-Scaffolding for a later build that ties actual bank account details and recorded payments to a
-customer's invoices, each standard `POST`/`GET`/`PATCH`/`DELETE`. `PaymentMethod` is a plain named
-list (`name` only — e.g. "Bank Transfer", "Cash", "Card"), surfaced under Settings → Finance;
-`Payment` is currently the same shape, surfaced on the top-level **Financial** page
-(`admin/src/pages/FinancialPage.tsx`) instead, since it's expected to grow into a real feature
-staff use day-to-day rather than one-off configuration — both use the shared admin component
-`NamedListCard` (`admin/src/components/NamedListCard.tsx`, parameterized by title/description/noun
-and the four CRUD functions). `BankAccount` has actual fields already — `type` (`bank` | `savings`,
-default `bank`), `name`, `sortCode`, `accountNumber` — so it gets its own dedicated
-`BankAccountModal`/`BankAccountsCard` on that same Financial page rather than reusing
-`NamedListCard`, which only ever handles a single name field — see `admin/README.md`.
+`PaymentMethod` is a plain named list (`name` only — e.g. "Bank Transfer", "Cash", "Card"),
+surfaced under Settings → Finance and edited via the shared admin component `NamedListCard`
+(`admin/src/components/NamedListCard.tsx`). `BankAccount` (`type`: `bank` | `savings`, default
+`bank`, `name`, `sortCode`, `accountNumber`) gets its own dedicated `BankAccountModal`/
+`BankAccountsCard` on the top-level **Financial** page (`admin/src/pages/FinancialPage.tsx`)
+instead — see `admin/README.md`.
+
+`Payment` records an actual payment against an invoice: `invoice` (real `ObjectId` ref to
+`Invoice`), `date`, `amount`, optional `charges` (default `0`), optional `paymentMethod` (a plain
+string copied from the chosen `PaymentMethod.name` at creation time — same reasoning as
+`Invoice.paymentTerms` below: a recorded payment shouldn't retroactively change if the method
+library entry is later edited or deleted), `account` (a real `ObjectId` ref to `BankAccount`, kept
+as a live reference rather than copied since a later build is expected to compute an account's
+running balance from its linked payments), and an auto-generated `paymentId` (see "Document
+numbering" above). Only `POST`/`GET`/`DELETE /:id` are exposed — no update endpoint, since editing
+a recorded payment's amount would require re-reconciling the invoice balance it already affected,
+which isn't supported; deleting and re-recording is the intended correction path.
+
+`PaymentsService.create()` generates the `paymentId`, saves the record, then calls
+`InvoicesService.applyPayment(invoiceId, amount)`, which adds `amount` to the invoice's
+`amountPaid` and — once `amountPaid >= total` — flips `status` to `paid` and stamps `paidAt`.
+`PaymentsService.remove()` is the mirror: it deletes the record, then calls
+`InvoicesService.reversePayment(invoiceId, amount)`, which subtracts `amount` back out of
+`amountPaid` (floored at `0`) and, if that undoes a `paid` status, reverts `status` to `sent` and
+clears `paidAt` (via Mongo `$unset` — a plain `undefined` in a Mongoose update object is stripped
+before the query is built, so it silently fails to clear a field; `$unset` is required). Reverting
+to `sent` rather than trying to guess `overdue` is deliberate — `markOverdue()` (see "Invoice"
+above) re-flags it on the very next `GET /invoices` if the due date has in fact passed, so this
+doesn't need to duplicate that logic. `PaymentsModule` imports `InvoicesModule` directly (not just
+the `Invoice` Mongoose model) so `PaymentsService` can call these two methods rather than
+duplicating the balance/status logic itself.
+
+In the admin app, "Payments" is an item in an invoice's row-level "Actions" menu
+(`admin/src/pages/InvoicesPage.tsx`), opening `RecordPaymentModal`
+(`admin/src/components/RecordPaymentModal.tsx`) — Date, Amount, optional Charges, a Payment Method
+dropdown sourced from `GET /payment-methods`, and an Account dropdown sourced from
+`GET /bank-accounts`. Recorded payments also list on the Financial page's Payments tab
+(Payment ID/Date/Invoice/Amount/Charges/Payment Method/Account, delete only — see
+`admin/README.md`).
 
 ### CRM activity (`/crm/activities`)
 
@@ -311,8 +350,9 @@ the "Bank Details" settings card writes -- letting a staff-authored template sho
 directly in the email, e.g. wrapped in `{{#if bank_name}}...{{/if}}` so the section is skipped
 entirely if bank details were never configured), append a tracking-pixel `<img>` to the rendered
 body (see below), then -- if the document was still `draft` -- transition it to `sent`, the same
-way manually picking "sent" from the status dropdown would. There's no deposit or payment-amount
-tracking anywhere in the app; "Send" only emails the current line items/total, nothing more.
+way manually picking "sent" from the status dropdown would. "Send" only emails the current line
+items/total, nothing more -- it doesn't reference `amountPaid` or any payments recorded since (see
+"PaymentMethod/BankAccount/Payment" above).
 
 **Open tracking.** `sendTemplatedEmail`'s optional `appendHtml` param is added to the rendered
 body after interpolation, unconditionally -- not a placeholder, so it can't be silently dropped by
