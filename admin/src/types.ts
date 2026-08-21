@@ -146,6 +146,7 @@ export interface InvoiceTerm {
   text: string;
   plusDays?: number | null;
   endOfMonth?: boolean;
+  isDefault?: boolean;
   createdAt: string;
 }
 

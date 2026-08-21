@@ -17,4 +17,8 @@ export class CreateInvoiceTermDto {
   @IsOptional()
   @IsBoolean()
   endOfMonth?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
 }

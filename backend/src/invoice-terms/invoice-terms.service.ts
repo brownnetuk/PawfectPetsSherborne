@@ -10,7 +10,10 @@ export class InvoiceTermsService {
     @InjectModel(InvoiceTerm.name) private readonly invoiceTermModel: Model<InvoiceTerm>,
   ) {}
 
-  create(dto: CreateInvoiceTermDto): Promise<InvoiceTerm> {
+  async create(dto: CreateInvoiceTermDto): Promise<InvoiceTerm> {
+    if (dto.isDefault) {
+      await this.clearOtherDefaults();
+    }
     return new this.invoiceTermModel(dto).save();
   }
 
@@ -19,11 +22,23 @@ export class InvoiceTermsService {
   }
 
   async update(id: string, dto: CreateInvoiceTermDto): Promise<InvoiceTerm> {
+    if (dto.isDefault) {
+      await this.clearOtherDefaults(id);
+    }
     const term = await this.invoiceTermModel.findByIdAndUpdate(id, dto, { new: true }).exec();
     if (!term) {
       throw new NotFoundException(`Invoice term ${id} not found`);
     }
     return term;
+  }
+
+  // Only one term can be the default at a time -- unset it on every other
+  // term before the caller sets it on theirs, rather than relying on a
+  // unique index (a boolean "at most one true" constraint isn't expressible
+  // that way in Mongo).
+  private async clearOtherDefaults(exceptId?: string): Promise<void> {
+    const filter = exceptId ? { _id: { $ne: exceptId } } : {};
+    await this.invoiceTermModel.updateMany(filter, { isDefault: false }).exec();
   }
 
   async remove(id: string): Promise<void> {

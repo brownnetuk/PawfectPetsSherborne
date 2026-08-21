@@ -879,6 +879,13 @@ function DocumentFormModal({
       if (existing?.paymentTerms) {
         const match = loaded.find((t) => t.text === existing.paymentTerms);
         if (match) setTermId(match._id);
+      } else if (!existing) {
+        const defaultTerm = loaded.find((t) => t.isDefault);
+        if (defaultTerm) {
+          setTermId(defaultTerm._id);
+          const computed = calculateDueDate(issueDate, defaultTerm);
+          if (computed) setDateValue(computed);
+        }
       }
     }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps

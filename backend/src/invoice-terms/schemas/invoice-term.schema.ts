@@ -22,6 +22,13 @@ export class InvoiceTerm extends Document {
   // make sense for "end of month" since months have different lengths.
   @Prop({ default: false })
   endOfMonth?: boolean;
+
+  // At most one term has this set at a time -- InvoiceTermsService enforces
+  // that by clearing it off every other term whenever one is marked default.
+  // The admin app's "New invoice"/"New quote" forms pre-select whichever term
+  // has this set.
+  @Prop({ default: false })
+  isDefault?: boolean;
 }
 
 export const InvoiceTermSchema = SchemaFactory.createForClass(InvoiceTerm);

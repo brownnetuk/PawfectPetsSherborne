@@ -199,6 +199,7 @@ export interface InvoiceTermInput {
   text: string;
   plusDays?: number | null;
   endOfMonth?: boolean;
+  isDefault?: boolean;
 }
 export function createInvoiceTerm(input: InvoiceTermInput): Promise<InvoiceTerm> {
   return request('/invoice-terms', { method: 'POST', body: JSON.stringify(input) });

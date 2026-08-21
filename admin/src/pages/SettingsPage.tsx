@@ -1524,6 +1524,25 @@ function InvoiceTermsCard() {
     }
   }
 
+  // Only one term can be default -- the backend already enforces that (clears
+  // it off every other term), so a click here can always just set it true;
+  // there's no case where we'd need to send false to unset a term as default
+  // other than picking a different one instead.
+  async function handleSetDefault(term: InvoiceTerm) {
+    setError(null);
+    try {
+      await api.updateInvoiceTerm(term._id, {
+        text: term.text,
+        plusDays: term.endOfMonth ? null : (term.plusDays ?? null),
+        endOfMonth: term.endOfMonth ?? false,
+        isDefault: !term.isDefault,
+      });
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update default term');
+    }
+  }
+
   return (
     <div className="card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
@@ -1546,6 +1565,7 @@ function InvoiceTermsCard() {
             <tr>
               <th>Term</th>
               <th>Plus Days</th>
+              <th>Default</th>
               <th></th>
             </tr>
           </thead>
@@ -1554,6 +1574,14 @@ function InvoiceTermsCard() {
               <tr key={t._id}>
                 <td style={{ whiteSpace: 'pre-wrap' }}>{t.text}</td>
                 <td>{t.endOfMonth ? 'End of month' : (t.plusDays ?? '—')}</td>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={!!t.isDefault}
+                    onChange={() => handleSetDefault(t)}
+                    title="Applied to all new invoices and quotes"
+                  />
+                </td>
                 <td>
                   <div style={{ display: 'flex', gap: 2 }}>
                     <button className="icon-btn" title="Edit" onClick={() => setEditing(t)}>
@@ -1615,6 +1643,7 @@ function EditInvoiceTermModal({
   const [text, setText] = useState(term?.text ?? '');
   const [endOfMonth, setEndOfMonth] = useState(term?.endOfMonth ?? false);
   const [plusDays, setPlusDays] = useState(term?.plusDays != null ? String(term.plusDays) : '');
+  const [isDefault, setIsDefault] = useState(term?.isDefault ?? false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -1627,6 +1656,7 @@ function EditInvoiceTermModal({
         text,
         endOfMonth,
         plusDays: endOfMonth ? null : plusDays === '' ? null : Number(plusDays),
+        isDefault,
       };
       if (term) {
         await api.updateInvoiceTerm(term._id, input);
@@ -1664,6 +1694,16 @@ function EditInvoiceTermModal({
           <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
             Always due on the last working day of the invoice's month, instead of a fixed number
             of days.
+          </div>
+        </div>
+        <div className="field">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
+            <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} />
+            Default
+          </label>
+          <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+            Applied automatically to all new invoices and quotes. Only one term can be the
+            default — ticking this unticks it on any other term.
           </div>
         </div>
         {!endOfMonth && (
