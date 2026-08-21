@@ -639,6 +639,9 @@ table input:focus {
 }
 .kv-grid dd {
   margin: 0;
+  /* Address is captured as a multiline textarea, so its stored value has
+     real newlines -- preserve them instead of collapsing to one line. */
+  white-space: pre-line;
 }
 
 .tabs {
