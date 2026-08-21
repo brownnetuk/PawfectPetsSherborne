@@ -164,6 +164,7 @@ export interface BankAccount {
   name: string;
   sortCode: string;
   accountNumber: string;
+  currentBalance?: number;
   createdAt: string;
 }
 

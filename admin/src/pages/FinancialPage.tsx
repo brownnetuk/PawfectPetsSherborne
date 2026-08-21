@@ -3,6 +3,7 @@ import * as api from '../api/client';
 import BankAccountModal from '../components/BankAccountModal';
 import Modal from '../components/Modal';
 import NamedListCard from '../components/NamedListCard';
+import ViewBankAccountModal from '../components/ViewBankAccountModal';
 import { PencilIcon, TrashIcon } from '../components/icons';
 import type { BankAccount } from '../types';
 
@@ -52,6 +53,7 @@ function BankAccountsCard() {
   const [accounts, setAccounts] = useState<BankAccount[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [viewing, setViewing] = useState<BankAccount | null>(null);
   const [editing, setEditing] = useState<BankAccount | null>(null);
   const [deleting, setDeleting] = useState<BankAccount | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -109,12 +111,12 @@ function BankAccountsCard() {
           </thead>
           <tbody>
             {accounts.map((a) => (
-              <tr key={a._id}>
+              <tr key={a._id} onClick={() => setViewing(a)}>
                 <td>{typeLabel(a.type)}</td>
                 <td>{a.name}</td>
                 <td>{a.sortCode}</td>
                 <td>{a.accountNumber}</td>
-                <td>
+                <td onClick={(e) => e.stopPropagation()}>
                   <div style={{ display: 'flex', gap: 2 }}>
                     <button className="icon-btn" title="Edit" onClick={() => setEditing(a)}>
                       <PencilIcon />
@@ -129,6 +131,8 @@ function BankAccountsCard() {
           </tbody>
         </table>
       )}
+
+      {viewing && <ViewBankAccountModal account={viewing} onClose={() => setViewing(null)} />}
 
       {(showNew || editing) && (
         <BankAccountModal

@@ -21,6 +21,12 @@ export class BankAccount extends Document {
 
   @Prop({ required: true })
   accountNumber: string;
+
+  // Not yet derived from anything (there's no transaction ledger to sum) --
+  // just defaults to 0 and is only ever displayed for now. A later build that
+  // adds real transactions would compute/update this from them.
+  @Prop({ default: 0 })
+  currentBalance?: number;
 }
 
 export const BankAccountSchema = SchemaFactory.createForClass(BankAccount);

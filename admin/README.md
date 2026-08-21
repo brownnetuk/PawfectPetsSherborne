@@ -167,8 +167,14 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   (`BankAccountsCard`/`BankAccountModal`, both in `FinancialPage.tsx`/`BankAccountModal.tsx`
   rather than `NamedListCard`, which only ever handles a single name): **Type** (a select,
   Bank/Savings, defaulting to Bank), **Account Name**, **Sort Code**, **Account Number**, shown as
-  table columns in that order. Both are scaffolding for a later build that ties actual bank
-  account details and recorded payments to a customer's invoices — not to be confused with the
+  table columns in that order, plus a `currentBalance` (defaults to `0`, not derived from
+  anything yet — there's no transaction ledger to sum). Clicking a row (not its Edit/Delete icons)
+  opens `ViewBankAccountModal`, a read-only Account Details `kv-grid` plus a **Transactions**
+  section (Month/Year selects, defaulting to the current month/year, and a settings gear button
+  that's currently a no-op) — always shows "No transactions for this period." since there's no
+  transaction data yet, same scaffolding-ahead-of-the-feature spirit as `currentBalance`. Both are
+  scaffolding for a later build that ties actual bank account details and recorded payments to a
+  customer's invoices — not to be confused with the
   existing Settings → Invoices → **Bank Details** card, which holds the one set of account details
   shown *on* invoices, a separate concern.
 - **Activity** — a read-only global CRM feed; activity itself is created from a customer's page
