@@ -98,15 +98,20 @@ Links a `Customer` and one or more `Animal`s to a service (`boarding` | `daycare
 
 ### Invoice (`/invoices`)
 
-Line items with server-computed `subtotal`/`tax`/`total` and an auto-generated
-`invoiceNumber` (`INV-<year>-<sequence>`). Status lifecycle: `draft` → `sent` → `paid` |
-`overdue` | `cancelled`; `paidAt` is stamped when status transitions to `paid`.
+Line items (`description`, `quantity`, `unitPrice`, optional `discountPercent` 0–100, default 0)
+with a server-computed `subtotal` — `sum(quantity × unitPrice × (1 − discountPercent / 100))` —
+plus `tax`/`total`, an auto-generated `invoiceNumber` (`INV-<year>-<sequence>`), and an optional
+free-text `subject`. Status lifecycle: `draft` → `sent` → `paid` | `overdue` | `cancelled`;
+`paidAt` is stamped when status transitions to `paid`. Fully editable and deletable via the
+standard `PATCH`/`DELETE /:id` (wired into the admin UI's per-row Edit/Delete — see
+`admin/README.md`); an edit that includes `lineItems` recomputes `subtotal`/`tax`/`total`
+server-side the same way creation does.
 
 ### Quote (`/quotes`)
 
-Mirrors `Invoice` field-for-field (same `LineItem` sub-schema, same server-computed
-`subtotal`/`tax`/`total`, same standard REST shape) except `dueDate` → `validUntil` — a quote
-hasn't been billed yet, so nothing is "due", but it does have an expiry — and its own
+Mirrors `Invoice` field-for-field (same `LineItem` sub-schema and totals formula, same optional
+`subject`, same standard REST shape including edit/delete) except `dueDate` → `validUntil` — a
+quote hasn't been billed yet, so nothing is "due", but it does have an expiry — and its own
 `quoteNumber` sequence (`QUO-<year>-<sequence>`, independent of invoice numbers). Status
 lifecycle: `draft` → `sent` → `accepted` | `declined` | `expired`, reflecting a quote's actual
 outcomes rather than an invoice's payment states. Deliberately a separate collection/module
@@ -116,10 +121,11 @@ documents at different stages of a sale, not the same document in a different st
 ### InvoiceTerm (`/invoice-terms`) and Product (`/products`)
 
 Two small reference lists surfaced under Settings → Invoices, both `POST`/`GET`/`PATCH`/`DELETE`.
-A `Product` (`productCode`, `name`, `description?`, `price`) is a catalog entry staff can copy
-details from when building a line item — wiring it into actual line-item entry (e.g. picking a
-product to prefill a line item's description/price) is a natural follow-up, not yet built, and
-it's referenced by neither `Invoice` nor `Quote`.
+A `Product` (`productCode`, `name`, `description?`, `price`) is a catalog entry — the admin's line
+item editor uses an HTML `<datalist>` of product names so staff can type or pick one to auto-fill
+that row's rate from the product's price (a client-side convenience only; there's no
+`Invoice`/`Quote` field referencing a `Product`, so editing or deleting a product afterward never
+affects an already-created line item).
 
 An `InvoiceTerm` (`text`, `plusDays?`, `endOfMonth?`) *is* connected to `Invoice`/`Quote`, one
 level removed: `Invoice.paymentTerms`/`Quote.paymentTerms` are plain strings copied from the

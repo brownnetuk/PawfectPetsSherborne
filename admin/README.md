@@ -93,15 +93,39 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   each row, and its own "New" flow with a customer picker (the customer-detail version reuses the
   same create/edit/delete calls with the customer pre-selected).
 - **Invoices & Quotes** (`/invoices`) — tabbed: **Invoices** and **Quotes**, each a global list
-  across all customers with inline status changes and its own "New" flow (a customer picker plus
-  a shared line-item row editor, `LineItemsField`). A `Quote` is its own backend model
-  (`/quotes`), not an Invoice with a different status — mirrors `Invoice` field-for-field except
-  `dueDate` becomes `validUntil` (a quote hasn't been billed, so nothing is "due" yet) and its
-  status lifecycle is `draft → sent → accepted | declined | expired` rather than Invoice's
-  `draft → sent → paid | overdue | cancelled`, since a quote and an invoice represent different
-  stages of a sale. Quote numbers follow the same `QUO-<year>-<seq>` pattern as invoices'
-  `INV-<year>-<seq>`. Neither an invoice nor a quote can be edited or deleted anywhere in the app
-  yet — a row's status is the only thing that can change after it's created.
+  across all customers with inline status changes, plus per-row **Edit** and **Delete** (a
+  confirmation modal names the invoice/quote number before it permanently deletes). A `Quote` is
+  its own backend model (`/quotes`), not an Invoice with a different status — mirrors `Invoice`
+  field-for-field except `dueDate` becomes `validUntil` (a quote hasn't been billed, so nothing is
+  "due" yet) and its status lifecycle is `draft → sent → accepted | declined | expired` rather
+  than Invoice's `draft → sent → paid | overdue | cancelled`, since a quote and an invoice
+  represent different stages of a sale. Quote numbers follow the same `QUO-<year>-<seq>` pattern as
+  invoices' `INV-<year>-<seq>`.
+
+  Create and Edit both use one `DocumentFormModal` (parameterized by `kind: 'invoice' | 'quote'`
+  and an optional `existing` record — `null` means create), shown as a wide modal with three card
+  sections mirroring a reference invoice-builder layout: **Customer** (a plain customer select —
+  there's no "manual entry" option, since both `Invoice.customer` and `Quote.customer` are
+  required references to a real `Customer` document); **Invoice/Quote Details** (Invoice #/Quote #
+  shown read-only in edit mode only, Issue date, Terms, Due date/Valid until, an optional free-text
+  **Subject**, and Tax); and **Item Table**, a real table (Item Details / Quantity / Rate (£) /
+  Discount % / Amount) replacing the old div-grid `LineItemsField` for closer visual parity with
+  the reference layout — `CustomerDetailPage`'s own separate per-customer invoice-creation flow
+  still uses the old `LineItemsField`/`.line-item-row` styling and was left as-is. Each line item's
+  **Item Details** field is a text input backed by an HTML `<datalist>` of product names (no new
+  dependency) — typing or picking a name that exactly matches a `Product` auto-fills that row's
+  Rate from the product's price; the Discount % (0–100, default 0) feeds into the row's Amount as
+  `quantity × unitPrice × (1 − discountPercent / 100)`, and the Sub Total/Tax/Total summary below
+  the table sums those amounts plus Tax the same way the backend does (see `backend/README.md`).
+  In edit mode, the Payment Terms dropdown is preselected via a best-effort text match against the
+  document's already-stored `paymentTerms` string (consistent with terms being copied, not
+  referenced, at creation time — see below); if the original term was since deleted from the
+  library, edit mode falls back to "None" and staff need to re-pick a term before saving. Changing
+  the Terms dropdown or the Issue date recalculates Due date/Valid until from that pairing (via
+  explicit `onChange` handlers, not a reactive effect watching the loaded state) — this matters in
+  edit mode specifically, since a document's Terms/Issue date are pre-filled from its saved values
+  on open and must NOT trigger a recalculation before staff actually touch either field, or opening
+  Edit would silently overwrite an already-correct (possibly manually-adjusted) date.
 - **Activity** — a read-only global CRM feed; activity itself is created from a customer's page
   so it's always tied to that customer.
 - **Settings** — tabbed (`/settings`): **Business Info** (shown first, and the default tab) holds
@@ -151,14 +175,13 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   (`/invoice-terms`), each with a **Plus Days** column — how many days after the issue date the
   term's due date falls, or a fixed "End of the month" checkbox instead (always the last working
   day, Mon–Fri, of the issue date's month — a fixed day-count doesn't make sense when months have
-  different lengths). Terms back the "Payment Terms" dropdown on both the "New invoice" and "New
-  quote" forms (Invoices & Quotes page, via the shared `PaymentTermsField`): picking one copies
-  the chosen term's text onto the invoice/quote as `paymentTerms` at creation time rather than
-  referencing the `InvoiceTerm` (so an issued invoice/quote can't retroactively change if the
-  library entry is edited later), and auto-fills Due Date/Valid Until from `calculateDueDate()`
-  (issue date + Plus Days, or the end-of-month rule) — staff can still edit that date afterward;
-  it re-syncs to the term's calculation whenever the term or issue date changes, it just doesn't
-  lock the field. **Bank Details** (Bank Name, Sort
+  different lengths). Terms back the "Terms" dropdown on the invoice/quote `DocumentFormModal`
+  (Invoices & Quotes page — see above): picking one copies the chosen term's text onto the
+  invoice/quote as `paymentTerms` at creation time rather than referencing the `InvoiceTerm` (so an
+  issued invoice/quote can't retroactively change if the library entry is edited later), and
+  auto-fills Due Date/Valid Until from `calculateDueDate()` (issue date + Plus Days, or the
+  end-of-month rule) — staff can still edit that date afterward; it only recalculates in response
+  to staff actually changing the Terms dropdown or Issue date, not on initial load. **Bank Details** (Bank Name, Sort
   Code, Account Number) is its own independent-save form on the same three `BusinessInfo` fields
   Business Info's "Terms and Conditions" card also draws from, just surfaced here instead since
   it's invoice-specific, not general business branding — shown to customers on invoices so they
