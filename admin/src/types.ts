@@ -143,3 +143,17 @@ export interface EmailTemplate {
   subject: string;
   body: string;
 }
+
+export type EnquiryService = 'dog_walking' | 'pet_visits' | 'boarding' | 'day_care';
+
+export interface Enquiry {
+  _id: string;
+  name: string;
+  email?: string;
+  address?: string;
+  phone?: string;
+  howHeard?: string;
+  servicesInterested: EnquiryService[];
+  notes?: string;
+  createdAt: string;
+}

@@ -6,6 +6,7 @@ import type {
   EmailSettings,
   EmailTemplate,
   EmailTrigger,
+  Enquiry,
   Invoice,
   LineItem,
   Staff,
@@ -204,4 +205,24 @@ export function saveEmailTemplate(
 }
 export function deleteEmailTemplate(trigger: EmailTrigger): Promise<void> {
   return request(`/settings/email-templates/${trigger}`, { method: 'DELETE' });
+}
+
+// --- enquiries ---
+export function listEnquiries(): Promise<Enquiry[]> {
+  return request('/enquiries');
+}
+export interface CreateEnquiryInput {
+  name: string;
+  email?: string;
+  address?: string;
+  phone?: string;
+  howHeard?: string;
+  servicesInterested?: string[];
+  notes?: string;
+}
+export function createEnquiry(input: CreateEnquiryInput): Promise<Enquiry> {
+  return request('/enquiries', { method: 'POST', body: JSON.stringify(input) });
+}
+export function deleteEnquiry(id: string): Promise<void> {
+  return request(`/enquiries/${id}`, { method: 'DELETE' });
 }

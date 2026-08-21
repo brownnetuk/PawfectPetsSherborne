@@ -12,6 +12,7 @@ import { BookingsModule } from './bookings/bookings.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { CrmModule } from './crm/crm.module';
 import { SettingsModule } from './settings/settings.module';
+import { EnquiriesModule } from './enquiries/enquiries.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { SettingsModule } from './settings/settings.module';
     InvoicesModule,
     CrmModule,
     SettingsModule,
+    EnquiriesModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
