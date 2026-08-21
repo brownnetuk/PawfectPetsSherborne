@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import Modal from '../components/Modal';
-import { PencilIcon, TrashIcon } from '../components/icons';
+import { PencilIcon, SortIcon, TrashIcon } from '../components/icons';
 import type {
   BusinessInfo,
   EmailSettings,
@@ -1339,6 +1339,29 @@ function EditInvoiceTermModal({
   );
 }
 
+function SortableTh<K extends string>({
+  label,
+  sortKey,
+  activeKey,
+  dir,
+  onSort,
+}: {
+  label: string;
+  sortKey: K;
+  activeKey: K;
+  dir: 'asc' | 'desc';
+  onSort: (key: K) => void;
+}) {
+  return (
+    <th onClick={() => onSort(sortKey)} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+      {label}
+      <SortIcon direction={activeKey === sortKey ? dir : null} />
+    </th>
+  );
+}
+
+type ProductSortKey = 'productCode' | 'name' | 'description' | 'price';
+
 function ProductsCard() {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1347,6 +1370,8 @@ function ProductsCard() {
   const [deleting, setDeleting] = useState<Product | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<ProductSortKey>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   function refresh() {
     api
@@ -1355,6 +1380,23 @@ function ProductsCard() {
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load products'));
   }
   useEffect(refresh, []);
+
+  function toggleSort(key: ProductSortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
+
+  const sortedProducts = products
+    ? [...products].sort((a, b) => {
+        const cmp =
+          sortKey === 'price' ? a.price - b.price : (a[sortKey] ?? '').localeCompare(b[sortKey] ?? '');
+        return sortDir === 'asc' ? cmp : -cmp;
+      })
+    : null;
 
   async function handleDelete() {
     if (!deleting) return;
@@ -1391,15 +1433,15 @@ function ProductsCard() {
         <table>
           <thead>
             <tr>
-              <th>Product Code</th>
-              <th>Name</th>
-              <th>Description</th>
-              <th>Price</th>
+              <SortableTh label="Product Code" sortKey="productCode" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableTh label="Name" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableTh label="Description" sortKey="description" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableTh label="Price" sortKey="price" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {products.map((p) => (
+            {sortedProducts!.map((p) => (
               <tr key={p._id}>
                 <td>{p.productCode}</td>
                 <td>{p.name}</td>

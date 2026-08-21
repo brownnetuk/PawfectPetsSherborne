@@ -91,6 +91,23 @@ export function LogoutIcon() {
   );
 }
 
+// direction: null = column isn't the active sort (both carets faint), 'asc'/'desc'
+// darkens whichever caret matches the current sort direction.
+export function SortIcon({ direction }: { direction: 'asc' | 'desc' | null }) {
+  return (
+    <svg
+      width="10"
+      height="12"
+      viewBox="0 0 10 12"
+      style={{ marginLeft: 5, verticalAlign: 'middle' }}
+      aria-hidden="true"
+    >
+      <path d="M5 0L9 5H1L5 0Z" fill={direction === 'asc' ? 'currentColor' : 'var(--border)'} />
+      <path d="M5 12L1 7H9L5 12Z" fill={direction === 'desc' ? 'currentColor' : 'var(--border)'} />
+    </svg>
+  );
+}
+
 export function PencilIcon() {
   return (
     <svg
