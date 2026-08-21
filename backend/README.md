@@ -142,6 +142,14 @@ transitions to `paid`. Fully editable and deletable via the standard `PATCH`/`DE
 admin UI's per-row "Actions" menu (View/Edit, Send, Delete) — see `admin/README.md`. An edit that
 includes `lineItems` recomputes `subtotal`/`total` server-side the same way creation does.
 
+`InvoicesService.markOverdue()` flips any invoice still at `sent` whose `dueDate` has passed to
+`overdue` — run at the top of `findAll()` (a plain conditional `updateMany`), not on a schedule.
+This backend runs on Render's free plan, which spins the process down after inactivity, so an
+in-process cron (e.g. `@nestjs/schedule`'s `@Cron`) wouldn't fire while asleep and could leave
+invoices stale for however long nobody was using the app; checking on every list fetch instead
+self-heals the moment staff next open the Invoices page, regardless of how long the backend was
+asleep, with no extra dependency.
+
 ### Quote (`/quotes`)
 
 Mirrors `Invoice` field-for-field (same `LineItem` sub-schema and totals formula, same optional

@@ -53,7 +53,22 @@ export class InvoicesService {
     return created.save();
   }
 
-  findAll(customerId?: string): Promise<Invoice[]> {
+  // Flips any invoice still sitting at "sent" past its due date to "overdue".
+  // Run at the top of findAll() rather than on a schedule (e.g. @nestjs/schedule's
+  // @Cron) -- the free Render plan this backend runs on spins the process down
+  // after inactivity, so a background timer wouldn't fire while asleep and
+  // could leave invoices stale for however long nobody was using the app. A
+  // plain conditional updateMany on every list fetch is cheap at this app's
+  // scale and self-heals immediately whenever staff next open the page,
+  // regardless of how long the backend was asleep.
+  private async markOverdue(): Promise<void> {
+    await this.invoiceModel
+      .updateMany({ status: InvoiceStatus.SENT, dueDate: { $lt: new Date() } }, { status: InvoiceStatus.OVERDUE })
+      .exec();
+  }
+
+  async findAll(customerId?: string): Promise<Invoice[]> {
+    await this.markOverdue();
     const filter = customerId ? { customer: customerId } : {};
     return this.invoiceModel
       .find(filter)
