@@ -308,19 +308,21 @@ function OverviewTab({
   onRevealAlarm: () => void;
 }) {
   return (
-    <div className="card">
-      <div className="section-title">Client details</div>
-      <dl className="kv-grid">
-        <dt>Email</dt>
-        <dd>{customer.email}</dd>
-        <dt>Phone number</dt>
-        <dd>{customer.phoneNumber || '—'}</dd>
-        <dt>Address</dt>
-        <dd>{customer.address || '—'}</dd>
-      </dl>
+    <>
+      <div className="card">
+        <div className="section-title">Client details</div>
+        <dl className="kv-grid">
+          <dt>Email</dt>
+          <dd>{customer.email}</dd>
+          <dt>Phone number</dt>
+          <dd>{customer.phoneNumber || '—'}</dd>
+          <dt>Address</dt>
+          <dd>{customer.address || '—'}</dd>
+        </dl>
+      </div>
 
       {customer.emergencyContact && (
-        <>
+        <div className="card">
           <div className="section-title">Emergency contact</div>
           <dl className="kv-grid">
             <dt>Same as client</dt>
@@ -336,11 +338,11 @@ function OverviewTab({
             <dt>Phone number</dt>
             <dd>{customer.emergencyContact.phoneNumber || '—'}</dd>
           </dl>
-        </>
+        </div>
       )}
 
       {customer.emergencyVet && (
-        <>
+        <div className="card">
           <div className="section-title">Emergency vet</div>
           <dl className="kv-grid">
             <dt>Practice</dt>
@@ -360,11 +362,11 @@ function OverviewTab({
                 : 'Not yet signed'}
             </dd>
           </dl>
-        </>
+        </div>
       )}
 
       {customer.security && (
-        <>
+        <div className="card">
           <div className="section-title">Security</div>
           <dl className="kv-grid">
             <dt>Keys provided</dt>
@@ -380,11 +382,11 @@ function OverviewTab({
             <dt>Further info</dt>
             <dd>{customer.security.furtherInformation || '—'}</dd>
           </dl>
-        </>
+        </div>
       )}
 
       {customer.agreement?.signedName && (
-        <>
+        <div className="card">
           <div className="section-title">Agreement</div>
           <dl className="kv-grid">
             <dt>Signed by</dt>
@@ -392,9 +394,9 @@ function OverviewTab({
             <dt>Signed at</dt>
             <dd>{customer.agreement.signedAt ? new Date(customer.agreement.signedAt).toLocaleString() : '—'}</dd>
           </dl>
-        </>
+        </div>
       )}
-    </div>
+    </>
   );
 }
 
