@@ -14,9 +14,10 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.enableCors();
   // Default body-parser limit (100kb) is too small for a base64-encoded logo
-  // upload (Settings > Business Info); everything else in the app sends
-  // small JSON payloads so raising this doesn't change their behaviour.
-  app.useBodyParser('json', { limit: '5mb' });
+  // or terms-and-conditions .docx upload (Settings > Business Info); everything
+  // else in the app sends small JSON payloads so raising this doesn't change
+  // their behaviour.
+  app.useBodyParser('json', { limit: '8mb' });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

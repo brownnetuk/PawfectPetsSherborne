@@ -1,4 +1,6 @@
 import { Body, Controller, Delete, Get, Param, ParseEnumPipe, Patch, Post, Put } from '@nestjs/common';
+import { Public } from '../auth/public.decorator';
+import { PreviewTermsDto } from './dto/preview-terms.dto';
 import { SendTestEmailDto } from './dto/send-test-email.dto';
 import { SendTriggeredEmailDto } from './dto/send-triggered-email.dto';
 import { UpdateBusinessInfoDto } from './dto/update-business-info.dto';
@@ -7,8 +9,9 @@ import { UpsertEmailTemplateDto } from './dto/upsert-email-template.dto';
 import { EmailTrigger } from './schemas/email-template.schema';
 import { SettingsService } from './settings.service';
 
-// No @Public() anywhere here: settings, especially the Microsoft 365 client
-// secret, are staff-only, protected by the global JWT guard by default.
+// Staff-only by default (the global JWT guard), same as the rest of settings --
+// the one exception is GET /settings/terms below, which the public intake form
+// needs in order to show the business's terms and conditions on its agreement step.
 @Controller('settings')
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
@@ -21,6 +24,17 @@ export class SettingsController {
   @Patch('business')
   updateBusinessInfo(@Body() dto: UpdateBusinessInfoDto) {
     return this.settingsService.updateBusinessInfo(dto);
+  }
+
+  @Post('terms/preview')
+  previewTerms(@Body() dto: PreviewTermsDto) {
+    return this.settingsService.previewTerms(dto);
+  }
+
+  @Public()
+  @Get('terms')
+  getTermsHtml() {
+    return this.settingsService.getTermsHtml();
   }
 
   @Get('email')

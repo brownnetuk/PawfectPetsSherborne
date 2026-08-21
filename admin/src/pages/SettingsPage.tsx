@@ -42,6 +42,7 @@ export default function SettingsPage() {
 }
 
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+const MAX_TERMS_BYTES = 5 * 1024 * 1024;
 
 function BusinessInfoTab() {
   const [info, setInfo] = useState<BusinessInfo | null>(null);
@@ -56,6 +57,16 @@ function BusinessInfoTab() {
   const [website, setWebsite] = useState('');
   const [logoImage, setLogoImage] = useState('');
   const [logoError, setLogoError] = useState<string | null>(null);
+
+  // termsFile is null until staff pick a new .docx this session -- the client
+  // only ever has the already-parsed HTML after loading, never the original
+  // file, so there's nothing to resend on an unrelated save unless a new file
+  // was chosen. '' (set by Remove) explicitly clears the stored terms.
+  const [termsFileName, setTermsFileName] = useState('');
+  const [termsFile, setTermsFile] = useState<string | null>(null);
+  const [termsError, setTermsError] = useState<string | null>(null);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -74,6 +85,8 @@ function BusinessInfoTab() {
         setEmail(i.email);
         setWebsite(i.website);
         setLogoImage(i.logoImage);
+        setTermsFileName(i.termsFileName);
+        setTermsFile(null);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load business info'));
   }
@@ -94,13 +107,72 @@ function BusinessInfoTab() {
     reader.readAsDataURL(file);
   }
 
+  function handleTermsFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setTermsError(null);
+    if (!file.name.toLowerCase().endsWith('.docx')) {
+      setTermsError('Please choose a .docx file.');
+      return;
+    }
+    if (file.size > MAX_TERMS_BYTES) {
+      setTermsError('That file is too large — please use one under 5MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setTermsFile(reader.result as string);
+      setTermsFileName(file.name);
+    };
+    reader.onerror = () => setTermsError('Failed to read that file.');
+    reader.readAsDataURL(file);
+  }
+
+  function handleRemoveTerms() {
+    setTermsFile('');
+    setTermsFileName('');
+    setTermsError(null);
+  }
+
+  async function handlePreviewTerms() {
+    setTermsError(null);
+    if (termsFile) {
+      setPreviewLoading(true);
+      try {
+        const { html } = await api.previewTerms(termsFile);
+        setPreviewHtml(html);
+      } catch (err) {
+        setTermsError(err instanceof Error ? err.message : 'Failed to preview that file');
+      } finally {
+        setPreviewLoading(false);
+      }
+    } else {
+      setPreviewHtml(info?.termsHtml ?? '');
+    }
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setSaveError(null);
     setSaved(false);
     try {
-      await api.updateBusinessInfo({ name, address, town, postcode, telephone, email, website, logoImage });
+      const payload: Record<string, unknown> = {
+        name,
+        address,
+        town,
+        postcode,
+        telephone,
+        email,
+        website,
+        logoImage,
+      };
+      if (termsFile !== null) {
+        payload.termsFile = termsFile;
+        payload.termsFileName = termsFileName;
+      }
+      await api.updateBusinessInfo(payload);
       setSaved(true);
       refresh();
     } catch (err) {
@@ -179,6 +251,30 @@ function BusinessInfoTab() {
             )}
           </div>
         </div>
+        <div className="field">
+          <label>Terms and Conditions</label>
+          {termsError && <div className="error-banner">{termsError}</div>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <input type="file" accept=".docx" onChange={handleTermsFileChange} />
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={handlePreviewTerms}
+              disabled={!termsFileName || previewLoading}
+            >
+              {previewLoading ? 'Loading…' : 'Preview'}
+            </button>
+            {termsFileName && (
+              <button type="button" className="btn-link" onClick={handleRemoveTerms}>
+                Remove
+              </button>
+            )}
+          </div>
+          <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+            {termsFileName ? `Uploaded: ${termsFileName}` : 'No terms uploaded yet.'} Shown to customers on the
+            intake form's agreement step. Upload a .docx to replace it.
+          </div>
+        </div>
         <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
           <button className="btn btn-primary" type="submit" disabled={saving}>
             {saving ? 'Saving…' : 'Save changes'}
@@ -188,7 +284,40 @@ function BusinessInfoTab() {
           )}
         </div>
       </form>
+
+      {previewHtml !== null && (
+        <TermsPreviewModal html={previewHtml} onClose={() => setPreviewHtml(null)} />
+      )}
     </div>
+  );
+}
+
+function TermsPreviewModal({ html, onClose }: { html: string; onClose: () => void }) {
+  return (
+    <Modal title="Preview terms and conditions" onClose={onClose} wide>
+      <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: -6 }}>
+        This is how it will appear to customers on the intake form's agreement step.
+      </p>
+      <div
+        style={{
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+          padding: '14px 16px',
+          maxHeight: 420,
+          overflowY: 'auto',
+          background: '#fafbfb',
+          fontSize: '0.88rem',
+        }}
+        dangerouslySetInnerHTML={{
+          __html: html || '<em style="color:var(--muted)">No content extracted from that file.</em>',
+        }}
+      />
+      <div className="modal-actions">
+        <button className="btn btn-primary" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </Modal>
   );
 }
 

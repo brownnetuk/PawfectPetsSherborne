@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import * as mammoth from 'mammoth';
 import { Model } from 'mongoose';
 import { EncryptionService } from '../common/encryption/encryption.service';
+import { PreviewTermsDto } from './dto/preview-terms.dto';
 import { SendTestEmailDto } from './dto/send-test-email.dto';
 import { SendTriggeredEmailDto } from './dto/send-triggered-email.dto';
 import { UpdateBusinessInfoDto } from './dto/update-business-info.dto';
@@ -31,6 +33,8 @@ export class SettingsService {
       email: doc?.email ?? '',
       website: doc?.website ?? '',
       logoImage: doc?.logoImage ?? '',
+      termsHtml: doc?.termsHtml ?? '',
+      termsFileName: doc?.termsFileName ?? '',
     };
   }
 
@@ -44,8 +48,44 @@ export class SettingsService {
     if (dto.email !== undefined) update.email = dto.email;
     if (dto.website !== undefined) update.website = dto.website;
     if (dto.logoImage !== undefined) update.logoImage = dto.logoImage;
+    if (dto.termsFile !== undefined) {
+      if (dto.termsFile) {
+        update.termsHtml = await this.parseTermsDocx(dto.termsFile);
+        update.termsFileName = dto.termsFileName ?? '';
+      } else {
+        update.termsHtml = '';
+        update.termsFileName = '';
+      }
+    }
     await this.businessInfoModel.findOneAndUpdate({}, update, { upsert: true }).exec();
     return this.getBusinessInfo();
+  }
+
+  async previewTerms(dto: PreviewTermsDto): Promise<{ html: string }> {
+    return { html: await this.parseTermsDocx(dto.termsFile) };
+  }
+
+  /** Returns just the parsed terms HTML -- the public intake form's agreement step reads this. */
+  async getTermsHtml(): Promise<{ html: string }> {
+    const doc = await this.businessInfoModel.findOne().select('termsHtml').exec();
+    return { html: doc?.termsHtml ?? '' };
+  }
+
+  /** Converts an uploaded .docx (base64 data URI) into HTML via mammoth. */
+  private async parseTermsDocx(dataUri: string): Promise<string> {
+    const base64 = dataUri.includes(',') ? dataUri.slice(dataUri.indexOf(',') + 1) : dataUri;
+    let buffer: Buffer;
+    try {
+      buffer = Buffer.from(base64, 'base64');
+    } catch {
+      throw new BadRequestException('That doesn\'t look like a valid file upload.');
+    }
+    try {
+      const result = await mammoth.convertToHtml({ buffer });
+      return result.value;
+    } catch {
+      throw new BadRequestException('Could not read that .docx file -- make sure it\'s a valid Word document.');
+    }
   }
 
   async getEmailSettings() {

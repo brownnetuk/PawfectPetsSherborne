@@ -181,6 +181,9 @@ export function getBusinessInfo(): Promise<BusinessInfo> {
 export function updateBusinessInfo(patch: Record<string, unknown>): Promise<BusinessInfo> {
   return request('/settings/business', { method: 'PATCH', body: JSON.stringify(patch) });
 }
+export function previewTerms(termsFile: string): Promise<{ html: string }> {
+  return request('/settings/terms/preview', { method: 'POST', body: JSON.stringify({ termsFile }) });
+}
 export function getEmailSettings(): Promise<EmailSettings> {
   return request('/settings/email');
 }

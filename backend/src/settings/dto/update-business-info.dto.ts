@@ -36,4 +36,16 @@ export class UpdateBusinessInfoDto {
   @IsOptional()
   @IsString()
   logoImage?: string;
+
+  // Base64 data URI of a newly-uploaded .docx, re-parsed into termsHtml on save --
+  // undefined means "leave the stored terms alone" (the client only has the
+  // already-parsed HTML after loading, not the original file, so there's nothing
+  // to resend unless staff pick a new one), '' means "remove the stored terms".
+  @IsOptional()
+  @IsString()
+  termsFile?: string;
+
+  @IsOptional()
+  @IsString()
+  termsFileName?: string;
 }

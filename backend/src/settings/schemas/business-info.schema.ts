@@ -32,6 +32,17 @@ export class BusinessInfo extends Document {
   // filesystem since it lives in Mongo like everything else.
   @Prop()
   logoImage?: string;
+
+  // The uploaded .docx itself is never stored -- only what's parsed out of it.
+  // Keeping the raw file around would double storage for no benefit, since
+  // nothing re-reads it once termsHtml exists; re-uploading is how staff would
+  // "edit" it anyway. termsFileName is display-only (what to show as "currently
+  // uploaded"), not used to derive anything.
+  @Prop()
+  termsHtml?: string;
+
+  @Prop()
+  termsFileName?: string;
 }
 
 export const BusinessInfoSchema = SchemaFactory.createForClass(BusinessInfo);

@@ -22,6 +22,10 @@ export function fetchCustomer(id: string): Promise<CustomerRecord> {
   return request(`/customers/${id}`);
 }
 
+export function fetchTerms(): Promise<{ html: string }> {
+  return request('/settings/terms');
+}
+
 export function fetchAnimalsForCustomer(customerId: string): Promise<AnimalRecord[]> {
   return request(`/animals/for-customer/${customerId}`);
 }

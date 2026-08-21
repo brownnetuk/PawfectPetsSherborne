@@ -136,6 +136,8 @@ export interface BusinessInfo {
   email: string;
   website: string;
   logoImage: string;
+  termsHtml: string;
+  termsFileName: string;
 }
 
 export interface EmailSettings {

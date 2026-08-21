@@ -301,6 +301,14 @@ h2 {
   margin-bottom: 8px;
 }
 
+.terms-box p {
+  margin: 0 0 10px;
+}
+
+.terms-box p:last-child {
+  margin-bottom: 0;
+}
+
 .signature-pad {
   border: 1px solid var(--border);
   border-radius: 8px;
