@@ -121,12 +121,21 @@ sends a payload anywhere near that size.
 `BusinessInfo` also holds the terms and conditions shown on the public intake form's agreement
 step: `dto.termsFile` (a base64 data URI of an uploaded `.docx`) is parsed via
 [`mammoth`](https://www.npmjs.com/package/mammoth) into HTML and stored as `termsHtml` — the
-original `.docx` itself is never persisted, since nothing re-reads it once parsed and re-uploading
-is how staff replace it. `POST /settings/terms/preview` (staff-only) runs the same parse without
-saving, backing the admin template editor's "Preview" button for a file that hasn't been saved
-yet. `GET /settings/terms` is the one `@Public()` route in this controller — it returns just
-`{ html }` for the intake form to fetch and render (`frontend/src/intake/steps/AgreementStep.tsx`),
-falling back to its own hardcoded text if nothing's been uploaded.
+form actually rendered everywhere terms are shown. The original `.docx` is also kept as
+`termsDocx` purely so staff can download it back unchanged; it's never re-parsed. `POST
+/settings/terms/preview` (staff-only) runs the same parse without saving, backing the admin
+template editor's "Preview" button for a file that hasn't been saved yet. `GET
+/settings/terms/download` (staff-only) streams `termsDocx` back with a `Content-Disposition:
+attachment` header carrying the original filename — `main.ts`'s `enableCors({ exposedHeaders:
+['Content-Disposition'] })` is required for that header to survive a cross-origin fetch; without
+it the browser can't read it and the admin app falls back to a generic filename. Terms saved
+before this endpoint existed only ever had `termsHtml` stored, never `termsDocx`, so
+`getTermsFile()` distinguishes "nothing uploaded" from "uploaded, but the original isn't
+available" and throws a message telling staff to re-upload in the latter case, rather than a
+generic 404. `GET /settings/terms` is the one `@Public()` route in this controller — it returns
+just `{ html }` for the intake form to fetch and render
+(`frontend/src/intake/steps/AgreementStep.tsx`), falling back to its own hardcoded text if
+nothing's been uploaded.
 
 `GET/PATCH /settings/email` read and update the one `EmailSettings` document (a singleton, not a
 collection — Microsoft 365 Graph API credentials for sending mail from the app: tenant ID, client

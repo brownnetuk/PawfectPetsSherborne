@@ -99,13 +99,18 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   one to blank and saving genuinely clears it. The logo is uploaded as a file but stored as a
   base64 data URI on the settings document itself (same approach as a customer's signature image)
   rather than as a file on disk, since Render's filesystem doesn't persist across deploys.
-  Business Info also has **Terms and Conditions** — upload a `.docx` and the backend parses it
-  (via `mammoth`) into HTML, which is what's actually stored and served; the original file itself
-  isn't kept, since nothing re-reads it and re-uploading is how staff replace it anyway. A
-  "Preview" button next to the file picker shows the parsed result before saving — for a newly
-  chosen (unsaved) file this calls `POST /settings/terms/preview`, which parses without persisting
-  anything, so previewing doesn't commit you to the upload. The public intake form's agreement
-  step reads this same content via `GET /settings/terms` — see `frontend/README.md`.
+  **Terms and Conditions** is its own card below Business details, with its own independent save
+  (matching the two-card pattern Email uses below, for connection settings vs. the test-send
+  action) — upload a `.docx` and the backend parses it (via `mammoth`) into HTML, which is what's
+  actually rendered everywhere it's shown; the original file is also kept (as `termsDocx`) purely
+  so staff can get it back via **Download**. A "Preview" button shows the parsed result before
+  saving — for a newly chosen (unsaved) file this calls `POST /settings/terms/preview`, which
+  parses without persisting anything, so previewing doesn't commit you to the upload. **Download**
+  fetches the original file from `GET /settings/terms/download` and saves it under its original
+  filename; terms uploaded before this button existed only ever had their parsed HTML stored, so
+  downloading those specifically isn't possible until re-uploaded — the error message says so
+  rather than a generic failure. The public intake form's agreement step reads the parsed content
+  via `GET /settings/terms` — see `frontend/README.md`.
   **Staff** lists, creates, and deletes staff logins (still
   backed by `/auth/staff`, unchanged from before this was under Settings). Deleting is blocked
   server-side if it would remove the last remaining account; self-delete is blocked in the UI
