@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 const BLOCKS = [
   { value: 'p', label: 'Paragraph' },
@@ -7,6 +7,11 @@ const BLOCKS = [
   { value: 'h3', label: 'Heading 3' },
 ];
 
+export interface RichTextEditorHandle {
+  /** Inserts text at the current cursor position (falls back to the end if nothing's focused/selected). */
+  insertText: (text: string) => void;
+}
+
 // Minimal WYSIWYG editor for template bodies that are stored/sent as raw
 // HTML (currently the Invoice/Quote templates) -- built on contentEditable +
 // document.execCommand rather than pulling in a full editor library, since
@@ -14,128 +19,197 @@ const BLOCKS = [
 // link, and a table skeleton. A source-view toggle covers everything the
 // toolbar doesn't (e.g. hand-editing markup, or typing a {{placeholder}}
 // that isn't obviously literal text in the visual view).
-export default function RichTextEditor({ value, onChange }: { value: string; onChange: (html: string) => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [sourceMode, setSourceMode] = useState(false);
+const RichTextEditor = forwardRef<RichTextEditorHandle, { value: string; onChange: (html: string) => void }>(
+  function RichTextEditor({ value, onChange }, forwardedRef) {
+    const ref = useRef<HTMLDivElement>(null);
+    const sourceRef = useRef<HTMLTextAreaElement>(null);
+    const [sourceMode, setSourceMode] = useState(false);
 
-  // Only push `value` into the DOM when it didn't originate from this same
-  // element's own onInput (i.e. it differs from what's already there) --
-  // otherwise every keystroke would reset the cursor to the start. Also
-  // re-runs on sourceMode: the content div unmounts while source view is
-  // showing (a fresh, empty one is mounted when switching back), and since
-  // `value` itself didn't change in that case, only depending on `value`
-  // would leave that fresh div permanently blank.
-  useEffect(() => {
-    if (ref.current && ref.current.innerHTML !== value) {
-      ref.current.innerHTML = value;
+    // Only push `value` into the DOM when it didn't originate from this same
+    // element's own onInput (i.e. it differs from what's already there) --
+    // otherwise every keystroke would reset the cursor to the start. Also
+    // re-runs on sourceMode: the content div unmounts while source view is
+    // showing (a fresh, empty one is mounted when switching back), and since
+    // `value` itself didn't change in that case, only depending on `value`
+    // would leave that fresh div permanently blank.
+    useEffect(() => {
+      if (!ref.current) return;
+      if (ref.current.innerHTML !== value) {
+        ref.current.innerHTML = value;
+      }
+      // A block-level structure (e.g. a styled "card" div) can fill the
+      // entire editor with no actual node below it to click into -- without
+      // a trailing empty block, clicking in that space doesn't reliably
+      // place a cursor anywhere. Not synced back to `value` unless staff
+      // actually type into it; re-added on every load either way.
+      const last = ref.current.lastElementChild;
+      const lastIsEmptyBlock =
+        last && /^(P|DIV)$/i.test(last.tagName) && (last.innerHTML === '' || last.innerHTML === '<br>');
+      if (!lastIsEmptyBlock) {
+        const p = document.createElement('p');
+        p.innerHTML = '<br>';
+        ref.current.appendChild(p);
+      }
+    }, [value, sourceMode]);
+
+    function handleInput() {
+      if (ref.current) onChange(ref.current.innerHTML);
     }
-  }, [value, sourceMode]);
 
-  function handleInput() {
-    if (ref.current) onChange(ref.current.innerHTML);
-  }
+    function exec(command: string, arg?: string) {
+      ref.current?.focus();
+      document.execCommand(command, false, arg);
+      handleInput();
+    }
 
-  function exec(command: string, arg?: string) {
-    ref.current?.focus();
-    document.execCommand(command, false, arg);
-    handleInput();
-  }
+    function focusAtEnd() {
+      const el = ref.current;
+      if (!el) return;
+      el.focus();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    }
 
-  function insertLink() {
-    const url = window.prompt('Link URL');
-    if (url) exec('createLink', url);
-  }
+    // Clicking below the last rendered block lands directly on the
+    // contentEditable container (there's no child element that far down) --
+    // without this, that click does nothing, which looks like the editor
+    // won't let you click "into the white space at the end".
+    function handleContainerClick(e: React.MouseEvent<HTMLDivElement>) {
+      if (e.target === ref.current) focusAtEnd();
+    }
 
-  function insertTable() {
-    exec(
-      'insertHTML',
-      '<table style="width:100%;border-collapse:collapse;" border="1"><tbody>' +
-        '<tr><td style="padding:6px;">&nbsp;</td><td style="padding:6px;">&nbsp;</td></tr>' +
-        '<tr><td style="padding:6px;">&nbsp;</td><td style="padding:6px;">&nbsp;</td></tr>' +
-        '</tbody></table><p><br></p>',
-    );
-  }
+    useImperativeHandle(forwardedRef, () => ({
+      insertText(text: string) {
+        if (sourceMode && sourceRef.current) {
+          const ta = sourceRef.current;
+          const start = ta.selectionStart ?? value.length;
+          const end = ta.selectionEnd ?? value.length;
+          const next = value.slice(0, start) + text + value.slice(end);
+          onChange(next);
+          requestAnimationFrame(() => {
+            ta.focus();
+            ta.setSelectionRange(start + text.length, start + text.length);
+          });
+        } else if (ref.current) {
+          // If focus isn't already inside the editor (e.g. it just came from
+          // a toolbar dropdown), there's no meaningful "current cursor" --
+          // insert at the end instead of wherever focus happened to last be.
+          if (document.activeElement !== ref.current) focusAtEnd();
+          document.execCommand('insertText', false, text);
+          handleInput();
+        }
+      },
+    }));
 
-  // Toolbar buttons are mousedown-prevented so clicking one doesn't steal
-  // focus/collapse the editor's text selection before the command runs.
-  function preventBlur(e: React.MouseEvent) {
-    e.preventDefault();
-  }
+    function insertLink() {
+      const url = window.prompt('Link URL');
+      if (url) exec('createLink', url);
+    }
 
-  return (
-    <div className="rte">
-      <div className="rte-toolbar" onMouseDown={preventBlur}>
-        {!sourceMode && (
-          <>
-            <select
-              defaultValue=""
-              onChange={(e) => {
-                if (e.target.value) exec('formatBlock', e.target.value);
-                e.target.value = '';
-              }}
-            >
-              <option value="" disabled>
-                Style
-              </option>
-              {BLOCKS.map((b) => (
-                <option key={b.value} value={b.value}>
-                  {b.label}
+    function insertTable() {
+      exec(
+        'insertHTML',
+        '<table style="width:100%;border-collapse:collapse;" border="1"><tbody>' +
+          '<tr><td style="padding:6px;">&nbsp;</td><td style="padding:6px;">&nbsp;</td></tr>' +
+          '<tr><td style="padding:6px;">&nbsp;</td><td style="padding:6px;">&nbsp;</td></tr>' +
+          '</tbody></table><p><br></p>',
+      );
+    }
+
+    // Toolbar buttons are mousedown-prevented so clicking one doesn't steal
+    // focus/collapse the editor's text selection before the command runs.
+    function preventBlur(e: React.MouseEvent) {
+      e.preventDefault();
+    }
+
+    return (
+      <div className="rte">
+        <div className="rte-toolbar" onMouseDown={preventBlur}>
+          {!sourceMode && (
+            <>
+              <select
+                defaultValue=""
+                onChange={(e) => {
+                  if (e.target.value) exec('formatBlock', e.target.value);
+                  e.target.value = '';
+                }}
+              >
+                <option value="" disabled>
+                  Style
                 </option>
-              ))}
-            </select>
-            <button type="button" onClick={() => exec('bold')} title="Bold">
-              <b>B</b>
-            </button>
-            <button type="button" onClick={() => exec('italic')} title="Italic">
-              <i>I</i>
-            </button>
-            <button type="button" onClick={() => exec('underline')} title="Underline">
-              <u>U</u>
-            </button>
-            <button type="button" onClick={() => exec('justifyLeft')} title="Align left">
-              ⯇
-            </button>
-            <button type="button" onClick={() => exec('justifyCenter')} title="Align center">
-              ▬
-            </button>
-            <button type="button" onClick={() => exec('justifyRight')} title="Align right">
-              ⯈
-            </button>
-            <button type="button" onClick={() => exec('insertUnorderedList')} title="Bullet list">
-              • List
-            </button>
-            <button type="button" onClick={() => exec('insertOrderedList')} title="Numbered list">
-              1. List
-            </button>
-            <button type="button" onClick={insertLink} title="Insert link">
-              Link
-            </button>
-            <button type="button" onClick={insertTable} title="Insert table">
-              Table
-            </button>
-          </>
+                {BLOCKS.map((b) => (
+                  <option key={b.value} value={b.value}>
+                    {b.label}
+                  </option>
+                ))}
+              </select>
+              <button type="button" onClick={() => exec('bold')} title="Bold">
+                <b>B</b>
+              </button>
+              <button type="button" onClick={() => exec('italic')} title="Italic">
+                <i>I</i>
+              </button>
+              <button type="button" onClick={() => exec('underline')} title="Underline">
+                <u>U</u>
+              </button>
+              <button type="button" onClick={() => exec('justifyLeft')} title="Align left">
+                ⯇
+              </button>
+              <button type="button" onClick={() => exec('justifyCenter')} title="Align center">
+                ▬
+              </button>
+              <button type="button" onClick={() => exec('justifyRight')} title="Align right">
+                ⯈
+              </button>
+              <button type="button" onClick={() => exec('insertUnorderedList')} title="Bullet list">
+                • List
+              </button>
+              <button type="button" onClick={() => exec('insertOrderedList')} title="Numbered list">
+                1. List
+              </button>
+              <button type="button" onClick={insertLink} title="Insert link">
+                Link
+              </button>
+              <button type="button" onClick={insertTable} title="Insert table">
+                Table
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            className={sourceMode ? 'rte-toolbar-active' : ''}
+            onClick={() => setSourceMode((s) => !s)}
+            title="View/edit HTML source"
+            style={{ marginLeft: 'auto' }}
+          >
+            {'<>'}
+          </button>
+        </div>
+        {sourceMode ? (
+          <textarea
+            ref={sourceRef}
+            className="rte-source"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            rows={12}
+          />
+        ) : (
+          <div
+            ref={ref}
+            className="rte-content"
+            contentEditable
+            onInput={handleInput}
+            onClick={handleContainerClick}
+            suppressContentEditableWarning
+          />
         )}
-        <button
-          type="button"
-          className={sourceMode ? 'rte-toolbar-active' : ''}
-          onClick={() => setSourceMode((s) => !s)}
-          title="View/edit HTML source"
-          style={{ marginLeft: 'auto' }}
-        >
-          {'<>'}
-        </button>
       </div>
-      {sourceMode ? (
-        <textarea className="rte-source" value={value} onChange={(e) => onChange(e.target.value)} rows={12} />
-      ) : (
-        <div
-          ref={ref}
-          className="rte-content"
-          contentEditable
-          onInput={handleInput}
-          suppressContentEditableWarning
-        />
-      )}
-    </div>
-  );
-}
+    );
+  },
+);
+
+export default RichTextEditor;

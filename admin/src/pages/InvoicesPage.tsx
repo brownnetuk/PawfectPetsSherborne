@@ -130,6 +130,9 @@ function SendPreviewModal({
       subject: doc.subject,
       subtotal: doc.subtotal.toFixed(2),
       total: doc.total.toFixed(2),
+      bank_name: businessInfo.bankName,
+      sort_code: businessInfo.sortCode,
+      account_number: businessInfo.accountNumber,
       ...(isInvoice
         ? {
             invoice_number: number,

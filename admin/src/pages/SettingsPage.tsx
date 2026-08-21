@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import Modal from '../components/Modal';
 import RichTextEditor from '../components/RichTextEditor';
+import type { RichTextEditorHandle } from '../components/RichTextEditor';
 import { PencilIcon, SortIcon, TrashIcon } from '../components/icons';
 import { buildItemsTableHtml, escapeHtml, interpolateBody, interpolateSubject } from '../utils/emailTemplate';
 import type {
@@ -930,6 +931,15 @@ const BUSINESS_PLACEHOLDERS = [
   { key: 'businessWebsite', hint: 'business website' },
 ];
 
+// Settings > Invoices > Bank Details -- invoice/quote-only, same as the
+// document number/date placeholders, since paying-in details have no
+// meaning for the other three (non-payment) triggers.
+const BANK_PLACEHOLDERS = [
+  { key: 'bank_name', hint: 'bank name (Settings > Invoices > Bank Details)' },
+  { key: 'sort_code', hint: 'sort code' },
+  { key: 'account_number', hint: 'account number' },
+];
+
 const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]> = {
   registration: [
     { key: 'name', hint: "the customer's name" },
@@ -955,6 +965,7 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
     { key: 'invoice_number', hint: 'the invoice number' },
     { key: 'invoice_date', hint: 'the issue date' },
     { key: 'due_date', hint: 'the due date' },
+    ...BANK_PLACEHOLDERS,
     ...BUSINESS_PLACEHOLDERS,
   ],
   quote: [
@@ -966,6 +977,7 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
     { key: 'quote_number', hint: 'the quote number' },
     { key: 'quote_date', hint: 'the issue date' },
     { key: 'valid_until', hint: 'the valid-until date' },
+    ...BANK_PLACEHOLDERS,
     ...BUSINESS_PLACEHOLDERS,
   ],
 };
@@ -1009,6 +1021,14 @@ function buildDocumentTemplateStarter(kind: 'invoice' | 'quote'): string {
 <tr><td style="padding:8px 0 0;font-weight:700;border-top:1px solid #e5e7eb;">Total (£)</td><td style="padding:8px 0 0;text-align:right;font-weight:700;border-top:1px solid #e5e7eb;">£{{total}}</td></tr>
 </table>
 </div>
+{{#if bank_name}}<div style="${card}padding:16px 20px;margin-top:20px;">
+<div style="font-weight:700;margin-bottom:8px;">Payment Details</div>
+<table style="width:100%;border-collapse:collapse;font-size:14px;">
+<tr><td style="${row}color:#6b7280;">Bank Name</td><td style="${row}text-align:right;">{{bank_name}}</td></tr>
+<tr><td style="${row}color:#6b7280;">Sort Code</td><td style="${row}text-align:right;">{{sort_code}}</td></tr>
+<tr><td style="${row}color:#6b7280;">Account Number</td><td style="${row}text-align:right;">{{account_number}}</td></tr>
+</table>
+</div>{{/if}}
 </div>
 </div>`;
 }
@@ -1043,10 +1063,33 @@ function EditTemplateModal({
   const [submitting, setSubmitting] = useState(false);
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const richTextRef = useRef<RichTextEditorHandle>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     api.getBusinessInfo().then(setBusinessInfo).catch(() => {});
   }, []);
+
+  // Inserts at the current cursor position in whichever body editor is
+  // active -- RichTextEditor owns its own cursor internally (via the ref
+  // handle), but the plain <textarea> is rendered right here, so its
+  // insertion has to be handled directly against its own selection range.
+  function handleInsertPlaceholder(token: string) {
+    if (isHtmlBodyTrigger(trigger)) {
+      richTextRef.current?.insertText(token);
+      return;
+    }
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart ?? body.length;
+    const end = ta.selectionEnd ?? body.length;
+    const next = body.slice(0, start) + token + body.slice(end);
+    setBody(next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(start + token.length, start + token.length);
+    });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -1095,11 +1138,31 @@ function EditTemplateModal({
           />
         </div>
         <div className="field">
-          <label>Email Body</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+            <label>Email Body</label>
+            <select
+              className="insert-var-select"
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) handleInsertPlaceholder(e.target.value);
+                e.target.value = '';
+              }}
+            >
+              <option value="" disabled>
+                Insert variable…
+              </option>
+              {TRIGGER_PLACEHOLDERS[trigger].map((p) => (
+                <option key={p.key} value={`{{${p.key}}}`}>
+                  {`{{${p.key}}}`} — {p.hint}
+                </option>
+              ))}
+            </select>
+          </div>
           {isHtmlBodyTrigger(trigger) ? (
-            <RichTextEditor value={body} onChange={setBody} />
+            <RichTextEditor ref={richTextRef} value={body} onChange={setBody} />
           ) : (
             <textarea
+              ref={textareaRef}
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={8}
@@ -1108,12 +1171,7 @@ function EditTemplateModal({
             />
           )}
           <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
-            Sent as HTML. Available placeholders:{' '}
-            {TRIGGER_PLACEHOLDERS[trigger].map((p, i) => (
-              <span key={p.key}>
-                <code>{`{{${p.key}}}`}</code> ({p.hint}){i < TRIGGER_PLACEHOLDERS[trigger].length - 1 ? ', ' : '.'}
-              </span>
-            ))}
+            Sent as HTML.
           </div>
         </div>
         <div className="modal-actions">
@@ -1178,6 +1236,9 @@ function TemplatePreviewModal({
         subject: 'August boarding',
         subtotal: sampleSubtotal().toFixed(2),
         total: sampleSubtotal().toFixed(2),
+        bank_name: businessInfo.bankName,
+        sort_code: businessInfo.sortCode,
+        account_number: businessInfo.accountNumber,
         ...(isQuote
           ? { quote_number: 'QUO-2026-00001', quote_date: '21/08/2026', valid_until: '28/08/2026' }
           : { invoice_number: 'INV-2026-00001', invoice_date: '21/08/2026', due_date: '28/08/2026' }),

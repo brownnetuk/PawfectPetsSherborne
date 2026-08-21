@@ -936,3 +936,12 @@ table input:focus {
   background: var(--border);
   margin: 4px 0;
 }
+
+/* Overrides .field select's width: 100% -- this one sits inline next to the
+   "Email Body" label, not stacked full-width like a normal form field. */
+.insert-var-select {
+  width: auto !important;
+  max-width: 260px;
+  padding: 4px 8px !important;
+  font-size: 0.82rem !important;
+}
