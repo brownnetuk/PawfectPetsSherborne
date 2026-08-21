@@ -106,6 +106,7 @@ export class InvoicesService {
     if (!customer?.email) {
       throw new BadRequestException('This customer has no email address on file.');
     }
+    const business = await this.businessInfoModel.findOne().exec();
     const pixelUrl = `${publicApiUrl()}/invoices/${id}/pixel.gif`;
     await this.settingsService.sendTemplatedEmail(
       EmailTrigger.INVOICE,
@@ -118,6 +119,9 @@ export class InvoicesService {
         due_date: formatUkDate(invoice.dueDate),
         subtotal: invoice.subtotal.toFixed(2),
         total: invoice.total.toFixed(2),
+        bank_name: business?.bankName,
+        sort_code: business?.sortCode,
+        account_number: business?.accountNumber,
       },
       { items_table: buildItemsTableHtml(invoice.lineItems) },
       trackingPixelHtml(pixelUrl),

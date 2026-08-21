@@ -100,6 +100,7 @@ export class QuotesService {
     if (!customer?.email) {
       throw new BadRequestException('This customer has no email address on file.');
     }
+    const business = await this.businessInfoModel.findOne().exec();
     const pixelUrl = `${publicApiUrl()}/quotes/${id}/pixel.gif`;
     await this.settingsService.sendTemplatedEmail(
       EmailTrigger.QUOTE,
@@ -112,6 +113,9 @@ export class QuotesService {
         valid_until: formatUkDate(quote.validUntil),
         subtotal: quote.subtotal.toFixed(2),
         total: quote.total.toFixed(2),
+        bank_name: business?.bankName,
+        sort_code: business?.sortCode,
+        account_number: business?.accountNumber,
       },
       { items_table: buildItemsTableHtml(quote.lineItems) },
       trackingPixelHtml(pixelUrl),
