@@ -1,13 +1,26 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
-// Just a named label for now (e.g. "Current Account", "Savings") -- not yet
-// holding actual account/sort code details or linked to recorded payments,
-// that's a later build.
+export enum BankAccountType {
+  BANK = 'bank',
+  SAVINGS = 'savings',
+}
+
+// Holds the account's own identifying details -- not yet linked to recorded
+// payments (see PaymentsService), that's a later build.
 @Schema({ timestamps: true })
 export class BankAccount extends Document {
+  @Prop({ type: String, enum: BankAccountType, default: BankAccountType.BANK })
+  type: BankAccountType;
+
   @Prop({ required: true })
   name: string;
+
+  @Prop({ required: true })
+  sortCode: string;
+
+  @Prop({ required: true })
+  accountNumber: string;
 }
 
 export const BankAccountSchema = SchemaFactory.createForClass(BankAccount);

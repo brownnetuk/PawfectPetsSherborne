@@ -1,6 +1,7 @@
 import type {
   Animal,
   BankAccount,
+  BankAccountType,
   Booking,
   BusinessInfo,
   Customer,
@@ -236,7 +237,10 @@ export function listBankAccounts(): Promise<BankAccount[]> {
   return request('/bank-accounts');
 }
 export interface BankAccountInput {
+  type?: BankAccountType;
   name: string;
+  sortCode: string;
+  accountNumber: string;
 }
 export function createBankAccount(input: BankAccountInput): Promise<BankAccount> {
   return request('/bank-accounts', { method: 'POST', body: JSON.stringify(input) });

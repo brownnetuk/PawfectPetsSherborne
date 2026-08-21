@@ -159,14 +159,18 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   edit mode specifically, since a document's Terms/Issue date are pre-filled from its saved values
   on open and must NOT trigger a recalculation before staff actually touch either field, or opening
   Edit would silently overwrite an already-correct (possibly manually-adjusted) date.
-- **Financial** (`/financial`) — tabbed: **Bank Account** and **Payments**, each just a named list
-  (`BankAccount`/`Payment` — currently `name` only) rendered by the shared `NamedListCard`
-  component (`admin/src/components/NamedListCard.tsx`): Create new/Edit/Delete against a plain
-  `{ name }` CRUD endpoint, parameterized by title/description/noun so the same component also
-  backs Settings → Finance → Payment Methods below. Scaffolding for a later build that ties
-  actual bank account details and recorded payments to a customer's invoices — not to be confused
-  with the existing Settings → Invoices → **Bank Details** card, which holds the one set of
-  account details shown *on* invoices, a separate concern.
+- **Financial** (`/financial`) — tabbed: **Bank Account** and **Payments**. **Payments** is just a
+  named list (`Payment` — currently `name` only) rendered by the shared `NamedListCard` component
+  (`admin/src/components/NamedListCard.tsx`): Create new/Edit/Delete against a plain `{ name }`
+  CRUD endpoint, parameterized by title/description/noun so the same component also backs
+  Settings → Finance → Payment Methods below. **Bank Account** has real fields already
+  (`BankAccountsCard`/`BankAccountModal`, both in `FinancialPage.tsx`/`BankAccountModal.tsx`
+  rather than `NamedListCard`, which only ever handles a single name): **Type** (a select,
+  Bank/Savings, defaulting to Bank), **Account Name**, **Sort Code**, **Account Number**, shown as
+  table columns in that order. Both are scaffolding for a later build that ties actual bank
+  account details and recorded payments to a customer's invoices — not to be confused with the
+  existing Settings → Invoices → **Bank Details** card, which holds the one set of account details
+  shown *on* invoices, a separate concern.
 - **Activity** — a read-only global CRM feed; activity itself is created from a customer's page
   so it's always tied to that customer.
 - **Settings** — tabbed (`/settings`): **Business Info** (shown first, and the default tab) holds

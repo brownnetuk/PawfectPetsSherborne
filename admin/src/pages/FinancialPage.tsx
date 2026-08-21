@@ -1,6 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as api from '../api/client';
+import BankAccountModal from '../components/BankAccountModal';
+import Modal from '../components/Modal';
 import NamedListCard from '../components/NamedListCard';
+import { PencilIcon, TrashIcon } from '../components/icons';
+import type { BankAccount } from '../types';
 
 type Tab = 'bank' | 'payments';
 
@@ -22,18 +26,7 @@ export default function FinancialPage() {
         </button>
       </div>
 
-      {tab === 'bank' && (
-        <NamedListCard
-          title="Bank Accounts"
-          description="Account/sort code details and reconciliation come in a later build."
-          itemNoun="bank account"
-          namePlaceholder="e.g. Current Account"
-          list={api.listBankAccounts}
-          create={api.createBankAccount}
-          update={api.updateBankAccount}
-          remove={api.deleteBankAccount}
-        />
-      )}
+      {tab === 'bank' && <BankAccountsCard />}
 
       {tab === 'payments' && (
         <NamedListCard
@@ -46,6 +39,127 @@ export default function FinancialPage() {
           update={api.updatePayment}
           remove={api.deletePayment}
         />
+      )}
+    </div>
+  );
+}
+
+function typeLabel(type: BankAccount['type']): string {
+  return type === 'savings' ? 'Savings' : 'Bank';
+}
+
+function BankAccountsCard() {
+  const [accounts, setAccounts] = useState<BankAccount[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState<BankAccount | null>(null);
+  const [deleting, setDeleting] = useState<BankAccount | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function refresh() {
+    api
+      .listBankAccounts()
+      .then(setAccounts)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bank accounts'));
+  }
+  useEffect(refresh, []);
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteBankAccount(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete this bank account');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <h2>Bank Accounts</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+            Reconciliation and linking to payments come in a later build.
+          </p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+          Create new
+        </button>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      {!accounts || accounts.length === 0 ? (
+        <div className="empty-state">{accounts === null ? 'Loading…' : 'No bank accounts yet.'}</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Account Name</th>
+              <th>Sort Code</th>
+              <th>Account Number</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {accounts.map((a) => (
+              <tr key={a._id}>
+                <td>{typeLabel(a.type)}</td>
+                <td>{a.name}</td>
+                <td>{a.sortCode}</td>
+                <td>{a.accountNumber}</td>
+                <td>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    <button className="icon-btn" title="Edit" onClick={() => setEditing(a)}>
+                      <PencilIcon />
+                    </button>
+                    <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(a)}>
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {(showNew || editing) && (
+        <BankAccountModal
+          account={editing}
+          onClose={() => {
+            setShowNew(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setShowNew(false);
+            setEditing(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal title="Delete bank account?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently removes <strong>{deleting.name}</strong>.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );

@@ -203,15 +203,17 @@ different lengths.
 
 ### PaymentMethod (`/payment-methods`), BankAccount (`/bank-accounts`), Payment (`/payments`)
 
-Three named lists, currently identical in shape (`name` only) and each standard
-`POST`/`GET`/`PATCH`/`DELETE` — scaffolding for a later build that ties actual bank account
-details and recorded payments to a customer's invoices. `PaymentMethod` is surfaced under
-Settings → Finance (e.g. "Bank Transfer", "Cash", "Card"); `BankAccount`/`Payment` have their
-own top-level **Financial** page (`admin/src/pages/FinancialPage.tsx`, "Bank Account"/"Payments"
-tabs) rather than living under Settings, since they're expected to grow into a real feature
-staff use day-to-day rather than one-off configuration. All three share one admin component,
-`NamedListCard` (`admin/src/components/NamedListCard.tsx`), parameterized by title/description/
-noun and the four CRUD functions — see `admin/README.md`.
+Scaffolding for a later build that ties actual bank account details and recorded payments to a
+customer's invoices, each standard `POST`/`GET`/`PATCH`/`DELETE`. `PaymentMethod` is a plain named
+list (`name` only — e.g. "Bank Transfer", "Cash", "Card"), surfaced under Settings → Finance;
+`Payment` is currently the same shape, surfaced on the top-level **Financial** page
+(`admin/src/pages/FinancialPage.tsx`) instead, since it's expected to grow into a real feature
+staff use day-to-day rather than one-off configuration — both use the shared admin component
+`NamedListCard` (`admin/src/components/NamedListCard.tsx`, parameterized by title/description/noun
+and the four CRUD functions). `BankAccount` has actual fields already — `type` (`bank` | `savings`,
+default `bank`), `name`, `sortCode`, `accountNumber` — so it gets its own dedicated
+`BankAccountModal`/`BankAccountsCard` on that same Financial page rather than reusing
+`NamedListCard`, which only ever handles a single name field — see `admin/README.md`.
 
 ### CRM activity (`/crm/activities`)
 

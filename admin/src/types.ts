@@ -156,9 +156,14 @@ export interface PaymentMethod {
   createdAt: string;
 }
 
+export type BankAccountType = 'bank' | 'savings';
+
 export interface BankAccount {
   _id: string;
+  type: BankAccountType;
   name: string;
+  sortCode: string;
+  accountNumber: string;
   createdAt: string;
 }
 
