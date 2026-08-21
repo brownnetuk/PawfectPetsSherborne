@@ -113,6 +113,16 @@ outcomes rather than an invoice's payment states. Deliberately a separate collec
 rather than an `Invoice` with an extra status, since a quote and an invoice are different
 documents at different stages of a sale, not the same document in a different state.
 
+### InvoiceTerm (`/invoice-terms`) and Product (`/products`)
+
+Two small reference lists surfaced under Settings → Invoices, both `POST`/`GET`/`DELETE` only
+(no `PATCH` — only "add new" was asked for, and re-adding a corrected entry is cheap). Neither
+is referenced by `Invoice` or `Quote`: an `InvoiceTerm` is just free text (adding one doesn't
+attach it anywhere, it only makes it available to copy into an invoice by hand), and a `Product`
+(`productCode`, `name`, `description?`, `price`) is a catalog entry staff can copy details from
+when building a line item. Wiring either into actual line-item entry — e.g. picking a product to
+prefill a line item's description/price — is a natural follow-up, not yet built.
+
 ### CRM activity (`/crm/activities`)
 
 Freeform activity log per customer — `note` | `call` | `email` | `task` | `status_change` —

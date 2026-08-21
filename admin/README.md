@@ -146,7 +146,14 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   saved Business Info — so staff see the actual rendered email, logo included, before saving.
 
   The preview's interpolation logic is a hand-kept copy of the backend's (see
-  `backend/README.md`), so what's previewed matches what's actually sent.
+  `backend/README.md`), so what's previewed matches what's actually sent. **Invoices** holds two
+  independent cards: **Invoice Terms**, a small library of reusable free-text terms staff can add
+  to an invoice (`/invoice-terms` — adding one here doesn't attach it to anything, it's just made
+  available), and **Products**, a reusable catalog (`/products` — Product Code, Name, Description,
+  Price) for invoice/quote line items. Both are plain create/list/delete — no edit — since only
+  "add new" was asked for and re-adding a corrected entry is cheap for a short reference list.
+  Neither is wired into invoice/quote line-item entry yet; both stay freeform for now, so these
+  are reference lists staff copy details from rather than a picker.
 
 ## Sending email via Microsoft 365
 
