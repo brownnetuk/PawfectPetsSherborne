@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, ParseEnumPipe, Patch, Post, Put } from '@nestjs/common';
 import { SendTestEmailDto } from './dto/send-test-email.dto';
 import { SendTriggeredEmailDto } from './dto/send-triggered-email.dto';
+import { UpdateBusinessInfoDto } from './dto/update-business-info.dto';
 import { UpdateEmailSettingsDto } from './dto/update-email-settings.dto';
 import { UpsertEmailTemplateDto } from './dto/upsert-email-template.dto';
 import { EmailTrigger } from './schemas/email-template.schema';
@@ -11,6 +12,16 @@ import { SettingsService } from './settings.service';
 @Controller('settings')
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
+
+  @Get('business')
+  getBusinessInfo() {
+    return this.settingsService.getBusinessInfo();
+  }
+
+  @Patch('business')
+  updateBusinessInfo(@Body() dto: UpdateBusinessInfoDto) {
+    return this.settingsService.updateBusinessInfo(dto);
+  }
 
   @Get('email')
   getEmailSettings() {

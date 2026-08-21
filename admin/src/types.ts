@@ -127,6 +127,16 @@ export interface CrmActivity {
   createdAt: string;
 }
 
+export interface BusinessInfo {
+  name: string;
+  address: string;
+  town: string;
+  postcode: string;
+  email: string;
+  website: string;
+  logoImage: string;
+}
+
 export interface EmailSettings {
   tenantId: string;
   clientId: string;

@@ -1,6 +1,7 @@
 import type {
   Animal,
   Booking,
+  BusinessInfo,
   Customer,
   CrmActivity,
   EmailSettings,
@@ -174,6 +175,12 @@ export function deleteActivity(id: string): Promise<void> {
 }
 
 // --- settings ---
+export function getBusinessInfo(): Promise<BusinessInfo> {
+  return request('/settings/business');
+}
+export function updateBusinessInfo(patch: Record<string, unknown>): Promise<BusinessInfo> {
+  return request('/settings/business', { method: 'PATCH', body: JSON.stringify(patch) });
+}
 export function getEmailSettings(): Promise<EmailSettings> {
   return request('/settings/email');
 }

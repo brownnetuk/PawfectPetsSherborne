@@ -4,18 +4,47 @@ import { Model } from 'mongoose';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { SendTestEmailDto } from './dto/send-test-email.dto';
 import { SendTriggeredEmailDto } from './dto/send-triggered-email.dto';
+import { UpdateBusinessInfoDto } from './dto/update-business-info.dto';
 import { UpdateEmailSettingsDto } from './dto/update-email-settings.dto';
 import { UpsertEmailTemplateDto } from './dto/upsert-email-template.dto';
+import { BusinessInfo } from './schemas/business-info.schema';
 import { EmailSettings } from './schemas/email-settings.schema';
 import { EmailTemplate, EmailTrigger } from './schemas/email-template.schema';
 
 @Injectable()
 export class SettingsService {
   constructor(
+    @InjectModel(BusinessInfo.name) private readonly businessInfoModel: Model<BusinessInfo>,
     @InjectModel(EmailSettings.name) private readonly emailSettingsModel: Model<EmailSettings>,
     @InjectModel(EmailTemplate.name) private readonly emailTemplateModel: Model<EmailTemplate>,
     private readonly encryptionService: EncryptionService,
   ) {}
+
+  async getBusinessInfo() {
+    const doc = await this.businessInfoModel.findOne().exec();
+    return {
+      name: doc?.name ?? '',
+      address: doc?.address ?? '',
+      town: doc?.town ?? '',
+      postcode: doc?.postcode ?? '',
+      email: doc?.email ?? '',
+      website: doc?.website ?? '',
+      logoImage: doc?.logoImage ?? '',
+    };
+  }
+
+  async updateBusinessInfo(dto: UpdateBusinessInfoDto) {
+    const update: Record<string, unknown> = {};
+    if (dto.name !== undefined) update.name = dto.name;
+    if (dto.address !== undefined) update.address = dto.address;
+    if (dto.town !== undefined) update.town = dto.town;
+    if (dto.postcode !== undefined) update.postcode = dto.postcode;
+    if (dto.email !== undefined) update.email = dto.email;
+    if (dto.website !== undefined) update.website = dto.website;
+    if (dto.logoImage !== undefined) update.logoImage = dto.logoImage;
+    await this.businessInfoModel.findOneAndUpdate({}, update, { upsert: true }).exec();
+    return this.getBusinessInfo();
+  }
 
   async getEmailSettings() {
     const doc = await this.emailSettingsModel.findOne().exec();
