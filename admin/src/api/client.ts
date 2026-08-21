@@ -257,13 +257,15 @@ export function listPayments(): Promise<Payment[]> {
   return request('/payments');
 }
 export interface PaymentInput {
-  name: string;
+  invoice: string;
+  date: string;
+  amount: number;
+  charges?: number;
+  paymentMethod?: string;
+  account: string;
 }
 export function createPayment(input: PaymentInput): Promise<Payment> {
   return request('/payments', { method: 'POST', body: JSON.stringify(input) });
-}
-export function updatePayment(id: string, input: PaymentInput): Promise<Payment> {
-  return request(`/payments/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
 }
 export function deletePayment(id: string): Promise<void> {
   return request(`/payments/${id}`, { method: 'DELETE' });

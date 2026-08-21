@@ -3,6 +3,7 @@ import * as api from '../api/client';
 import ActionsMenu from '../components/ActionsMenu';
 import DocumentFormModal from '../components/DocumentFormModal';
 import Modal from '../components/Modal';
+import RecordPaymentModal from '../components/RecordPaymentModal';
 import SendPreviewModal, { customerLabel } from '../components/SendPreviewModal';
 import type { Invoice, InvoiceStatus, Quote, QuoteStatus } from '../types';
 
@@ -45,6 +46,7 @@ function InvoicesTab() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [sendPreview, setSendPreview] = useState<Invoice | null>(null);
+  const [recordingPayment, setRecordingPayment] = useState<Invoice | null>(null);
 
   function refresh() {
     api.listInvoices().then(setInvoices).catch((err) => setError(err.message));
@@ -140,6 +142,7 @@ function InvoicesTab() {
                           onClick: () => setSendPreview(inv),
                           disabled: sendingId === inv._id,
                         },
+                        { label: 'Payments', onClick: () => setRecordingPayment(inv) },
                         { label: 'Delete', onClick: () => setDeleting(inv), danger: true, dividerBefore: true },
                       ]}
                     />
@@ -181,6 +184,17 @@ function InvoicesTab() {
           doc={sendPreview}
           onClose={() => setSendPreview(null)}
           onConfirm={() => handleSend(sendPreview)}
+        />
+      )}
+
+      {recordingPayment && (
+        <RecordPaymentModal
+          invoice={recordingPayment}
+          onClose={() => setRecordingPayment(null)}
+          onSaved={() => {
+            setRecordingPayment(null);
+            refresh();
+          }}
         />
       )}
 

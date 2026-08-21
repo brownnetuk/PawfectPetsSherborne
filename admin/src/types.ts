@@ -138,6 +138,7 @@ export interface Invoice {
   subject?: string;
   paidAt?: string;
   openedAt?: string;
+  amountPaid?: number;
   createdAt: string;
 }
 
@@ -170,7 +171,13 @@ export interface BankAccount {
 
 export interface Payment {
   _id: string;
-  name: string;
+  paymentId: string;
+  invoice: { _id: string; invoiceNumber: string } | string;
+  date: string;
+  amount: number;
+  charges?: number;
+  paymentMethod?: string;
+  account: { _id: string; name: string; type: BankAccountType } | string;
   createdAt: string;
 }
 
@@ -230,6 +237,8 @@ export interface BusinessInfo {
   invoiceNextNumber: number;
   quoteNumberTemplate: string;
   quoteNextNumber: number;
+  paymentNumberTemplate: string;
+  paymentNextNumber: number;
 }
 
 export interface EmailSettings {

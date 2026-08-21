@@ -1304,6 +1304,8 @@ function DocumentNumberingCard() {
   const [invoiceNextNumber, setInvoiceNextNumber] = useState('1');
   const [quoteNumberTemplate, setQuoteNumberTemplate] = useState('');
   const [quoteNextNumber, setQuoteNextNumber] = useState('1');
+  const [paymentNumberTemplate, setPaymentNumberTemplate] = useState('');
+  const [paymentNextNumber, setPaymentNextNumber] = useState('1');
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -1318,6 +1320,8 @@ function DocumentNumberingCard() {
         setInvoiceNextNumber(String(info.invoiceNextNumber));
         setQuoteNumberTemplate(info.quoteNumberTemplate);
         setQuoteNextNumber(String(info.quoteNextNumber));
+        setPaymentNumberTemplate(info.paymentNumberTemplate);
+        setPaymentNextNumber(String(info.paymentNextNumber));
         setLoaded(true);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load document numbering'));
@@ -1334,6 +1338,8 @@ function DocumentNumberingCard() {
         invoiceNextNumber: Number(invoiceNextNumber) || 1,
         quoteNumberTemplate,
         quoteNextNumber: Number(quoteNextNumber) || 1,
+        paymentNumberTemplate,
+        paymentNextNumber: Number(paymentNextNumber) || 1,
       });
       setSaved(true);
     } catch (err) {
@@ -1396,6 +1402,27 @@ function DocumentNumberingCard() {
                 step="1"
                 value={quoteNextNumber}
                 onChange={(e) => setQuoteNextNumber(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="field-row">
+            <div className="field">
+              <label>Payment ID Template</label>
+              <input
+                type="text"
+                value={paymentNumberTemplate}
+                onChange={(e) => setPaymentNumberTemplate(e.target.value)}
+                placeholder="PAY-{year}-{seq}"
+              />
+            </div>
+            <div className="field">
+              <label>Next Payment ID</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={paymentNextNumber}
+                onChange={(e) => setPaymentNextNumber(e.target.value)}
               />
             </div>
           </div>

@@ -2,10 +2,9 @@ import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import BankAccountModal from '../components/BankAccountModal';
 import Modal from '../components/Modal';
-import NamedListCard from '../components/NamedListCard';
 import ViewBankAccountModal from '../components/ViewBankAccountModal';
 import { PencilIcon, TrashIcon } from '../components/icons';
-import type { BankAccount } from '../types';
+import type { BankAccount, Payment } from '../types';
 
 type Tab = 'bank' | 'payments';
 
@@ -29,17 +28,109 @@ export default function FinancialPage() {
 
       {tab === 'bank' && <BankAccountsCard />}
 
-      {tab === 'payments' && (
-        <NamedListCard
-          title="Payments"
-          description="Amounts, dates, payment methods, and invoice links come in a later build."
-          itemNoun="payment"
-          namePlaceholder="e.g. Payment from James Brown"
-          list={api.listPayments}
-          create={api.createPayment}
-          update={api.updatePayment}
-          remove={api.deletePayment}
-        />
+      {tab === 'payments' && <PaymentsCard />}
+    </div>
+  );
+}
+
+function invoiceLabel(invoice: Payment['invoice']): string {
+  return typeof invoice === 'string' ? invoice : invoice.invoiceNumber;
+}
+
+function accountLabel(account: Payment['account']): string {
+  return typeof account === 'string' ? account : account.name;
+}
+
+function PaymentsCard() {
+  const [payments, setPayments] = useState<Payment[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<Payment | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function refresh() {
+    api
+      .listPayments()
+      .then(setPayments)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load payments'));
+  }
+  useEffect(refresh, []);
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deletePayment(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete this payment');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Payments</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        Recorded from an invoice's Actions menu.
+      </p>
+      {error && <div className="error-banner">{error}</div>}
+      {!payments || payments.length === 0 ? (
+        <div className="empty-state">{payments === null ? 'Loading…' : 'No payments recorded yet.'}</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Payment ID</th>
+              <th>Date</th>
+              <th>Invoice</th>
+              <th>Amount</th>
+              <th>Charges</th>
+              <th>Payment Method</th>
+              <th>Account</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {payments.map((p) => (
+              <tr key={p._id}>
+                <td>{p.paymentId}</td>
+                <td>{new Date(p.date).toLocaleDateString()}</td>
+                <td>{invoiceLabel(p.invoice)}</td>
+                <td>£{p.amount.toFixed(2)}</td>
+                <td>{p.charges ? `£${p.charges.toFixed(2)}` : '—'}</td>
+                <td>{p.paymentMethod || '—'}</td>
+                <td>{accountLabel(p.account)}</td>
+                <td>
+                  <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(p)}>
+                    <TrashIcon />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {deleting && (
+        <Modal title="Delete payment?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently removes payment <strong>{deleting.paymentId}</strong> and restores its amount to the
+            invoice's outstanding balance.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );
