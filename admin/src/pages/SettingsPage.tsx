@@ -1082,9 +1082,124 @@ function TemplatePreviewModal({
 function InvoicesSettingsTab() {
   return (
     <div>
+      <DocumentNumberingCard />
       <InvoiceTermsCard />
       <BankDetailsCard />
       <ProductsCard />
+    </div>
+  );
+}
+
+function DocumentNumberingCard() {
+  const [invoiceNumberTemplate, setInvoiceNumberTemplate] = useState('');
+  const [invoiceNextNumber, setInvoiceNextNumber] = useState('1');
+  const [quoteNumberTemplate, setQuoteNumberTemplate] = useState('');
+  const [quoteNextNumber, setQuoteNextNumber] = useState('1');
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api
+      .getBusinessInfo()
+      .then((info) => {
+        setInvoiceNumberTemplate(info.invoiceNumberTemplate);
+        setInvoiceNextNumber(String(info.invoiceNextNumber));
+        setQuoteNumberTemplate(info.quoteNumberTemplate);
+        setQuoteNextNumber(String(info.quoteNextNumber));
+        setLoaded(true);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load document numbering'));
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      await api.updateBusinessInfo({
+        invoiceNumberTemplate,
+        invoiceNextNumber: Number(invoiceNextNumber) || 1,
+        quoteNumberTemplate,
+        quoteNextNumber: Number(quoteNextNumber) || 1,
+      });
+      setSaved(true);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save document numbering');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Document Numbering</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        Use <code>{'{year}'}</code> and <code>{'{seq}'}</code> as placeholders in the template. The next number
+        updates automatically each time an invoice or quote is created — change it here to skip ahead or match an
+        existing sequence.
+      </p>
+      {error && <div className="error-banner">{error}</div>}
+      {saveError && <div className="error-banner">{saveError}</div>}
+      {!loaded ? (
+        <div className="empty-state">Loading…</div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div className="field-row">
+            <div className="field">
+              <label>Invoice Number Template</label>
+              <input
+                type="text"
+                value={invoiceNumberTemplate}
+                onChange={(e) => setInvoiceNumberTemplate(e.target.value)}
+                placeholder="INV-{year}-{seq}"
+              />
+            </div>
+            <div className="field">
+              <label>Next Invoice Number</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={invoiceNextNumber}
+                onChange={(e) => setInvoiceNextNumber(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="field-row">
+            <div className="field">
+              <label>Quote Number Template</label>
+              <input
+                type="text"
+                value={quoteNumberTemplate}
+                onChange={(e) => setQuoteNumberTemplate(e.target.value)}
+                placeholder="QUO-{year}-{seq}"
+              />
+            </div>
+            <div className="field">
+              <label>Next Quote Number</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={quoteNextNumber}
+                onChange={(e) => setQuoteNextNumber(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+            <button className="btn btn-primary" type="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save changes'}
+            </button>
+            {saved && (
+              <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
+            )}
+          </div>
+        </form>
+      )}
     </div>
   );
 }

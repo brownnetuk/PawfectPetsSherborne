@@ -50,12 +50,6 @@ export class CreateInvoiceDto {
   @Type(() => LineItemDto)
   lineItems: LineItemDto[];
 
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  tax?: number;
-
   @IsDateString()
   issueDate: string;
 

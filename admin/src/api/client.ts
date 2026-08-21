@@ -141,7 +141,6 @@ export interface CreateInvoiceInput {
   customer: string;
   booking?: string;
   lineItems: LineItem[];
-  tax?: number;
   issueDate: string;
   dueDate: string;
   paymentTerms?: string;
@@ -168,7 +167,6 @@ export interface CreateQuoteInput {
   customer: string;
   booking?: string;
   lineItems: LineItem[];
-  tax?: number;
   issueDate: string;
   validUntil: string;
   paymentTerms?: string;

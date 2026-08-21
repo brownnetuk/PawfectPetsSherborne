@@ -38,6 +38,10 @@ export class SettingsService {
       bankName: doc?.bankName ?? '',
       sortCode: doc?.sortCode ?? '',
       accountNumber: doc?.accountNumber ?? '',
+      invoiceNumberTemplate: doc?.invoiceNumberTemplate ?? 'INV-{year}-{seq}',
+      invoiceNextNumber: doc?.invoiceNextNumber ?? 1,
+      quoteNumberTemplate: doc?.quoteNumberTemplate ?? 'QUO-{year}-{seq}',
+      quoteNextNumber: doc?.quoteNextNumber ?? 1,
     };
   }
 
@@ -65,6 +69,10 @@ export class SettingsService {
     if (dto.bankName !== undefined) update.bankName = dto.bankName;
     if (dto.sortCode !== undefined) update.sortCode = dto.sortCode;
     if (dto.accountNumber !== undefined) update.accountNumber = dto.accountNumber;
+    if (dto.invoiceNumberTemplate !== undefined) update.invoiceNumberTemplate = dto.invoiceNumberTemplate;
+    if (dto.invoiceNextNumber !== undefined) update.invoiceNextNumber = dto.invoiceNextNumber;
+    if (dto.quoteNumberTemplate !== undefined) update.quoteNumberTemplate = dto.quoteNumberTemplate;
+    if (dto.quoteNextNumber !== undefined) update.quoteNextNumber = dto.quoteNextNumber;
     await this.businessInfoModel.findOneAndUpdate({}, update, { upsert: true }).exec();
     return this.getBusinessInfo();
   }

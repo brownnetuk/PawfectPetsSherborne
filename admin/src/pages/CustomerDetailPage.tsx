@@ -776,7 +776,6 @@ function NewInvoiceModal({
   onCreated: () => void;
 }) {
   const [lineItems, setLineItems] = useState([{ description: '', quantity: 1, unitPrice: 0 }]);
-  const [tax, setTax] = useState('0');
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -800,7 +799,6 @@ function NewInvoiceModal({
       await api.createInvoice({
         customer: customer._id,
         lineItems,
-        tax: Number(tax) || 0,
         issueDate,
         dueDate,
       });
@@ -851,12 +849,6 @@ function NewInvoiceModal({
           <button type="button" className="btn-link" onClick={addItem}>
             + Add line item
           </button>
-        </div>
-        <div className="field-row">
-          <div className="field">
-            <label>Tax (£)</label>
-            <input type="number" min="0" step="0.01" value={tax} onChange={(e) => setTax(e.target.value)} />
-          </div>
         </div>
         <div className="field-row">
           <div className="field">

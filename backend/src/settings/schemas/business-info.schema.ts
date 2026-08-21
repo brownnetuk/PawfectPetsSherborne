@@ -58,6 +58,24 @@ export class BusinessInfo extends Document {
 
   @Prop()
   accountNumber?: string;
+
+  // Numbering for generated invoices/quotes -- {year} and {seq} are
+  // substituted by formatDocumentNumber (backend/src/common/document-number.util.ts);
+  // *NextNumber is the number the *next* created document will use, and is
+  // incremented atomically each time InvoicesService/QuotesService issues one.
+  // Both are staff-editable so numbering can be renamed or fast-forwarded
+  // (e.g. after deleting documents, or to match an existing paper sequence).
+  @Prop({ default: 'INV-{year}-{seq}' })
+  invoiceNumberTemplate?: string;
+
+  @Prop({ default: 1 })
+  invoiceNextNumber?: number;
+
+  @Prop({ default: 'QUO-{year}-{seq}' })
+  quoteNumberTemplate?: string;
+
+  @Prop({ default: 1 })
+  quoteNextNumber?: number;
 }
 
 export const BusinessInfoSchema = SchemaFactory.createForClass(BusinessInfo);

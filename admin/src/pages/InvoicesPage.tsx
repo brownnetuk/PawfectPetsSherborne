@@ -486,7 +486,6 @@ function DocumentFormModal({
   const [lineItems, setLineItems] = useState<LineItem[]>(
     existing ? existing.lineItems.map((li) => ({ ...li })) : [{ description: '', quantity: 1, unitPrice: 0, discountPercent: 0 }],
   );
-  const [tax, setTax] = useState(String(existing?.tax ?? 0));
   const [issueDate, setIssueDate] = useState(
     existing ? existing.issueDate.slice(0, 10) : new Date().toISOString().slice(0, 10),
   );
@@ -527,7 +526,6 @@ function DocumentFormModal({
   }
 
   const subtotal = lineItems.reduce((sum, item) => sum + lineItemAmount(item), 0);
-  const total = subtotal + (Number(tax) || 0);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -543,7 +541,6 @@ function DocumentFormModal({
         const payload = {
           customer: custId,
           lineItems,
-          tax: Number(tax) || 0,
           issueDate,
           dueDate: dateValue,
           paymentTerms,
@@ -558,7 +555,6 @@ function DocumentFormModal({
         const payload = {
           customer: custId,
           lineItems,
-          tax: Number(tax) || 0,
           issueDate,
           validUntil: dateValue,
           paymentTerms,
@@ -643,12 +639,6 @@ function DocumentFormModal({
               placeholder={`Let your customer know what this ${kind} is for`}
             />
           </div>
-          <div className="field-row">
-            <div className="field">
-              <label>Tax (£)</label>
-              <input type="number" min="0" step="0.01" value={tax} onChange={(e) => setTax(e.target.value)} />
-            </div>
-          </div>
         </div>
 
         <div className="card">
@@ -660,35 +650,13 @@ function DocumentFormModal({
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
-                  padding: '6px 0',
-                  borderBottom: '1px solid var(--border)',
-                }}
-              >
-                <span style={{ color: 'var(--muted)' }}>Sub Total</span>
-                <span>£{subtotal.toFixed(2)}</span>
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  padding: '6px 0',
-                  borderBottom: '1px solid var(--border)',
-                }}
-              >
-                <span style={{ color: 'var(--muted)' }}>Tax</span>
-                <span>£{(Number(tax) || 0).toFixed(2)}</span>
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
                   padding: '10px 0',
                   fontWeight: 700,
                   fontSize: '1.05rem',
                 }}
               >
                 <span>Total (£)</span>
-                <span>£{total.toFixed(2)}</span>
+                <span>£{subtotal.toFixed(2)}</span>
               </div>
             </div>
           </div>

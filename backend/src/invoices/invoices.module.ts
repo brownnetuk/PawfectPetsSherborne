@@ -1,11 +1,17 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { BusinessInfo, BusinessInfoSchema } from '../settings/schemas/business-info.schema';
 import { InvoicesController } from './invoices.controller';
 import { InvoicesService } from './invoices.service';
 import { Invoice, InvoiceSchema } from './schemas/invoice.schema';
 
 @Module({
-  imports: [MongooseModule.forFeature([{ name: Invoice.name, schema: InvoiceSchema }])],
+  imports: [
+    MongooseModule.forFeature([
+      { name: Invoice.name, schema: InvoiceSchema },
+      { name: BusinessInfo.name, schema: BusinessInfoSchema },
+    ]),
+  ],
   controllers: [InvoicesController],
   providers: [InvoicesService],
   exports: [InvoicesService, MongooseModule],

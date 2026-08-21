@@ -48,9 +48,6 @@ export class Quote extends Document {
   subtotal: number;
 
   @Prop({ required: true, min: 0, default: 0 })
-  tax: number;
-
-  @Prop({ required: true, min: 0, default: 0 })
   total: number;
 
   @Prop({ type: String, enum: QuoteStatus, default: QuoteStatus.DRAFT })

@@ -108,7 +108,6 @@ export interface Invoice {
   invoiceNumber: string;
   lineItems: LineItem[];
   subtotal: number;
-  tax: number;
   total: number;
   status: InvoiceStatus;
   issueDate: string;
@@ -143,7 +142,6 @@ export interface Quote {
   quoteNumber: string;
   lineItems: LineItem[];
   subtotal: number;
-  tax: number;
   total: number;
   status: QuoteStatus;
   issueDate: string;
@@ -179,6 +177,10 @@ export interface BusinessInfo {
   bankName: string;
   sortCode: string;
   accountNumber: string;
+  invoiceNumberTemplate: string;
+  invoiceNextNumber: number;
+  quoteNumberTemplate: string;
+  quoteNextNumber: number;
 }
 
 export interface EmailSettings {
