@@ -152,18 +152,15 @@ export default function CustomerDetailPage() {
         <div>
           <h1>{customer.name}</h1>
           <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Badge value={customer.status} />
-            <select
-              value={customer.status}
-              onChange={(e) => handleStatusChange(e.target.value)}
-              style={{ width: 'auto', padding: '4px 8px', fontSize: '0.82rem' }}
-            >
-              {CUSTOMER_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {statusLabel(s)}
-                </option>
-              ))}
-            </select>
+            <span className={`badge badge-${customer.status}`}>
+              <select value={customer.status} onChange={(e) => handleStatusChange(e.target.value)}>
+                {CUSTOMER_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {statusLabel(s)}
+                  </option>
+                ))}
+              </select>
+            </span>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
