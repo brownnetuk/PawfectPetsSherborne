@@ -312,12 +312,14 @@ function OverviewTab({
       <div className="card">
         <div className="section-title">Client details</div>
         <dl className="kv-grid">
-          <dt>Email</dt>
-          <dd>{customer.email}</dd>
-          <dt>Phone number</dt>
-          <dd>{customer.phoneNumber || '—'}</dd>
+          <dt>Name</dt>
+          <dd>{customer.name}</dd>
           <dt>Address</dt>
           <dd>{customer.address || '—'}</dd>
+          <dt>Phone number</dt>
+          <dd>{customer.phoneNumber || '—'}</dd>
+          <dt>Email</dt>
+          <dd>{customer.email}</dd>
         </dl>
       </div>
 
