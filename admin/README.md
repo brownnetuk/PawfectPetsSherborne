@@ -89,7 +89,7 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
 - **Activity** — a read-only global CRM feed; activity itself is created from a customer's page
   so it's always tied to that customer.
 - **Settings** — tabbed (`/settings`): **Business Info** (shown first, and the default tab) holds
-  the business's own name, address, town, postcode, email, and website, plus a logo — the
+  the business's own name, address, town, postcode, telephone, email, and website, plus a logo — the
   letterhead details invoices and email templates draw from. All fields are plain strings saved
   as-is (no "leave blank to keep unchanged" special case, unlike Email's secret below), so clearing
   one to blank and saving genuinely clears it. The logo is uploaded as a file but stored as a

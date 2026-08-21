@@ -110,7 +110,7 @@ with optional `dueDate`/`completed` for task tracking.
 ### Settings (`/settings`)
 
 `GET/PATCH /settings/business` read and update the one `BusinessInfo` document (a singleton, same
-pattern as `EmailSettings` below) — the business's own name/address/town/postcode/email/website
+pattern as `EmailSettings` below) — the business's own name/address/town/postcode/telephone/email/website
 and a logo, meant to brand invoices, email templates, and other generated documents. The logo is
 a base64 data URI stored on the document itself rather than a file on disk, since Render's
 filesystem doesn't persist across deploys. All fields are plain `@IsString()` and always written
