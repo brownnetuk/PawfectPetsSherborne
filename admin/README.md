@@ -129,7 +129,7 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   sections mirroring a reference invoice-builder layout: **Customer** (a plain customer select —
   there's no "manual entry" option, since both `Invoice.customer` and `Quote.customer` are
   required references to a real `Customer` document — once one is picked, its Address/Phone
-  (telephone, falling back to mobile)/Email are shown read-only below the select in the same
+  number/Email are shown read-only below the select in the same
   `kv-grid` layout `CustomerDetailPage`'s Overview tab uses, sourced from the already-fetched
   `listCustomers()` result rather than a separate lookup); **Invoice/Quote Details** (Invoice #/Quote #
   shown read-only in edit mode only, Issue date, Terms, Due date/Valid until, and an optional

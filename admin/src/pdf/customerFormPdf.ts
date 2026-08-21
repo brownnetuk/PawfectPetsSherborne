@@ -326,8 +326,7 @@ export async function buildCustomerFormPdf(
   w.section('Client details', [
     fieldBlock(doc, 'Name', customer.name),
     fieldBlock(doc, 'Email', customer.email),
-    fieldBlock(doc, 'Mobile', customer.mobile ?? ''),
-    fieldBlock(doc, 'Telephone', customer.telephone ?? ''),
+    fieldBlock(doc, 'Phone number', customer.phoneNumber ?? ''),
     fieldBlock(doc, 'Address', customer.address ?? ''),
   ]);
 
@@ -339,20 +338,34 @@ export async function buildCustomerFormPdf(
       : [
           fieldBlock(doc, 'Name', ec?.name ?? ''),
           fieldBlock(doc, 'Address', ec?.address ?? ''),
-          fieldBlock(doc, 'Telephone', ec?.telephone ?? ''),
-          fieldBlock(doc, 'Mobile', ec?.mobile ?? ''),
+          fieldBlock(doc, 'Phone number', ec?.phoneNumber ?? ''),
           fieldBlock(doc, 'Email', ec?.email ?? ''),
         ],
   );
 
   const ev = customer.emergencyVet;
-  w.section('Emergency vet', [
+  const evBlocks: Block[] = [
     fieldBlock(doc, 'Practice', ev?.practiceName ?? ''),
     fieldBlock(doc, 'Address', ev?.address ?? ''),
     fieldBlock(doc, 'Telephone', ev?.telephone ?? ''),
     fieldBlock(doc, 'Email', ev?.email ?? ''),
-    fieldBlock(doc, 'Alternative care authorised', ev ? yesNo(ev.alternativeVetAuthorised) : '—'),
-  ]);
+    fieldBlock(
+      doc,
+      'Alternative care authorisation',
+      ev?.authorisation?.signedName
+        ? `Signed by ${ev.authorisation.signedName}${
+            ev.authorisation.signedAt
+              ? ` on ${new Date(ev.authorisation.signedAt).toLocaleDateString('en-GB')}`
+              : ''
+          }`
+        : 'Not signed',
+    ),
+  ];
+  if (ev?.authorisation?.signatureImage) {
+    evBlocks.push(spacerBlock(4));
+    evBlocks.push(signatureBlock(ev.authorisation.signatureImage, 'Alternative vet care authorisation signature'));
+  }
+  w.section('Emergency vet', evBlocks);
 
   w.section('Security arrangements', [
     fieldBlock(doc, 'Keys provided', customer.security ? yesNo(customer.security.keysProvided) : '—'),
@@ -375,20 +388,35 @@ export async function buildCustomerFormPdf(
       ),
       fieldBlock(doc, 'Colour / markings', animal.colourMarkings ?? ''),
       fieldBlock(doc, 'Microchip number', animal.microchipNumber ?? ''),
-      fieldBlock(doc, 'Has collar', yesNo(animal.hasCollar)),
       fieldBlock(doc, 'Temperament notes', animal.temperamentNotes ?? ''),
       fieldBlock(
         doc,
         'Aggression to people',
         animal.aggressionToPeople ? `Yes — ${animal.aggressionToPeopleDetails ?? ''}` : 'No',
       ),
-      fieldBlock(
-        doc,
-        'Aggression to other animals',
-        animal.aggressionToOtherAnimals ? `Yes — ${animal.aggressionToOtherAnimalsDetails ?? ''}` : 'No',
-      ),
-      fieldBlock(doc, 'Travels well in car', animal.travelsWellInCar),
-      fieldBlock(doc, 'Chases livestock', animal.chasesLivestock),
+    ];
+    if (animal.species !== 'cat') {
+      blocks.push(
+        fieldBlock(
+          doc,
+          'Aggression to other animals',
+          animal.aggressionToOtherAnimals ? `Yes — ${animal.aggressionToOtherAnimalsDetails ?? ''}` : 'No',
+        ),
+      );
+      blocks.push(fieldBlock(doc, 'Travels well in car', animal.travelsWellInCar ?? ''));
+    }
+    if (animal.species === 'dog') {
+      blocks.push(
+        fieldBlock(
+          doc,
+          'Chases livestock',
+          animal.chasesLivestock === 'yes'
+            ? `Yes — ${animal.chasesLivestockDetails ?? ''}`
+            : animal.chasesLivestock ?? '',
+        ),
+      );
+    }
+    blocks.push(
       fieldBlock(
         doc,
         'Allergies',
@@ -399,7 +427,7 @@ export async function buildCustomerFormPdf(
         'On medication',
         animal.medication.onMedication ? `Yes — ${animal.medication.details ?? ''}` : 'No',
       ),
-    ];
+    );
 
     if (animal.species === 'dog' && animal.offLeadConsent) {
       blocks.push(spacerBlock(6));

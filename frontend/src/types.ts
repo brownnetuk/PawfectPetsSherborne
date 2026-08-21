@@ -7,9 +7,15 @@ export interface CustomerRecord {
   _id: string;
   name: string;
   email: string;
+  firstName?: string;
+  surname?: string;
   address?: string;
-  telephone?: string;
-  mobile?: string;
+  address1?: string;
+  address2?: string;
+  town?: string;
+  county?: string;
+  postcode?: string;
+  phoneNumber?: string;
   status: 'pending' | 'active' | 'inactive' | 'update_info';
   emergencyContact?: EmergencyContactData;
   emergencyVet?: EmergencyVetData;
@@ -27,14 +33,14 @@ export interface AnimalRecord {
   vaccineExpiryDate?: string;
   colourMarkings?: string;
   microchipNumber?: string;
-  hasCollar: boolean;
   temperamentNotes?: string;
   aggressionToPeople: boolean;
   aggressionToPeopleDetails?: string;
-  aggressionToOtherAnimals: boolean;
+  aggressionToOtherAnimals?: boolean;
   aggressionToOtherAnimalsDetails?: string;
-  travelsWellInCar: TriState;
-  chasesLivestock: TriState;
+  travelsWellInCar?: TriState;
+  chasesLivestock?: TriState;
+  chasesLivestockDetails?: string;
   allergies: AllergyInfo;
   medication: MedicationInfo;
   offLeadConsent?: OffLeadConsentData;
@@ -42,19 +48,35 @@ export interface AnimalRecord {
 
 export interface EmergencyContactData {
   sameAsClient: boolean;
+  firstName?: string;
+  surname?: string;
   name?: string;
+  address1?: string;
+  address2?: string;
+  town?: string;
+  county?: string;
+  postcode?: string;
   address?: string;
-  telephone?: string;
-  mobile?: string;
+  phoneNumber?: string;
   email?: string;
+}
+
+export interface EmergencyVetAuthorisationData {
+  signedName: string;
+  signatureImage?: string;
 }
 
 export interface EmergencyVetData {
   practiceName: string;
-  address: string;
+  address1: string;
+  address2?: string;
+  town: string;
+  county?: string;
+  postcode: string;
+  address?: string;
   telephone: string;
   email?: string;
-  alternativeVetAuthorised: boolean;
+  authorisation?: EmergencyVetAuthorisationData;
 }
 
 export interface SecurityData {
@@ -69,10 +91,14 @@ export interface AgreementData {
 }
 
 export interface ClientDetails {
-  name: string;
-  address: string;
-  telephone?: string;
-  mobile: string;
+  firstName: string;
+  surname?: string;
+  address1: string;
+  address2?: string;
+  town: string;
+  county?: string;
+  postcode: string;
+  phoneNumber: string;
   email: string;
 }
 
@@ -103,7 +129,6 @@ export interface PetDetails {
   vaccineExpiryDate?: string;
   colourMarkings?: string;
   microchipNumber?: string;
-  hasCollar: boolean | null;
   temperamentNotes?: string;
   aggressionToPeople: boolean | null;
   aggressionToPeopleDetails?: string;
@@ -111,6 +136,7 @@ export interface PetDetails {
   aggressionToOtherAnimalsDetails?: string;
   travelsWellInCar: TriState | '';
   chasesLivestock: TriState | '';
+  chasesLivestockDetails?: string;
   allergies: AllergyInfo;
   medication: MedicationInfo;
   offLeadConsent?: OffLeadConsentData;

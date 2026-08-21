@@ -1,3 +1,4 @@
+import SignaturePad from '../SignaturePad';
 import { TextField } from '../fields';
 import type { EmergencyVetData } from '../../types';
 
@@ -6,9 +7,21 @@ interface Props {
   onChange: (value: EmergencyVetData) => void;
 }
 
+const TODAY = new Date().toLocaleDateString('en-GB', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+
 export default function EmergencyVetStep({ value, onChange }: Props) {
   const set = <K extends keyof EmergencyVetData>(key: K, v: EmergencyVetData[K]) =>
     onChange({ ...value, [key]: v });
+
+  const setAuth = (v: Partial<NonNullable<EmergencyVetData['authorisation']>>) =>
+    onChange({
+      ...value,
+      authorisation: { signedName: '', ...value.authorisation, ...v },
+    });
 
   return (
     <div>
@@ -21,12 +34,21 @@ export default function EmergencyVetStep({ value, onChange }: Props) {
         required
       />
       <TextField
-        label="Address"
-        value={value.address}
-        onChange={(v) => set('address', v)}
+        label="First line of address"
+        value={value.address1}
+        onChange={(v) => set('address1', v)}
         required
-        multiline
       />
+      <TextField
+        label="Second line of address"
+        value={value.address2 ?? ''}
+        onChange={(v) => set('address2', v)}
+      />
+      <div className="grid-2">
+        <TextField label="Town" value={value.town} onChange={(v) => set('town', v)} required />
+        <TextField label="County" value={value.county ?? ''} onChange={(v) => set('county', v)} />
+      </div>
+      <TextField label="Postcode" value={value.postcode} onChange={(v) => set('postcode', v)} required />
       <div className="grid-2">
         <TextField
           label="Telephone"
@@ -42,17 +64,33 @@ export default function EmergencyVetStep({ value, onChange }: Props) {
           onChange={(v) => set('email', v)}
         />
       </div>
-      <div className="checkbox-row">
-        <input
-          type="checkbox"
-          id="vet-ack"
-          checked={value.alternativeVetAuthorised}
-          onChange={(e) => set('alternativeVetAuthorised', e.target.checked)}
+
+      <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
+        <h2 style={{ fontSize: '1.15rem' }}>Alternative vet care authorisation</h2>
+        <div className="terms-box">
+          <p>
+            I authorise PawfectPets Sherborne to arrange alternative veterinary care for my pet
+            if my usual vet is unobtainable in an emergency.
+          </p>
+        </div>
+        <TextField
+          label="Typed signature (full name)"
+          value={value.authorisation?.signedName ?? ''}
+          onChange={(v) => setAuth({ signedName: v })}
+          required
+          hint="Your typed name plus today's date acts as your signature."
         />
-        <label htmlFor="vet-ack">
-          I authorise PawfectPets Sherborne to arrange alternative veterinary care for my pet if
-          my usual vet is unobtainable in an emergency. <span className="required">*</span>
-        </label>
+        <div className="field">
+          <label>Or sign with your mouse or finger (optional)</label>
+          <SignaturePad
+            value={value.authorisation?.signatureImage}
+            onChange={(sig) => setAuth({ signatureImage: sig })}
+          />
+        </div>
+        <div className="field">
+          <label>Date</label>
+          <input type="text" value={TODAY} disabled />
+        </div>
       </div>
     </div>
   );

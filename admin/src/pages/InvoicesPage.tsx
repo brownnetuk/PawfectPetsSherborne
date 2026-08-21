@@ -978,7 +978,7 @@ function DocumentFormModal({
               <dt>Address</dt>
               <dd>{selectedCustomer.address || '—'}</dd>
               <dt>Phone</dt>
-              <dd>{selectedCustomer.telephone || selectedCustomer.mobile || '—'}</dd>
+              <dd>{selectedCustomer.phoneNumber || '—'}</dd>
               <dt>Email</dt>
               <dd>{selectedCustomer.email || '—'}</dd>
             </dl>

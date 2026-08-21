@@ -10,26 +10,35 @@ interface Props {
 }
 
 export default function EditCustomerModal({ customer, onClose, onSaved }: Props) {
-  const [name, setName] = useState(customer.name);
+  const [firstName, setFirstName] = useState(customer.firstName ?? '');
+  const [surname, setSurname] = useState(customer.surname ?? '');
   const [email, setEmail] = useState(customer.email);
-  const [address, setAddress] = useState(customer.address ?? '');
-  const [telephone, setTelephone] = useState(customer.telephone ?? '');
-  const [mobile, setMobile] = useState(customer.mobile ?? '');
+  const [address1, setAddress1] = useState(customer.address1 ?? '');
+  const [address2, setAddress2] = useState(customer.address2 ?? '');
+  const [town, setTown] = useState(customer.town ?? '');
+  const [county, setCounty] = useState(customer.county ?? '');
+  const [postcode, setPostcode] = useState(customer.postcode ?? '');
+  const [phoneNumber, setPhoneNumber] = useState(customer.phoneNumber ?? '');
 
   const [sameAsClient, setSameAsClient] = useState(customer.emergencyContact?.sameAsClient ?? false);
-  const [ecName, setEcName] = useState(customer.emergencyContact?.name ?? '');
-  const [ecAddress, setEcAddress] = useState(customer.emergencyContact?.address ?? '');
-  const [ecTelephone, setEcTelephone] = useState(customer.emergencyContact?.telephone ?? '');
-  const [ecMobile, setEcMobile] = useState(customer.emergencyContact?.mobile ?? '');
+  const [ecFirstName, setEcFirstName] = useState(customer.emergencyContact?.firstName ?? '');
+  const [ecSurname, setEcSurname] = useState(customer.emergencyContact?.surname ?? '');
+  const [ecAddress1, setEcAddress1] = useState(customer.emergencyContact?.address1 ?? '');
+  const [ecAddress2, setEcAddress2] = useState(customer.emergencyContact?.address2 ?? '');
+  const [ecTown, setEcTown] = useState(customer.emergencyContact?.town ?? '');
+  const [ecCounty, setEcCounty] = useState(customer.emergencyContact?.county ?? '');
+  const [ecPostcode, setEcPostcode] = useState(customer.emergencyContact?.postcode ?? '');
+  const [ecPhoneNumber, setEcPhoneNumber] = useState(customer.emergencyContact?.phoneNumber ?? '');
   const [ecEmail, setEcEmail] = useState(customer.emergencyContact?.email ?? '');
 
   const [vetPractice, setVetPractice] = useState(customer.emergencyVet?.practiceName ?? '');
-  const [vetAddress, setVetAddress] = useState(customer.emergencyVet?.address ?? '');
+  const [vetAddress1, setVetAddress1] = useState(customer.emergencyVet?.address1 ?? '');
+  const [vetAddress2, setVetAddress2] = useState(customer.emergencyVet?.address2 ?? '');
+  const [vetTown, setVetTown] = useState(customer.emergencyVet?.town ?? '');
+  const [vetCounty, setVetCounty] = useState(customer.emergencyVet?.county ?? '');
+  const [vetPostcode, setVetPostcode] = useState(customer.emergencyVet?.postcode ?? '');
   const [vetTelephone, setVetTelephone] = useState(customer.emergencyVet?.telephone ?? '');
   const [vetEmail, setVetEmail] = useState(customer.emergencyVet?.email ?? '');
-  const [vetAuthorised, setVetAuthorised] = useState(
-    customer.emergencyVet?.alternativeVetAuthorised ?? false,
-  );
 
   const [keysProvided, setKeysProvided] = useState(customer.security?.keysProvided ?? false);
   const [alarmInstructions, setAlarmInstructions] = useState('');
@@ -42,41 +51,48 @@ export default function EditCustomerModal({ customer, onClose, onSaved }: Props)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!sameAsClient && (!ecTelephone && !ecMobile)) {
-      setError('Emergency contact requires at least one of telephone or mobile.');
-      return;
-    }
-    if (!sameAsClient && (!ecName || !ecAddress)) {
+    if (!sameAsClient && (!ecFirstName || !ecAddress1 || !ecTown || !ecPostcode)) {
       setError('Emergency contact name and address are required unless "same as client".');
       return;
     }
-    if (!vetAuthorised) {
-      setError('Alternative vet care authorisation must be acknowledged.');
+    if (!sameAsClient && !ecPhoneNumber) {
+      setError('Emergency contact phone number is required unless "same as client".');
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
       await api.updateCustomer(customer._id, {
-        name,
+        firstName,
+        surname: surname || undefined,
         email,
-        address,
-        telephone: telephone || undefined,
-        mobile,
+        address1,
+        address2: address2 || undefined,
+        town,
+        county: county || undefined,
+        postcode,
+        phoneNumber,
         emergencyContact: {
           sameAsClient,
-          name: sameAsClient ? undefined : ecName,
-          address: sameAsClient ? undefined : ecAddress,
-          telephone: ecTelephone || undefined,
-          mobile: ecMobile || undefined,
+          firstName: sameAsClient ? undefined : ecFirstName,
+          surname: sameAsClient ? undefined : ecSurname || undefined,
+          address1: sameAsClient ? undefined : ecAddress1,
+          address2: sameAsClient ? undefined : ecAddress2 || undefined,
+          town: sameAsClient ? undefined : ecTown,
+          county: sameAsClient ? undefined : ecCounty || undefined,
+          postcode: sameAsClient ? undefined : ecPostcode,
+          phoneNumber: sameAsClient ? undefined : ecPhoneNumber,
           email: ecEmail || undefined,
         },
         emergencyVet: {
           practiceName: vetPractice,
-          address: vetAddress,
+          address1: vetAddress1,
+          address2: vetAddress2 || undefined,
+          town: vetTown,
+          county: vetCounty || undefined,
+          postcode: vetPostcode,
           telephone: vetTelephone,
           email: vetEmail || undefined,
-          alternativeVetAuthorised: vetAuthorised,
         },
         security: {
           keysProvided,
@@ -99,9 +115,15 @@ export default function EditCustomerModal({ customer, onClose, onSaved }: Props)
       {error && <div className="error-banner">{error}</div>}
       <form onSubmit={handleSubmit}>
         <div className="section-title">Client details</div>
-        <div className="field">
-          <label>Name</label>
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+        <div className="field-row">
+          <div className="field">
+            <label>First name</label>
+            <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+          </div>
+          <div className="field">
+            <label>Surname</label>
+            <input type="text" value={surname} onChange={(e) => setSurname(e.target.value)} />
+          </div>
         </div>
         <div className="field-row">
           <div className="field">
@@ -109,19 +131,31 @@ export default function EditCustomerModal({ customer, onClose, onSaved }: Props)
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
           <div className="field">
-            <label>Mobile</label>
-            <input type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} required />
+            <label>Phone number</label>
+            <input type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} required />
           </div>
+        </div>
+        <div className="field">
+          <label>First line of address</label>
+          <input type="text" value={address1} onChange={(e) => setAddress1(e.target.value)} required />
+        </div>
+        <div className="field">
+          <label>Second line of address</label>
+          <input type="text" value={address2} onChange={(e) => setAddress2(e.target.value)} />
         </div>
         <div className="field-row">
           <div className="field">
-            <label>Telephone</label>
-            <input type="tel" value={telephone} onChange={(e) => setTelephone(e.target.value)} />
+            <label>Town</label>
+            <input type="text" value={town} onChange={(e) => setTown(e.target.value)} required />
           </div>
           <div className="field">
-            <label>Address</label>
-            <textarea value={address} onChange={(e) => setAddress(e.target.value)} required />
+            <label>County</label>
+            <input type="text" value={county} onChange={(e) => setCounty(e.target.value)} />
           </div>
+        </div>
+        <div className="field">
+          <label>Postcode</label>
+          <input type="text" value={postcode} onChange={(e) => setPostcode(e.target.value)} required />
         </div>
 
         <div className="section-title">Emergency contact</div>
@@ -130,27 +164,45 @@ export default function EditCustomerModal({ customer, onClose, onSaved }: Props)
           Same as client
         </label>
         {!sameAsClient && (
-          <div className="field-row">
-            <div className="field">
-              <label>Name</label>
-              <input type="text" value={ecName} onChange={(e) => setEcName(e.target.value)} />
+          <>
+            <div className="field-row">
+              <div className="field">
+                <label>First name</label>
+                <input type="text" value={ecFirstName} onChange={(e) => setEcFirstName(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Surname</label>
+                <input type="text" value={ecSurname} onChange={(e) => setEcSurname(e.target.value)} />
+              </div>
             </div>
             <div className="field">
-              <label>Address</label>
-              <textarea value={ecAddress} onChange={(e) => setEcAddress(e.target.value)} />
+              <label>First line of address</label>
+              <input type="text" value={ecAddress1} onChange={(e) => setEcAddress1(e.target.value)} />
             </div>
-          </div>
+            <div className="field">
+              <label>Second line of address</label>
+              <input type="text" value={ecAddress2} onChange={(e) => setEcAddress2(e.target.value)} />
+            </div>
+            <div className="field-row">
+              <div className="field">
+                <label>Town</label>
+                <input type="text" value={ecTown} onChange={(e) => setEcTown(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>County</label>
+                <input type="text" value={ecCounty} onChange={(e) => setEcCounty(e.target.value)} />
+              </div>
+            </div>
+            <div className="field">
+              <label>Postcode</label>
+              <input type="text" value={ecPostcode} onChange={(e) => setEcPostcode(e.target.value)} />
+            </div>
+            <div className="field">
+              <label>Phone number</label>
+              <input type="tel" value={ecPhoneNumber} onChange={(e) => setEcPhoneNumber(e.target.value)} />
+            </div>
+          </>
         )}
-        <div className="field-row">
-          <div className="field">
-            <label>Telephone</label>
-            <input type="tel" value={ecTelephone} onChange={(e) => setEcTelephone(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>Mobile</label>
-            <input type="tel" value={ecMobile} onChange={(e) => setEcMobile(e.target.value)} />
-          </div>
-        </div>
         <div className="field">
           <label>Email</label>
           <input type="email" value={ecEmail} onChange={(e) => setEcEmail(e.target.value)} />
@@ -163,29 +215,49 @@ export default function EditCustomerModal({ customer, onClose, onSaved }: Props)
             <input type="text" value={vetPractice} onChange={(e) => setVetPractice(e.target.value)} required />
           </div>
           <div className="field">
-            <label>Address</label>
-            <textarea value={vetAddress} onChange={(e) => setVetAddress(e.target.value)} required />
-          </div>
-        </div>
-        <div className="field-row">
-          <div className="field">
             <label>Telephone</label>
             <input type="tel" value={vetTelephone} onChange={(e) => setVetTelephone(e.target.value)} required />
           </div>
+        </div>
+        <div className="field">
+          <label>First line of address</label>
+          <input type="text" value={vetAddress1} onChange={(e) => setVetAddress1(e.target.value)} required />
+        </div>
+        <div className="field">
+          <label>Second line of address</label>
+          <input type="text" value={vetAddress2} onChange={(e) => setVetAddress2(e.target.value)} />
+        </div>
+        <div className="field-row">
           <div className="field">
-            <label>Email</label>
-            <input type="email" value={vetEmail} onChange={(e) => setVetEmail(e.target.value)} />
+            <label>Town</label>
+            <input type="text" value={vetTown} onChange={(e) => setVetTown(e.target.value)} required />
+          </div>
+          <div className="field">
+            <label>County</label>
+            <input type="text" value={vetCounty} onChange={(e) => setVetCounty(e.target.value)} />
           </div>
         </div>
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 16, fontWeight: 400 }}>
-          <input
-            type="checkbox"
-            checked={vetAuthorised}
-            onChange={(e) => setVetAuthorised(e.target.checked)}
-            style={{ marginTop: 3 }}
-          />
-          Authorised to arrange alternative veterinary care if usual vet is unobtainable
-        </label>
+        <div className="field">
+          <label>Postcode</label>
+          <input type="text" value={vetPostcode} onChange={(e) => setVetPostcode(e.target.value)} required />
+        </div>
+        <div className="field">
+          <label>Email</label>
+          <input type="email" value={vetEmail} onChange={(e) => setVetEmail(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Alternative vet care authorisation</label>
+          {customer.emergencyVet?.authorisation?.signedName ? (
+            <div className="field-hint">
+              Signed by {customer.emergencyVet.authorisation.signedName}
+              {customer.emergencyVet.authorisation.signedAt
+                ? ` on ${new Date(customer.emergencyVet.authorisation.signedAt).toLocaleDateString('en-GB')}`
+                : ''}
+            </div>
+          ) : (
+            <div className="field-hint">Not yet signed — set via the customer's intake form.</div>
+          )}
+        </div>
 
         <div className="section-title">Security</div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontWeight: 400 }}>

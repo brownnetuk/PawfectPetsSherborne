@@ -36,10 +36,14 @@ export function submitCustomer(
   // class-validator's @IsOptional() only skips validation for null/undefined, not '' —
   // format-validated optional fields (email) must be omitted entirely when blank.
   const payload = {
-    name: state.client.name,
-    address: state.client.address,
-    telephone: state.client.telephone || undefined,
-    mobile: state.client.mobile,
+    firstName: state.client.firstName,
+    surname: state.client.surname || undefined,
+    address1: state.client.address1,
+    address2: state.client.address2 || undefined,
+    town: state.client.town,
+    county: state.client.county || undefined,
+    postcode: state.client.postcode,
+    phoneNumber: state.client.phoneNumber,
     email: state.client.email,
     emergencyContact: {
       ...state.emergencyContact,
@@ -69,16 +73,18 @@ function animalPayload(pet: PetDetails) {
     vaccineExpiryDate: pet.vaccinated ? pet.vaccineExpiryDate : undefined,
     colourMarkings: pet.colourMarkings || undefined,
     microchipNumber: pet.microchipNumber || undefined,
-    hasCollar: pet.hasCollar,
     temperamentNotes: pet.temperamentNotes || undefined,
     aggressionToPeople: pet.aggressionToPeople,
     aggressionToPeopleDetails: pet.aggressionToPeople ? pet.aggressionToPeopleDetails : undefined,
-    aggressionToOtherAnimals: pet.aggressionToOtherAnimals,
-    aggressionToOtherAnimalsDetails: pet.aggressionToOtherAnimals
-      ? pet.aggressionToOtherAnimalsDetails
-      : undefined,
-    travelsWellInCar: pet.travelsWellInCar,
-    chasesLivestock: pet.chasesLivestock,
+    aggressionToOtherAnimals: pet.species !== 'cat' ? pet.aggressionToOtherAnimals : undefined,
+    aggressionToOtherAnimalsDetails:
+      pet.species !== 'cat' && pet.aggressionToOtherAnimals
+        ? pet.aggressionToOtherAnimalsDetails
+        : undefined,
+    travelsWellInCar: pet.species !== 'cat' ? pet.travelsWellInCar || undefined : undefined,
+    chasesLivestock: pet.species === 'dog' ? pet.chasesLivestock || undefined : undefined,
+    chasesLivestockDetails:
+      pet.species === 'dog' && pet.chasesLivestock === 'yes' ? pet.chasesLivestockDetails : undefined,
     allergies: pet.allergies,
     medication: pet.medication,
     offLeadConsent: pet.species === 'dog' ? pet.offLeadConsent : undefined,

@@ -60,7 +60,7 @@ export default function CustomersPage() {
               <tr>
                 <th>Name</th>
                 <th>Email</th>
-                <th>Mobile</th>
+                <th>Phone number</th>
                 <th>Status</th>
                 <th>Created</th>
               </tr>
@@ -70,7 +70,7 @@ export default function CustomersPage() {
                 <tr key={c._id} onClick={() => navigate(`/customers/${c._id}`)}>
                   <td>{c.name}</td>
                   <td>{c.email}</td>
-                  <td>{c.mobile || '—'}</td>
+                  <td>{c.phoneNumber || '—'}</td>
                   <td>
                     <Badge value={c.status} />
                   </td>

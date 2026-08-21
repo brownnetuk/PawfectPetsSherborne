@@ -16,24 +16,53 @@ export class EmergencyContactDto {
   @ValidateIf((o) => !o.sameAsClient)
   @IsNotEmpty()
   @IsString()
-  name?: string;
+  firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  surname?: string;
 
   @ValidateIf((o) => !o.sameAsClient)
   @IsNotEmpty()
   @IsString()
-  address?: string;
+  address1?: string;
 
   @IsOptional()
   @IsString()
-  telephone?: string;
+  address2?: string;
+
+  @ValidateIf((o) => !o.sameAsClient)
+  @IsNotEmpty()
+  @IsString()
+  town?: string;
 
   @IsOptional()
   @IsString()
-  mobile?: string;
+  county?: string;
+
+  @ValidateIf((o) => !o.sameAsClient)
+  @IsNotEmpty()
+  @IsString()
+  postcode?: string;
+
+  @ValidateIf((o) => !o.sameAsClient)
+  @IsNotEmpty()
+  @IsString()
+  phoneNumber?: string;
 
   @IsOptional()
   @IsEmail()
   email?: string;
+}
+
+export class EmergencyVetAuthorisationDto {
+  @IsNotEmpty()
+  @IsString()
+  signedName: string;
+
+  @IsOptional()
+  @IsString()
+  signatureImage?: string;
 }
 
 export class EmergencyVetDto {
@@ -43,7 +72,23 @@ export class EmergencyVetDto {
 
   @IsNotEmpty()
   @IsString()
-  address: string;
+  address1: string;
+
+  @IsOptional()
+  @IsString()
+  address2?: string;
+
+  @IsNotEmpty()
+  @IsString()
+  town: string;
+
+  @IsOptional()
+  @IsString()
+  county?: string;
+
+  @IsNotEmpty()
+  @IsString()
+  postcode: string;
 
   @IsNotEmpty()
   @IsString()
@@ -53,8 +98,9 @@ export class EmergencyVetDto {
   @IsEmail()
   email?: string;
 
-  @IsBoolean()
-  alternativeVetAuthorised: boolean;
+  @ValidateNested()
+  @Type(() => EmergencyVetAuthorisationDto)
+  authorisation: EmergencyVetAuthorisationDto;
 }
 
 export class SecurityArrangementsDto {
@@ -85,19 +131,35 @@ export class AgreementDto {
 export class CreateCustomerDto {
   @IsNotEmpty()
   @IsString()
-  name: string;
-
-  @IsNotEmpty()
-  @IsString()
-  address: string;
+  firstName: string;
 
   @IsOptional()
   @IsString()
-  telephone?: string;
+  surname?: string;
 
   @IsNotEmpty()
   @IsString()
-  mobile: string;
+  address1: string;
+
+  @IsOptional()
+  @IsString()
+  address2?: string;
+
+  @IsNotEmpty()
+  @IsString()
+  town: string;
+
+  @IsOptional()
+  @IsString()
+  county?: string;
+
+  @IsNotEmpty()
+  @IsString()
+  postcode: string;
+
+  @IsNotEmpty()
+  @IsString()
+  phoneNumber: string;
 
   @IsNotEmpty()
   @IsEmail()

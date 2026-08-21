@@ -2,16 +2,14 @@ class EmergencyContact {
   final bool sameAsClient;
   final String? name;
   final String? address;
-  final String? telephone;
-  final String? mobile;
+  final String? phoneNumber;
   final String? email;
 
   EmergencyContact({
     required this.sameAsClient,
     this.name,
     this.address,
-    this.telephone,
-    this.mobile,
+    this.phoneNumber,
     this.email,
   });
 
@@ -19,8 +17,7 @@ class EmergencyContact {
         sameAsClient: json['sameAsClient'] as bool? ?? false,
         name: json['name'] as String?,
         address: json['address'] as String?,
-        telephone: json['telephone'] as String?,
-        mobile: json['mobile'] as String?,
+        phoneNumber: json['phoneNumber'] as String?,
         email: json['email'] as String?,
       );
 }
@@ -66,8 +63,7 @@ class Customer {
   final String name;
   final String email;
   final String? address;
-  final String? telephone;
-  final String? mobile;
+  final String? phoneNumber;
   final String status;
   final EmergencyContact? emergencyContact;
   final EmergencyVet? emergencyVet;
@@ -78,8 +74,7 @@ class Customer {
     required this.name,
     required this.email,
     this.address,
-    this.telephone,
-    this.mobile,
+    this.phoneNumber,
     required this.status,
     this.emergencyContact,
     this.emergencyVet,
@@ -91,8 +86,7 @@ class Customer {
         name: json['name'] as String,
         email: json['email'] as String,
         address: json['address'] as String?,
-        telephone: json['telephone'] as String?,
-        mobile: json['mobile'] as String?,
+        phoneNumber: json['phoneNumber'] as String?,
         status: json['status'] as String? ?? 'pending',
         emergencyContact: json['emergencyContact'] != null
             ? EmergencyContact.fromJson(json['emergencyContact'] as Map<String, dynamic>)

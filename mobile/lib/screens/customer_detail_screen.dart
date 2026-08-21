@@ -80,8 +80,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
               const SizedBox(height: 20),
               _sectionTitle('Client details'),
               _row('Email', customer.email),
-              _row('Mobile', customer.mobile ?? '—'),
-              _row('Telephone', customer.telephone ?? '—'),
+              _row('Phone number', customer.phoneNumber ?? '—'),
               _row('Address', customer.address ?? '—'),
               if (customer.emergencyContact != null) ...[
                 _sectionTitle('Emergency contact'),
@@ -90,8 +89,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                   _row('Name', customer.emergencyContact!.name ?? '—'),
                   _row('Address', customer.emergencyContact!.address ?? '—'),
                 ],
-                _row('Telephone', customer.emergencyContact!.telephone ?? '—'),
-                _row('Mobile', customer.emergencyContact!.mobile ?? '—'),
+                _row('Phone number', customer.emergencyContact!.phoneNumber ?? '—'),
               ],
               if (customer.emergencyVet != null) ...[
                 _sectionTitle('Emergency vet'),

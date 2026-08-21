@@ -92,9 +92,6 @@ export class Animal extends Document {
   @Prop()
   microchipNumber?: string;
 
-  @Prop({ required: true })
-  hasCollar: boolean;
-
   @Prop()
   temperamentNotes?: string;
 
@@ -104,17 +101,23 @@ export class Animal extends Document {
   @Prop()
   aggressionToPeopleDetails?: string;
 
-  @Prop({ required: true })
-  aggressionToOtherAnimals: boolean;
+  // Not applicable to cats.
+  @Prop()
+  aggressionToOtherAnimals?: boolean;
 
   @Prop()
   aggressionToOtherAnimalsDetails?: string;
 
-  @Prop({ type: String, enum: TriState, required: true })
-  travelsWellInCar: TriState;
+  // Not applicable to cats.
+  @Prop({ type: String, enum: TriState })
+  travelsWellInCar?: TriState;
 
-  @Prop({ type: String, enum: TriState, required: true })
-  chasesLivestock: TriState;
+  // Dogs only.
+  @Prop({ type: String, enum: TriState })
+  chasesLivestock?: TriState;
+
+  @Prop()
+  chasesLivestockDetails?: string;
 
   @Prop({ type: AllergyInfoSchema, required: true })
   allergies: AllergyInfo;

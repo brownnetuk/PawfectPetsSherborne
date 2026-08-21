@@ -30,12 +30,12 @@ function emptyPet(): PetDetails {
     vaccineExpiryDate: '',
     colourMarkings: '',
     microchipNumber: '',
-    hasCollar: null,
     temperamentNotes: '',
     aggressionToPeople: null,
     aggressionToOtherAnimals: null,
     travelsWellInCar: '',
     chasesLivestock: '',
+    chasesLivestockDetails: '',
     allergies: { status: 'no', details: '' },
     medication: { onMedication: false, details: '' },
     offLeadConsent: undefined,
@@ -55,14 +55,14 @@ function petFromRecord(a: AnimalRecord): PetDetails {
     vaccineExpiryDate: a.vaccineExpiryDate ? a.vaccineExpiryDate.slice(0, 10) : '',
     colourMarkings: a.colourMarkings ?? '',
     microchipNumber: a.microchipNumber ?? '',
-    hasCollar: a.hasCollar,
     temperamentNotes: a.temperamentNotes ?? '',
     aggressionToPeople: a.aggressionToPeople,
     aggressionToPeopleDetails: a.aggressionToPeopleDetails ?? '',
-    aggressionToOtherAnimals: a.aggressionToOtherAnimals,
+    aggressionToOtherAnimals: a.aggressionToOtherAnimals ?? null,
     aggressionToOtherAnimalsDetails: a.aggressionToOtherAnimalsDetails ?? '',
-    travelsWellInCar: a.travelsWellInCar,
-    chasesLivestock: a.chasesLivestock,
+    travelsWellInCar: a.travelsWellInCar ?? '',
+    chasesLivestock: a.chasesLivestock ?? '',
+    chasesLivestockDetails: a.chasesLivestockDetails ?? '',
     allergies: { status: a.allergies.status, details: a.allergies.details ?? '' },
     medication: { onMedication: a.medication.onMedication, details: a.medication.details ?? '' },
     // Only mode/signature -- the stored record also carries acknowledgedAt/date
@@ -77,9 +77,9 @@ function petFromRecord(a: AnimalRecord): PetDetails {
 function initialState(customerId: string | null): IntakeState {
   return {
     customerId,
-    client: { name: '', address: '', telephone: '', mobile: '', email: '' },
+    client: { firstName: '', address1: '', town: '', postcode: '', phoneNumber: '', email: '' },
     emergencyContact: { sameAsClient: false },
-    emergencyVet: { practiceName: '', address: '', telephone: '', email: '', alternativeVetAuthorised: false },
+    emergencyVet: { practiceName: '', address1: '', town: '', postcode: '', telephone: '', email: '' },
     // Once existing pets load, this becomes "how many *additional* pets" rather
     // than a total -- see existingCount below.
     petCount: 1,
@@ -109,10 +109,14 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
         setState((s) => ({
           ...s,
           client: {
-            name: customer.name,
-            address: customer.address ?? '',
-            telephone: customer.telephone ?? '',
-            mobile: customer.mobile ?? '',
+            firstName: customer.firstName ?? '',
+            surname: customer.surname ?? '',
+            address1: customer.address1 ?? '',
+            address2: customer.address2 ?? '',
+            town: customer.town ?? '',
+            county: customer.county ?? '',
+            postcode: customer.postcode ?? '',
+            phoneNumber: customer.phoneNumber ?? '',
             email: customer.email,
           },
           emergencyContact: customer.emergencyContact
@@ -186,19 +190,22 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
   function validateStep(): string | null {
     if (step === 1) {
       const c = state.client;
-      if (!c.name || !c.address || !c.mobile || !c.email) return 'Please fill in all required fields.';
+      if (!c.firstName || !c.address1 || !c.town || !c.postcode || !c.phoneNumber || !c.email)
+        return 'Please fill in all required fields.';
     }
     if (step === 2) {
       const e = state.emergencyContact;
       if (!e.sameAsClient) {
-        if (!e.name || !e.address) return 'Emergency contact name and address are required.';
-        if (!e.telephone && !e.mobile) return 'Provide at least one emergency contact phone number.';
+        if (!e.firstName || !e.address1 || !e.town || !e.postcode)
+          return 'Emergency contact name and address are required.';
+        if (!e.phoneNumber) return 'Emergency contact phone number is required.';
       }
     }
     if (step === 3) {
       const v = state.emergencyVet;
-      if (!v.practiceName || !v.address || !v.telephone) return 'Please fill in all required fields.';
-      if (!v.alternativeVetAuthorised) return 'Please acknowledge alternative vet care authorisation.';
+      if (!v.practiceName || !v.address1 || !v.town || !v.postcode || !v.telephone)
+        return 'Please fill in all required fields.';
+      if (!v.authorisation?.signedName) return 'Please sign to authorise alternative vet care.';
     }
     const petIndex = petIndexForStep(step);
     if (petIndex !== null) {
@@ -207,14 +214,20 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
       if (!pet.breed || !pet.name || !pet.sex || !pet.age) return 'Please fill in all required fields.';
       if (pet.vaccinated === null) return 'Please let us know if this pet is vaccinated.';
       if (pet.vaccinated && !pet.vaccineExpiryDate) return 'Vaccine expiry date is required.';
-      if (pet.hasCollar === null) return 'Please let us know if this pet has a collar.';
-      if (pet.aggressionToPeople === null || pet.aggressionToOtherAnimals === null)
-        return 'Please answer the aggression questions.';
+      if (pet.aggressionToPeople === null) return 'Please answer the aggression questions.';
       if (pet.aggressionToPeople && !pet.aggressionToPeopleDetails)
         return 'Please provide details about aggression to people.';
-      if (pet.aggressionToOtherAnimals && !pet.aggressionToOtherAnimalsDetails)
-        return 'Please provide details about aggression to other animals.';
-      if (!pet.travelsWellInCar || !pet.chasesLivestock) return 'Please answer all required questions.';
+      if (pet.species !== 'cat') {
+        if (pet.aggressionToOtherAnimals === null) return 'Please answer the aggression questions.';
+        if (pet.aggressionToOtherAnimals && !pet.aggressionToOtherAnimalsDetails)
+          return 'Please provide details about aggression to other animals.';
+        if (!pet.travelsWellInCar) return 'Please answer all required questions.';
+      }
+      if (pet.species === 'dog') {
+        if (!pet.chasesLivestock) return 'Please answer all required questions.';
+        if (pet.chasesLivestock === 'yes' && !pet.chasesLivestockDetails)
+          return 'Please provide details about chasing livestock.';
+      }
       if (pet.medication.onMedication && !pet.medication.details)
         return 'Please provide medication details.';
       if (pet.species === 'dog') {
@@ -287,7 +300,7 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
   }
 
   if (submitted) {
-    return <ThankYouStep name={state.client.name} />;
+    return <ThankYouStep name={state.client.firstName} />;
   }
 
   const petIndex = petIndexForStep(step);
@@ -299,7 +312,7 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
         {error && <div className="error-banner">{error}</div>}
 
         {step === 0 && (
-          <WelcomeStep name={state.client.name} isLead={!!customerId} existingPetCount={existingCount} />
+          <WelcomeStep name={state.client.firstName} isLead={!!customerId} existingPetCount={existingCount} />
         )}
         {step === 1 && (
           <ClientDetailsStep value={state.client} onChange={(client) => setState((s) => ({ ...s, client }))} />

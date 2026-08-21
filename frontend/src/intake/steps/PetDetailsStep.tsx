@@ -30,6 +30,9 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
   const set = <K extends keyof PetDetails>(key: K, v: PetDetails[K]) =>
     onChange({ ...value, [key]: v });
 
+  const isDog = value.species === 'dog';
+  const isCat = value.species === 'cat';
+
   return (
     <div>
       <span className="pet-tag">
@@ -44,8 +47,13 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
         onChange={(v) => set('species', v)}
         required
       />
-      <TextField label="Breed" value={value.breed} onChange={(v) => set('breed', v)} required />
       <TextField label="Name" value={value.name} onChange={(v) => set('name', v)} required />
+      <TextField
+        label={isDog || isCat ? 'Breed' : 'Type of animal'}
+        value={value.breed}
+        onChange={(v) => set('breed', v)}
+        required
+      />
       <div className="grid-2">
         <SelectField
           label="Sex"
@@ -91,7 +99,6 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
         value={value.microchipNumber ?? ''}
         onChange={(v) => set('microchipNumber', v)}
       />
-      <ToggleField label="Has collar" value={!!value.hasCollar} onChange={(v) => set('hasCollar', v)} />
 
       <TextField
         label="Temperament notes"
@@ -115,37 +122,53 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
           required
         />
       )}
-      <ChoiceGroup
-        label="Aggression to other animals"
-        value={
-          value.aggressionToOtherAnimals === null ? '' : value.aggressionToOtherAnimals ? 'yes' : 'no'
-        }
-        options={YES_NO_OPTIONS}
-        onChange={(v) => set('aggressionToOtherAnimals', v === 'yes')}
-        required
-      />
-      {value.aggressionToOtherAnimals && (
-        <TextField
-          label="Please give details"
-          value={value.aggressionToOtherAnimalsDetails ?? ''}
-          onChange={(v) => set('aggressionToOtherAnimalsDetails', v)}
-          required
-        />
+      {!isCat && (
+        <>
+          <ChoiceGroup
+            label="Aggression to other animals"
+            value={
+              value.aggressionToOtherAnimals === null ? '' : value.aggressionToOtherAnimals ? 'yes' : 'no'
+            }
+            options={YES_NO_OPTIONS}
+            onChange={(v) => set('aggressionToOtherAnimals', v === 'yes')}
+            required
+          />
+          {value.aggressionToOtherAnimals && (
+            <TextField
+              label="Please give details"
+              value={value.aggressionToOtherAnimalsDetails ?? ''}
+              onChange={(v) => set('aggressionToOtherAnimalsDetails', v)}
+              required
+            />
+          )}
+          <ChoiceGroup
+            label="Travels well in car"
+            value={value.travelsWellInCar}
+            options={TRI_STATE_OPTIONS}
+            onChange={(v) => set('travelsWellInCar', v)}
+            required
+          />
+        </>
       )}
-      <ChoiceGroup
-        label="Travels well in car"
-        value={value.travelsWellInCar}
-        options={TRI_STATE_OPTIONS}
-        onChange={(v) => set('travelsWellInCar', v)}
-        required
-      />
-      <ChoiceGroup
-        label="Chases livestock"
-        value={value.chasesLivestock}
-        options={TRI_STATE_OPTIONS}
-        onChange={(v) => set('chasesLivestock', v)}
-        required
-      />
+      {isDog && (
+        <>
+          <ChoiceGroup
+            label="Chases livestock"
+            value={value.chasesLivestock}
+            options={TRI_STATE_OPTIONS}
+            onChange={(v) => set('chasesLivestock', v)}
+            required
+          />
+          {value.chasesLivestock === 'yes' && (
+            <TextField
+              label="Please give details"
+              value={value.chasesLivestockDetails ?? ''}
+              onChange={(v) => set('chasesLivestockDetails', v)}
+              required
+            />
+          )}
+        </>
+      )}
 
       <ChoiceGroup
         label="Allergies / intolerances"
@@ -180,7 +203,7 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
         />
       )}
 
-      {value.species === 'dog' && (
+      {isDog && (
         <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
           <h2 style={{ fontSize: '1.15rem' }}>Off-lead consent</h2>
           <p className="subtitle">

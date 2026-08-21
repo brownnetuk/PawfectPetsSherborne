@@ -65,8 +65,8 @@ export default function EnquiriesPage() {
     try {
       const customer = await api.createLead(viewingEnquiry.name, viewingEnquiry.email);
       const patch: Record<string, unknown> = {};
-      if (viewingEnquiry.address) patch.address = viewingEnquiry.address;
-      if (viewingEnquiry.phone) patch.mobile = viewingEnquiry.phone;
+      if (viewingEnquiry.address) patch.address1 = viewingEnquiry.address;
+      if (viewingEnquiry.phone) patch.phoneNumber = viewingEnquiry.phone;
       if (Object.keys(patch).length > 0) {
         await api.updateCustomer(customer._id, patch);
       }

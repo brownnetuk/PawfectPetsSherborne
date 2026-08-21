@@ -16,17 +16,39 @@ class EmergencyContact {
   @Prop({ default: false })
   sameAsClient: boolean;
 
+  // firstName/surname are the source of truth; `name` is computed from them
+  // by CustomersService on every create/update (see customer-format.util.ts).
+  @Prop()
+  firstName?: string;
+
+  @Prop()
+  surname?: string;
+
   @Prop()
   name?: string;
+
+  // address1/town/postcode etc. are the source of truth; `address` is computed
+  // from them by CustomersService on every create/update.
+  @Prop()
+  address1?: string;
+
+  @Prop()
+  address2?: string;
+
+  @Prop()
+  town?: string;
+
+  @Prop()
+  county?: string;
+
+  @Prop()
+  postcode?: string;
 
   @Prop()
   address?: string;
 
   @Prop()
-  telephone?: string;
-
-  @Prop()
-  mobile?: string;
+  phoneNumber?: string;
 
   @Prop()
   email?: string;
@@ -34,12 +56,42 @@ class EmergencyContact {
 const EmergencyContactSchema = SchemaFactory.createForClass(EmergencyContact);
 
 @Schema({ _id: false })
+class EmergencyVetAuthorisation {
+  @Prop()
+  signedName?: string;
+
+  @Prop()
+  signatureImage?: string;
+
+  @Prop()
+  signedAt?: Date;
+}
+const EmergencyVetAuthorisationSchema = SchemaFactory.createForClass(EmergencyVetAuthorisation);
+
+@Schema({ _id: false })
 class EmergencyVet {
   @Prop({ required: true })
   practiceName: string;
 
-  @Prop({ required: true })
-  address: string;
+  // address1/town/postcode etc. are the source of truth; `address` is computed
+  // from them by CustomersService on every create/update.
+  @Prop()
+  address1?: string;
+
+  @Prop()
+  address2?: string;
+
+  @Prop()
+  town?: string;
+
+  @Prop()
+  county?: string;
+
+  @Prop()
+  postcode?: string;
+
+  @Prop()
+  address?: string;
 
   @Prop({ required: true })
   telephone: string;
@@ -47,8 +99,14 @@ class EmergencyVet {
   @Prop()
   email?: string;
 
-  @Prop({ required: true })
-  alternativeVetAuthorised: boolean;
+  @Prop({ type: EmergencyVetAuthorisationSchema })
+  authorisation?: EmergencyVetAuthorisation;
+
+  // Computed from `!!authorisation?.signedName` by CustomersService, kept for
+  // existing boolean consumers (e.g. the mobile app doesn't read this at all,
+  // but other backend/admin code may).
+  @Prop()
+  alternativeVetAuthorised?: boolean;
 }
 const EmergencyVetSchema = SchemaFactory.createForClass(EmergencyVet);
 
@@ -84,20 +142,42 @@ const AgreementSchema = SchemaFactory.createForClass(Agreement);
 
 @Schema({ timestamps: true })
 export class Customer extends Document {
+  // firstName/surname are the source of truth; `name` is computed from them
+  // by CustomersService on every create/update. Both stay optional at the
+  // schema level so staff can pre-create a minimal lead (name + email only);
+  // the public intake form fills in the rest and CustomersService enforces
+  // completeness before flipping status to active.
+  @Prop()
+  firstName?: string;
+
+  @Prop()
+  surname?: string;
+
   @Prop({ required: true })
   name: string;
 
-  // Optional at the schema level so staff can pre-create a minimal lead
-  // (name + email only); the public intake form fills in the rest and
-  // CustomersService enforces completeness before flipping status to active.
+  // address1/town/postcode etc. are the source of truth; `address` is computed
+  // from them by CustomersService on every create/update.
+  @Prop()
+  address1?: string;
+
+  @Prop()
+  address2?: string;
+
+  @Prop()
+  town?: string;
+
+  @Prop()
+  county?: string;
+
+  @Prop()
+  postcode?: string;
+
   @Prop()
   address?: string;
 
   @Prop()
-  telephone?: string;
-
-  @Prop()
-  mobile?: string;
+  phoneNumber?: string;
 
   @Prop({ required: true })
   email: string;

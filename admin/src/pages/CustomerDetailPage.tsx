@@ -307,10 +307,8 @@ function OverviewTab({
       <dl className="kv-grid">
         <dt>Email</dt>
         <dd>{customer.email}</dd>
-        <dt>Mobile</dt>
-        <dd>{customer.mobile || '—'}</dd>
-        <dt>Telephone</dt>
-        <dd>{customer.telephone || '—'}</dd>
+        <dt>Phone number</dt>
+        <dd>{customer.phoneNumber || '—'}</dd>
         <dt>Address</dt>
         <dd>{customer.address || '—'}</dd>
       </dl>
@@ -329,10 +327,8 @@ function OverviewTab({
                 <dd>{customer.emergencyContact.address || '—'}</dd>
               </>
             )}
-            <dt>Telephone</dt>
-            <dd>{customer.emergencyContact.telephone || '—'}</dd>
-            <dt>Mobile</dt>
-            <dd>{customer.emergencyContact.mobile || '—'}</dd>
+            <dt>Phone number</dt>
+            <dd>{customer.emergencyContact.phoneNumber || '—'}</dd>
           </dl>
         </>
       )}
@@ -347,8 +343,16 @@ function OverviewTab({
             <dd>{customer.emergencyVet.address}</dd>
             <dt>Telephone</dt>
             <dd>{customer.emergencyVet.telephone}</dd>
-            <dt>Alt. care OK</dt>
-            <dd>{customer.emergencyVet.alternativeVetAuthorised ? 'Authorised' : 'Not authorised'}</dd>
+            <dt>Alt. care authorisation</dt>
+            <dd>
+              {customer.emergencyVet.authorisation?.signedName
+                ? `Signed by ${customer.emergencyVet.authorisation.signedName}${
+                    customer.emergencyVet.authorisation.signedAt
+                      ? ` on ${new Date(customer.emergencyVet.authorisation.signedAt).toLocaleDateString('en-GB')}`
+                      : ''
+                  }`
+                : 'Not yet signed'}
+            </dd>
           </dl>
         </>
       )}

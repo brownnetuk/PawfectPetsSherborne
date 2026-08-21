@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { EncryptionService } from '../common/encryption/encryption.service';
+import { formatAddress, formatFullName } from './customer-format.util';
 import { CreateCustomerDto, EmergencyContactDto, EmergencyVetDto } from './dto/create-customer.dto';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
@@ -17,23 +18,50 @@ export class CustomersService {
   private validateEmergencyContact(emergencyContact: EmergencyContactDto) {
     if (
       !emergencyContact.sameAsClient &&
-      !emergencyContact.telephone &&
-      !emergencyContact.mobile
+      (!emergencyContact.firstName || !emergencyContact.address1 || !emergencyContact.town ||
+        !emergencyContact.postcode || !emergencyContact.phoneNumber)
     ) {
       throw new BadRequestException(
-        'Emergency contact requires at least one of telephone or mobile',
-      );
-    }
-    if (!emergencyContact.sameAsClient && (!emergencyContact.name || !emergencyContact.address)) {
-      throw new BadRequestException(
-        'Emergency contact name and address are required unless "same as client" is set',
+        'Emergency contact name, address, and phone number are required unless "same as client" is set',
       );
     }
   }
 
   private validateEmergencyVet(emergencyVet: EmergencyVetDto) {
-    if (!emergencyVet.alternativeVetAuthorised) {
-      throw new BadRequestException('Alternative vet care authorisation must be acknowledged');
+    if (!emergencyVet.authorisation?.signedName) {
+      throw new BadRequestException('Alternative vet care authorisation must be signed');
+    }
+  }
+
+  // Recomputes the stored `name`/`address`/derived-boolean fields from their
+  // structured source fields. Only touches a target when at least one of its
+  // source fields is present in the payload, so a partial update that doesn't
+  // mention e.g. firstName/surname at all leaves the existing computed `name`
+  // untouched rather than recomputing it from a half-empty payload.
+  private applyComputedFields(update: Record<string, any>) {
+    if (update.firstName !== undefined || update.surname !== undefined) {
+      update.name = formatFullName(update.firstName, update.surname);
+    }
+    if (
+      update.address1 !== undefined || update.address2 !== undefined ||
+      update.town !== undefined || update.county !== undefined || update.postcode !== undefined
+    ) {
+      update.address = formatAddress(update);
+    }
+    if (update.emergencyContact) {
+      const ec = update.emergencyContact;
+      if (!ec.sameAsClient) {
+        ec.name = formatFullName(ec.firstName, ec.surname);
+        ec.address = formatAddress(ec);
+      }
+    }
+    if (update.emergencyVet) {
+      const ev = update.emergencyVet;
+      ev.address = formatAddress(ev);
+      ev.alternativeVetAuthorised = !!ev.authorisation?.signedName;
+      if (ev.authorisation?.signedName) {
+        ev.authorisation = { ...ev.authorisation, signedAt: new Date() };
+      }
     }
   }
 
@@ -53,8 +81,11 @@ export class CustomersService {
     this.validateEmergencyContact(dto.emergencyContact);
     this.validateEmergencyVet(dto.emergencyVet);
 
+    const payload: Record<string, any> = { ...dto };
+    this.applyComputedFields(payload);
+
     const created = new this.customerModel({
-      ...dto,
+      ...payload,
       security: this.encryptSecurity(dto),
       agreement: dto.agreement
         ? { ...dto.agreement, signedAt: new Date(), date: new Date() }
@@ -105,7 +136,8 @@ export class CustomersService {
     }
 
     const { security, ...rest } = dto;
-    const update: Record<string, unknown> = { ...rest };
+    const update: Record<string, any> = { ...rest };
+    this.applyComputedFields(update);
 
     // Field-level ($set via dot notation) rather than replacing the whole `security`
     // subdocument: the client is never given the plaintext alarm instructions back, so

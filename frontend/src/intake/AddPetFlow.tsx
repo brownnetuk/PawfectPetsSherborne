@@ -17,12 +17,12 @@ function emptyPet(): PetDetails {
     vaccineExpiryDate: '',
     colourMarkings: '',
     microchipNumber: '',
-    hasCollar: null,
     temperamentNotes: '',
     aggressionToPeople: null,
     aggressionToOtherAnimals: null,
     travelsWellInCar: '',
     chasesLivestock: '',
+    chasesLivestockDetails: '',
     allergies: { status: 'no', details: '' },
     medication: { onMedication: false, details: '' },
     offLeadConsent: undefined,
@@ -78,14 +78,20 @@ export default function AddPetFlow({ customerId }: { customerId: string }) {
       if (!pet.breed || !pet.name || !pet.sex || !pet.age) return 'Please fill in all required fields.';
       if (pet.vaccinated === null) return 'Please let us know if this pet is vaccinated.';
       if (pet.vaccinated && !pet.vaccineExpiryDate) return 'Vaccine expiry date is required.';
-      if (pet.hasCollar === null) return 'Please let us know if this pet has a collar.';
-      if (pet.aggressionToPeople === null || pet.aggressionToOtherAnimals === null)
-        return 'Please answer the aggression questions.';
+      if (pet.aggressionToPeople === null) return 'Please answer the aggression questions.';
       if (pet.aggressionToPeople && !pet.aggressionToPeopleDetails)
         return 'Please provide details about aggression to people.';
-      if (pet.aggressionToOtherAnimals && !pet.aggressionToOtherAnimalsDetails)
-        return 'Please provide details about aggression to other animals.';
-      if (!pet.travelsWellInCar || !pet.chasesLivestock) return 'Please answer all required questions.';
+      if (pet.species !== 'cat') {
+        if (pet.aggressionToOtherAnimals === null) return 'Please answer the aggression questions.';
+        if (pet.aggressionToOtherAnimals && !pet.aggressionToOtherAnimalsDetails)
+          return 'Please provide details about aggression to other animals.';
+        if (!pet.travelsWellInCar) return 'Please answer all required questions.';
+      }
+      if (pet.species === 'dog') {
+        if (!pet.chasesLivestock) return 'Please answer all required questions.';
+        if (pet.chasesLivestock === 'yes' && !pet.chasesLivestockDetails)
+          return 'Please provide details about chasing livestock.';
+      }
       if (pet.medication.onMedication && !pet.medication.details)
         return 'Please provide medication details.';
       if (pet.species === 'dog' && !pet.offLeadConsent?.mode) return 'Please choose on lead or off lead.';

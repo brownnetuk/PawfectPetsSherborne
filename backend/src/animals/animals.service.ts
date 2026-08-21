@@ -24,8 +24,24 @@ export class AnimalsService {
     }
   }
 
+  // Cats don't chase livestock, aren't assessed for aggression to other animals or
+  // car travel; only dogs are assessed for chasing livestock at all.
+  private validateSpeciesFields(dto: Partial<CreateAnimalDto>) {
+    if (dto.species === Species.CAT) {
+      if (dto.chasesLivestock || dto.aggressionToOtherAnimals !== undefined || dto.travelsWellInCar) {
+        throw new BadRequestException(
+          'Chases livestock, aggression to other animals, and travels well in car do not apply to cats',
+        );
+      }
+    }
+    if (dto.species === Species.OTHER && dto.chasesLivestock) {
+      throw new BadRequestException('Chases livestock only applies to dogs');
+    }
+  }
+
   create(dto: CreateAnimalDto): Promise<Animal> {
     this.validateOffLeadConsent(dto, true);
+    this.validateSpeciesFields(dto);
     const payload = {
       ...dto,
       offLeadConsent:
@@ -51,6 +67,7 @@ export class AnimalsService {
 
   async update(id: string, dto: UpdateAnimalDto): Promise<Animal> {
     this.validateOffLeadConsent(dto, false);
+    this.validateSpeciesFields(dto);
     const animal = await this.animalModel.findByIdAndUpdate(id, dto, { new: true }).exec();
     if (!animal) {
       throw new NotFoundException(`Animal ${id} not found`);
@@ -69,6 +86,7 @@ export class AnimalsService {
       throw new NotFoundException(`Animal ${id} not found`);
     }
     this.validateOffLeadConsent(dto, false);
+    this.validateSpeciesFields(dto);
     const animal = await this.animalModel.findByIdAndUpdate(id, dto, { new: true }).exec();
     if (!animal) {
       throw new NotFoundException(`Animal ${id} not found`);

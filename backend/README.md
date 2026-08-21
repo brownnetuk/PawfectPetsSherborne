@@ -72,10 +72,20 @@ modules needed to run the business day to day.
 
 One record per client, created from the intake form submission.
 
-- Client details: `name`, `address`, `telephone`, `mobile`, `email`
-- `emergencyContact` — `sameAsClient` toggle; `name`/`address` required unless same-as-client,
-  at least one of `telephone`/`mobile` required
-- `emergencyVet` — practice details + `alternativeVetAuthorised` acknowledgment (required `true`)
+- Client details: `firstName`, `surname`, `address1`/`address2`/`town`/`county`/`postcode`,
+  `phoneNumber`, `email`. `name` and `address` are stored, server-computed fields — kept in sync
+  from the structured fields above on every create/update (`customer-format.util.ts`) rather than
+  submitted directly, so the many existing `.name`/`.address` consumers (admin, PDF export, the
+  Flutter app) don't need to know about the split. Both are schema-optional (DTO enforces
+  requiredness) to support `createLead()`'s minimal `{ name, email }` pre-created record.
+- `emergencyContact` — `sameAsClient` toggle; `firstName`/address/`phoneNumber` required unless
+  same-as-client. Same computed-`name`/`address` pattern as the top-level client.
+- `emergencyVet` — practice details, structured address (`address1`/`town`/`postcode` required,
+  `address2`/`county` optional), and an `authorisation` sub-object (`signedName`, optional
+  `signatureImage`, server-set `signedAt`) modelled on `agreement` below — required to have a
+  `signedName` (checked in `CustomersService.validateEmergencyVet`). A computed
+  `alternativeVetAuthorised` boolean (`!!authorisation?.signedName`) is kept for existing
+  consumers that only need a yes/no.
 - `security` — `keysProvided`, `furtherInformation`, and `alarmInstructionsEncrypted`. Alarm
   instructions are submitted as plain text (`alarmInstructions` in the DTO) and encrypted at
   rest with AES-256-GCM before saving; they're stripped from list/read responses and only
@@ -88,7 +98,10 @@ One record per client, created from the intake form submission.
 One record per pet, linked to a `Customer`. Covers type/breed, vaccination, colour/markings,
 microchip, temperament, aggression flags, car travel, livestock chasing, allergies, and
 medication. `offLeadConsent` (on/off lead + signature) is required for `species: dog` and
-rejected for cats/other, enforced in `AnimalsService`.
+rejected for cats/other, enforced in `AnimalsService`. A few behaviour fields are similarly
+species-gated there: `aggressionToOtherAnimals`, `travelsWellInCar`, and `chasesLivestock` don't
+apply to cats (rejected if sent), and `chasesLivestock` only applies to dogs (rejected for
+`other` too) — `chasesLivestock: 'yes'` requires `chasesLivestockDetails`.
 
 ### Booking (`/bookings`)
 

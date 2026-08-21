@@ -82,9 +82,6 @@ export class CreateAnimalDto {
   @IsString()
   microchipNumber?: string;
 
-  @IsBoolean()
-  hasCollar: boolean;
-
   @IsOptional()
   @IsString()
   temperamentNotes?: string;
@@ -97,19 +94,30 @@ export class CreateAnimalDto {
   @IsString()
   aggressionToPeopleDetails?: string;
 
+  // Not applicable to cats; service-layer validation rejects it when species=cat.
+  @IsOptional()
   @IsBoolean()
-  aggressionToOtherAnimals: boolean;
+  aggressionToOtherAnimals?: boolean;
 
   @ValidateIf((o) => o.aggressionToOtherAnimals)
   @IsNotEmpty()
   @IsString()
   aggressionToOtherAnimalsDetails?: string;
 
+  // Not applicable to cats; service-layer validation rejects it when species=cat.
+  @IsOptional()
   @IsEnum(TriState)
-  travelsWellInCar: TriState;
+  travelsWellInCar?: TriState;
 
+  // Dogs only; service-layer validation rejects it for cats and other species.
+  @IsOptional()
   @IsEnum(TriState)
-  chasesLivestock: TriState;
+  chasesLivestock?: TriState;
+
+  @ValidateIf((o) => o.chasesLivestock === TriState.YES)
+  @IsNotEmpty()
+  @IsString()
+  chasesLivestockDetails?: string;
 
   @ValidateNested()
   @Type(() => AllergyInfoDto)

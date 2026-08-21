@@ -23,20 +23,20 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
   );
   const [colourMarkings, setColourMarkings] = useState(animal.colourMarkings ?? '');
   const [microchipNumber, setMicrochipNumber] = useState(animal.microchipNumber ?? '');
-  const [hasCollar, setHasCollar] = useState(animal.hasCollar);
   const [temperamentNotes, setTemperamentNotes] = useState(animal.temperamentNotes ?? '');
   const [aggressionToPeople, setAggressionToPeople] = useState(animal.aggressionToPeople);
   const [aggressionToPeopleDetails, setAggressionToPeopleDetails] = useState(
     animal.aggressionToPeopleDetails ?? '',
   );
   const [aggressionToOtherAnimals, setAggressionToOtherAnimals] = useState(
-    animal.aggressionToOtherAnimals,
+    animal.aggressionToOtherAnimals ?? false,
   );
   const [aggressionToOtherAnimalsDetails, setAggressionToOtherAnimalsDetails] = useState(
     animal.aggressionToOtherAnimalsDetails ?? '',
   );
-  const [travelsWellInCar, setTravelsWellInCar] = useState<TriState>(animal.travelsWellInCar);
-  const [chasesLivestock, setChasesLivestock] = useState<TriState>(animal.chasesLivestock);
+  const [travelsWellInCar, setTravelsWellInCar] = useState<TriState>(animal.travelsWellInCar ?? 'unsure');
+  const [chasesLivestock, setChasesLivestock] = useState<TriState>(animal.chasesLivestock ?? 'unsure');
+  const [chasesLivestockDetails, setChasesLivestockDetails] = useState(animal.chasesLivestockDetails ?? '');
   const [allergyStatus, setAllergyStatus] = useState<TriState>(animal.allergies.status);
   const [allergyDetails, setAllergyDetails] = useState(animal.allergies.details ?? '');
   const [onMedication, setOnMedication] = useState(animal.medication.onMedication);
@@ -63,6 +63,10 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
       setError('Please give details about aggression to other animals.');
       return;
     }
+    if (species === 'dog' && chasesLivestock === 'yes' && !chasesLivestockDetails) {
+      setError('Please give details about chasing livestock.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -76,16 +80,16 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
         vaccineExpiryDate: vaccinated ? vaccineExpiryDate : undefined,
         colourMarkings: colourMarkings || undefined,
         microchipNumber: microchipNumber || undefined,
-        hasCollar,
         temperamentNotes: temperamentNotes || undefined,
         aggressionToPeople,
         aggressionToPeopleDetails: aggressionToPeople ? aggressionToPeopleDetails : undefined,
-        aggressionToOtherAnimals,
-        aggressionToOtherAnimalsDetails: aggressionToOtherAnimals
-          ? aggressionToOtherAnimalsDetails
-          : undefined,
-        travelsWellInCar,
-        chasesLivestock,
+        aggressionToOtherAnimals: species !== 'cat' ? aggressionToOtherAnimals : undefined,
+        aggressionToOtherAnimalsDetails:
+          species !== 'cat' && aggressionToOtherAnimals ? aggressionToOtherAnimalsDetails : undefined,
+        travelsWellInCar: species !== 'cat' ? travelsWellInCar : undefined,
+        chasesLivestock: species === 'dog' ? chasesLivestock : undefined,
+        chasesLivestockDetails:
+          species === 'dog' && chasesLivestock === 'yes' ? chasesLivestockDetails : undefined,
         allergies: { status: allergyStatus, details: allergyDetails || undefined },
         medication: { onMedication, details: medicationDetails || undefined },
       });
@@ -111,14 +115,14 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
             </select>
           </div>
           <div className="field">
-            <label>Breed</label>
-            <input type="text" value={breed} onChange={(e) => setBreed(e.target.value)} required />
+            <label>Name</label>
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
           </div>
         </div>
         <div className="field-row">
           <div className="field">
-            <label>Name</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+            <label>{species === 'other' ? 'Type of animal' : 'Breed'}</label>
+            <input type="text" value={breed} onChange={(e) => setBreed(e.target.value)} required />
           </div>
           <div className="field">
             <label>Sex</label>
@@ -158,11 +162,6 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
             />
           </div>
         )}
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontWeight: 400 }}>
-          <input type="checkbox" checked={hasCollar} onChange={(e) => setHasCollar(e.target.checked)} />
-          Has collar
-        </label>
-
         <div className="field">
           <label>Temperament notes</label>
           <textarea value={temperamentNotes} onChange={(e) => setTemperamentNotes(e.target.value)} />
@@ -188,38 +187,41 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
           </div>
         )}
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontWeight: 400 }}>
-          <input
-            type="checkbox"
-            checked={aggressionToOtherAnimals}
-            onChange={(e) => setAggressionToOtherAnimals(e.target.checked)}
-          />
-          Aggression to animals
-        </label>
-        {aggressionToOtherAnimals && (
-          <div className="field">
-            <label>Aggression to other animals — details</label>
-            <input
-              type="text"
-              value={aggressionToOtherAnimalsDetails}
-              onChange={(e) => setAggressionToOtherAnimalsDetails(e.target.value)}
-              required
-            />
-          </div>
+        {species !== 'cat' && (
+          <>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontWeight: 400 }}>
+              <input
+                type="checkbox"
+                checked={aggressionToOtherAnimals}
+                onChange={(e) => setAggressionToOtherAnimals(e.target.checked)}
+              />
+              Aggression to animals
+            </label>
+            {aggressionToOtherAnimals && (
+              <div className="field">
+                <label>Aggression to other animals — details</label>
+                <input
+                  type="text"
+                  value={aggressionToOtherAnimalsDetails}
+                  onChange={(e) => setAggressionToOtherAnimalsDetails(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+            <div className="field">
+              <label>Travels well in car</label>
+              <select value={travelsWellInCar} onChange={(e) => setTravelsWellInCar(e.target.value as TriState)}>
+                {TRI_STATE_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
         )}
-
-        <div className="field-row" style={{ marginTop: 14 }}>
-          <div className="field">
-            <label>Travels well in car</label>
-            <select value={travelsWellInCar} onChange={(e) => setTravelsWellInCar(e.target.value as TriState)}>
-              {TRI_STATE_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
+        {species === 'dog' && (
+          <div className="field" style={{ marginTop: 14 }}>
             <label>Chases livestock</label>
             <select value={chasesLivestock} onChange={(e) => setChasesLivestock(e.target.value as TriState)}>
               {TRI_STATE_OPTIONS.map((s) => (
@@ -228,8 +230,18 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
                 </option>
               ))}
             </select>
+            {chasesLivestock === 'yes' && (
+              <input
+                type="text"
+                placeholder="Details"
+                value={chasesLivestockDetails}
+                onChange={(e) => setChasesLivestockDetails(e.target.value)}
+                style={{ marginTop: 8 }}
+                required
+              />
+            )}
           </div>
-        </div>
+        )}
 
         <div className="field">
           <label>Allergies / intolerances</label>
