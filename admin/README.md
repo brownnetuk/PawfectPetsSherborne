@@ -107,7 +107,10 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   and an optional `existing` record — `null` means create), shown as a wide modal with three card
   sections mirroring a reference invoice-builder layout: **Customer** (a plain customer select —
   there's no "manual entry" option, since both `Invoice.customer` and `Quote.customer` are
-  required references to a real `Customer` document); **Invoice/Quote Details** (Invoice #/Quote #
+  required references to a real `Customer` document — once one is picked, its Address/Phone
+  (telephone, falling back to mobile)/Email are shown read-only below the select in the same
+  `kv-grid` layout `CustomerDetailPage`'s Overview tab uses, sourced from the already-fetched
+  `listCustomers()` result rather than a separate lookup); **Invoice/Quote Details** (Invoice #/Quote #
   shown read-only in edit mode only, Issue date, Terms, Due date/Valid until, and an optional
   free-text **Subject** — no tax field, since neither model has one); and **Item Table**, a real
   table (Item Details / Quantity / Rate (£) / Discount % / Amount) replacing the old div-grid
