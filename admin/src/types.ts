@@ -115,6 +115,7 @@ export interface Invoice {
   paymentTerms?: string;
   subject?: string;
   paidAt?: string;
+  openedAt?: string;
   createdAt: string;
 }
 
@@ -148,6 +149,7 @@ export interface Quote {
   validUntil: string;
   paymentTerms?: string;
   subject?: string;
+  openedAt?: string;
   createdAt: string;
 }
 

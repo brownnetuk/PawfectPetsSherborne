@@ -20,12 +20,16 @@ export default function RichTextEditor({ value, onChange }: { value: string; onC
 
   // Only push `value` into the DOM when it didn't originate from this same
   // element's own onInput (i.e. it differs from what's already there) --
-  // otherwise every keystroke would reset the cursor to the start.
+  // otherwise every keystroke would reset the cursor to the start. Also
+  // re-runs on sourceMode: the content div unmounts while source view is
+  // showing (a fresh, empty one is mounted when switching back), and since
+  // `value` itself didn't change in that case, only depending on `value`
+  // would leave that fresh div permanently blank.
   useEffect(() => {
     if (ref.current && ref.current.innerHTML !== value) {
       ref.current.innerHTML = value;
     }
-  }, [value]);
+  }, [value, sourceMode]);
 
   function handleInput() {
     if (ref.current) onChange(ref.current.innerHTML);
