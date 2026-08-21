@@ -134,3 +134,12 @@ export interface EmailSettings {
   fromName: string;
   clientSecretConfigured: boolean;
 }
+
+export type EmailTrigger = 'registration' | 'update_info' | 'add_pet';
+
+export interface EmailTemplate {
+  trigger: EmailTrigger;
+  name: string;
+  subject: string;
+  body: string;
+}

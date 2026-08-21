@@ -4,6 +4,8 @@ import type {
   Customer,
   CrmActivity,
   EmailSettings,
+  EmailTemplate,
+  EmailTrigger,
   Invoice,
   LineItem,
   Staff,
@@ -179,4 +181,27 @@ export function updateEmailSettings(patch: Record<string, unknown>): Promise<Ema
 }
 export function sendTestEmail(to: string): Promise<void> {
   return request('/settings/email/test', { method: 'POST', body: JSON.stringify({ to }) });
+}
+export function sendTriggeredEmail(
+  trigger: EmailTrigger,
+  to: string,
+  name: string,
+  link: string,
+): Promise<void> {
+  return request('/settings/email/send', {
+    method: 'POST',
+    body: JSON.stringify({ trigger, to, name, link }),
+  });
+}
+export function listEmailTemplates(): Promise<EmailTemplate[]> {
+  return request('/settings/email-templates');
+}
+export function saveEmailTemplate(
+  trigger: EmailTrigger,
+  patch: { name: string; subject: string; body: string },
+): Promise<EmailTemplate> {
+  return request(`/settings/email-templates/${trigger}`, { method: 'PUT', body: JSON.stringify(patch) });
+}
+export function deleteEmailTemplate(trigger: EmailTrigger): Promise<void> {
+  return request(`/settings/email-templates/${trigger}`, { method: 'DELETE' });
 }

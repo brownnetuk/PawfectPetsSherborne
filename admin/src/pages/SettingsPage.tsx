@@ -3,9 +3,11 @@ import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import Modal from '../components/Modal';
 import { TrashIcon } from '../components/icons';
-import type { EmailSettings, Staff } from '../types';
+import type { EmailSettings, EmailTemplate, EmailTrigger, Staff } from '../types';
 
-type Tab = 'staff' | 'email';
+type Tab = 'staff' | 'email' | 'templates';
+
+const TAB_LABELS: Record<Tab, string> = { staff: 'Staff', email: 'Email', templates: 'Email Templates' };
 
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('staff');
@@ -17,15 +19,16 @@ export default function SettingsPage() {
       </div>
 
       <div className="tabs">
-        {(['staff', 'email'] as Tab[]).map((t) => (
+        {(['staff', 'email', 'templates'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
-            {t === 'staff' ? 'Staff' : 'Email'}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
 
       {tab === 'staff' && <StaffTab />}
       {tab === 'email' && <EmailTab />}
+      {tab === 'templates' && <EmailTemplatesTab />}
     </div>
   );
 }
@@ -383,5 +386,227 @@ function EmailTab() {
         </button>
       </div>
     </div>
+  );
+}
+
+// The fixed set of places in the app that offer "Send email" alongside
+// "Copy link" -- kept in sync by hand with those call sites (CustomersPage,
+// CustomerDetailPage, AddPetChoiceModal) and with the backend's EmailTrigger
+// enum. One template per trigger, so there's never ambiguity about which
+// template a given "Send email" button will use.
+export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: string }[] = [
+  {
+    value: 'registration',
+    label: 'New customer registration',
+    description: 'Sent when staff create a new customer and choose "Send email" instead of copying the link.',
+  },
+  {
+    value: 'update_info',
+    label: 'Update info request',
+    description: 'Sent when staff set a customer to "Update info" and choose "Send email".',
+  },
+  {
+    value: 'add_pet',
+    label: 'Add a pet',
+    description: 'Sent when staff choose "Send email" from the "New pet" dialog instead of "Copy link".',
+  },
+];
+
+function EmailTemplatesTab() {
+  const [templates, setTemplates] = useState<EmailTemplate[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<EmailTrigger | null>(null);
+  const [deleting, setDeleting] = useState<EmailTrigger | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function refresh() {
+    api.listEmailTemplates().then(setTemplates).catch((err) => setError(err.message));
+  }
+  useEffect(refresh, []);
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteEmailTemplate(deleting);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete template');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  if (error) return <div className="error-banner">{error}</div>;
+  if (!templates) return <div className="empty-state">Loading…</div>;
+
+  const byTrigger = new Map(templates.map((t) => [t.trigger, t]));
+
+  return (
+    <div>
+      <div className="card" style={{ padding: 0 }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Used for</th>
+              <th>Name</th>
+              <th>Subject</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {EMAIL_TRIGGERS.map((trigger) => {
+              const template = byTrigger.get(trigger.value);
+              return (
+                <tr key={trigger.value}>
+                  <td>
+                    <div>{trigger.label}</div>
+                    <div style={{ color: 'var(--muted)', fontSize: '0.78rem', marginTop: 2 }}>
+                      {trigger.description}
+                    </div>
+                  </td>
+                  <td>{template?.name ?? <span style={{ color: 'var(--muted)' }}>Not configured</span>}</td>
+                  <td>{template?.subject ?? '—'}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 2 }}>
+                      <button className="btn-link" onClick={() => setEditing(trigger.value)}>
+                        {template ? 'Edit' : 'Set up'}
+                      </button>
+                      {template && (
+                        <button
+                          className="icon-btn icon-btn-danger"
+                          title="Delete"
+                          onClick={() => setDeleting(trigger.value)}
+                        >
+                          <TrashIcon />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {editing && (
+        <EditTemplateModal
+          trigger={editing}
+          template={byTrigger.get(editing) ?? null}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal title="Delete email template?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            "Send email" for <strong>{EMAIL_TRIGGERS.find((t) => t.value === deleting)?.label}</strong> won't be
+            available again until a new template is set up for it.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete template'}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function EditTemplateModal({
+  trigger,
+  template,
+  onClose,
+  onSaved,
+}: {
+  trigger: EmailTrigger;
+  template: EmailTemplate | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const meta = EMAIL_TRIGGERS.find((t) => t.value === trigger)!;
+  const [name, setName] = useState(template?.name ?? '');
+  const [subject, setSubject] = useState(template?.subject ?? '');
+  const [body, setBody] = useState(template?.body ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.saveEmailTemplate(trigger, { name, subject, body });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save template');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title={`${template ? 'Edit' : 'Set up'} template — ${meta.label}`} onClose={onClose} wide>
+      <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: -6 }}>{meta.description}</p>
+      {error && <div className="error-banner">{error}</div>}
+      <form onSubmit={handleSubmit}>
+        <div className="field">
+          <label>Template name</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Welcome email"
+            required
+            autoFocus
+          />
+        </div>
+        <div className="field">
+          <label>Subject</label>
+          <input
+            type="text"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="e.g. Welcome to PawfectPets Sherborne!"
+            required
+          />
+        </div>
+        <div className="field">
+          <label>Body</label>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={8}
+            placeholder={`Hi {{name}},\n\nPlease complete your registration using the link below:\n{{link}}\n\nThanks,\nPawfectPets Sherborne`}
+            required
+          />
+          <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+            Sent as plain text. Available placeholders: <code>{'{{name}}'}</code> (the customer's name) and{' '}
+            <code>{'{{link}}'}</code> (the link being sent).
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
+            {submitting ? 'Saving…' : 'Save template'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }

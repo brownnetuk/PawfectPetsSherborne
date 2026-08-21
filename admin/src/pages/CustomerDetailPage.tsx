@@ -50,6 +50,8 @@ export default function CustomerDetailPage() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailResult, setEmailResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   function refresh() {
     if (!id) return;
@@ -71,6 +73,21 @@ export default function CustomerDetailPage() {
   async function copyLink() {
     await navigator.clipboard.writeText(intakeLink);
     setCopied(true);
+  }
+
+  async function sendLinkEmail() {
+    if (!customer) return;
+    setSendingEmail(true);
+    setEmailResult(null);
+    try {
+      const trigger = customer.status === 'update_info' ? 'update_info' : 'registration';
+      await api.sendTriggeredEmail(trigger, customer.email, customer.name, intakeLink);
+      setEmailResult({ ok: true, message: `Email sent to ${customer.email}.` });
+    } catch (err) {
+      setEmailResult({ ok: false, message: err instanceof Error ? err.message : 'Failed to send email' });
+    } finally {
+      setSendingEmail(false);
+    }
   }
 
   async function revealAlarm() {
@@ -137,13 +154,18 @@ export default function CustomerDetailPage() {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           {(customer.status === 'pending' || customer.status === 'update_info') && (
-            <button className="btn btn-secondary" onClick={copyLink}>
-              {copied
-                ? 'Copied!'
-                : customer.status === 'update_info'
-                  ? 'Copy update link'
-                  : 'Copy registration link'}
-            </button>
+            <>
+              <button className="btn btn-secondary" onClick={copyLink}>
+                {copied
+                  ? 'Copied!'
+                  : customer.status === 'update_info'
+                    ? 'Copy update link'
+                    : 'Copy registration link'}
+              </button>
+              <button className="btn btn-secondary" onClick={sendLinkEmail} disabled={sendingEmail}>
+                {sendingEmail ? 'Sending…' : 'Send email'}
+              </button>
+            </>
           )}
           <button className="btn btn-secondary" onClick={handleViewPdf} disabled={pdfLoading}>
             {pdfLoading ? 'Preparing…' : 'View'}
@@ -156,6 +178,27 @@ export default function CustomerDetailPage() {
           </button>
         </div>
       </div>
+
+      {emailResult && (
+        <div
+          className={emailResult.ok ? undefined : 'error-banner'}
+          style={
+            emailResult.ok
+              ? {
+                  background: 'var(--sage-badge)',
+                  color: 'var(--brand-green)',
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  marginBottom: 16,
+                  fontSize: '0.88rem',
+                  fontWeight: 500,
+                }
+              : undefined
+          }
+        >
+          {emailResult.message}
+        </div>
+      )}
 
       <div className="tabs">
         {(['overview', 'pets', 'bookings', 'invoices', 'activity'] as Tab[]).map((t) => (
@@ -172,7 +215,7 @@ export default function CustomerDetailPage() {
           onRevealAlarm={revealAlarm}
         />
       )}
-      {tab === 'pets' && <PetsTab customerId={customer._id} animals={animals} onChange={refresh} />}
+      {tab === 'pets' && <PetsTab customer={customer} animals={animals} onChange={refresh} />}
       {tab === 'bookings' && (
         <BookingsTab customer={customer} animals={animals} bookings={bookings} onChange={refresh} />
       )}
@@ -342,14 +385,15 @@ function OverviewTab({
 }
 
 function PetsTab({
-  customerId,
+  customer,
   animals,
   onChange,
 }: {
-  customerId: string;
+  customer: Customer;
   animals: Animal[];
   onChange: () => void;
 }) {
+  const customerId = customer._id;
   const [editing, setEditing] = useState<Animal | null>(null);
   const [showChoice, setShowChoice] = useState(false);
   const [showNew, setShowNew] = useState(false);
@@ -400,6 +444,8 @@ function PetsTab({
       {showChoice && (
         <AddPetChoiceModal
           customerId={customerId}
+          customerName={customer.name}
+          customerEmail={customer.email}
           onClose={() => setShowChoice(false)}
           onChooseManual={() => {
             setShowChoice(false);

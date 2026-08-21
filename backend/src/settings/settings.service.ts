@@ -1,15 +1,19 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { SendTestEmailDto } from './dto/send-test-email.dto';
+import { SendTriggeredEmailDto } from './dto/send-triggered-email.dto';
 import { UpdateEmailSettingsDto } from './dto/update-email-settings.dto';
+import { UpsertEmailTemplateDto } from './dto/upsert-email-template.dto';
 import { EmailSettings } from './schemas/email-settings.schema';
+import { EmailTemplate, EmailTrigger } from './schemas/email-template.schema';
 
 @Injectable()
 export class SettingsService {
   constructor(
     @InjectModel(EmailSettings.name) private readonly emailSettingsModel: Model<EmailSettings>,
+    @InjectModel(EmailTemplate.name) private readonly emailTemplateModel: Model<EmailTemplate>,
     private readonly encryptionService: EncryptionService,
   ) {}
 
@@ -39,6 +43,23 @@ export class SettingsService {
     return this.getEmailSettings();
   }
 
+  listEmailTemplates() {
+    return this.emailTemplateModel.find().exec();
+  }
+
+  async upsertEmailTemplate(trigger: EmailTrigger, dto: UpsertEmailTemplateDto) {
+    return this.emailTemplateModel
+      .findOneAndUpdate({ trigger }, { trigger, ...dto }, { upsert: true, new: true })
+      .exec();
+  }
+
+  async deleteEmailTemplate(trigger: EmailTrigger): Promise<void> {
+    const result = await this.emailTemplateModel.findOneAndDelete({ trigger }).exec();
+    if (!result) {
+      throw new NotFoundException(`No email template configured for "${trigger}"`);
+    }
+  }
+
   private async getAccessToken(tenantId: string, clientId: string, clientSecret: string): Promise<string> {
     const res = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
       method: 'POST',
@@ -59,32 +80,42 @@ export class SettingsService {
     return body.access_token as string;
   }
 
-  /** Sends via Microsoft Graph, application-only auth (client credentials) -- see admin/README.md for the Azure setup this requires. */
-  async sendTestEmail(dto: SendTestEmailDto): Promise<void> {
+  /** Loads and decrypts the stored connection, failing with a clear message if it isn't fully set up yet. */
+  private async getSendableSettings() {
     const doc = await this.emailSettingsModel.findOne().exec();
     if (!doc?.tenantId || !doc.clientId || !doc.clientSecretEncrypted || !doc.fromAddress) {
       throw new BadRequestException(
-        'Save a tenant ID, client ID, client secret, and from address before sending a test email.',
+        'Email sending isn\'t set up yet -- save a tenant ID, client ID, client secret, and from address in Settings > Email first.',
       );
     }
-    const clientSecret = this.encryptionService.decrypt(doc.clientSecretEncrypted);
-    const token = await this.getAccessToken(doc.tenantId, doc.clientId, clientSecret);
+    let clientSecret: string;
+    try {
+      clientSecret = this.encryptionService.decrypt(doc.clientSecretEncrypted);
+    } catch {
+      // Most likely cause: ENCRYPTION_KEY here doesn't match whatever process
+      // originally saved the secret (e.g. running locally against data saved
+      // via a deployed environment with a different key) -- not something
+      // resaving the same secret value would fix, so point at the real cause.
+      throw new BadRequestException(
+        'Could not decrypt the stored client secret -- this usually means ENCRYPTION_KEY has changed since it was saved. Re-enter the client secret in Settings > Email to fix it.',
+      );
+    }
+    return { tenantId: doc.tenantId, clientId: doc.clientId, clientSecret, fromAddress: doc.fromAddress };
+  }
 
+  /** Sends via Microsoft Graph, application-only auth (client credentials) -- see admin/README.md for the Azure setup this requires. */
+  private async graphSendMail(fromAddress: string, token: string, to: string, subject: string, content: string) {
     const res = await fetch(
-      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(doc.fromAddress)}/sendMail`,
+      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromAddress)}/sendMail`,
       {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: {
-            subject: 'PawfectPets Sherborne — test email',
-            body: {
-              contentType: 'Text',
-              content:
-                'This is a test email sent from the PawfectPets Sherborne admin dashboard to confirm your Microsoft 365 email settings are working.',
-            },
-            toRecipients: [{ emailAddress: { address: dto.to } }],
-            from: { emailAddress: { address: doc.fromAddress } },
+            subject,
+            body: { contentType: 'Text', content },
+            toRecipients: [{ emailAddress: { address: to } }],
+            from: { emailAddress: { address: fromAddress } },
           },
           saveToSentItems: true,
         }),
@@ -95,5 +126,39 @@ export class SettingsService {
       const error = body.error as { message?: string } | undefined;
       throw new BadRequestException(error?.message || 'Microsoft Graph rejected the send request.');
     }
+  }
+
+  async sendTestEmail(dto: SendTestEmailDto): Promise<void> {
+    const settings = await this.getSendableSettings();
+    const token = await this.getAccessToken(settings.tenantId, settings.clientId, settings.clientSecret);
+    await this.graphSendMail(
+      settings.fromAddress,
+      token,
+      dto.to,
+      'PawfectPets Sherborne — test email',
+      'This is a test email sent from the PawfectPets Sherborne admin dashboard to confirm your Microsoft 365 email settings are working.',
+    );
+  }
+
+  /** Sends a customer-facing email using the template configured for the given trigger (e.g. "here's your registration link"). */
+  async sendTriggeredEmail(dto: SendTriggeredEmailDto): Promise<void> {
+    const template = await this.emailTemplateModel.findOne({ trigger: dto.trigger }).exec();
+    if (!template) {
+      throw new BadRequestException(
+        `No email template is set up for this yet -- add one in Settings > Email Templates first.`,
+      );
+    }
+    const vars: Record<string, string> = { name: dto.name, link: dto.link };
+    const interpolate = (text: string) => text.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '');
+
+    const settings = await this.getSendableSettings();
+    const token = await this.getAccessToken(settings.tenantId, settings.clientId, settings.clientSecret);
+    await this.graphSendMail(
+      settings.fromAddress,
+      token,
+      dto.to,
+      interpolate(template.subject),
+      interpolate(template.body),
+    );
   }
 }

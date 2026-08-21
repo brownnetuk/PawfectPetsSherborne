@@ -101,6 +101,8 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const [submitting, setSubmitting] = useState(false);
   const [created, setCreated] = useState<{ id: string; link: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -122,6 +124,20 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
     setCopied(true);
   }
 
+  async function sendEmail() {
+    if (!created) return;
+    setSending(true);
+    setSendResult(null);
+    try {
+      await api.sendTriggeredEmail('registration', email, name, created.link);
+      setSendResult({ ok: true, message: `Email sent to ${email}.` });
+    } catch (err) {
+      setSendResult({ ok: false, message: err instanceof Error ? err.message : 'Failed to send email' });
+    } finally {
+      setSending(false);
+    }
+  }
+
   if (created) {
     return (
       <Modal title="Send registration link" onClose={onCreated}>
@@ -129,9 +145,32 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
           {name}'s record is ready. Send them this link to complete their registration.
         </p>
         <div className="link-copy-box">{created.link}</div>
+        {sendResult && (
+          <div
+            className={sendResult.ok ? undefined : 'error-banner'}
+            style={
+              sendResult.ok
+                ? {
+                    background: 'var(--sage-badge)',
+                    color: 'var(--brand-green)',
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    marginTop: 14,
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                  }
+                : { marginTop: 14 }
+            }
+          >
+            {sendResult.message}
+          </div>
+        )}
         <div className="modal-actions">
           <button className="btn btn-secondary" onClick={copyLink}>
             {copied ? 'Copied!' : 'Copy link'}
+          </button>
+          <button className="btn btn-secondary" onClick={sendEmail} disabled={sending}>
+            {sending ? 'Sending…' : 'Send email'}
           </button>
           <button className="btn btn-primary" onClick={onCreated}>
             Done
