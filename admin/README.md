@@ -39,21 +39,23 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
 
 - **Login** — JWT-based; the token is kept in `localStorage` and attached to every API call.
   A 401 from any request clears the session and bounces to `/login`.
+- **Enquiries** (`/enquiries`, above Customers in the nav) — a "New Enquiry" button opens a modal
+  for informal, pre-customer contacts (name, email, address, phone, how they heard about us,
+  services interested in, notes) that are logged to their own `Enquiry` collection
+  (`/enquiries` on the backend) rather than forced into the Customer/Animal schema. Lists with the
+  same view-detail / delete-with-confirmation pattern used elsewhere in the app. Opening one shows
+  a "Convert to Customer" button that creates a pending customer from its name/email/address/phone
+  (same lead-creation call as Customers' "New customer", with address and phone patched in
+  afterwards) and deletes the enquiry once it succeeds — an enquiry without an email is refused,
+  since a customer record needs one to send the registration link. The result reuses the same
+  "copy link / send email" screen (`RegistrationLinkModal`, shared with the Customers page) as
+  creating a customer from scratch. Was originally a section on the Customers page; split out into
+  its own page and nav entry once it grew a create flow, a detail view, and a conversion flow of
+  its own.
 - **Customers** — list, search, and a "New customer" flow that creates a minimal lead
   (`POST /customers/leads`) and hands you a `VITE_INTAKE_URL/intake/<id>` link to copy and send.
   There's no full customer-creation form here on purpose — the intake form is where that detail
-  belongs, and duplicating it would just be two sources of truth for the same data. A separate
-  "Customer Enquiry" button opens a modal for informal, pre-customer contacts (name, email,
-  address, phone, how they heard about us, services interested in, notes) that are logged to
-  their own `Enquiry` collection (`/enquiries`) rather than forced into the Customer/Animal
-  schema. Enquiries list below the Customers table with the same view-detail /
-  delete-with-confirmation pattern used elsewhere in the app. Opening one shows a
-  "Convert to Customer" button that creates a pending customer from its
-  name/email/address/phone (same lead-creation call as "New customer", with address and
-  phone patched in afterwards) and deletes the enquiry once it succeeds — an enquiry
-  without an email is refused, since a customer record needs one to send the
-  registration link. The result reuses the same "copy link / send email" screen as
-  creating a customer from scratch.
+  belongs, and duplicating it would just be two sources of truth for the same data.
 - **Customer detail** — tabs for overview (client/emergency/vet/security/agreement — alarm
   instructions are only decrypted on demand via "Reveal"), pets, bookings, invoices, and CRM
   activity, plus per-customer booking/invoice/activity creation. "Edit" on the overview covers
