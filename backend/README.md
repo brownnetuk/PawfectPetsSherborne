@@ -244,11 +244,14 @@ sample data).
 
 `POST /invoices/:id/send` and `POST /quotes/:id/send` load the document (customer populated),
 call `sendTemplatedEmail` with its data (`customer_name`, `subject`, `subtotal`, `total`,
-`invoice_number`/`quote_number`, and the relevant dates, formatted `DD/MM/YYYY` via
-`formatUkDate()`), append a tracking-pixel `<img>` to the rendered body (see below), then -- if
-the document was still `draft` -- transition it to `sent`, the same way manually picking "sent"
-from the status dropdown would. There's no deposit or payment-amount tracking anywhere in the
-app; "Send" only emails the current line items/total, nothing more.
+`invoice_number`/`quote_number`, the relevant dates formatted `DD/MM/YYYY` via `formatUkDate()`,
+and `bank_name`/`sort_code`/`account_number` fetched fresh from the same `BusinessInfo` singleton
+the "Bank Details" settings card writes -- letting a staff-authored template show payment details
+directly in the email, e.g. wrapped in `{{#if bank_name}}...{{/if}}` so the section is skipped
+entirely if bank details were never configured), append a tracking-pixel `<img>` to the rendered
+body (see below), then -- if the document was still `draft` -- transition it to `sent`, the same
+way manually picking "sent" from the status dropdown would. There's no deposit or payment-amount
+tracking anywhere in the app; "Send" only emails the current line items/total, nothing more.
 
 **Open tracking.** `sendTemplatedEmail`'s optional `appendHtml` param is added to the rendered
 body after interpolation, unconditionally -- not a placeholder, so it can't be silently dropped by

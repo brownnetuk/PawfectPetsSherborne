@@ -194,37 +194,52 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   not each has a template yet, so it's obvious what still needs setting up. Each is one document —
   editing "the registration template" is an upsert on that trigger, not a pick-from-a-list, so a
   "Send" click never has to guess which of several templates to use. `TRIGGER_PLACEHOLDERS` gives
-  each trigger its own placeholder hint list, shown below the body field: the original three share
-  `{{name}}`/`{{link}}` plus seven business placeholders (`{{businessName}}`, `{{businessAddress}}`,
-  `{{businessTown}}`, `{{businessPostcode}}`, `{{businessTelephone}}`, `{{businessEmail}}`,
-  `{{businessWebsite}}`) and `{{logo}}`; `invoice`/`quote` get `{{customer_name}}`, `{{subject}}`,
-  `{{items_table}}` (an auto-generated line-items table), `{{subtotal}}`/`{{total}}`, their
-  respective number/date placeholders (`{{invoice_number}}`/`{{invoice_date}}`/`{{due_date}}` or
-  `{{quote_number}}`/`{{quote_date}}`/`{{valid_until}}`), plus the same business placeholders —
-  `{{#if field}}...{{/if}}` wraps content that should only appear when `field` is set (e.g. the
-  optional Subject line, or a due date that isn't always present).
+  each trigger its own placeholder list, surfaced as an "Insert variable" `<select>` next to the
+  Email Body label (not a flat hint list any more — picking one inserts `{{token}}` at the current
+  cursor position, everywhere; see `RichTextEditor`/`handleInsertPlaceholder` below): the original
+  three share `{{name}}`/`{{link}}` plus seven business placeholders (`{{businessName}}`,
+  `{{businessAddress}}`, `{{businessTown}}`, `{{businessPostcode}}`, `{{businessTelephone}}`,
+  `{{businessEmail}}`, `{{businessWebsite}}`) and `{{logo}}`; `invoice`/`quote` get
+  `{{customer_name}}`, `{{subject}}`, `{{items_table}}` (an auto-generated line-items table),
+  `{{subtotal}}`/`{{total}}`, their respective number/date placeholders
+  (`{{invoice_number}}`/`{{invoice_date}}`/`{{due_date}}` or
+  `{{quote_number}}`/`{{quote_date}}`/`{{valid_until}}`),
+  `{{bank_name}}`/`{{sort_code}}`/`{{account_number}}` (from Settings → Invoices → Bank Details),
+  plus the same business placeholders — `{{#if field}}...{{/if}}` wraps content that should only
+  appear when `field` is set (e.g. the optional Subject line, a due date that isn't always present,
+  or the whole Payment Details section if bank details were never configured).
 
   `isHtmlBodyTrigger(trigger)` (true for `invoice`/`quote` only) decides how the body field is
   edited and interpolated. For the original three, it's still a plain `<textarea>` — staff-authored
-  text, HTML-escaped and newline-to-`<br>`'d at send time, unchanged from before. For
-  `invoice`/`quote`, it's a `RichTextEditor` (`admin/src/components/RichTextEditor.tsx`) — a
-  `contentEditable` div driven by `document.execCommand` (bold/italic/underline, heading/paragraph
+  text, HTML-escaped and newline-to-`<br>`'d at send time, unchanged from before; "Insert variable"
+  splices directly into its own `selectionStart`/`selectionEnd` via a ref held in
+  `EditTemplateModal` (this textarea lives outside `RichTextEditor`, so that component can't own
+  its cursor). For `invoice`/`quote`, it's a `RichTextEditor` (`admin/src/components/RichTextEditor.tsx`)
+  — a `contentEditable` div driven by `document.execCommand` (bold/italic/underline, heading/paragraph
   style, alignment, lists, a link, a table skeleton), plus a `<>` toggle to a raw-HTML `<textarea>`
   for hand-editing markup or typing a `{{placeholder}}`/`{{#if}}` block directly — no new
-  dependency. Its DOM-sync effect (pushing the `value` prop into the contentEditable div) depends
-  on `sourceMode` as well as `value`: the content div unmounts while the source `<textarea>` is
-  showing, so a fresh (empty) one is mounted when switching back, and since `value` itself hasn't
-  changed at that point, depending on it alone would leave that fresh div permanently blank.
-  `EditTemplateModal` guards contentEditable's lack of a native `required` on submit (stripped-tags
-  check) since the browser can't enforce that itself the way it does for the textarea. Body here is
-  used as raw HTML at send time (aside from placeholder substitution), not escaped — see
-  `backend/README.md`'s `sendTemplatedEmail`/`interpolateBody`. Opening "Set up" on either for the
-  first time prefills a starter body (`buildDocumentTemplateStarter()`, shared by
+  dependency. It's a `forwardRef` exposing `insertText()` (used by "Insert variable" for this case),
+  which inserts via `document.execCommand('insertText', ...)` when the contentEditable div is
+  already focused, or focuses it and moves to the end first if focus was elsewhere (e.g. it just
+  came from the toolbar dropdown, where there's no meaningful "current cursor" to speak of). Its
+  DOM-sync effect (pushing the `value` prop into the contentEditable div) depends on `sourceMode` as
+  well as `value`: the content div unmounts while the source `<textarea>` is showing, so a fresh
+  (empty) one is mounted when switching back, and since `value` itself hasn't changed at that point,
+  depending on it alone would leave that fresh div permanently blank. The same effect also appends a
+  trailing empty `<p>` if the loaded content doesn't already end in one -- a block-level structure
+  (e.g. a styled "card" `<div>`) can fill the entire editor with no actual node below it to click
+  into, and clicking that empty space landing directly on the contentEditable container itself (not
+  a child) previously did nothing; `RichTextEditor` now also explicitly moves the cursor to the end
+  when that happens. `EditTemplateModal` guards contentEditable's lack of a native `required` on
+  submit (stripped-tags check) since the browser can't enforce that itself the way it does for the
+  textarea. Body here is used as raw HTML at send time (aside from placeholder substitution), not
+  escaped — see `backend/README.md`'s `sendTemplatedEmail`/`interpolateBody`. Opening "Set up" on
+  either for the first time prefills a starter body (`buildDocumentTemplateStarter()`, shared by
   `INVOICE_TEMPLATE_STARTER`/`QUOTE_TEMPLATE_STARTER`) whose sections (document details, items,
-  totals) are each their own bordered/shaded card rather than bare tables directly on the page
-  background — the latter is what an earlier, flatter version of this starter actually looked like
-  in a real inbox, and reads as visibly unfinished, so every logical section gets a `card`-style
-  container now.
+  totals, and a `{{#if bank_name}}`-wrapped Payment Details card) are each their own bordered/shaded
+  card rather than bare tables directly on the page background — the latter is what an earlier,
+  flatter version of this starter actually looked like in a real inbox, and reads as visibly
+  unfinished, so every logical section gets a `card`-style container now.
 
   A "Preview" button next to "Save template" runs the same interpolation client-side, trigger-aware:
   the original three preview against a sample customer plus the real, currently saved Business
