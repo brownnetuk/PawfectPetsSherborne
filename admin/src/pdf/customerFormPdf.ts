@@ -40,10 +40,16 @@ interface Block {
   draw: (doc: jsPDF, y: number) => void;
 }
 
+// Wide enough for the longest label actually used ("Alternative care
+// authorisation" measures ~156pt at this weight/size) plus a gap before the
+// value column -- a fixed column keeps every field's value aligned, but it
+// has to be sized to the longest label or long ones overrun into the value.
+const FIELD_LABEL_WIDTH = 170;
+
 function fieldBlock(doc: jsPDF, label: string, value: string): Block {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
-  const lines = doc.splitTextToSize(value || '—', CONTENT_WIDTH - 150) as string[];
+  const lines = doc.splitTextToSize(value || '—', CONTENT_WIDTH - FIELD_LABEL_WIDTH) as string[];
   const height = lines.length * 13 + 6;
   return {
     height,
@@ -55,7 +61,7 @@ function fieldBlock(doc: jsPDF, label: string, value: string): Block {
       doc.setTextColor(...INK);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
-      lines.forEach((line, i) => doc.text(line, MARGIN + 150, y + i * 13));
+      lines.forEach((line, i) => doc.text(line, MARGIN + FIELD_LABEL_WIDTH, y + i * 13));
     },
   };
 }
