@@ -135,7 +135,14 @@ export class SettingsService {
   }
 
   /** Sends via Microsoft Graph, application-only auth (client credentials) -- see admin/README.md for the Azure setup this requires. */
-  private async graphSendMail(fromAddress: string, token: string, to: string, subject: string, content: string) {
+  private async graphSendMail(
+    fromAddress: string,
+    token: string,
+    to: string,
+    subject: string,
+    content: string,
+    contentType: 'Text' | 'HTML' = 'Text',
+  ) {
     const res = await fetch(
       `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromAddress)}/sendMail`,
       {
@@ -144,7 +151,7 @@ export class SettingsService {
         body: JSON.stringify({
           message: {
             subject,
-            body: { contentType: 'Text', content },
+            body: { contentType, content },
             toRecipients: [{ emailAddress: { address: to } }],
             from: { emailAddress: { address: fromAddress } },
           },
@@ -179,17 +186,42 @@ export class SettingsService {
         `No email template is set up for this yet -- add one in Settings > Email Templates first.`,
       );
     }
-    const vars: Record<string, string> = { name: dto.name, link: dto.link };
-    const interpolate = (text: string) => text.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '');
+    const business = await this.getBusinessInfo();
+    const vars: Record<string, string> = {
+      name: dto.name,
+      link: dto.link,
+      businessName: business.name,
+      businessAddress: business.address,
+      businessTown: business.town,
+      businessPostcode: business.postcode,
+      businessTelephone: business.telephone,
+      businessEmail: business.email,
+      businessWebsite: business.website,
+    };
+    const logoTag = business.logoImage
+      ? `<img src="${business.logoImage}" alt="${escapeHtml(business.name)}" style="max-height:60px;max-width:220px;display:block;" />`
+      : '';
+    // Subject stays plain text -- email subjects have no markup. The body becomes
+    // HTML so {{logo}} can render the business's actual logo image; the rest of the
+    // (staff-authored) body text is escaped first so it round-trips safely as HTML,
+    // then placeholders are substituted in -- {{logo}} inserts the raw <img> tag,
+    // every other placeholder inserts its (also escaped) value.
+    const subject = template.subject.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '');
+    const body = escapeHtml(template.body)
+      .replace(/\{\{(\w+)\}\}/g, (_, key) => (key === 'logo' ? logoTag : escapeHtml(vars[key] ?? '')))
+      .replace(/\n/g, '<br>');
 
     const settings = await this.getSendableSettings();
     const token = await this.getAccessToken(settings.tenantId, settings.clientId, settings.clientSecret);
-    await this.graphSendMail(
-      settings.fromAddress,
-      token,
-      dto.to,
-      interpolate(template.subject),
-      interpolate(template.body),
-    );
+    await this.graphSendMail(settings.fromAddress, token, dto.to, subject, body, 'HTML');
   }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }

@@ -5,6 +5,8 @@ import Modal from '../components/Modal';
 import { TrashIcon } from '../components/icons';
 import type { BusinessInfo, EmailSettings, EmailTemplate, EmailTrigger, Staff } from '../types';
 
+const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
+
 type Tab = 'business' | 'staff' | 'email' | 'templates';
 
 const TAB_LABELS: Record<Tab, string> = {
@@ -683,6 +685,32 @@ function EmailTemplatesTab() {
   );
 }
 
+// Kept in sync by hand with settings.service.ts's sendTriggeredEmail() --
+// {{logo}} inserts the raw business logo <img>, everything else inserts its
+// (HTML-escaped) value. Used by both the placeholder hint below and the
+// Preview modal, so what staff see in Preview matches what actually sends.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+const TEMPLATE_PLACEHOLDERS: { key: string; hint: string }[] = [
+  { key: 'name', hint: "the customer's name" },
+  { key: 'link', hint: 'the link being sent' },
+  { key: 'logo', hint: "the business's logo (Settings > Business Info)" },
+  { key: 'businessName', hint: 'business name' },
+  { key: 'businessAddress', hint: 'business address' },
+  { key: 'businessTown', hint: 'business town' },
+  { key: 'businessPostcode', hint: 'business postcode' },
+  { key: 'businessTelephone', hint: 'business telephone' },
+  { key: 'businessEmail', hint: 'business email' },
+  { key: 'businessWebsite', hint: 'business website' },
+];
+
 function EditTemplateModal({
   trigger,
   template,
@@ -700,6 +728,12 @@ function EditTemplateModal({
   const [body, setBody] = useState(template?.body ?? '');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+
+  useEffect(() => {
+    api.getBusinessInfo().then(setBusinessInfo).catch(() => {});
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -751,19 +785,98 @@ function EditTemplateModal({
             required
           />
           <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
-            Sent as plain text. Available placeholders: <code>{'{{name}}'}</code> (the customer's name) and{' '}
-            <code>{'{{link}}'}</code> (the link being sent).
+            Sent as HTML. Available placeholders:{' '}
+            {TEMPLATE_PLACEHOLDERS.map((p, i) => (
+              <span key={p.key}>
+                <code>{`{{${p.key}}}`}</code> ({p.hint}){i < TEMPLATE_PLACEHOLDERS.length - 1 ? ', ' : '.'}
+              </span>
+            ))}
           </div>
         </div>
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel
           </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setShowPreview(true)}
+            disabled={!businessInfo}
+          >
+            Preview
+          </button>
           <button type="submit" className="btn btn-primary" disabled={submitting}>
             {submitting ? 'Saving…' : 'Save template'}
           </button>
         </div>
       </form>
+
+      {showPreview && businessInfo && (
+        <TemplatePreviewModal
+          subject={subject}
+          body={body}
+          businessInfo={businessInfo}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
+    </Modal>
+  );
+}
+
+function TemplatePreviewModal({
+  subject,
+  body,
+  businessInfo,
+  onClose,
+}: {
+  subject: string;
+  body: string;
+  businessInfo: BusinessInfo;
+  onClose: () => void;
+}) {
+  const vars: Record<string, string> = {
+    name: 'Jane Smith',
+    link: `${INTAKE_URL}/intake/sample-id`,
+    businessName: businessInfo.name,
+    businessAddress: businessInfo.address,
+    businessTown: businessInfo.town,
+    businessPostcode: businessInfo.postcode,
+    businessTelephone: businessInfo.telephone,
+    businessEmail: businessInfo.email,
+    businessWebsite: businessInfo.website,
+  };
+  const logoTag = businessInfo.logoImage
+    ? `<img src="${businessInfo.logoImage}" alt="${escapeHtml(businessInfo.name)}" style="max-height:60px;max-width:220px;display:block;" />`
+    : '';
+  const renderedSubject = subject.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '');
+  const renderedBody = escapeHtml(body)
+    .replace(/\{\{(\w+)\}\}/g, (_, key) => (key === 'logo' ? logoTag : escapeHtml(vars[key] ?? '')))
+    .replace(/\n/g, '<br>');
+
+  return (
+    <Modal title="Preview email" onClose={onClose} wide>
+      <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: -6 }}>
+        Filled in with a sample customer and your saved Business Info — this is how the sent email will look.
+      </p>
+      <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ background: 'var(--sage)', padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--muted)', textTransform: 'uppercase' }}>Subject</div>
+          <div style={{ fontWeight: 600 }}>
+            {renderedSubject || <em style={{ color: 'var(--muted)', fontWeight: 400 }}>(no subject)</em>}
+          </div>
+        </div>
+        <div
+          style={{ padding: '16px 20px', background: '#fff', lineHeight: 1.5 }}
+          dangerouslySetInnerHTML={{
+            __html: renderedBody || '<em style="color:var(--muted)">(no body)</em>',
+          }}
+        />
+      </div>
+      <div className="modal-actions">
+        <button className="btn btn-primary" onClick={onClose}>
+          Close
+        </button>
+      </div>
     </Modal>
   );
 }
