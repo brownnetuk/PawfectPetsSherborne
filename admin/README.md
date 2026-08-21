@@ -62,7 +62,12 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   but is explicit that this should only be used when the customer has confirmed consent with
   staff directly. "Send a link to the customer" instead hands you a `VITE_INTAKE_URL/intake/<id>
   /add-pet` link (see [`frontend`](../frontend/README.md#add-a-pet-link)) so the customer can add
-  the pet's details themselves.
+  the pet's details themselves. "View" (next to Edit) generates a PDF of the customer's full
+  submitted record on the fly — client/emergency/vet/security details, every pet including
+  off-lead consent and its signature, the terms & conditions text, and the client agreement's
+  signature — and shows it in a modal. Built client-side with `jsPDF` (`src/pdf/customerFormPdf.ts`);
+  alarm instructions are decrypted the same way "Reveal" does, via the existing staff-only
+  endpoint, rather than adding a separate server-side PDF route.
 - **Bookings** / **Invoices** — global lists across all customers, inline status changes, edit
   and delete on each row, and their own "New" flow with a customer picker (the customer-detail
   versions reuse the same create/edit/delete calls with the customer pre-selected).
