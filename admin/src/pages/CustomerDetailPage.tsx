@@ -45,6 +45,8 @@ export default function CustomerDetailPage() {
   const [copied, setCopied] = useState(false);
   const [alarmInstructions, setAlarmInstructions] = useState<string | null>(null);
   const [showDelete, setShowDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showPdf, setShowPdf] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -98,8 +100,16 @@ export default function CustomerDetailPage() {
 
   async function handleDelete() {
     if (!id) return;
-    await api.deleteCustomer(id);
-    navigate('/customers');
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await api.deleteCustomer(id);
+      navigate('/customers');
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete customer');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   async function handleViewPdf() {
@@ -177,7 +187,13 @@ export default function CustomerDetailPage() {
           <button className="btn btn-secondary" onClick={() => setShowEdit(true)}>
             Edit
           </button>
-          <button className="btn btn-danger" onClick={() => setShowDelete(true)}>
+          <button
+            className="btn btn-danger"
+            onClick={() => {
+              setDeleteError(null);
+              setShowDelete(true);
+            }}
+          >
             Delete
           </button>
         </div>
@@ -232,16 +248,18 @@ export default function CustomerDetailPage() {
 
       {showDelete && (
         <Modal title="Delete customer?" onClose={() => setShowDelete(false)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently deletes <strong>{customer.name}</strong>'s record. Their pets,
-            bookings, invoices, and activity history are not deleted automatically.
+            This permanently deletes <strong>{customer.name}</strong>'s record. If they still have
+            pets, bookings, invoices, quotes, or CRM activity on file, deletion is blocked until
+            those are removed first.
           </p>
           <div className="modal-actions">
-            <button className="btn btn-secondary" onClick={() => setShowDelete(false)}>
+            <button className="btn btn-secondary" onClick={() => setShowDelete(false)} disabled={deleting}>
               Cancel
             </button>
-            <button className="btn btn-danger" onClick={handleDelete}>
-              Delete customer
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'Deleting…' : 'Delete customer'}
             </button>
           </div>
         </Modal>
@@ -500,14 +518,18 @@ function BookingsTab({
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
   const [deletingBooking, setDeletingBooking] = useState<Booking | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function handleDelete() {
     if (!deletingBooking) return;
     setDeleting(true);
+    setDeleteError(null);
     try {
       await api.deleteBooking(deletingBooking._id);
       setDeletingBooking(null);
       onChange();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete booking');
     } finally {
       setDeleting(false);
     }
@@ -553,7 +575,10 @@ function BookingsTab({
                       <button
                         className="icon-btn icon-btn-danger"
                         title="Delete"
-                        onClick={() => setDeletingBooking(b)}
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeletingBooking(b);
+                        }}
                       >
                         <TrashIcon />
                       </button>
@@ -588,9 +613,11 @@ function BookingsTab({
       )}
       {deletingBooking && (
         <Modal title="Delete booking?" onClose={() => setDeletingBooking(null)}>
-          <p>This permanently deletes this booking.</p>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>This permanently deletes this booking. If an invoice or quote is linked to it,
+            deletion is blocked until those are removed first.</p>
           <div className="modal-actions">
-            <button className="btn btn-secondary" onClick={() => setDeletingBooking(null)}>
+            <button className="btn btn-secondary" onClick={() => setDeletingBooking(null)} disabled={deleting}>
               Cancel
             </button>
             <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>

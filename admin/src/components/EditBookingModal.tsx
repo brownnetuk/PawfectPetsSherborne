@@ -5,7 +5,11 @@ import type { Animal, Booking, BookingStatus, ServiceType } from '../types';
 
 const STATUSES: BookingStatus[] = ['requested', 'confirmed', 'in_progress', 'completed', 'cancelled'];
 
-function customerId(customer: Booking['customer']): string {
+// Populate returns null for a dangling reference (the customer was deleted
+// after this booking was created) -- the type doesn't say so, but the real
+// data can, so guard against it rather than crash.
+function customerId(customer: Booking['customer']): string | null {
+  if (!customer) return null;
   return typeof customer === 'string' ? customer : customer._id;
 }
 
@@ -31,9 +35,12 @@ export default function EditBookingModal({ booking, onClose, onSaved }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const custId = customerId(booking.customer);
+
   useEffect(() => {
-    api.listAnimals(customerId(booking.customer)).then(setAnimals).catch(() => {});
-  }, [booking.customer]);
+    if (!custId) return;
+    api.listAnimals(custId).then(setAnimals).catch(() => {});
+  }, [custId]);
 
   function toggleAnimal(id: string) {
     setSelectedAnimals((s) => (s.includes(id) ? s.filter((a) => a !== id) : [...s, id]));
@@ -71,7 +78,11 @@ export default function EditBookingModal({ booking, onClose, onSaved }: Props) {
       <form onSubmit={handleSubmit}>
         <div className="field">
           <label>Pets</label>
-          {animals.length === 0 ? (
+          {!custId ? (
+            <div className="field-hint" style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
+              This booking's customer has been deleted — the pet list can't be loaded.
+            </div>
+          ) : animals.length === 0 ? (
             <div className="field-hint" style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
               Loading…
             </div>

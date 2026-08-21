@@ -109,6 +109,27 @@ Links a `Customer` and one or more `Animal`s to a service (`boarding` | `daycare
 | `walking`) over a date range, with a status lifecycle (`requested` → `confirmed` →
 `in_progress` → `completed`, or `cancelled`).
 
+### Deletion safeguards
+
+`Customer`, `Animal`, and `Booking` are all referenced by other records via a plain Mongoose
+`ref` — Mongoose doesn't cascade or restrict deletes on its own, so deleting one of these without
+checking first leaves dangling references (`.populate()` silently resolves them to `null`, which
+previously crashed pages that read `.name`/`._id` straight off an unguarded populated field, e.g.
+`BookingsPage`, `ActivityPage`). Each `remove()` now counts dependents first and throws a
+`ConflictException` (409, human-readable message, see `describeBlockers` in
+`common/delete-guard.util.ts`) instead of deleting when any exist:
+
+- `CustomersService.remove` — blocked by existing `Animal`, `Booking`, `Invoice`, `Quote`, or
+  `CrmActivity` records for that customer.
+- `AnimalsService.remove` — blocked by any `Booking` whose `animals` array includes it.
+- `BookingsService.remove` — blocked by any `Invoice`/`Quote` whose `booking` references it.
+
+`Invoice`/`Quote`/`CrmActivity` have no guard on their own `remove()` since nothing references
+them. The cross-module `@InjectModel` wiring this needs is set up in each entity's own
+`*.module.ts` (`CustomersModule` imports `AnimalsModule`/`BookingsModule`/`InvoicesModule`/
+`QuotesModule`/`CrmModule`, etc.) — there's no circular dependency since the reference graph only
+flows one way (Customer ← Animal ← Booking ← Invoice/Quote).
+
 ### Invoice (`/invoices`)
 
 Line items (`description`, `quantity`, `unitPrice`, optional `discountPercent` 0–100, default 0)

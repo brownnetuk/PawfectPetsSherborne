@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { Booking } from '../bookings/schemas/booking.schema';
 import { CreateAnimalDto } from './dto/create-animal.dto';
 import { PublicUpdateAnimalDto } from './dto/public-update-animal.dto';
 import { UpdateAnimalDto } from './dto/update-animal.dto';
@@ -8,7 +9,10 @@ import { Animal, Species } from './schemas/animal.schema';
 
 @Injectable()
 export class AnimalsService {
-  constructor(@InjectModel(Animal.name) private readonly animalModel: Model<Animal>) {}
+  constructor(
+    @InjectModel(Animal.name) private readonly animalModel: Model<Animal>,
+    @InjectModel(Booking.name) private readonly bookingModel: Model<Booking>,
+  ) {}
 
   // `requireForDogs` only applies on create: a dog must be registered with off-lead
   // consent up front. On update, most edits (e.g. this admin form) never touch
@@ -95,6 +99,12 @@ export class AnimalsService {
   }
 
   async remove(id: string): Promise<void> {
+    const bookingCount = await this.bookingModel.countDocuments({ animals: id }).exec();
+    if (bookingCount > 0) {
+      throw new ConflictException(
+        `Can't delete this pet: it's on ${bookingCount} booking${bookingCount === 1 ? '' : 's'}. Remove or reassign ${bookingCount === 1 ? 'that booking' : 'those bookings'} first.`,
+      );
+    }
     const result = await this.animalModel.findByIdAndDelete(id).exec();
     if (!result) {
       throw new NotFoundException(`Animal ${id} not found`);

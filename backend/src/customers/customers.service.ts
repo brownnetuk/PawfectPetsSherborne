@@ -1,7 +1,13 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { Animal } from '../animals/schemas/animal.schema';
+import { Booking } from '../bookings/schemas/booking.schema';
+import { describeBlockers } from '../common/delete-guard.util';
 import { EncryptionService } from '../common/encryption/encryption.service';
+import { CrmActivity } from '../crm/schemas/crm-activity.schema';
+import { Invoice } from '../invoices/schemas/invoice.schema';
+import { Quote } from '../quotes/schemas/quote.schema';
 import { formatAddress, formatFullName } from './customer-format.util';
 import { CreateCustomerDto, EmergencyContactDto, EmergencyVetDto } from './dto/create-customer.dto';
 import { CreateLeadDto } from './dto/create-lead.dto';
@@ -12,6 +18,11 @@ import { Customer, CustomerStatus } from './schemas/customer.schema';
 export class CustomersService {
   constructor(
     @InjectModel(Customer.name) private readonly customerModel: Model<Customer>,
+    @InjectModel(Animal.name) private readonly animalModel: Model<Animal>,
+    @InjectModel(Booking.name) private readonly bookingModel: Model<Booking>,
+    @InjectModel(Invoice.name) private readonly invoiceModel: Model<Invoice>,
+    @InjectModel(Quote.name) private readonly quoteModel: Model<Quote>,
+    @InjectModel(CrmActivity.name) private readonly crmActivityModel: Model<CrmActivity>,
     private readonly encryptionService: EncryptionService,
   ) {}
 
@@ -180,6 +191,25 @@ export class CustomersService {
   }
 
   async remove(id: string): Promise<void> {
+    const [petCount, bookingCount, invoiceCount, quoteCount, activityCount] = await Promise.all([
+      this.animalModel.countDocuments({ customer: id }).exec(),
+      this.bookingModel.countDocuments({ customer: id }).exec(),
+      this.invoiceModel.countDocuments({ customer: id }).exec(),
+      this.quoteModel.countDocuments({ customer: id }).exec(),
+      this.crmActivityModel.countDocuments({ customer: id }).exec(),
+    ]);
+    const blockers = describeBlockers({
+      pet: petCount,
+      booking: bookingCount,
+      invoice: invoiceCount,
+      quote: quoteCount,
+      'activity record': activityCount,
+    });
+    if (blockers) {
+      throw new ConflictException(
+        `Can't delete this customer: they have ${blockers} on file. Remove those first.`,
+      );
+    }
     const result = await this.customerModel.findByIdAndDelete(id).exec();
     if (!result) {
       throw new NotFoundException(`Customer ${id} not found`);

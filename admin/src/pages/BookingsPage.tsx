@@ -7,7 +7,11 @@ import type { Animal, Booking, BookingStatus, Customer } from '../types';
 
 const STATUSES: BookingStatus[] = ['requested', 'confirmed', 'in_progress', 'completed', 'cancelled'];
 
+// Populate returns null for a dangling reference (the customer was deleted
+// after this booking was created) -- the type doesn't say so, but the real
+// data can, so guard against it rather than crash.
 function customerLabel(customer: Booking['customer']): string {
+  if (!customer) return '(deleted customer)';
   return typeof customer === 'string' ? customer : customer.name;
 }
 
@@ -18,6 +22,7 @@ export default function BookingsPage() {
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
   const [deletingBooking, setDeletingBooking] = useState<Booking | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function refresh() {
     api.listBookings().then(setBookings).catch((err) => setError(err.message));
@@ -32,10 +37,13 @@ export default function BookingsPage() {
   async function handleDelete() {
     if (!deletingBooking) return;
     setDeleting(true);
+    setDeleteError(null);
     try {
       await api.deleteBooking(deletingBooking._id);
       setDeletingBooking(null);
       refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete booking');
     } finally {
       setDeleting(false);
     }
@@ -92,7 +100,10 @@ export default function BookingsPage() {
                       <button
                         className="icon-btn icon-btn-danger"
                         title="Delete"
-                        onClick={() => setDeletingBooking(b)}
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeletingBooking(b);
+                        }}
                       >
                         <TrashIcon />
                       </button>
@@ -126,9 +137,11 @@ export default function BookingsPage() {
       )}
       {deletingBooking && (
         <Modal title="Delete booking?" onClose={() => setDeletingBooking(null)}>
-          <p>This permanently deletes this booking.</p>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>This permanently deletes this booking. If an invoice or quote is linked to it,
+            deletion is blocked until those are removed first.</p>
           <div className="modal-actions">
-            <button className="btn btn-secondary" onClick={() => setDeletingBooking(null)}>
+            <button className="btn btn-secondary" onClick={() => setDeletingBooking(null)} disabled={deleting}>
               Cancel
             </button>
             <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
