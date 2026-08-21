@@ -597,6 +597,7 @@ function DocumentFormModal({
     if (computed) setDateValue(computed);
   }
 
+  const selectedCustomer = customers.find((c) => c._id === custId);
   const subtotal = lineItems.reduce((sum, item) => sum + lineItemAmount(item), 0);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -670,6 +671,16 @@ function DocumentFormModal({
               ))}
             </select>
           </div>
+          {selectedCustomer && (
+            <dl className="kv-grid">
+              <dt>Address</dt>
+              <dd>{selectedCustomer.address || '—'}</dd>
+              <dt>Phone</dt>
+              <dd>{selectedCustomer.telephone || selectedCustomer.mobile || '—'}</dd>
+              <dt>Email</dt>
+              <dd>{selectedCustomer.email || '—'}</dd>
+            </dl>
+          )}
         </div>
 
         <div className="card">
