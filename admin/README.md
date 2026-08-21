@@ -146,14 +146,22 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   saved Business Info — so staff see the actual rendered email, logo included, before saving.
 
   The preview's interpolation logic is a hand-kept copy of the backend's (see
-  `backend/README.md`), so what's previewed matches what's actually sent. **Invoices** holds two
-  independent cards: **Invoice Terms**, a small library of reusable free-text terms staff can add
-  to an invoice (`/invoice-terms` — adding one here doesn't attach it to anything, it's just made
-  available), and **Products**, a reusable catalog (`/products` — Product Code, Name, Description,
-  Price) for invoice/quote line items. Both are plain create/list/delete — no edit — since only
-  "add new" was asked for and re-adding a corrected entry is cheap for a short reference list.
-  Neither is wired into invoice/quote line-item entry yet; both stay freeform for now, so these
-  are reference lists staff copy details from rather than a picker.
+  `backend/README.md`), so what's previewed matches what's actually sent. **Invoices** holds three
+  cards: **Invoice Terms**, a small library of reusable free-text terms with add/edit/delete
+  (`/invoice-terms`) — these back the "Payment Terms" dropdown on the Invoices & Quotes page's
+  "New invoice" form, which copies the chosen term's text onto the invoice as `paymentTerms` at
+  creation time rather than referencing the `InvoiceTerm`, so an issued invoice can't
+  retroactively change if the library entry is edited later. **Bank Details** (Bank Name, Sort
+  Code, Account Number) is its own independent-save form on the same three `BusinessInfo` fields
+  Business Info's "Terms and Conditions" card also draws from, just surfaced here instead since
+  it's invoice-specific, not general business branding — shown to customers on invoices so they
+  know where to send payment; not encrypted, since it's meant to be disclosed. **Products**, a
+  reusable catalog (`/products` — Product Code, Name, Description, Price) for invoice/quote line
+  items, now also supports edit, not just add/delete. Both `InvoiceTermsCard` and `ProductsCard`
+  share one "New"/"Edit" modal component (taking an optional existing record) rather than separate
+  Add and Edit components. Neither Invoice Terms nor Products is wired into invoice/quote
+  line-item entry itself yet — both stay freeform for now, so Products in particular is still a
+  reference list staff copy details from rather than a picker.
 
 ## Sending email via Microsoft 365
 

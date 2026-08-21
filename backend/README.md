@@ -115,13 +115,16 @@ documents at different stages of a sale, not the same document in a different st
 
 ### InvoiceTerm (`/invoice-terms`) and Product (`/products`)
 
-Two small reference lists surfaced under Settings → Invoices, both `POST`/`GET`/`DELETE` only
-(no `PATCH` — only "add new" was asked for, and re-adding a corrected entry is cheap). Neither
-is referenced by `Invoice` or `Quote`: an `InvoiceTerm` is just free text (adding one doesn't
-attach it anywhere, it only makes it available to copy into an invoice by hand), and a `Product`
-(`productCode`, `name`, `description?`, `price`) is a catalog entry staff can copy details from
-when building a line item. Wiring either into actual line-item entry — e.g. picking a product to
-prefill a line item's description/price — is a natural follow-up, not yet built.
+Two small reference lists surfaced under Settings → Invoices, both `POST`/`GET`/`PATCH`/`DELETE`.
+Neither is referenced by `Quote`: a `Product` (`productCode`, `name`, `description?`, `price`) is
+a catalog entry staff can copy details from when building a line item — wiring it into actual
+line-item entry (e.g. picking a product to prefill a line item's description/price) is a natural
+follow-up, not yet built. An `InvoiceTerm` is free text; unlike `Product`, it *is* connected to
+`Invoice` one level removed — `Invoice.paymentTerms` is a plain string copied from the chosen
+term's text at creation time (the admin's "New invoice" form has a Payment Terms dropdown sourced
+from `GET /invoice-terms`), not a reference to the `InvoiceTerm` document. That's deliberate: an
+already-issued invoice shouldn't retroactively change if the term library entry it was picked
+from is edited or deleted later.
 
 ### CRM activity (`/crm/activities`)
 
@@ -132,7 +135,11 @@ with optional `dueDate`/`completed` for task tracking.
 
 `GET/PATCH /settings/business` read and update the one `BusinessInfo` document (a singleton, same
 pattern as `EmailSettings` below) — the business's own name/address/town/postcode/telephone/email/website
-and a logo, meant to brand invoices, email templates, and other generated documents. The logo is
+and a logo, meant to brand invoices, email templates, and other generated documents, plus
+bankName/sortCode/accountNumber (surfaced as a separate "Bank Details" card under Settings →
+Invoices, not Business Info, even though it's the same underlying document and endpoint — not
+secret, since it's meant to be shown to customers on an invoice so they know where to pay, so no
+encryption unlike the Microsoft 365 client secret below). The logo is
 a base64 data URI stored on the document itself rather than a file on disk, since Render's
 filesystem doesn't persist across deploys. All fields are plain `@IsString()` and always written
 as sent (no "blank means leave unchanged" special-casing), so the default Express JSON body limit
