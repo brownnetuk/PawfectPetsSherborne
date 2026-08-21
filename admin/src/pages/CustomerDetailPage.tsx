@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import * as api from '../api/client';
 import ActionsMenu from '../components/ActionsMenu';
 import Badge from '../components/Badge';
+import DocumentFormModal from '../components/DocumentFormModal';
 import EditAnimalModal from '../components/EditAnimalModal';
 import EditBookingModal from '../components/EditBookingModal';
 import EditCustomerModal from '../components/EditCustomerModal';
@@ -781,123 +782,18 @@ function InvoicesTab({
         </div>
       )}
       {showNew && (
-        <NewInvoiceModal
-          customer={customer}
+        <DocumentFormModal
+          kind="invoice"
+          existing={null}
+          presetCustomerId={customer._id}
           onClose={() => setShowNew(false)}
-          onCreated={() => {
+          onSaved={() => {
             setShowNew(false);
             onChange();
           }}
         />
       )}
     </div>
-  );
-}
-
-function NewInvoiceModal({
-  customer,
-  onClose,
-  onCreated,
-}: {
-  customer: Customer;
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const [lineItems, setLineItems] = useState([{ description: '', quantity: 1, unitPrice: 0 }]);
-  const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
-  const [dueDate, setDueDate] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  function updateItem(i: number, patch: Partial<(typeof lineItems)[number]>) {
-    setLineItems((items) => items.map((item, idx) => (idx === i ? { ...item, ...patch } : item)));
-  }
-  function addItem() {
-    setLineItems((items) => [...items, { description: '', quantity: 1, unitPrice: 0 }]);
-  }
-  function removeItem(i: number) {
-    setLineItems((items) => items.filter((_, idx) => idx !== i));
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    try {
-      await api.createInvoice({
-        customer: customer._id,
-        lineItems,
-        issueDate,
-        dueDate,
-      });
-      onCreated();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create invoice');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <Modal title="New invoice" onClose={onClose} wide>
-      {error && <div className="error-banner">{error}</div>}
-      <form onSubmit={handleSubmit}>
-        <div className="field">
-          <label>Line items</label>
-          {lineItems.map((item, i) => (
-            <div className="line-item-row" key={i}>
-              <input
-                type="text"
-                placeholder="Description"
-                value={item.description}
-                onChange={(e) => updateItem(i, { description: e.target.value })}
-                required
-              />
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={item.quantity}
-                onChange={(e) => updateItem(i, { quantity: Number(e.target.value) })}
-                required
-              />
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={item.unitPrice}
-                onChange={(e) => updateItem(i, { unitPrice: Number(e.target.value) })}
-                required
-              />
-              <button type="button" className="remove-btn" onClick={() => removeItem(i)} disabled={lineItems.length === 1}>
-                ×
-              </button>
-            </div>
-          ))}
-          <button type="button" className="btn-link" onClick={addItem}>
-            + Add line item
-          </button>
-        </div>
-        <div className="field-row">
-          <div className="field">
-            <label>Issue date</label>
-            <input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} required />
-          </div>
-          <div className="field">
-            <label>Due date</label>
-            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required />
-          </div>
-        </div>
-        <div className="modal-actions">
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? 'Creating…' : 'Create invoice'}
-          </button>
-        </div>
-      </form>
-    </Modal>
   );
 }
 
