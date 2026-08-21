@@ -27,7 +27,7 @@ const TAB_LABELS: Record<Tab, string> = {
   email: 'Email',
   templates: 'Email Templates',
   invoices: 'Invoices',
-  financial: 'Financial',
+  financial: 'Finance',
 };
 
 export default function SettingsPage() {

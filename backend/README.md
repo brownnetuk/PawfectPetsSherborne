@@ -206,7 +206,7 @@ different lengths.
 Three named lists, currently identical in shape (`name` only) and each standard
 `POST`/`GET`/`PATCH`/`DELETE` — scaffolding for a later build that ties actual bank account
 details and recorded payments to a customer's invoices. `PaymentMethod` is surfaced under
-Settings → Financial (e.g. "Bank Transfer", "Cash", "Card"); `BankAccount`/`Payment` have their
+Settings → Finance (e.g. "Bank Transfer", "Cash", "Card"); `BankAccount`/`Payment` have their
 own top-level **Financial** page (`admin/src/pages/FinancialPage.tsx`, "Bank Account"/"Payments"
 tabs) rather than living under Settings, since they're expected to grow into a real feature
 staff use day-to-day rather than one-off configuration. All three share one admin component,

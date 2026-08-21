@@ -163,7 +163,7 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   (`BankAccount`/`Payment` — currently `name` only) rendered by the shared `NamedListCard`
   component (`admin/src/components/NamedListCard.tsx`): Create new/Edit/Delete against a plain
   `{ name }` CRUD endpoint, parameterized by title/description/noun so the same component also
-  backs Settings → Financial → Payment Methods below. Scaffolding for a later build that ties
+  backs Settings → Finance → Payment Methods below. Scaffolding for a later build that ties
   actual bank account details and recorded payments to a customer's invoices — not to be confused
   with the existing Settings → Invoices → **Bank Details** card, which holds the one set of
   account details shown *on* invoices, a separate concern.
@@ -288,11 +288,11 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   small `SortableTh` component behind it isn't Product-specific, so another settings table can
   reuse it. Both `InvoiceTermsCard` and `ProductsCard` share one "New"/"Edit" modal component
   (taking an optional existing record) rather than separate Add and Edit components.
-  **Financial**, a single **Payment Methods** card (`/payment-methods` — e.g. "Bank Transfer",
-  "Cash", "Card") built with the same `NamedListCard` the top-level Financial *page* uses for Bank
-  Account/Payments (see above) — a same-named settings tab and a same-named top-level page, but
-  two different things: this one is a small reference list for tagging how a customer paid, not
-  bank account details or a payments ledger.
+  **Finance**, a single **Payment Methods** card (`/payment-methods` — e.g. "Bank Transfer",
+  "Cash", "Card") built with the same `NamedListCard` the top-level **Financial** page (`/financial`,
+  see above) uses for Bank Account/Payments — deliberately named differently from that page despite
+  sharing a component, since they're two different things: this one is a small reference list for
+  tagging how a customer paid, not bank account details or a payments ledger.
 
 ## Sending email via Microsoft 365
 
