@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import Modal from './Modal';
+import SendPreviewModal from './SendPreviewModal';
 import { ChevronDownIcon } from './icons';
 import type { Customer, Invoice, InvoiceTerm, LineItem, Product, Quote } from '../types';
 
@@ -317,6 +318,11 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
   const [termId, setTermId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Set once "Create and Send"/"Save and Send" has successfully saved the
+  // document -- swaps this form out for the send-preview step rather than
+  // closing outright, same review-before-send flow the standalone Send
+  // action already uses.
+  const [pendingSend, setPendingSend] = useState<Invoice | Quote | null>(null);
 
   useEffect(() => {
     api.listCustomers().then(setCustomers).catch(() => {});
@@ -356,16 +362,23 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
   const selectedCustomer = customers.find((c) => c._id === custId);
   const subtotal = lineItems.reduce((sum, item) => sum + lineItemAmount(item), 0);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!custId) {
       setError('Choose a customer.');
       return;
     }
+    // Both footer buttons are real type="submit" buttons (so the browser's
+    // native required-field validation still runs for either) distinguished
+    // by which one triggered this submit -- e.nativeEvent.submitter is the
+    // standard way to tell them apart.
+    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const alsoSend = submitter?.value === 'send';
     setSubmitting(true);
     setError(null);
     try {
       const paymentTerms = terms.find((t) => t._id === termId)?.text;
+      let saved: Invoice | Quote;
       if (kind === 'invoice') {
         const payload = {
           customer: custId,
@@ -375,11 +388,7 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
           paymentTerms,
           subject: subject || undefined,
         };
-        if (existing) {
-          await api.updateInvoice(existing._id, payload);
-        } else {
-          await api.createInvoice(payload);
-        }
+        saved = existing ? await api.updateInvoice(existing._id, payload) : await api.createInvoice(payload);
       } else {
         const payload = {
           customer: custId,
@@ -389,18 +398,47 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
           paymentTerms,
           subject: subject || undefined,
         };
-        if (existing) {
-          await api.updateQuote(existing._id, payload);
-        } else {
-          await api.createQuote(payload);
-        }
+        saved = existing ? await api.updateQuote(existing._id, payload) : await api.createQuote(payload);
       }
-      onSaved();
+      if (alsoSend) {
+        // A freshly-created document comes back with `customer` as a bare
+        // id, not populated (unlike update/list/findOne) -- substitute the
+        // full customer we already have in hand so the send preview shows
+        // their name instead of a raw id.
+        setPendingSend(selectedCustomer ? { ...saved, customer: selectedCustomer } : saved);
+      } else {
+        onSaved();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to save ${kind}`);
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // The document is already saved by the time this renders (handleSubmit's
+  // "send" path only sets pendingSend after a successful save) -- so Cancel
+  // here just skips the preview, it never discards anything. A failed send
+  // (network blip etc.) leaves the document saved as a draft, resendable
+  // later from the normal Send action; matches how that action already
+  // behaves elsewhere (SendPreviewModal always closes after Send regardless
+  // of outcome, with no dedicated failure state of its own).
+  if (pendingSend) {
+    return (
+      <SendPreviewModal
+        kind={kind}
+        doc={pendingSend}
+        onClose={onSaved}
+        onConfirm={async () => {
+          try {
+            if (kind === 'invoice') await api.sendInvoiceEmail(pendingSend._id);
+            else await api.sendQuoteEmail(pendingSend._id);
+          } catch {
+            // Swallowed deliberately -- see comment above.
+          }
+        }}
+      />
+    );
   }
 
   const isInvoice = kind === 'invoice';
@@ -504,8 +542,11 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? 'Saving…' : existing ? 'Save changes' : `Create ${kind}`}
+          <button type="submit" name="action" value="draft" className="btn btn-secondary" disabled={submitting}>
+            {submitting ? 'Saving…' : existing ? 'Save changes' : 'Save as Draft'}
+          </button>
+          <button type="submit" name="action" value="send" className="btn btn-primary" disabled={submitting}>
+            {submitting ? 'Saving…' : existing ? 'Save and Send' : 'Create and Send'}
           </button>
         </div>
       </form>
