@@ -99,24 +99,43 @@ Links a `Customer` and one or more `Animal`s to a service (`boarding` | `daycare
 ### Invoice (`/invoices`)
 
 Line items (`description`, `quantity`, `unitPrice`, optional `discountPercent` 0–100, default 0)
-with a server-computed `subtotal` — `sum(quantity × unitPrice × (1 − discountPercent / 100))` —
-plus `tax`/`total`, an auto-generated `invoiceNumber` (`INV-<year>-<sequence>`), and an optional
-free-text `subject`. Status lifecycle: `draft` → `sent` → `paid` | `overdue` | `cancelled`;
-`paidAt` is stamped when status transitions to `paid`. Fully editable and deletable via the
-standard `PATCH`/`DELETE /:id` (wired into the admin UI's per-row Edit/Delete — see
-`admin/README.md`); an edit that includes `lineItems` recomputes `subtotal`/`tax`/`total`
-server-side the same way creation does.
+with a server-computed `subtotal`/`total` — `sum(quantity × unitPrice × (1 − discountPercent /
+100))`, and `total` simply equals `subtotal` since there's no tax field — an auto-generated
+`invoiceNumber` (see Document Numbering below), and an optional free-text `subject`. Status
+lifecycle: `draft` → `sent` → `paid` | `overdue` | `cancelled`; `paidAt` is stamped when status
+transitions to `paid`. Fully editable and deletable via the standard `PATCH`/`DELETE /:id` (wired
+into the admin UI's per-row Edit/Delete — see `admin/README.md`); an edit that includes
+`lineItems` recomputes `subtotal`/`total` server-side the same way creation does.
 
 ### Quote (`/quotes`)
 
 Mirrors `Invoice` field-for-field (same `LineItem` sub-schema and totals formula, same optional
 `subject`, same standard REST shape including edit/delete) except `dueDate` → `validUntil` — a
 quote hasn't been billed yet, so nothing is "due", but it does have an expiry — and its own
-`quoteNumber` sequence (`QUO-<year>-<sequence>`, independent of invoice numbers). Status
+`quoteNumber` sequence (see Document Numbering below, independent of invoice numbers). Status
 lifecycle: `draft` → `sent` → `accepted` | `declined` | `expired`, reflecting a quote's actual
 outcomes rather than an invoice's payment states. Deliberately a separate collection/module
 rather than an `Invoice` with an extra status, since a quote and an invoice are different
 documents at different stages of a sale, not the same document in a different state.
+
+### Document numbering
+
+`invoiceNumber`/`quoteNumber` come from `formatDocumentNumber()` (`backend/src/common/document-number.util.ts`)
+applied to a staff-editable template — `invoiceNumberTemplate`/`quoteNumberTemplate` on the
+`BusinessInfo` settings singleton, defaulting to `INV-{year}-{seq}`/`QUO-{year}-{seq}` — with
+`{year}` substituted for the current year and `{seq}` for the next sequence number,
+zero-padded to 5 digits. The sequence itself is `invoiceNextNumber`/`quoteNextNumber`, also on
+`BusinessInfo`: `InvoicesService.nextInvoiceNumber()`/`QuotesService.nextQuoteNumber()` read and
+increment it in one atomic `findOneAndUpdate` (`$inc`, `new: false` so the returned document is
+the pre-increment value — the number this document should use), so two documents created at once
+can never collide, and it upserts the settings document with a default of `1` if it doesn't exist
+yet. This replaced an earlier `countDocuments()`-based scheme, which reissued a stale, colliding
+number after a document was deleted (the count drops, so the next `count + 1` reuses a number
+already taken) — now numbers are never reused, matching how real invoice/quote numbering needs to
+behave. Both the template and the next number are staff-editable via Settings → Invoices →
+"Document Numbering" (see `admin/README.md`), letting staff skip ahead or realign the sequence —
+useful the first time this shipped, to bump `invoiceNextNumber` past whatever `INV-<year>-<seq>`
+numbers already existed under the old scheme.
 
 ### InvoiceTerm (`/invoice-terms`) and Product (`/products`)
 
@@ -149,15 +168,17 @@ with optional `dueDate`/`completed` for task tracking.
 `GET/PATCH /settings/business` read and update the one `BusinessInfo` document (a singleton, same
 pattern as `EmailSettings` below) — the business's own name/address/town/postcode/telephone/email/website
 and a logo, meant to brand invoices, email templates, and other generated documents, plus
-bankName/sortCode/accountNumber (surfaced as a separate "Bank Details" card under Settings →
-Invoices, not Business Info, even though it's the same underlying document and endpoint — not
-secret, since it's meant to be shown to customers on an invoice so they know where to pay, so no
-encryption unlike the Microsoft 365 client secret below). The logo is
-a base64 data URI stored on the document itself rather than a file on disk, since Render's
-filesystem doesn't persist across deploys. All fields are plain `@IsString()` and always written
-as sent (no "blank means leave unchanged" special-casing), so the default Express JSON body limit
-(100kb) was raised to 8mb in `main.ts` to fit a logo or terms upload — nothing else in the app
-sends a payload anywhere near that size.
+bankName/sortCode/accountNumber and the document-numbering fields (both surfaced as separate cards
+under Settings → Invoices, not Business Info, even though it's all the same underlying document
+and endpoint — bank details aren't secret, since they're meant to be shown to customers on an
+invoice so they know where to pay, so no encryption unlike the Microsoft 365 client secret below;
+see "Document numbering" above for invoiceNumberTemplate/invoiceNextNumber/quoteNumberTemplate/quoteNextNumber).
+The logo is a base64 data URI stored on the document itself rather than a file on disk, since
+Render's filesystem doesn't persist across deploys. Most fields are plain `@IsString()` and always
+written as sent (no "blank means leave unchanged" special-casing) — the numbering fields are the
+exception, validated as `@IsInt() @Min(1)` — so the default Express JSON body limit (100kb) was
+raised to 8mb in `main.ts` to fit a logo or terms upload — nothing else in the app sends a payload
+anywhere near that size.
 
 `BusinessInfo` also holds the terms and conditions shown on the public intake form's agreement
 step: `dto.termsFile` (a base64 data URI of an uploaded `.docx`) is parsed via

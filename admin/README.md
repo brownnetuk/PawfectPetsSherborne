@@ -99,24 +99,27 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   field-for-field except `dueDate` becomes `validUntil` (a quote hasn't been billed, so nothing is
   "due" yet) and its status lifecycle is `draft → sent → accepted | declined | expired` rather
   than Invoice's `draft → sent → paid | overdue | cancelled`, since a quote and an invoice
-  represent different stages of a sale. Quote numbers follow the same `QUO-<year>-<seq>` pattern as
-  invoices' `INV-<year>-<seq>`.
+  represent different stages of a sale. Invoice/quote numbers come from a staff-editable template
+  and next-number counter, not a fixed pattern — see Settings → Invoices → "Document Numbering"
+  below.
 
   Create and Edit both use one `DocumentFormModal` (parameterized by `kind: 'invoice' | 'quote'`
   and an optional `existing` record — `null` means create), shown as a wide modal with three card
   sections mirroring a reference invoice-builder layout: **Customer** (a plain customer select —
   there's no "manual entry" option, since both `Invoice.customer` and `Quote.customer` are
   required references to a real `Customer` document); **Invoice/Quote Details** (Invoice #/Quote #
-  shown read-only in edit mode only, Issue date, Terms, Due date/Valid until, an optional free-text
-  **Subject**, and Tax); and **Item Table**, a real table (Item Details / Quantity / Rate (£) /
-  Discount % / Amount) replacing the old div-grid `LineItemsField` for closer visual parity with
-  the reference layout — `CustomerDetailPage`'s own separate per-customer invoice-creation flow
-  still uses the old `LineItemsField`/`.line-item-row` styling and was left as-is. Each line item's
+  shown read-only in edit mode only, Issue date, Terms, Due date/Valid until, and an optional
+  free-text **Subject** — no tax field, since neither model has one); and **Item Table**, a real
+  table (Item Details / Quantity / Rate (£) / Discount % / Amount) replacing the old div-grid
+  `LineItemsField` for closer visual parity with the reference layout — `CustomerDetailPage`'s own
+  separate per-customer invoice-creation flow still uses the old `LineItemsField`/`.line-item-row`
+  styling and was left as-is (it also has no tax field, for the same reason). Each line item's
   **Item Details** field is a text input backed by an HTML `<datalist>` of product names (no new
   dependency) — typing or picking a name that exactly matches a `Product` auto-fills that row's
   Rate from the product's price; the Discount % (0–100, default 0) feeds into the row's Amount as
-  `quantity × unitPrice × (1 − discountPercent / 100)`, and the Sub Total/Tax/Total summary below
-  the table sums those amounts plus Tax the same way the backend does (see `backend/README.md`).
+  `quantity × unitPrice × (1 − discountPercent / 100)`, and the single Total (£) summary below the
+  table sums those amounts the same way the backend does (see `backend/README.md`) — there's no
+  separate Sub Total line since, with no tax, it would always equal Total.
   In edit mode, the Payment Terms dropdown is preselected via a best-effort text match against the
   document's already-stored `paymentTerms` string (consistent with terms being copied, not
   referenced, at creation time — see below); if the original term was since deleted from the
@@ -170,8 +173,14 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   saved Business Info — so staff see the actual rendered email, logo included, before saving.
 
   The preview's interpolation logic is a hand-kept copy of the backend's (see
-  `backend/README.md`), so what's previewed matches what's actually sent. **Invoices** holds three
-  cards: **Invoice Terms**, a small library of reusable free-text terms with add/edit/delete
+  `backend/README.md`), so what's previewed matches what's actually sent. **Invoices** holds four
+  cards, in this order: **Document Numbering**, an independent-save form for
+  `invoiceNumberTemplate`/`invoiceNextNumber`/`quoteNumberTemplate`/`quoteNextNumber` (see
+  "Document numbering" in `backend/README.md`) — the template fields accept free text with
+  `{year}`/`{seq}` placeholders (defaulting to `INV-{year}-{seq}`/`QUO-{year}-{seq}`), and the
+  next-number fields are plain integer inputs so staff can jump the sequence ahead (e.g. to clear
+  past whatever numbers already existed before this counter was introduced) or realign it to match
+  an external paper sequence. **Invoice Terms**, a small library of reusable free-text terms with add/edit/delete
   (`/invoice-terms`), each with a **Plus Days** column — how many days after the issue date the
   term's due date falls, or a fixed "End of the month" checkbox instead (always the last working
   day, Mon–Fri, of the issue date's month — a fixed day-count doesn't make sense when months have
@@ -192,10 +201,7 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   is active and in which direction. Sorting is client-side over the already-fetched list, and the
   small `SortableTh` component behind it isn't Product-specific, so another settings table can
   reuse it. Both `InvoiceTermsCard` and `ProductsCard` share one "New"/"Edit" modal component
-  (taking an optional existing record) rather than separate Add and Edit components. Neither
-  Invoice Terms nor Products is wired into invoice/quote line-item entry itself yet — both stay
-  freeform for now, so Products in particular is still a
-  reference list staff copy details from rather than a picker.
+  (taking an optional existing record) rather than separate Add and Edit components.
 
 ## Sending email via Microsoft 365
 
