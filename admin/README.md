@@ -148,10 +148,17 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   The preview's interpolation logic is a hand-kept copy of the backend's (see
   `backend/README.md`), so what's previewed matches what's actually sent. **Invoices** holds three
   cards: **Invoice Terms**, a small library of reusable free-text terms with add/edit/delete
-  (`/invoice-terms`) — these back the "Payment Terms" dropdown on the Invoices & Quotes page's
-  "New invoice" form, which copies the chosen term's text onto the invoice as `paymentTerms` at
-  creation time rather than referencing the `InvoiceTerm`, so an issued invoice can't
-  retroactively change if the library entry is edited later. **Bank Details** (Bank Name, Sort
+  (`/invoice-terms`), each with a **Plus Days** column — how many days after the issue date the
+  term's due date falls, or a fixed "End of the month" checkbox instead (always the last working
+  day, Mon–Fri, of the issue date's month — a fixed day-count doesn't make sense when months have
+  different lengths). Terms back the "Payment Terms" dropdown on both the "New invoice" and "New
+  quote" forms (Invoices & Quotes page, via the shared `PaymentTermsField`): picking one copies
+  the chosen term's text onto the invoice/quote as `paymentTerms` at creation time rather than
+  referencing the `InvoiceTerm` (so an issued invoice/quote can't retroactively change if the
+  library entry is edited later), and auto-fills Due Date/Valid Until from `calculateDueDate()`
+  (issue date + Plus Days, or the end-of-month rule) — staff can still edit that date afterward;
+  it re-syncs to the term's calculation whenever the term or issue date changes, it just doesn't
+  lock the field. **Bank Details** (Bank Name, Sort
   Code, Account Number) is its own independent-save form on the same three `BusinessInfo` fields
   Business Info's "Terms and Conditions" card also draws from, just surfaced here instead since
   it's invoice-specific, not general business branding — shown to customers on invoices so they

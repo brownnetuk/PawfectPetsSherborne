@@ -116,15 +116,22 @@ documents at different stages of a sale, not the same document in a different st
 ### InvoiceTerm (`/invoice-terms`) and Product (`/products`)
 
 Two small reference lists surfaced under Settings → Invoices, both `POST`/`GET`/`PATCH`/`DELETE`.
-Neither is referenced by `Quote`: a `Product` (`productCode`, `name`, `description?`, `price`) is
-a catalog entry staff can copy details from when building a line item — wiring it into actual
-line-item entry (e.g. picking a product to prefill a line item's description/price) is a natural
-follow-up, not yet built. An `InvoiceTerm` is free text; unlike `Product`, it *is* connected to
-`Invoice` one level removed — `Invoice.paymentTerms` is a plain string copied from the chosen
-term's text at creation time (the admin's "New invoice" form has a Payment Terms dropdown sourced
-from `GET /invoice-terms`), not a reference to the `InvoiceTerm` document. That's deliberate: an
-already-issued invoice shouldn't retroactively change if the term library entry it was picked
-from is edited or deleted later.
+A `Product` (`productCode`, `name`, `description?`, `price`) is a catalog entry staff can copy
+details from when building a line item — wiring it into actual line-item entry (e.g. picking a
+product to prefill a line item's description/price) is a natural follow-up, not yet built, and
+it's referenced by neither `Invoice` nor `Quote`.
+
+An `InvoiceTerm` (`text`, `plusDays?`, `endOfMonth?`) *is* connected to `Invoice`/`Quote`, one
+level removed: `Invoice.paymentTerms`/`Quote.paymentTerms` are plain strings copied from the
+chosen term's `text` at creation time (the admin's "New invoice"/"New quote" forms have a Payment
+Terms dropdown sourced from `GET /invoice-terms`), not a reference to the `InvoiceTerm` document
+— an already-issued invoice/quote shouldn't retroactively change if the term library entry it was
+picked from is edited or deleted later. `plusDays` and `endOfMonth` aren't used server-side at
+all — they only drive the admin app's client-side due-date calculation (issue date + `plusDays`
+days, or the last working day of the issue date's month when `endOfMonth` is true) that auto-fills
+the Due Date/Valid Until field when a term is picked. `endOfMonth` wins over `plusDays` when both
+are somehow set; a fixed day-count doesn't make sense for "end of month" since months have
+different lengths.
 
 ### CRM activity (`/crm/activities`)
 
