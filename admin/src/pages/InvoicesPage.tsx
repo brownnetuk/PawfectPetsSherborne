@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as api from '../api/client';
 import Modal from '../components/Modal';
-import { ChevronDownIcon, PencilIcon, TrashIcon } from '../components/icons';
+import { ChevronDownIcon } from '../components/icons';
 import type { Customer, Invoice, InvoiceStatus, InvoiceTerm, LineItem, Product, Quote, QuoteStatus } from '../types';
 
 const INVOICE_STATUSES: InvoiceStatus[] = ['draft', 'sent', 'paid', 'overdue', 'cancelled'];
@@ -57,6 +57,57 @@ function lineItemAmount(item: LineItem): number {
   return item.quantity * item.unitPrice * (1 - (item.discountPercent ?? 0) / 100);
 }
 
+function ActionsMenu({
+  onEdit,
+  onSend,
+  onDelete,
+  sending,
+}: {
+  onEdit: () => void;
+  onSend: () => void;
+  onDelete: () => void;
+  sending: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  function choose(fn: () => void) {
+    setOpen(false);
+    fn();
+  }
+
+  return (
+    <div className="actions-menu" ref={ref}>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpen((o) => !o)}>
+        Actions <ChevronDownIcon />
+      </button>
+      {open && (
+        <div className="actions-menu-list">
+          <button type="button" onClick={() => choose(onEdit)}>
+            View / Edit
+          </button>
+          <button type="button" onClick={() => choose(onSend)} disabled={sending}>
+            {sending ? 'Sending…' : 'Send'}
+          </button>
+          <div className="actions-menu-divider" />
+          <button type="button" className="actions-menu-danger" onClick={() => choose(onDelete)}>
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function InvoicesPage() {
   const [tab, setTab] = useState<Tab>('invoices');
 
@@ -89,6 +140,7 @@ function InvoicesTab() {
   const [deleting, setDeleting] = useState<Invoice | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   function refresh() {
     api.listInvoices().then(setInvoices).catch((err) => setError(err.message));
@@ -98,6 +150,19 @@ function InvoicesTab() {
   async function handleStatusChange(id: string, status: string) {
     await api.updateInvoiceStatus(id, status);
     refresh();
+  }
+
+  async function handleSend(inv: Invoice) {
+    setSendingId(inv._id);
+    setError(null);
+    try {
+      await api.sendInvoiceEmail(inv._id);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to send invoice ${inv.invoiceNumber}`);
+    } finally {
+      setSendingId(null);
+    }
   }
 
   async function handleDelete() {
@@ -157,15 +222,13 @@ function InvoicesTab() {
                     </span>
                   </td>
                   <td>{new Date(inv.dueDate).toLocaleDateString()}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 2 }}>
-                      <button className="icon-btn" title="Edit" onClick={() => setEditing(inv)}>
-                        <PencilIcon />
-                      </button>
-                      <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(inv)}>
-                        <TrashIcon />
-                      </button>
-                    </div>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <ActionsMenu
+                      onEdit={() => setEditing(inv)}
+                      onSend={() => handleSend(inv)}
+                      onDelete={() => setDeleting(inv)}
+                      sending={sendingId === inv._id}
+                    />
                   </td>
                 </tr>
               ))}
@@ -226,6 +289,7 @@ function QuotesTab() {
   const [deleting, setDeleting] = useState<Quote | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   function refresh() {
     api.listQuotes().then(setQuotes).catch((err) => setError(err.message));
@@ -235,6 +299,19 @@ function QuotesTab() {
   async function handleStatusChange(id: string, status: string) {
     await api.updateQuoteStatus(id, status);
     refresh();
+  }
+
+  async function handleSend(q: Quote) {
+    setSendingId(q._id);
+    setError(null);
+    try {
+      await api.sendQuoteEmail(q._id);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to send quote ${q.quoteNumber}`);
+    } finally {
+      setSendingId(null);
+    }
   }
 
   async function handleDelete() {
@@ -294,15 +371,13 @@ function QuotesTab() {
                     </span>
                   </td>
                   <td>{new Date(q.validUntil).toLocaleDateString()}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 2 }}>
-                      <button className="icon-btn" title="Edit" onClick={() => setEditing(q)}>
-                        <PencilIcon />
-                      </button>
-                      <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(q)}>
-                        <TrashIcon />
-                      </button>
-                    </div>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <ActionsMenu
+                      onEdit={() => setEditing(q)}
+                      onSend={() => handleSend(q)}
+                      onDelete={() => setDeleting(q)}
+                      sending={sendingId === q._id}
+                    />
                   </td>
                 </tr>
               ))}

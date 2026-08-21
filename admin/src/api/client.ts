@@ -158,6 +158,9 @@ export function updateInvoiceStatus(id: string, status: string): Promise<Invoice
 export function deleteInvoice(id: string): Promise<void> {
   return request(`/invoices/${id}`, { method: 'DELETE' });
 }
+export function sendInvoiceEmail(id: string): Promise<Invoice> {
+  return request(`/invoices/${id}/send`, { method: 'POST' });
+}
 
 // --- quotes ---
 export function listQuotes(customerId?: string): Promise<Quote[]> {
@@ -183,6 +186,9 @@ export function updateQuoteStatus(id: string, status: string): Promise<Quote> {
 }
 export function deleteQuote(id: string): Promise<void> {
   return request(`/quotes/${id}`, { method: 'DELETE' });
+}
+export function sendQuoteEmail(id: string): Promise<Quote> {
+  return request(`/quotes/${id}/send`, { method: 'POST' });
 }
 
 // --- invoice terms ---

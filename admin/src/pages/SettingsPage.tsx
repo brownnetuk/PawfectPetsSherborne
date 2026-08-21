@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import Modal from '../components/Modal';
+import RichTextEditor from '../components/RichTextEditor';
 import { PencilIcon, SortIcon, TrashIcon } from '../components/icons';
 import type {
   BusinessInfo,
@@ -767,7 +768,25 @@ export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: 
     label: 'Add a pet',
     description: 'Sent when staff choose "Send email" from the "New pet" dialog instead of "Copy link".',
   },
+  {
+    value: 'invoice',
+    label: 'Invoice Template',
+    description: 'Sent from Invoices & Quotes when staff choose "Send" on an invoice.',
+  },
+  {
+    value: 'quote',
+    label: 'Quote Template',
+    description: 'Sent from Invoices & Quotes when staff choose "Send" on a quote.',
+  },
 ];
+
+// invoice/quote templates are edited as raw HTML (RichTextEditor) and sent
+// through as-is aside from placeholder substitution; the other three are
+// staff-authored plain text (escaped, newlines become <br>) -- kept in sync
+// by hand with EmailTrigger.INVOICE/QUOTE in settings.service.ts.
+function isHtmlBodyTrigger(trigger: EmailTrigger): boolean {
+  return trigger === 'invoice' || trigger === 'quote';
+}
 
 function EmailTemplatesTab() {
   const [templates, setTemplates] = useState<EmailTemplate[] | null>(null);
@@ -883,10 +902,12 @@ function EmailTemplatesTab() {
   );
 }
 
-// Kept in sync by hand with settings.service.ts's sendTriggeredEmail() --
-// {{logo}} inserts the raw business logo <img>, everything else inserts its
-// (HTML-escaped) value. Used by both the placeholder hint below and the
-// Preview modal, so what staff see in Preview matches what actually sends.
+// Kept in sync by hand with settings.service.ts's interpolateSubject/
+// interpolateBody -- {{logo}} and {{items_table}} insert raw HTML,
+// everything else inserts its (HTML-escaped) value, and {{#if field}}...
+// {{/if}} blocks are stripped when `field` is empty. Used by both the
+// placeholder hint below and the Preview modal, so what staff see in
+// Preview matches what actually sends.
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -896,9 +917,70 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
-const TEMPLATE_PLACEHOLDERS: { key: string; hint: string }[] = [
-  { key: 'name', hint: "the customer's name" },
-  { key: 'link', hint: 'the link being sent' },
+function stripConditionals(template: string, vars: Record<string, string | undefined>): string {
+  return template.replace(/\{\{#if (\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_, key, inner) => (vars[key] ? inner : ''));
+}
+
+function interpolateSubject(template: string, vars: Record<string, string | undefined>): string {
+  return stripConditionals(template, vars).replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '');
+}
+
+function interpolateBody(
+  template: string,
+  vars: Record<string, string | undefined>,
+  rawVars: Record<string, string>,
+  htmlBody: boolean,
+): string {
+  let working = htmlBody ? template : escapeHtml(template);
+  working = stripConditionals(working, vars);
+  working = working.replace(/\{\{(\w+)\}\}/g, (_, key) => (key in rawVars ? rawVars[key] : escapeHtml(vars[key] ?? '')));
+  return htmlBody ? working : working.replace(/\n/g, '<br>');
+}
+
+// Sample line items for the invoice/quote template Preview -- matches the
+// column set and inline-style markup buildItemsTableHtml() generates in
+// backend/src/common/invoice-email.util.ts, so what staff see in Preview
+// matches what actually sends.
+const SAMPLE_LINE_ITEMS = [
+  { description: '30 Minute Weekday Group Walk', quantity: 3, unitPrice: 10.5, discountPercent: 0 },
+  { description: '1 Daily Pet Visit (Up to 20 Mins)', quantity: 1, unitPrice: 10, discountPercent: 10 },
+];
+
+function sampleSubtotal(): number {
+  return SAMPLE_LINE_ITEMS.reduce(
+    (sum, item) => sum + item.quantity * item.unitPrice * (1 - item.discountPercent / 100),
+    0,
+  );
+}
+
+function buildSampleItemsTableHtml(): string {
+  const cell = 'padding:8px 12px;border-bottom:1px solid #e5e7eb;';
+  const rows = SAMPLE_LINE_ITEMS
+    .map((item) => {
+      const amount = item.quantity * item.unitPrice * (1 - item.discountPercent / 100);
+      return `<tr>
+        <td style="${cell}">${escapeHtml(item.description)}</td>
+        <td style="${cell}text-align:center;">${item.quantity}</td>
+        <td style="${cell}text-align:right;">£${item.unitPrice.toFixed(2)}</td>
+        <td style="${cell}text-align:right;">${item.discountPercent ? `${item.discountPercent}%` : '—'}</td>
+        <td style="${cell}text-align:right;">£${amount.toFixed(2)}</td>
+      </tr>`;
+    })
+    .join('');
+  const head = 'text-align:left;padding:8px 12px;border-bottom:2px solid #1f2937;';
+  return `<table style="width:100%;border-collapse:collapse;font-size:14px;">
+    <thead><tr>
+      <th style="${head}">Description</th>
+      <th style="${head}text-align:center;">Qty</th>
+      <th style="${head}text-align:right;">Rate</th>
+      <th style="${head}text-align:right;">Discount</th>
+      <th style="${head}text-align:right;">Amount</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+const BUSINESS_PLACEHOLDERS = [
   { key: 'logo', hint: "the business's logo (Settings > Business Info)" },
   { key: 'businessName', hint: 'business name' },
   { key: 'businessAddress', hint: 'business address' },
@@ -908,6 +990,79 @@ const TEMPLATE_PLACEHOLDERS: { key: string; hint: string }[] = [
   { key: 'businessEmail', hint: 'business email' },
   { key: 'businessWebsite', hint: 'business website' },
 ];
+
+const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]> = {
+  registration: [
+    { key: 'name', hint: "the customer's name" },
+    { key: 'link', hint: 'the link being sent' },
+    ...BUSINESS_PLACEHOLDERS,
+  ],
+  update_info: [
+    { key: 'name', hint: "the customer's name" },
+    { key: 'link', hint: 'the link being sent' },
+    ...BUSINESS_PLACEHOLDERS,
+  ],
+  add_pet: [
+    { key: 'name', hint: "the customer's name" },
+    { key: 'link', hint: 'the link being sent' },
+    ...BUSINESS_PLACEHOLDERS,
+  ],
+  invoice: [
+    { key: 'customer_name', hint: "the customer's name" },
+    { key: 'subject', hint: "the invoice's Subject field -- wrap in {{#if subject}}...{{/if}} since it's optional" },
+    { key: 'items_table', hint: 'an auto-generated table of the line items' },
+    { key: 'subtotal', hint: 'the subtotal amount (no £ sign)' },
+    { key: 'total', hint: 'the total amount (no £ sign)' },
+    { key: 'invoice_number', hint: 'the invoice number' },
+    { key: 'invoice_date', hint: 'the issue date' },
+    { key: 'due_date', hint: 'the due date' },
+    ...BUSINESS_PLACEHOLDERS,
+  ],
+  quote: [
+    { key: 'customer_name', hint: "the customer's name" },
+    { key: 'subject', hint: "the quote's Subject field -- wrap in {{#if subject}}...{{/if}} since it's optional" },
+    { key: 'items_table', hint: 'an auto-generated table of the line items' },
+    { key: 'subtotal', hint: 'the subtotal amount (no £ sign)' },
+    { key: 'total', hint: 'the total amount (no £ sign)' },
+    { key: 'quote_number', hint: 'the quote number' },
+    { key: 'quote_date', hint: 'the issue date' },
+    { key: 'valid_until', hint: 'the valid-until date' },
+    ...BUSINESS_PLACEHOLDERS,
+  ],
+};
+
+// Prefilled the first time staff "Set up" the Invoice/Quote template, so
+// they start from a working layout (header bar, items table, totals,
+// document details) rather than a blank editor.
+const INVOICE_TEMPLATE_STARTER = `<div style="background:#0f3a5f;color:#fff;padding:16px 20px;"><strong style="font-size:1.1rem;">{{businessName}}</strong></div>
+<div style="padding:20px;">
+<p>Hi {{customer_name}},</p>
+<p>Please find your invoice below.{{#if subject}} {{subject}}{{/if}}</p>
+{{items_table}}
+<table style="margin-top:16px;margin-left:auto;border-collapse:collapse;">
+<tr><td style="padding:6px 12px;color:#6b7280;">Sub Total</td><td style="padding:6px 12px;text-align:right;border:1px solid #e5e7eb;">£{{subtotal}}</td></tr>
+<tr><td style="padding:6px 12px;font-weight:700;">Total (£)</td><td style="padding:6px 12px;text-align:right;font-weight:700;border:1px solid #e5e7eb;">£{{total}}</td></tr>
+</table>
+<p style="margin-top:24px;"><strong>Invoice #:</strong> {{invoice_number}}<br><strong>Invoice Date:</strong> {{invoice_date}}<br>{{#if due_date}}<strong>Due Date:</strong> {{due_date}}{{/if}}</p>
+</div>`;
+
+const QUOTE_TEMPLATE_STARTER = `<div style="background:#0f3a5f;color:#fff;padding:16px 20px;"><strong style="font-size:1.1rem;">{{businessName}}</strong></div>
+<div style="padding:20px;">
+<p>Hi {{customer_name}},</p>
+<p>Please find your quote below.{{#if subject}} {{subject}}{{/if}}</p>
+{{items_table}}
+<table style="margin-top:16px;margin-left:auto;border-collapse:collapse;">
+<tr><td style="padding:6px 12px;color:#6b7280;">Sub Total</td><td style="padding:6px 12px;text-align:right;border:1px solid #e5e7eb;">£{{subtotal}}</td></tr>
+<tr><td style="padding:6px 12px;font-weight:700;">Total (£)</td><td style="padding:6px 12px;text-align:right;font-weight:700;border:1px solid #e5e7eb;">£{{total}}</td></tr>
+</table>
+<p style="margin-top:24px;"><strong>Quote #:</strong> {{quote_number}}<br><strong>Quote Date:</strong> {{quote_date}}<br>{{#if valid_until}}<strong>Valid Until:</strong> {{valid_until}}{{/if}}</p>
+</div>`;
+
+function starterBody(trigger: EmailTrigger): string {
+  if (trigger === 'invoice') return INVOICE_TEMPLATE_STARTER;
+  if (trigger === 'quote') return QUOTE_TEMPLATE_STARTER;
+  return '';
+}
 
 function EditTemplateModal({
   trigger,
@@ -921,9 +1076,11 @@ function EditTemplateModal({
   onSaved: () => void;
 }) {
   const meta = EMAIL_TRIGGERS.find((t) => t.value === trigger)!;
-  const [name, setName] = useState(template?.name ?? '');
-  const [subject, setSubject] = useState(template?.subject ?? '');
-  const [body, setBody] = useState(template?.body ?? '');
+  const [name, setName] = useState(template?.name ?? (isHtmlBodyTrigger(trigger) ? meta.label : ''));
+  const [subject, setSubject] = useState(
+    template?.subject ?? (isHtmlBodyTrigger(trigger) ? `Your ${trigger} from {{businessName}}` : ''),
+  );
+  const [body, setBody] = useState(template?.body ?? starterBody(trigger));
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
@@ -935,6 +1092,12 @@ function EditTemplateModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // RichTextEditor isn't a native input, so the form's `required` attribute
+    // can't enforce a non-empty body for it the way it does for the textarea.
+    if (isHtmlBodyTrigger(trigger) && !body.replace(/<[^>]*>/g, '').trim()) {
+      setError('Email body is required.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -974,19 +1137,23 @@ function EditTemplateModal({
           />
         </div>
         <div className="field">
-          <label>Body</label>
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={8}
-            placeholder={`Hi {{name}},\n\nPlease complete your registration using the link below:\n{{link}}\n\nThanks,\nPawfectPets Sherborne`}
-            required
-          />
+          <label>Email Body</label>
+          {isHtmlBodyTrigger(trigger) ? (
+            <RichTextEditor value={body} onChange={setBody} />
+          ) : (
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={8}
+              placeholder={`Hi {{name}},\n\nPlease complete your registration using the link below:\n{{link}}\n\nThanks,\nPawfectPets Sherborne`}
+              required
+            />
+          )}
           <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
             Sent as HTML. Available placeholders:{' '}
-            {TEMPLATE_PLACEHOLDERS.map((p, i) => (
+            {TRIGGER_PLACEHOLDERS[trigger].map((p, i) => (
               <span key={p.key}>
-                <code>{`{{${p.key}}}`}</code> ({p.hint}){i < TEMPLATE_PLACEHOLDERS.length - 1 ? ', ' : '.'}
+                <code>{`{{${p.key}}}`}</code> ({p.hint}){i < TRIGGER_PLACEHOLDERS[trigger].length - 1 ? ', ' : '.'}
               </span>
             ))}
           </div>
@@ -1011,6 +1178,7 @@ function EditTemplateModal({
 
       {showPreview && businessInfo && (
         <TemplatePreviewModal
+          trigger={trigger}
           subject={subject}
           body={body}
           businessInfo={businessInfo}
@@ -1022,19 +1190,19 @@ function EditTemplateModal({
 }
 
 function TemplatePreviewModal({
+  trigger,
   subject,
   body,
   businessInfo,
   onClose,
 }: {
+  trigger: EmailTrigger;
   subject: string;
   body: string;
   businessInfo: BusinessInfo;
   onClose: () => void;
 }) {
-  const vars: Record<string, string> = {
-    name: 'Jane Smith',
-    link: `${INTAKE_URL}/intake/sample-id`,
+  const businessVars: Record<string, string> = {
     businessName: businessInfo.name,
     businessAddress: businessInfo.address,
     businessTown: businessInfo.town,
@@ -1043,13 +1211,32 @@ function TemplatePreviewModal({
     businessEmail: businessInfo.email,
     businessWebsite: businessInfo.website,
   };
+  const htmlBody = isHtmlBodyTrigger(trigger);
+  const isQuote = trigger === 'quote';
+  const vars: Record<string, string | undefined> = htmlBody
+    ? {
+        ...businessVars,
+        customer_name: 'Jane Smith',
+        subject: 'August boarding',
+        subtotal: sampleSubtotal().toFixed(2),
+        total: sampleSubtotal().toFixed(2),
+        ...(isQuote
+          ? { quote_number: 'QUO-2026-00001', quote_date: '21/08/2026', valid_until: '28/08/2026' }
+          : { invoice_number: 'INV-2026-00001', invoice_date: '21/08/2026', due_date: '28/08/2026' }),
+      }
+    : {
+        ...businessVars,
+        name: 'Jane Smith',
+        link: `${INTAKE_URL}/intake/sample-id`,
+      };
   const logoTag = businessInfo.logoImage
     ? `<img src="${businessInfo.logoImage}" alt="${escapeHtml(businessInfo.name)}" style="max-height:60px;max-width:220px;display:block;" />`
     : '';
-  const renderedSubject = subject.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '');
-  const renderedBody = escapeHtml(body)
-    .replace(/\{\{(\w+)\}\}/g, (_, key) => (key === 'logo' ? logoTag : escapeHtml(vars[key] ?? '')))
-    .replace(/\n/g, '<br>');
+  const rawVars: Record<string, string> = htmlBody
+    ? { logo: logoTag, items_table: buildSampleItemsTableHtml() }
+    : { logo: logoTag };
+  const renderedSubject = interpolateSubject(subject, vars);
+  const renderedBody = interpolateBody(body, vars, rawVars, htmlBody);
 
   return (
     <Modal title="Preview email" onClose={onClose} wide>

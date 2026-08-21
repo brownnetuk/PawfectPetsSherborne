@@ -191,7 +191,7 @@ export interface EmailSettings {
   clientSecretConfigured: boolean;
 }
 
-export type EmailTrigger = 'registration' | 'update_info' | 'add_pet';
+export type EmailTrigger = 'registration' | 'update_info' | 'add_pet' | 'invoice' | 'quote';
 
 export interface EmailTemplate {
   trigger: EmailTrigger;
