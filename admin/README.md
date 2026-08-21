@@ -42,7 +42,12 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
 - **Customers** — list, search, and a "New customer" flow that creates a minimal lead
   (`POST /customers/leads`) and hands you a `VITE_INTAKE_URL/intake/<id>` link to copy and send.
   There's no full customer-creation form here on purpose — the intake form is where that detail
-  belongs, and duplicating it would just be two sources of truth for the same data.
+  belongs, and duplicating it would just be two sources of truth for the same data. A separate
+  "Customer Enquiry" button opens a modal for informal, pre-customer contacts (name, email,
+  address, phone, how they heard about us, services interested in, notes) that are logged to
+  their own `Enquiry` collection (`/enquiries`) rather than forced into the Customer/Animal
+  schema. Enquiries list below the Customers table with the same view-detail /
+  delete-with-confirmation pattern used elsewhere in the app.
 - **Customer detail** — tabs for overview (client/emergency/vet/security/agreement — alarm
   instructions are only decrypted on demand via "Reveal"), pets, bookings, invoices, and CRM
   activity, plus per-customer booking/invoice/activity creation. "Edit" on the overview covers

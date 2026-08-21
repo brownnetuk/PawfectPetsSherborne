@@ -126,6 +126,17 @@ does -- this is what backs the "Send email" button next to "Copy link" throughou
 
 None of `/settings/*` is `@Public()` — it's staff-only like everything else.
 
+### Enquiry (`/enquiries`)
+
+A lightweight, pre-customer contact log — `POST /` creates one, `GET /` lists them
+(newest first), `DELETE /:id` removes one. Deliberately a separate collection from
+`Customer` rather than an extra status/fields on it: an enquiry only has a name plus
+optional email/address/phone/`howHeard`/`servicesInterested` (a fixed enum —
+`dog_walking` | `pet_visits` | `boarding` | `day_care` — distinct from the booking
+`ServiceType` enum, since "interested in" and "booked as" aren't the same concept) and
+`notes`, with no lifecycle of its own. It may never become a real `Customer`; when it
+does, staff create that record by hand from the enquiry's details.
+
 ## API summary
 
 All resources follow the same REST shape: `POST /`, `GET /`, `GET /:id`, `PATCH /:id`,
