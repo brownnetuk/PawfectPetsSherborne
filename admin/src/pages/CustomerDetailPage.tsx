@@ -109,7 +109,11 @@ export default function CustomerDetailPage() {
     setPdfError(null);
     try {
       const alarm = await api.getAlarmInstructions(id).catch(() => null);
-      const doc = await buildCustomerFormPdf(customer, animals, alarm);
+      const termsHtml = await api
+        .getBusinessInfo()
+        .then((info) => info.termsHtml)
+        .catch(() => '');
+      const doc = await buildCustomerFormPdf(customer, animals, alarm, termsHtml);
       const url = URL.createObjectURL(doc.output('blob'));
       setPdfUrl(url);
     } catch (err) {

@@ -19,8 +19,10 @@ const MUTED: [number, number, number] = [111, 125, 114]; // --muted
 const BORDER: [number, number, number] = [227, 232, 222]; // --border
 const INK: [number, number, number] = [35, 44, 38]; // --ink
 
-// Mirrors the terms text in frontend/src/intake/steps/AgreementStep.tsx -- kept
-// in sync manually since the two apps don't share code.
+// Fallback only -- used when no terms have been uploaded in Settings > Business
+// Info (see htmlToBlocks below for the normal path). Mirrors the fallback text
+// in frontend/src/intake/steps/AgreementStep.tsx, kept in sync manually since
+// the two apps don't share code.
 const TERMS = [
   "The client confirms all information provided in this form is accurate and will notify PawfectPets Sherborne promptly of any changes to contact, veterinary, or pet health details.",
   "The client authorises PawfectPets Sherborne to make decisions regarding the animal's welfare in an emergency, including obtaining veterinary treatment as set out in the Emergency Vet section of this form.",
@@ -87,9 +89,9 @@ function subheadingBlock(text: string): Block {
   };
 }
 
-function numberedListBlock(doc: jsPDF, items: string[]): Block {
+function listBlock(doc: jsPDF, items: string[], marker: (i: number) => string): Block {
   doc.setFontSize(9);
-  const wrapped = items.map((item, i) => doc.splitTextToSize(`${i + 1}. ${item}`, CONTENT_WIDTH - 12) as string[]);
+  const wrapped = items.map((item, i) => doc.splitTextToSize(`${marker(i)}${item}`, CONTENT_WIDTH - 12) as string[]);
   const height = wrapped.reduce((sum, lines) => sum + lines.length * 12 + 4, 0);
   return {
     height,
@@ -104,6 +106,45 @@ function numberedListBlock(doc: jsPDF, items: string[]): Block {
       });
     },
   };
+}
+
+function numberedListBlock(doc: jsPDF, items: string[]): Block {
+  return listBlock(doc, items, (i) => `${i + 1}. `);
+}
+
+function bulletListBlock(doc: jsPDF, items: string[]): Block {
+  return listBlock(doc, items, () => '• ');
+}
+
+/**
+ * Converts the HTML mammoth produces from an uploaded terms .docx (Settings >
+ * Business Info) into PDF blocks -- headings, paragraphs, and (numbered or
+ * bulleted) lists, using each element's plain textContent rather than
+ * attempting to preserve inline bold/italic runs. Good enough for the
+ * heading/paragraph/list shape a Word terms document actually has; anything
+ * unrecognised (e.g. a table) still renders as a plain paragraph rather than
+ * being silently dropped.
+ */
+function htmlToBlocks(doc: jsPDF, html: string): Block[] {
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const blocks: Block[] = [];
+  for (const el of Array.from(parsed.body.children)) {
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'ul' || tag === 'ol') {
+      const items = Array.from(el.children)
+        .filter((li) => li.tagName.toLowerCase() === 'li')
+        .map((li) => (li.textContent ?? '').trim())
+        .filter(Boolean);
+      if (items.length > 0) {
+        blocks.push(tag === 'ol' ? numberedListBlock(doc, items) : bulletListBlock(doc, items));
+      }
+      continue;
+    }
+    const text = (el.textContent ?? '').trim();
+    if (!text) continue;
+    blocks.push(/^h[1-6]$/.test(tag) ? subheadingBlock(text) : paragraphBlock(doc, text));
+  }
+  return blocks;
 }
 
 function signatureBlock(dataUrl: string, label: string): Block {
@@ -269,6 +310,7 @@ export async function buildCustomerFormPdf(
   customer: Customer,
   animals: Animal[],
   alarmInstructions: string | null,
+  termsHtml?: string,
 ): Promise<jsPDF> {
   const logo = await loadLogoDataUrl();
   const w = new PdfWriter();
@@ -379,7 +421,8 @@ export async function buildCustomerFormPdf(
     w.section(`Pet — ${animal.name}`, blocks);
   }
 
-  w.section('Terms & conditions', [numberedListBlock(doc, TERMS)]);
+  const termsBlocks = termsHtml ? htmlToBlocks(doc, termsHtml) : [];
+  w.section('Terms & conditions', termsBlocks.length > 0 ? termsBlocks : [numberedListBlock(doc, TERMS)]);
 
   const agreementBlocks: Block[] = [
     fieldBlock(doc, 'Signed by', customer.agreement?.signedName ?? ''),
