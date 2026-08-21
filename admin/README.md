@@ -67,7 +67,11 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   off-lead consent and its signature, the terms & conditions text, and the client agreement's
   signature — and shows it in a modal. Built client-side with `jsPDF` (`src/pdf/customerFormPdf.ts`);
   alarm instructions are decrypted the same way "Reveal" does, via the existing staff-only
-  endpoint, rather than adding a separate server-side PDF route.
+  endpoint, rather than adding a separate server-side PDF route. Branded with the same colours as
+  this app's CSS (copied by hand — there's no shared token source between a PDF and CSS) and the
+  real logo. Each section (a pet's whole profile, including its off-lead consent and signature, is
+  one section) is measured before it's drawn, so a section that doesn't fit the rest of the current
+  page moves to a fresh one entirely rather than splitting across the page break.
 - **Bookings** / **Invoices** — global lists across all customers, inline status changes, edit
   and delete on each row, and their own "New" flow with a customer picker (the customer-detail
   versions reuse the same create/edit/delete calls with the customer pre-selected).
