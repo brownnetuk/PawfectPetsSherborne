@@ -42,7 +42,6 @@ export default function CustomerDetailPage() {
   const [activity, setActivity] = useState<CrmActivity[]>([]);
   const [tab, setTab] = useState<Tab>('overview');
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [alarmInstructions, setAlarmInstructions] = useState<string | null>(null);
   const [showDelete, setShowDelete] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -71,11 +70,6 @@ export default function CustomerDetailPage() {
   if (!customer) return <div className="empty-state">Loading…</div>;
 
   const intakeLink = `${INTAKE_URL}/intake/${customer._id}`;
-
-  async function copyLink() {
-    await navigator.clipboard.writeText(intakeLink);
-    setCopied(true);
-  }
 
   async function sendLinkEmail() {
     if (!customer) return;
@@ -166,13 +160,6 @@ export default function CustomerDetailPage() {
         <div style={{ display: 'flex', gap: 10 }}>
           {(customer.status === 'pending' || customer.status === 'update_info') && (
             <>
-              <button className="btn btn-secondary" onClick={copyLink}>
-                {copied
-                  ? 'Copied!'
-                  : customer.status === 'update_info'
-                    ? 'Copy update link'
-                    : 'Copy registration link'}
-              </button>
               <button className="btn btn-secondary" onClick={sendLinkEmail} disabled={sendingEmail}>
                 {sendingEmail ? 'Sending…' : 'Send email'}
               </button>
