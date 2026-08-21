@@ -33,13 +33,16 @@ export class BusinessInfo extends Document {
   @Prop()
   logoImage?: string;
 
-  // The uploaded .docx itself is never stored -- only what's parsed out of it.
-  // Keeping the raw file around would double storage for no benefit, since
-  // nothing re-reads it once termsHtml exists; re-uploading is how staff would
-  // "edit" it anyway. termsFileName is display-only (what to show as "currently
-  // uploaded"), not used to derive anything.
+  // termsHtml is what's actually rendered (Business Info preview, the public
+  // intake form, the customer PDF export); termsDocx is the original upload,
+  // kept only so staff can download back the exact file they gave us -- it's
+  // never re-parsed. termsFileName is display-only.
   @Prop()
   termsHtml?: string;
+
+  // Base64 data URI, same storage approach as logoImage above.
+  @Prop()
+  termsDocx?: string;
 
   @Prop()
   termsFileName?: string;

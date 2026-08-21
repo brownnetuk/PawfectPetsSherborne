@@ -1,4 +1,17 @@
-import { Body, Controller, Delete, Get, Param, ParseEnumPipe, Patch, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseEnumPipe,
+  Patch,
+  Post,
+  Put,
+  Res,
+  StreamableFile,
+} from '@nestjs/common';
+import type { Response } from 'express';
 import { Public } from '../auth/public.decorator';
 import { PreviewTermsDto } from './dto/preview-terms.dto';
 import { SendTestEmailDto } from './dto/send-test-email.dto';
@@ -35,6 +48,16 @@ export class SettingsController {
   @Get('terms')
   getTermsHtml() {
     return this.settingsService.getTermsHtml();
+  }
+
+  @Get('terms/download')
+  async downloadTerms(@Res({ passthrough: true }) res: Response) {
+    const file = await this.settingsService.getTermsFile();
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'Content-Disposition': `attachment; filename="${file.fileName}"`,
+    });
+    return new StreamableFile(file.buffer);
   }
 
   @Get('email')

@@ -51,9 +51,11 @@ export class SettingsService {
     if (dto.termsFile !== undefined) {
       if (dto.termsFile) {
         update.termsHtml = await this.parseTermsDocx(dto.termsFile);
+        update.termsDocx = dto.termsFile;
         update.termsFileName = dto.termsFileName ?? '';
       } else {
         update.termsHtml = '';
+        update.termsDocx = '';
         update.termsFileName = '';
       }
     }
@@ -69,6 +71,23 @@ export class SettingsService {
   async getTermsHtml(): Promise<{ html: string }> {
     const doc = await this.businessInfoModel.findOne().select('termsHtml').exec();
     return { html: doc?.termsHtml ?? '' };
+  }
+
+  /** Returns the original uploaded .docx for download -- never re-parsed, just handed back as-is. */
+  async getTermsFile(): Promise<{ buffer: Buffer; fileName: string }> {
+    const doc = await this.businessInfoModel.findOne().select('termsDocx termsHtml termsFileName').exec();
+    if (!doc?.termsDocx) {
+      if (doc?.termsHtml) {
+        // Terms uploaded before this feature existed only kept the parsed
+        // HTML, not the original file -- there's genuinely nothing to serve.
+        throw new BadRequestException(
+          'The original file for the current terms isn\'t available to download -- this can happen for terms uploaded before downloading was supported. Re-upload the file to make it downloadable.',
+        );
+      }
+      throw new NotFoundException('No terms and conditions file has been uploaded.');
+    }
+    const base64 = doc.termsDocx.includes(',') ? doc.termsDocx.slice(doc.termsDocx.indexOf(',') + 1) : doc.termsDocx;
+    return { buffer: Buffer.from(base64, 'base64'), fileName: doc.termsFileName || 'terms.docx' };
   }
 
   /** Converts an uploaded .docx (base64 data URI) into HTML via mammoth. */

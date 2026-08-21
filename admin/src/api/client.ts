@@ -184,6 +184,24 @@ export function updateBusinessInfo(patch: Record<string, unknown>): Promise<Busi
 export function previewTerms(termsFile: string): Promise<{ html: string }> {
   return request('/settings/terms/preview', { method: 'POST', body: JSON.stringify({ termsFile }) });
 }
+// Bypasses the shared `request` helper, which assumes a JSON response body --
+// this one is a binary file download instead.
+export async function downloadTermsFile(): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetch(`${API_URL}/settings/terms/download`, {
+    headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+  });
+  if (res.status === 401) {
+    onUnauthorized?.();
+    throw new Error('Session expired. Please log in again.');
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Request failed (${res.status})`);
+  }
+  const disposition = res.headers.get('Content-Disposition') ?? '';
+  const match = disposition.match(/filename="?([^";]+)"?/);
+  return { blob: await res.blob(), filename: match ? match[1] : 'terms.docx' };
+}
 export function getEmailSettings(): Promise<EmailSettings> {
   return request('/settings/email');
 }
