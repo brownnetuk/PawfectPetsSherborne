@@ -53,4 +53,8 @@ export class CreateInvoiceDto {
 
   @IsDateString()
   dueDate: string;
+
+  @IsOptional()
+  @IsString()
+  paymentTerms?: string;
 }

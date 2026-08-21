@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { CreateInvoiceTermDto } from './dto/create-invoice-term.dto';
 import { InvoiceTermsService } from './invoice-terms.service';
 
@@ -14,6 +14,11 @@ export class InvoiceTermsController {
   @Get()
   findAll() {
     return this.invoiceTermsService.findAll();
+  }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: CreateInvoiceTermDto) {
+    return this.invoiceTermsService.update(id, dto);
   }
 
   @Delete(':id')

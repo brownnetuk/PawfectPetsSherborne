@@ -50,6 +50,12 @@ export class Invoice extends Document {
   @Prop({ type: String, enum: InvoiceStatus, default: InvoiceStatus.DRAFT })
   status: InvoiceStatus;
 
+  // Copied in from an InvoiceTerm at creation time, not a reference to one --
+  // an issued invoice shouldn't retroactively change if the term library
+  // entry it was picked from is later edited.
+  @Prop()
+  paymentTerms?: string;
+
   @Prop({ required: true })
   issueDate: Date;
 

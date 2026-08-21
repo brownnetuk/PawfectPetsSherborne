@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import Modal from '../components/Modal';
-import { TrashIcon } from '../components/icons';
+import { PencilIcon, TrashIcon } from '../components/icons';
 import type {
   BusinessInfo,
   EmailSettings,
@@ -1083,7 +1083,90 @@ function InvoicesSettingsTab() {
   return (
     <div>
       <InvoiceTermsCard />
+      <BankDetailsCard />
       <ProductsCard />
+    </div>
+  );
+}
+
+function BankDetailsCard() {
+  const [bankName, setBankName] = useState('');
+  const [sortCode, setSortCode] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api
+      .getBusinessInfo()
+      .then((info) => {
+        setBankName(info.bankName);
+        setSortCode(info.sortCode);
+        setAccountNumber(info.accountNumber);
+        setLoaded(true);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bank details'));
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      await api.updateBusinessInfo({ bankName, sortCode, accountNumber });
+      setSaved(true);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save bank details');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Bank Details</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        Shown to customers on invoices so they know where to send payment.
+      </p>
+      {error && <div className="error-banner">{error}</div>}
+      {saveError && <div className="error-banner">{saveError}</div>}
+      {!loaded ? (
+        <div className="empty-state">Loading…</div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div className="field">
+            <label>Bank Name</label>
+            <input type="text" value={bankName} onChange={(e) => setBankName(e.target.value)} />
+          </div>
+          <div className="field-row">
+            <div className="field">
+              <label>Sort Code</label>
+              <input
+                type="text"
+                value={sortCode}
+                onChange={(e) => setSortCode(e.target.value)}
+                placeholder="00-00-00"
+              />
+            </div>
+            <div className="field">
+              <label>Account Number</label>
+              <input type="text" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
+            </div>
+          </div>
+          <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+            <button className="btn btn-primary" type="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save changes'}
+            </button>
+            {saved && (
+              <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
+            )}
+          </div>
+        </form>
+      )}
     </div>
   );
 }
@@ -1092,6 +1175,7 @@ function InvoiceTermsCard() {
   const [terms, setTerms] = useState<InvoiceTerm[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState<InvoiceTerm | null>(null);
   const [deleting, setDeleting] = useState<InvoiceTerm | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -1150,19 +1234,29 @@ function InvoiceTermsCard() {
               }}
             >
               <span style={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{t.text}</span>
-              <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(t)}>
-                <TrashIcon />
-              </button>
+              <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                <button className="icon-btn" title="Edit" onClick={() => setEditing(t)}>
+                  <PencilIcon />
+                </button>
+                <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(t)}>
+                  <TrashIcon />
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
 
-      {showNew && (
-        <NewInvoiceTermModal
-          onClose={() => setShowNew(false)}
-          onCreated={() => {
+      {(showNew || editing) && (
+        <EditInvoiceTermModal
+          term={editing}
+          onClose={() => {
             setShowNew(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setShowNew(false);
+            setEditing(null);
             refresh();
           }}
         />
@@ -1186,8 +1280,16 @@ function InvoiceTermsCard() {
   );
 }
 
-function NewInvoiceTermModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [text, setText] = useState('');
+function EditInvoiceTermModal({
+  term,
+  onClose,
+  onSaved,
+}: {
+  term: InvoiceTerm | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [text, setText] = useState(term?.text ?? '');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -1196,17 +1298,21 @@ function NewInvoiceTermModal({ onClose, onCreated }: { onClose: () => void; onCr
     setSubmitting(true);
     setError(null);
     try {
-      await api.createInvoiceTerm(text);
-      onCreated();
+      if (term) {
+        await api.updateInvoiceTerm(term._id, text);
+      } else {
+        await api.createInvoiceTerm(text);
+      }
+      onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add term');
+      setError(err instanceof Error ? err.message : 'Failed to save term');
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <Modal title="Add invoice term" onClose={onClose}>
+    <Modal title={term ? 'Edit invoice term' : 'Add invoice term'} onClose={onClose}>
       {error && <div className="error-banner">{error}</div>}
       <form onSubmit={handleSubmit}>
         <div className="field">
@@ -1225,7 +1331,7 @@ function NewInvoiceTermModal({ onClose, onCreated }: { onClose: () => void; onCr
             Cancel
           </button>
           <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? 'Saving…' : 'Add term'}
+            {submitting ? 'Saving…' : term ? 'Save term' : 'Add term'}
           </button>
         </div>
       </form>
@@ -1237,6 +1343,7 @@ function ProductsCard() {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState<Product | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -1299,9 +1406,14 @@ function ProductsCard() {
                 <td>{p.description || '—'}</td>
                 <td>£{p.price.toFixed(2)}</td>
                 <td>
-                  <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(p)}>
-                    <TrashIcon />
-                  </button>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    <button className="icon-btn" title="Edit" onClick={() => setEditing(p)}>
+                      <PencilIcon />
+                    </button>
+                    <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(p)}>
+                      <TrashIcon />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -1309,11 +1421,16 @@ function ProductsCard() {
         </table>
       )}
 
-      {showNew && (
-        <NewProductModal
-          onClose={() => setShowNew(false)}
-          onCreated={() => {
+      {(showNew || editing) && (
+        <EditProductModal
+          product={editing}
+          onClose={() => {
             setShowNew(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setShowNew(false);
+            setEditing(null);
             refresh();
           }}
         />
@@ -1339,11 +1456,19 @@ function ProductsCard() {
   );
 }
 
-function NewProductModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [productCode, setProductCode] = useState('');
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [price, setPrice] = useState('0');
+function EditProductModal({
+  product,
+  onClose,
+  onSaved,
+}: {
+  product: Product | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [productCode, setProductCode] = useState(product?.productCode ?? '');
+  const [name, setName] = useState(product?.name ?? '');
+  const [description, setDescription] = useState(product?.description ?? '');
+  const [price, setPrice] = useState(String(product?.price ?? 0));
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -1352,22 +1477,27 @@ function NewProductModal({ onClose, onCreated }: { onClose: () => void; onCreate
     setSubmitting(true);
     setError(null);
     try {
-      await api.createProduct({
+      const input = {
         productCode,
         name,
         description: description || undefined,
         price: Number(price) || 0,
-      });
-      onCreated();
+      };
+      if (product) {
+        await api.updateProduct(product._id, input);
+      } else {
+        await api.createProduct(input);
+      }
+      onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add product');
+      setError(err instanceof Error ? err.message : 'Failed to save product');
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <Modal title="Add product" onClose={onClose}>
+    <Modal title={product ? 'Edit product' : 'Add product'} onClose={onClose}>
       {error && <div className="error-banner">{error}</div>}
       <form onSubmit={handleSubmit}>
         <div className="field">
@@ -1391,7 +1521,7 @@ function NewProductModal({ onClose, onCreated }: { onClose: () => void; onCreate
             Cancel
           </button>
           <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? 'Saving…' : 'Add product'}
+            {submitting ? 'Saving…' : product ? 'Save product' : 'Add product'}
           </button>
         </div>
       </form>

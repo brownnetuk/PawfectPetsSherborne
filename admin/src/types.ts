@@ -112,6 +112,7 @@ export interface Invoice {
   status: InvoiceStatus;
   issueDate: string;
   dueDate: string;
+  paymentTerms?: string;
   paidAt?: string;
   createdAt: string;
 }
@@ -169,6 +170,9 @@ export interface BusinessInfo {
   logoImage: string;
   termsHtml: string;
   termsFileName: string;
+  bankName: string;
+  sortCode: string;
+  accountNumber: string;
 }
 
 export interface EmailSettings {

@@ -48,4 +48,16 @@ export class UpdateBusinessInfoDto {
   @IsOptional()
   @IsString()
   termsFileName?: string;
+
+  @IsOptional()
+  @IsString()
+  bankName?: string;
+
+  @IsOptional()
+  @IsString()
+  sortCode?: string;
+
+  @IsOptional()
+  @IsString()
+  accountNumber?: string;
 }

@@ -46,6 +46,18 @@ export class BusinessInfo extends Document {
 
   @Prop()
   termsFileName?: string;
+
+  // Shown to customers on invoices so they know where to send payment --
+  // not secret (it's meant to be disclosed), so no encryption, same as the
+  // rest of the business's contact details above.
+  @Prop()
+  bankName?: string;
+
+  @Prop()
+  sortCode?: string;
+
+  @Prop()
+  accountNumber?: string;
 }
 
 export const BusinessInfoSchema = SchemaFactory.createForClass(BusinessInfo);

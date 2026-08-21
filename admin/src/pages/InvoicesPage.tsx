@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import Modal from '../components/Modal';
-import type { Customer, Invoice, InvoiceStatus, LineItem, Quote, QuoteStatus } from '../types';
+import type { Customer, Invoice, InvoiceStatus, InvoiceTerm, LineItem, Quote, QuoteStatus } from '../types';
 
 const INVOICE_STATUSES: InvoiceStatus[] = ['draft', 'sent', 'paid', 'overdue', 'cancelled'];
 const QUOTE_STATUSES: QuoteStatus[] = ['draft', 'sent', 'accepted', 'declined', 'expired'];
@@ -248,11 +248,14 @@ function NewInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCreate
   const [tax, setTax] = useState('0');
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState('');
+  const [terms, setTerms] = useState<InvoiceTerm[]>([]);
+  const [paymentTerms, setPaymentTerms] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     api.listCustomers().then(setCustomers).catch(() => {});
+    api.listInvoiceTerms().then(setTerms).catch(() => {});
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -270,6 +273,7 @@ function NewInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCreate
         tax: Number(tax) || 0,
         issueDate,
         dueDate,
+        paymentTerms: paymentTerms || undefined,
       });
       onCreated();
     } catch (err) {
@@ -312,6 +316,17 @@ function NewInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCreate
             <label>Due date</label>
             <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required />
           </div>
+        </div>
+        <div className="field">
+          <label>Payment Terms</label>
+          <select value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)}>
+            <option value="">None</option>
+            {terms.map((t) => (
+              <option key={t._id} value={t.text}>
+                {t.text}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>

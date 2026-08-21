@@ -35,6 +35,9 @@ export class SettingsService {
       logoImage: doc?.logoImage ?? '',
       termsHtml: doc?.termsHtml ?? '',
       termsFileName: doc?.termsFileName ?? '',
+      bankName: doc?.bankName ?? '',
+      sortCode: doc?.sortCode ?? '',
+      accountNumber: doc?.accountNumber ?? '',
     };
   }
 
@@ -59,6 +62,9 @@ export class SettingsService {
         update.termsFileName = '';
       }
     }
+    if (dto.bankName !== undefined) update.bankName = dto.bankName;
+    if (dto.sortCode !== undefined) update.sortCode = dto.sortCode;
+    if (dto.accountNumber !== undefined) update.accountNumber = dto.accountNumber;
     await this.businessInfoModel.findOneAndUpdate({}, update, { upsert: true }).exec();
     return this.getBusinessInfo();
   }

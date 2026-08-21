@@ -18,6 +18,14 @@ export class InvoiceTermsService {
     return this.invoiceTermModel.find().sort({ createdAt: -1 }).exec();
   }
 
+  async update(id: string, dto: CreateInvoiceTermDto): Promise<InvoiceTerm> {
+    const term = await this.invoiceTermModel.findByIdAndUpdate(id, dto, { new: true }).exec();
+    if (!term) {
+      throw new NotFoundException(`Invoice term ${id} not found`);
+    }
+    return term;
+  }
+
   async remove(id: string): Promise<void> {
     const result = await this.invoiceTermModel.findByIdAndDelete(id).exec();
     if (!result) {

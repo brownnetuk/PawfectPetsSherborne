@@ -144,6 +144,7 @@ export interface CreateInvoiceInput {
   tax?: number;
   issueDate: string;
   dueDate: string;
+  paymentTerms?: string;
 }
 export function createInvoice(input: CreateInvoiceInput): Promise<Invoice> {
   return request('/invoices', { method: 'POST', body: JSON.stringify(input) });
@@ -181,6 +182,9 @@ export function listInvoiceTerms(): Promise<InvoiceTerm[]> {
 export function createInvoiceTerm(text: string): Promise<InvoiceTerm> {
   return request('/invoice-terms', { method: 'POST', body: JSON.stringify({ text }) });
 }
+export function updateInvoiceTerm(id: string, text: string): Promise<InvoiceTerm> {
+  return request(`/invoice-terms/${id}`, { method: 'PATCH', body: JSON.stringify({ text }) });
+}
 export function deleteInvoiceTerm(id: string): Promise<void> {
   return request(`/invoice-terms/${id}`, { method: 'DELETE' });
 }
@@ -197,6 +201,9 @@ export interface CreateProductInput {
 }
 export function createProduct(input: CreateProductInput): Promise<Product> {
   return request('/products', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateProduct(id: string, input: CreateProductInput): Promise<Product> {
+  return request(`/products/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
 }
 export function deleteProduct(id: string): Promise<void> {
   return request(`/products/${id}`, { method: 'DELETE' });
