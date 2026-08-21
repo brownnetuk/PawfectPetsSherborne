@@ -150,6 +150,12 @@ export interface InvoiceTerm {
   createdAt: string;
 }
 
+export interface PaymentMethod {
+  _id: string;
+  name: string;
+  createdAt: string;
+}
+
 export interface Product {
   _id: string;
   productCode: string;

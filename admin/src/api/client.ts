@@ -11,6 +11,7 @@ import type {
   Invoice,
   InvoiceTerm,
   LineItem,
+  PaymentMethod,
   Product,
   Quote,
   Staff,
@@ -209,6 +210,23 @@ export function updateInvoiceTerm(id: string, input: InvoiceTermInput): Promise<
 }
 export function deleteInvoiceTerm(id: string): Promise<void> {
   return request(`/invoice-terms/${id}`, { method: 'DELETE' });
+}
+
+// --- payment methods ---
+export function listPaymentMethods(): Promise<PaymentMethod[]> {
+  return request('/payment-methods');
+}
+export interface PaymentMethodInput {
+  name: string;
+}
+export function createPaymentMethod(input: PaymentMethodInput): Promise<PaymentMethod> {
+  return request('/payment-methods', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updatePaymentMethod(id: string, input: PaymentMethodInput): Promise<PaymentMethod> {
+  return request(`/payment-methods/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deletePaymentMethod(id: string): Promise<void> {
+  return request(`/payment-methods/${id}`, { method: 'DELETE' });
 }
 
 // --- products ---

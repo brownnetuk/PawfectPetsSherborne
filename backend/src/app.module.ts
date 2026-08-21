@@ -12,6 +12,7 @@ import { BookingsModule } from './bookings/bookings.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { InvoiceTermsModule } from './invoice-terms/invoice-terms.module';
+import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
 import { ProductsModule } from './products/products.module';
 import { CrmModule } from './crm/crm.module';
 import { SettingsModule } from './settings/settings.module';
@@ -34,6 +35,7 @@ import { EnquiriesModule } from './enquiries/enquiries.module';
     InvoicesModule,
     QuotesModule,
     InvoiceTermsModule,
+    PaymentMethodsModule,
     ProductsModule,
     CrmModule,
     SettingsModule,

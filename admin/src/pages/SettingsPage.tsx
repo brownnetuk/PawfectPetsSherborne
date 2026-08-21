@@ -12,13 +12,14 @@ import type {
   EmailTemplate,
   EmailTrigger,
   InvoiceTerm,
+  PaymentMethod,
   Product,
   Staff,
 } from '../types';
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
 
-type Tab = 'business' | 'staff' | 'email' | 'templates' | 'invoices';
+type Tab = 'business' | 'staff' | 'email' | 'templates' | 'invoices' | 'financial';
 
 const TAB_LABELS: Record<Tab, string> = {
   business: 'Business Info',
@@ -26,6 +27,7 @@ const TAB_LABELS: Record<Tab, string> = {
   email: 'Email',
   templates: 'Email Templates',
   invoices: 'Invoices',
+  financial: 'Financial',
 };
 
 export default function SettingsPage() {
@@ -38,7 +40,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="tabs">
-        {(['business', 'staff', 'email', 'templates', 'invoices'] as Tab[]).map((t) => (
+        {(['business', 'staff', 'email', 'templates', 'invoices', 'financial'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -50,6 +52,7 @@ export default function SettingsPage() {
       {tab === 'email' && <EmailTab />}
       {tab === 'templates' && <EmailTemplatesTab />}
       {tab === 'invoices' && <InvoicesSettingsTab />}
+      {tab === 'financial' && <FinancialTab />}
     </div>
   );
 }
@@ -1961,6 +1964,186 @@ function EditProductModal({
           </button>
           <button type="submit" className="btn btn-primary" disabled={submitting}>
             {submitting ? 'Saving…' : product ? 'Save product' : 'Add product'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function FinancialTab() {
+  return (
+    <div>
+      <PaymentMethodsCard />
+    </div>
+  );
+}
+
+// Just a named list for now (e.g. "Bank Transfer", "Cash", "Card") -- not yet
+// linked to actual bank account details or payment records, that's a later build.
+function PaymentMethodsCard() {
+  const [methods, setMethods] = useState<PaymentMethod[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState<PaymentMethod | null>(null);
+  const [deleting, setDeleting] = useState<PaymentMethod | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function refresh() {
+    api
+      .listPaymentMethods()
+      .then(setMethods)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load payment methods'));
+  }
+  useEffect(refresh, []);
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deletePaymentMethod(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete payment method');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <h2>Payment Methods</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+            Used with bank accounts and payments in a later build.
+          </p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+          Create new
+        </button>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      {!methods || methods.length === 0 ? (
+        <div className="empty-state">{methods === null ? 'Loading…' : 'No payment methods yet.'}</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {methods.map((m) => (
+              <tr key={m._id}>
+                <td>{m.name}</td>
+                <td>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    <button className="icon-btn" title="Edit" onClick={() => setEditing(m)}>
+                      <PencilIcon />
+                    </button>
+                    <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(m)}>
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {(showNew || editing) && (
+        <EditPaymentMethodModal
+          method={editing}
+          onClose={() => {
+            setShowNew(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setShowNew(false);
+            setEditing(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal title="Delete payment method?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently removes <strong>{deleting.name}</strong>.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function EditPaymentMethodModal({
+  method,
+  onClose,
+  onSaved,
+}: {
+  method: PaymentMethod | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(method?.name ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      if (method) {
+        await api.updatePaymentMethod(method._id, { name });
+      } else {
+        await api.createPaymentMethod({ name });
+      }
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save payment method');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title={method ? 'Edit payment method' : 'Create payment method'} onClose={onClose}>
+      {error && <div className="error-banner">{error}</div>}
+      <form onSubmit={handleSubmit}>
+        <div className="field">
+          <label>Name</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Bank Transfer"
+            required
+            autoFocus
+          />
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
+            {submitting ? 'Saving…' : 'Save'}
           </button>
         </div>
       </form>

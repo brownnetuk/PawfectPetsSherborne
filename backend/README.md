@@ -201,6 +201,13 @@ the Due Date/Valid Until field when a term is picked. `endOfMonth` wins over `pl
 are somehow set; a fixed day-count doesn't make sense for "end of month" since months have
 different lengths.
 
+### PaymentMethod (`/payment-methods`)
+
+Standard `POST`/`GET`/`PATCH`/`DELETE`, surfaced under Settings → Financial. Currently just a
+`name` — a named list (e.g. "Bank Transfer", "Cash", "Card") not yet linked to anything else;
+scaffolding for a later build that ties actual bank account details and recorded payments to one
+of these.
+
 ### CRM activity (`/crm/activities`)
 
 Freeform activity log per customer — `note` | `call` | `email` | `task` | `status_change` —
