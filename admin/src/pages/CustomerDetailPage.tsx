@@ -9,6 +9,7 @@ import { PencilIcon, TrashIcon } from '../components/icons';
 import Modal from '../components/Modal';
 import AddPetChoiceModal from '../components/AddPetChoiceModal';
 import NewAnimalModal from '../components/NewAnimalModal';
+import { buildCustomerFormPdf } from '../pdf/customerFormPdf';
 import type {
   ActivityType,
   Animal,
@@ -45,6 +46,10 @@ export default function CustomerDetailPage() {
   const [alarmInstructions, setAlarmInstructions] = useState<string | null>(null);
   const [showDelete, setShowDelete] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [showPdf, setShowPdf] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   function refresh() {
     if (!id) return;
@@ -78,6 +83,30 @@ export default function CustomerDetailPage() {
     if (!id) return;
     await api.deleteCustomer(id);
     navigate('/customers');
+  }
+
+  async function handleViewPdf() {
+    if (!id || !customer) return;
+    setShowPdf(true);
+    setPdfLoading(true);
+    setPdfError(null);
+    try {
+      const alarm = await api.getAlarmInstructions(id).catch(() => null);
+      const doc = buildCustomerFormPdf(customer, animals, alarm);
+      const url = URL.createObjectURL(doc.output('blob'));
+      setPdfUrl(url);
+    } catch (err) {
+      setPdfError(err instanceof Error ? err.message : 'Failed to generate the PDF');
+    } finally {
+      setPdfLoading(false);
+    }
+  }
+
+  function closePdf() {
+    if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    setPdfUrl(null);
+    setPdfError(null);
+    setShowPdf(false);
   }
 
   async function handleStatusChange(status: string) {
@@ -116,6 +145,9 @@ export default function CustomerDetailPage() {
                   : 'Copy registration link'}
             </button>
           )}
+          <button className="btn btn-secondary" onClick={handleViewPdf} disabled={pdfLoading}>
+            {pdfLoading ? 'Preparing…' : 'View'}
+          </button>
           <button className="btn btn-secondary" onClick={() => setShowEdit(true)}>
             Edit
           </button>
@@ -178,6 +210,36 @@ export default function CustomerDetailPage() {
             refresh();
           }}
         />
+      )}
+
+      {showPdf && (
+        <Modal title={`${customer.name} — Registration form`} onClose={closePdf} xl>
+          {pdfError && <div className="error-banner">{pdfError}</div>}
+          {pdfLoading && !pdfUrl && !pdfError && (
+            <div className="empty-state">Preparing the form…</div>
+          )}
+          {pdfUrl && (
+            <iframe
+              src={pdfUrl}
+              title="Registration form PDF"
+              style={{ width: '100%', height: '75vh', border: '1px solid var(--border)', borderRadius: 8 }}
+            />
+          )}
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={closePdf}>
+              Close
+            </button>
+            {pdfUrl && (
+              <a
+                href={pdfUrl}
+                download={`${customer.name.replace(/\s+/g, '-')}-registration-form.pdf`}
+                className="btn btn-primary"
+              >
+                Download
+              </a>
+            )}
+          </div>
+        </Modal>
       )}
     </div>
   );

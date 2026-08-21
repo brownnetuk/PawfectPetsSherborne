@@ -44,6 +44,7 @@ export interface Customer {
   };
   agreement?: {
     signedName?: string;
+    signatureImage?: string;
     signedAt?: string;
   };
 }
@@ -70,6 +71,7 @@ export interface Animal {
   chasesLivestock: TriState;
   allergies: { status: TriState; details?: string };
   medication: { onMedication: boolean; details?: string };
+  offLeadConsent?: { mode: LeadMode; signature?: string };
 }
 
 export interface CustomerRef {
