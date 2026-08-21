@@ -12,6 +12,66 @@ function customerLabel(customer: Invoice['customer'] | Quote['customer']): strin
   return typeof customer === 'string' ? customer : customer.name;
 }
 
+// Date helpers work in local calendar-date components throughout (never
+// Date-to-ISOString) so a plain "YYYY-MM-DD" round-trips without drifting a
+// day from timezone conversion.
+function parseYmd(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function formatYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+// "Working day" only accounts for weekends, not bank holidays.
+function lastWorkingDayOfMonth(date: Date): Date {
+  const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  const dow = lastDay.getDay(); // 0 = Sunday, 6 = Saturday
+  if (dow === 0) lastDay.setDate(lastDay.getDate() - 2);
+  else if (dow === 6) lastDay.setDate(lastDay.getDate() - 1);
+  return lastDay;
+}
+function addDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+/** Due date/valid-until date implied by a payment term, or null if the term doesn't set one. */
+function calculateDueDate(issueDateStr: string, term: InvoiceTerm | undefined): string | null {
+  if (!issueDateStr || !term) return null;
+  const issue = parseYmd(issueDateStr);
+  if (term.endOfMonth) return formatYmd(lastWorkingDayOfMonth(issue));
+  if (typeof term.plusDays === 'number') return formatYmd(addDays(issue, term.plusDays));
+  return null;
+}
+
+function PaymentTermsField({
+  terms,
+  termId,
+  onChange,
+}: {
+  terms: InvoiceTerm[];
+  termId: string;
+  onChange: (id: string) => void;
+}) {
+  return (
+    <div className="field">
+      <label>Payment Terms</label>
+      <select value={termId} onChange={(e) => onChange(e.target.value)}>
+        <option value="">None</option>
+        {terms.map((t) => (
+          <option key={t._id} value={t._id}>
+            {t.text}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export default function InvoicesPage() {
   const [tab, setTab] = useState<Tab>('invoices');
 
@@ -249,7 +309,7 @@ function NewInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCreate
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState('');
   const [terms, setTerms] = useState<InvoiceTerm[]>([]);
-  const [paymentTerms, setPaymentTerms] = useState('');
+  const [termId, setTermId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -257,6 +317,14 @@ function NewInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCreate
     api.listCustomers().then(setCustomers).catch(() => {});
     api.listInvoiceTerms().then(setTerms).catch(() => {});
   }, []);
+
+  // Re-suggests the due date whenever the chosen term or issue date changes --
+  // staff can still edit the date field afterward, this just keeps it in sync
+  // with an explicit term/issue-date choice rather than locking it.
+  useEffect(() => {
+    const computed = calculateDueDate(issueDate, terms.find((t) => t._id === termId));
+    if (computed) setDueDate(computed);
+  }, [termId, issueDate, terms]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -273,7 +341,7 @@ function NewInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCreate
         tax: Number(tax) || 0,
         issueDate,
         dueDate,
-        paymentTerms: paymentTerms || undefined,
+        paymentTerms: terms.find((t) => t._id === termId)?.text,
       });
       onCreated();
     } catch (err) {
@@ -317,17 +385,7 @@ function NewInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCreate
             <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required />
           </div>
         </div>
-        <div className="field">
-          <label>Payment Terms</label>
-          <select value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)}>
-            <option value="">None</option>
-            {terms.map((t) => (
-              <option key={t._id} value={t.text}>
-                {t.text}
-              </option>
-            ))}
-          </select>
-        </div>
+        <PaymentTermsField terms={terms} termId={termId} onChange={setTermId} />
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel
@@ -348,12 +406,20 @@ function NewQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreated:
   const [tax, setTax] = useState('0');
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
   const [validUntil, setValidUntil] = useState('');
+  const [terms, setTerms] = useState<InvoiceTerm[]>([]);
+  const [termId, setTermId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     api.listCustomers().then(setCustomers).catch(() => {});
+    api.listInvoiceTerms().then(setTerms).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const computed = calculateDueDate(issueDate, terms.find((t) => t._id === termId));
+    if (computed) setValidUntil(computed);
+  }, [termId, issueDate, terms]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -370,6 +436,7 @@ function NewQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreated:
         tax: Number(tax) || 0,
         issueDate,
         validUntil,
+        paymentTerms: terms.find((t) => t._id === termId)?.text,
       });
       onCreated();
     } catch (err) {
@@ -413,6 +480,7 @@ function NewQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreated:
             <input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} required />
           </div>
         </div>
+        <PaymentTermsField terms={terms} termId={termId} onChange={setTermId} />
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel

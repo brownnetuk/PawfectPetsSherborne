@@ -120,6 +120,8 @@ export interface Invoice {
 export interface InvoiceTerm {
   _id: string;
   text: string;
+  plusDays?: number | null;
+  endOfMonth?: boolean;
   createdAt: string;
 }
 
@@ -144,6 +146,7 @@ export interface Quote {
   status: QuoteStatus;
   issueDate: string;
   validUntil: string;
+  paymentTerms?: string;
   createdAt: string;
 }
 

@@ -1220,31 +1220,33 @@ function InvoiceTermsCard() {
       {!terms || terms.length === 0 ? (
         <div className="empty-state">{terms === null ? 'Loading…' : 'No invoice terms yet.'}</div>
       ) : (
-        <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-          {terms.map((t) => (
-            <li
-              key={t._id}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                gap: 12,
-                padding: '12px 0',
-                borderTop: '1px solid var(--border)',
-              }}
-            >
-              <span style={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{t.text}</span>
-              <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-                <button className="icon-btn" title="Edit" onClick={() => setEditing(t)}>
-                  <PencilIcon />
-                </button>
-                <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(t)}>
-                  <TrashIcon />
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <table>
+          <thead>
+            <tr>
+              <th>Term</th>
+              <th>Plus Days</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {terms.map((t) => (
+              <tr key={t._id}>
+                <td style={{ whiteSpace: 'pre-wrap' }}>{t.text}</td>
+                <td>{t.endOfMonth ? 'End of month' : (t.plusDays ?? '—')}</td>
+                <td>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    <button className="icon-btn" title="Edit" onClick={() => setEditing(t)}>
+                      <PencilIcon />
+                    </button>
+                    <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(t)}>
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
 
       {(showNew || editing) && (
@@ -1290,6 +1292,8 @@ function EditInvoiceTermModal({
   onSaved: () => void;
 }) {
   const [text, setText] = useState(term?.text ?? '');
+  const [endOfMonth, setEndOfMonth] = useState(term?.endOfMonth ?? false);
+  const [plusDays, setPlusDays] = useState(term?.plusDays != null ? String(term.plusDays) : '');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -1298,10 +1302,15 @@ function EditInvoiceTermModal({
     setSubmitting(true);
     setError(null);
     try {
+      const input = {
+        text,
+        endOfMonth,
+        plusDays: endOfMonth ? null : plusDays === '' ? null : Number(plusDays),
+      };
       if (term) {
-        await api.updateInvoiceTerm(term._id, text);
+        await api.updateInvoiceTerm(term._id, input);
       } else {
-        await api.createInvoiceTerm(text);
+        await api.createInvoiceTerm(input);
       }
       onSaved();
     } catch (err) {
@@ -1326,6 +1335,33 @@ function EditInvoiceTermModal({
             placeholder="e.g. Payment due within 14 days of invoice date."
           />
         </div>
+        <div className="field">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
+            <input type="checkbox" checked={endOfMonth} onChange={(e) => setEndOfMonth(e.target.checked)} />
+            End of the month
+          </label>
+          <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+            Always due on the last working day of the invoice's month, instead of a fixed number
+            of days.
+          </div>
+        </div>
+        {!endOfMonth && (
+          <div className="field">
+            <label>Plus Days</label>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={plusDays}
+              onChange={(e) => setPlusDays(e.target.value)}
+              placeholder="e.g. 14"
+            />
+            <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+              Days added to the invoice/quote date to work out its due date. Leave blank if this
+              term shouldn't set a due date automatically.
+            </div>
+          </div>
+        )}
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel

@@ -9,6 +9,19 @@ import { Document } from 'mongoose';
 export class InvoiceTerm extends Document {
   @Prop({ required: true })
   text: string;
+
+  // How many days after the invoice/quote's issue date its due date/valid-until
+  // date falls -- the admin app's "New invoice"/"New quote" forms use this to
+  // auto-fill that date when staff pick this term. Ignored (and left unset)
+  // when endOfMonth is true.
+  @Prop()
+  plusDays?: number;
+
+  // When true, this term's due date is always the last working day of the
+  // issue date's month, regardless of plusDays -- a fixed day-count doesn't
+  // make sense for "end of month" since months have different lengths.
+  @Prop({ default: false })
+  endOfMonth?: boolean;
 }
 
 export const InvoiceTermSchema = SchemaFactory.createForClass(InvoiceTerm);

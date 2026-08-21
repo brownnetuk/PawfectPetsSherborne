@@ -53,4 +53,8 @@ export class CreateQuoteDto {
 
   @IsDateString()
   validUntil: string;
+
+  @IsOptional()
+  @IsString()
+  paymentTerms?: string;
 }

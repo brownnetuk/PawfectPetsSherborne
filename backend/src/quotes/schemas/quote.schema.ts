@@ -58,6 +58,10 @@ export class Quote extends Document {
 
   @Prop({ required: true })
   validUntil: Date;
+
+  // Copied in from an InvoiceTerm at creation time, same as Invoice.paymentTerms.
+  @Prop()
+  paymentTerms?: string;
 }
 
 export const QuoteSchema = SchemaFactory.createForClass(Quote);

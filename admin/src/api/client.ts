@@ -167,6 +167,7 @@ export interface CreateQuoteInput {
   tax?: number;
   issueDate: string;
   validUntil: string;
+  paymentTerms?: string;
 }
 export function createQuote(input: CreateQuoteInput): Promise<Quote> {
   return request('/quotes', { method: 'POST', body: JSON.stringify(input) });
@@ -179,11 +180,16 @@ export function updateQuoteStatus(id: string, status: string): Promise<Quote> {
 export function listInvoiceTerms(): Promise<InvoiceTerm[]> {
   return request('/invoice-terms');
 }
-export function createInvoiceTerm(text: string): Promise<InvoiceTerm> {
-  return request('/invoice-terms', { method: 'POST', body: JSON.stringify({ text }) });
+export interface InvoiceTermInput {
+  text: string;
+  plusDays?: number | null;
+  endOfMonth?: boolean;
 }
-export function updateInvoiceTerm(id: string, text: string): Promise<InvoiceTerm> {
-  return request(`/invoice-terms/${id}`, { method: 'PATCH', body: JSON.stringify({ text }) });
+export function createInvoiceTerm(input: InvoiceTermInput): Promise<InvoiceTerm> {
+  return request('/invoice-terms', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateInvoiceTerm(id: string, input: InvoiceTermInput): Promise<InvoiceTerm> {
+  return request(`/invoice-terms/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
 }
 export function deleteInvoiceTerm(id: string): Promise<void> {
   return request(`/invoice-terms/${id}`, { method: 'DELETE' });
