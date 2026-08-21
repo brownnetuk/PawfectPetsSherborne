@@ -501,7 +501,7 @@ function ProductPickerModal({
   }
 
   return (
-    <Modal title="Select an Item" onClose={onClose}>
+    <Modal title="Select an Item" onClose={onClose} wide>
       <div className="field">
         <input
           type="text"
@@ -515,24 +515,15 @@ function ProductPickerModal({
         {filtered.length === 0 ? (
           <div className="empty-state">{products.length === 0 ? 'No products yet.' : 'No products found.'}</div>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Description</th>
-                <th>Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((p) => (
-                <tr key={p._id} onClick={() => handleSelect(p)}>
-                  <td>{p.name}</td>
-                  <td style={{ color: 'var(--muted)' }}>{p.description || '—'}</td>
-                  <td>£{p.price.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          filtered.map((p) => (
+            <div key={p._id} className="product-picker-row" onClick={() => handleSelect(p)}>
+              <div className="product-picker-info">
+                <div className="product-picker-name">{p.name}</div>
+                {p.description && <div className="product-picker-desc">{p.description}</div>}
+              </div>
+              <div className="product-picker-price">£{p.price.toFixed(2)}</div>
+            </div>
+          ))
         )}
       </div>
     </Modal>

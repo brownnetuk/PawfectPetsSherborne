@@ -434,6 +434,48 @@ tbody tr:last-child td {
   gap: 0 14px;
 }
 
+/* Product picker rows (title + subtitle stacked, price on the right) --
+   used instead of a Name/Description/Price table so the product name
+   always gets the row's full width rather than competing with a separate
+   Description column for space and wrapping. */
+.product-picker-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f2f4;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.product-picker-row:last-child {
+  border-bottom: none;
+}
+.product-picker-row:hover {
+  background: #fafbfc;
+}
+.product-picker-info {
+  min-width: 0;
+}
+.product-picker-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.product-picker-desc {
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.product-picker-price {
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* Item Table (invoice/quote line items): fixed layout so the narrow
    Quantity/Rate/Discount/Amount columns keep their given widths and Item
    Details -- the only column without one -- absorbs the rest of the row,
