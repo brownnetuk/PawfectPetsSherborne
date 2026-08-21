@@ -115,8 +115,18 @@ and a logo, meant to brand invoices, email templates, and other generated docume
 a base64 data URI stored on the document itself rather than a file on disk, since Render's
 filesystem doesn't persist across deploys. All fields are plain `@IsString()` and always written
 as sent (no "blank means leave unchanged" special-casing), so the default Express JSON body limit
-(100kb) was raised to 5mb in `main.ts` to fit a logo upload — nothing else in the app sends a
-payload anywhere near that size.
+(100kb) was raised to 8mb in `main.ts` to fit a logo or terms upload — nothing else in the app
+sends a payload anywhere near that size.
+
+`BusinessInfo` also holds the terms and conditions shown on the public intake form's agreement
+step: `dto.termsFile` (a base64 data URI of an uploaded `.docx`) is parsed via
+[`mammoth`](https://www.npmjs.com/package/mammoth) into HTML and stored as `termsHtml` — the
+original `.docx` itself is never persisted, since nothing re-reads it once parsed and re-uploading
+is how staff replace it. `POST /settings/terms/preview` (staff-only) runs the same parse without
+saving, backing the admin template editor's "Preview" button for a file that hasn't been saved
+yet. `GET /settings/terms` is the one `@Public()` route in this controller — it returns just
+`{ html }` for the intake form to fetch and render (`frontend/src/intake/steps/AgreementStep.tsx`),
+falling back to its own hardcoded text if nothing's been uploaded.
 
 `GET/PATCH /settings/email` read and update the one `EmailSettings` document (a singleton, not a
 collection — Microsoft 365 Graph API credentials for sending mail from the app: tenant ID, client
@@ -144,7 +154,8 @@ insert a raw `<img>` tag. The admin app's template editor keeps a hand-written c
 escaping/interpolation logic for its "Preview" button, so what staff preview matches what
 actually sends -- see `admin/README.md`.
 
-None of `/settings/*` is `@Public()` — it's staff-only like everything else.
+Everything under `/settings/*` is staff-only except `GET /settings/terms` (see above), which the
+public intake form needs to read.
 
 ### Enquiry (`/enquiries`)
 

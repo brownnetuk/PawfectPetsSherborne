@@ -102,16 +102,24 @@ file. Adding a pet this way should never risk their other data.
 6. Pet details — **repeats once per animal**, and folds in off-lead consent (spec screen 7) as
    part of the same step for dogs only, since consent belongs to that specific animal
 7. Security arrangements (alarm instructions are sent to the backend, which encrypts them at rest)
-8. Client agreement — scrollable terms, typed signature (required) + optional signature pad,
-   auto-filled date, submit
+8. Client agreement — scrollable terms (see below), typed signature (required) + optional
+   signature pad, auto-filled date, submit
 
 The progress bar recomputes its total step count from the number of pets entered. Each step
 validates client-side before advancing; the final submit calls `PATCH/POST /customers` followed
 by one `POST /animals` per pet.
 
+## Terms and conditions
+
+`AgreementStep.tsx` fetches `GET /settings/terms` (public, unauthenticated) on mount and renders
+whatever HTML comes back in place of its own hardcoded terms text. That HTML is whatever staff
+last uploaded as a `.docx` in the admin app's Settings → Business Info — the backend parses it via
+`mammoth` (see `backend/README.md`) and serves just the result, not the original file. If nothing
+has been uploaded yet (or the fetch fails, e.g. backend unreachable), the component falls back to
+its own hardcoded terms text baked into the component itself, so the agreement step is never
+blank.
+
 ## Notes
 
 - No authentication — anyone with a lead link (or the bare form URL) can submit. Access control
   is out of scope for this screen; it's meant to be a frictionless public entry point.
-- The terms text in `AgreementStep.tsx` is placeholder copy standing in for the business's actual
-  terms PDF — swap in the real clauses before going live.
