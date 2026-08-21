@@ -85,7 +85,14 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   365 connection used to send email from the app (see below) — tenant ID, client ID, client
   secret, and a from address/name, plus a "send a test email" button. The secret is encrypted at
   rest (`EncryptionService`, same as alarm instructions) and never sent back to the browser once
-  saved; the field shows "Configured — leave blank to keep unchanged" instead.
+  saved; the field shows "Configured — leave blank to keep unchanged" instead. **Email Templates**
+  lists all three fixed "send email" triggers (`registration` / `update_info` / `add_pet` — kept
+  in sync by hand with the `EmailTrigger` enum and with the three "Send email" call sites below)
+  always, whether or not each has a template yet, so it's obvious what still needs setting up.
+  Each is one document — editing "the registration template" is an upsert on that trigger, not a
+  pick-from-a-list, so a "Send email" click never has to guess which of several templates to use.
+  Subject/body support `{{name}}` and `{{link}}` placeholders, interpolated server-side at send
+  time; body is sent as plain text.
 
 ## Sending email via Microsoft 365
 
@@ -110,10 +117,13 @@ no SMTP AUTH (which Microsoft has been phasing out tenant-by-tenant). To set it 
    `AADSTS...` errors from a wrong tenant/client ID, or a Graph error if the from address isn't a
    real mailbox), which is usually specific enough to point at what's wrong.
 
-This round only wires up the settings and a verified send path (`POST /settings/email/test` →
-`SettingsService.sendTestEmail`, in `backend/src/settings/settings.service.ts`) — there's no
-compose-and-send UI yet. Any future "email this customer" feature should reuse
-`SettingsService`'s token-exchange/send logic rather than duplicating it.
+"Send email" now appears next to every "Copy link" in the app — the new-customer flow
+(`CustomersPage`), a customer's status-driven registration/update-info link (`CustomerDetailPage`'s
+header), and the add-a-pet link (`AddPetChoiceModal`) — each backed by `POST /settings/email/send`
+with `{trigger, to, name, link}`. All three call sites already have the customer's name/email/link
+in scope, so the endpoint takes them as-is rather than looking the customer up itself; if the
+matching template in Settings → Email Templates isn't configured yet, or the connection above
+isn't fully set up, the button surfaces that as a plain error instead of failing silently.
 
 ## Auth model
 
