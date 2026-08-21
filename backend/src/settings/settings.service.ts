@@ -4,6 +4,7 @@ import * as mammoth from 'mammoth';
 import { Model } from 'mongoose';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { escapeHtml } from '../common/html.util';
+import { publicApiUrl } from '../common/tracking-pixel.util';
 import { PreviewTermsDto } from './dto/preview-terms.dto';
 import { SendTestEmailDto } from './dto/send-test-email.dto';
 import { SendTriggeredEmailDto } from './dto/send-triggered-email.dto';
@@ -103,6 +104,23 @@ export class SettingsService {
     }
     const base64 = doc.termsDocx.includes(',') ? doc.termsDocx.slice(doc.termsDocx.indexOf(',') + 1) : doc.termsDocx;
     return { buffer: Buffer.from(base64, 'base64'), fileName: doc.termsFileName || 'terms.docx' };
+  }
+
+  /**
+   * Returns the uploaded logo as raw image bytes/content-type, so it can be
+   * served at a real URL. Outgoing emails reference that URL rather than
+   * embedding the stored data: URI directly -- Gmail (and several other mail
+   * clients) strip data: URIs from received email HTML, which silently
+   * breaks the logo despite it rendering fine in every in-app preview.
+   */
+  async getLogoFile(): Promise<{ buffer: Buffer; contentType: string }> {
+    const doc = await this.businessInfoModel.findOne().select('logoImage').exec();
+    const match = doc?.logoImage?.match(/^data:([^;]+);base64,(.+)$/s);
+    if (!match) {
+      throw new NotFoundException('No logo has been uploaded.');
+    }
+    const [, contentType, base64] = match;
+    return { buffer: Buffer.from(base64, 'base64'), contentType };
   }
 
   /** Converts an uploaded .docx (base64 data URI) into HTML via mammoth. */
@@ -289,8 +307,13 @@ export class SettingsService {
       businessWebsite: business.website,
       ...vars,
     };
+    // References the real, publicly-servable logo URL rather than embedding
+    // the stored data: URI directly -- Gmail and other mail clients strip
+    // data: URIs from received email HTML, which silently breaks the logo
+    // despite it always looking fine in every in-app preview (those render
+    // in the browser, which has no such restriction).
     const logoTag = business.logoImage
-      ? `<img src="${business.logoImage}" alt="${escapeHtml(business.name)}" style="max-height:60px;max-width:220px;display:block;" />`
+      ? `<img src="${publicApiUrl()}/settings/business/logo" alt="${escapeHtml(business.name)}" style="max-height:60px;max-width:220px;display:block;" />`
       : '';
     const allRawVars = { logo: logoTag, ...rawVars };
 

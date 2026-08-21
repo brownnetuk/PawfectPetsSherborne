@@ -39,6 +39,17 @@ export class SettingsController {
     return this.settingsService.updateBusinessInfo(dto);
   }
 
+  // Public so it's reachable as a plain <img src> URL in outgoing emails --
+  // see SettingsService.sendTemplatedEmail for why that has to be a real URL
+  // rather than the stored data: URI.
+  @Public()
+  @Get('business/logo')
+  async getLogo(@Res({ passthrough: true }) res: Response) {
+    const { buffer, contentType } = await this.settingsService.getLogoFile();
+    res.set({ 'Content-Type': contentType, 'Cache-Control': 'public, max-age=3600' });
+    return new StreamableFile(buffer);
+  }
+
   @Post('terms/preview')
   previewTerms(@Body() dto: PreviewTermsDto) {
     return this.settingsService.previewTerms(dto);

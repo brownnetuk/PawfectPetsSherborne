@@ -269,7 +269,12 @@ admin, not a plain textarea -- see `admin/README.md`) and is used as-is aside fr
 and substitution; `rawVars` (currently `{{logo}}` for all triggers, plus `{{items_table}}` for
 invoice/quote) inserts its value unescaped instead, since those are themselves already HTML the
 caller built (`buildItemsTableHtml()` in `backend/src/common/invoice-email.util.ts`, from the
-invoice/quote's actual line items) rather than user-authored text. The admin app's template editor
+invoice/quote's actual line items) rather than user-authored text. `{{logo}}` renders as an `<img>`
+pointing at `GET /settings/business/logo` (`@Public()`, backed by `SettingsService.getLogoFile()`)
+rather than the stored data: URI directly — Gmail and several other mail clients strip data: URIs
+from received email HTML, silently breaking the logo despite it rendering fine in every in-app
+preview (those render in a browser, which has no such restriction); `getLogoFile()` parses the
+`data:<mime>;base64,<data>` string apart and serves the raw bytes with the real content type. The admin app's template editor
 keeps a hand-written copy of this same conditional/escaping/interpolation logic for its "Preview"
 button, so what staff preview matches what actually sends -- see `admin/README.md` (the shared
 `buildItemsTableHtml()` lives in `admin/src/utils/emailTemplate.ts`, also used to render an actual
