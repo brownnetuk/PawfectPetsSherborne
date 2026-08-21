@@ -132,6 +132,7 @@ export interface BusinessInfo {
   address: string;
   town: string;
   postcode: string;
+  telephone: string;
   email: string;
   website: string;
   logoImage: string;

@@ -49,6 +49,7 @@ function BusinessInfoTab() {
   const [address, setAddress] = useState('');
   const [town, setTown] = useState('');
   const [postcode, setPostcode] = useState('');
+  const [telephone, setTelephone] = useState('');
   const [email, setEmail] = useState('');
   const [website, setWebsite] = useState('');
   const [logoImage, setLogoImage] = useState('');
@@ -67,6 +68,7 @@ function BusinessInfoTab() {
         setAddress(i.address);
         setTown(i.town);
         setPostcode(i.postcode);
+        setTelephone(i.telephone);
         setEmail(i.email);
         setWebsite(i.website);
         setLogoImage(i.logoImage);
@@ -96,7 +98,7 @@ function BusinessInfoTab() {
     setSaveError(null);
     setSaved(false);
     try {
-      await api.updateBusinessInfo({ name, address, town, postcode, email, website, logoImage });
+      await api.updateBusinessInfo({ name, address, town, postcode, telephone, email, website, logoImage });
       setSaved(true);
       refresh();
     } catch (err) {
@@ -137,9 +139,15 @@ function BusinessInfoTab() {
         </div>
         <div className="field-row">
           <div className="field">
+            <label>Telephone</label>
+            <input type="text" value={telephone} onChange={(e) => setTelephone(e.target.value)} />
+          </div>
+          <div className="field">
             <label>Email</label>
             <input type="text" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
+        </div>
+        <div className="field-row">
           <div className="field">
             <label>Website</label>
             <input

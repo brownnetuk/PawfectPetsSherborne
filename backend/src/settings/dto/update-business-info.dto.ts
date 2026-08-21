@@ -23,6 +23,10 @@ export class UpdateBusinessInfoDto {
 
   @IsOptional()
   @IsString()
+  telephone?: string;
+
+  @IsOptional()
+  @IsString()
   email?: string;
 
   @IsOptional()

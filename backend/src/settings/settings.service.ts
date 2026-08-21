@@ -27,6 +27,7 @@ export class SettingsService {
       address: doc?.address ?? '',
       town: doc?.town ?? '',
       postcode: doc?.postcode ?? '',
+      telephone: doc?.telephone ?? '',
       email: doc?.email ?? '',
       website: doc?.website ?? '',
       logoImage: doc?.logoImage ?? '',
@@ -39,6 +40,7 @@ export class SettingsService {
     if (dto.address !== undefined) update.address = dto.address;
     if (dto.town !== undefined) update.town = dto.town;
     if (dto.postcode !== undefined) update.postcode = dto.postcode;
+    if (dto.telephone !== undefined) update.telephone = dto.telephone;
     if (dto.email !== undefined) update.email = dto.email;
     if (dto.website !== undefined) update.website = dto.website;
     if (dto.logoImage !== undefined) update.logoImage = dto.logoImage;

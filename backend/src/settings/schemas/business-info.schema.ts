@@ -19,6 +19,9 @@ export class BusinessInfo extends Document {
   postcode?: string;
 
   @Prop()
+  telephone?: string;
+
+  @Prop()
   email?: string;
 
   @Prop()
