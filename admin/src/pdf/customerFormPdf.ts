@@ -237,6 +237,13 @@ class PdfWriter {
     this.y = MARGIN;
   }
 
+  /** Forces the next section onto a fresh page, unless one's already blank. */
+  startNewPage() {
+    if (this.y > MARGIN) {
+      this.newPage();
+    }
+  }
+
   private ensureSpace(h: number) {
     if (this.y + h > CONTENT_BOTTOM) {
       this.newPage();
@@ -450,6 +457,7 @@ export async function buildCustomerFormPdf(
   }
 
   const termsBlocks = termsHtml ? htmlToBlocks(doc, termsHtml) : [];
+  w.startNewPage();
   w.section('Terms & conditions', termsBlocks.length > 0 ? termsBlocks : [numberedListBlock(doc, TERMS)]);
 
   const agreementBlocks: Block[] = [
