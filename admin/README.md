@@ -93,8 +93,16 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   each row, and its own "New" flow with a customer picker (the customer-detail version reuses the
   same create/edit/delete calls with the customer pre-selected).
 - **Invoices & Quotes** (`/invoices`) — tabbed: **Invoices** and **Quotes**, each a global list
-  across all customers with inline status changes, plus per-row **Edit** and **Delete** (a
-  confirmation modal names the invoice/quote number before it permanently deletes). A `Quote` is
+  across all customers with inline status changes, plus a per-row **Actions** dropdown
+  (`ActionsMenu`, closes on an outside click or after picking an item): **View / Edit** opens the
+  same form described below; **Send** calls `POST /invoices/:id/send` (or `/quotes/:id/send`),
+  which emails the customer using the "Invoice Template"/"Quote Template" configured under
+  Settings → Email Templates and marks the document `sent` if it was still a `draft` — the button
+  shows "Sending…" and is disabled for that row while in flight, and a failure (most commonly: no
+  template configured yet) surfaces in the tab's error banner rather than being silent; **Delete**
+  opens the same confirmation modal as before (names the invoice/quote number before it
+  permanently deletes). There's no deposit or payment-amount tracking — Send only emails the
+  current line items/total. A `Quote` is
   its own backend model (`/quotes`), not an Invoice with a different status — mirrors `Invoice`
   field-for-field except `dueDate` becomes `validUntil` (a quote hasn't been billed, so nothing is
   "due" yet) and its status lifecycle is `draft → sent → accepted | declined | expired` rather
@@ -168,21 +176,46 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   secret, and a from address/name, plus a "send a test email" button. The secret is encrypted at
   rest (`EncryptionService`, same as alarm instructions) and never sent back to the browser once
   saved; the field shows "Configured — leave blank to keep unchanged" instead. **Email Templates**
-  lists all three fixed "send email" triggers (`registration` / `update_info` / `add_pet` — kept
-  in sync by hand with the `EmailTrigger` enum and with the three "Send email" call sites below)
-  always, whether or not each has a template yet, so it's obvious what still needs setting up.
-  Each is one document — editing "the registration template" is an upsert on that trigger, not a
-  pick-from-a-list, so a "Send email" click never has to guess which of several templates to use.
-  Subject/body support `{{name}}`/`{{link}}` plus seven business placeholders sourced from
-  Business Info (`{{businessName}}`, `{{businessAddress}}`, `{{businessTown}}`,
-  `{{businessPostcode}}`, `{{businessTelephone}}`, `{{businessEmail}}`, `{{businessWebsite}}`) and
-  `{{logo}}` (the actual logo image), all interpolated server-side at send time; body is sent as
-  HTML so `{{logo}}` can render (subject stays plain text). A "Preview" button next to "Save
-  template" runs the same interpolation client-side — a sample customer plus the real, currently
-  saved Business Info — so staff see the actual rendered email, logo included, before saving.
+  lists all five fixed triggers (`registration` / `update_info` / `add_pet` / `invoice` / `quote` —
+  `EMAIL_TRIGGERS`, kept in sync by hand with the backend's `EmailTrigger` enum) always, whether or
+  not each has a template yet, so it's obvious what still needs setting up. Each is one document —
+  editing "the registration template" is an upsert on that trigger, not a pick-from-a-list, so a
+  "Send" click never has to guess which of several templates to use. `TRIGGER_PLACEHOLDERS` gives
+  each trigger its own placeholder hint list, shown below the body field: the original three share
+  `{{name}}`/`{{link}}` plus seven business placeholders (`{{businessName}}`, `{{businessAddress}}`,
+  `{{businessTown}}`, `{{businessPostcode}}`, `{{businessTelephone}}`, `{{businessEmail}}`,
+  `{{businessWebsite}}`) and `{{logo}}`; `invoice`/`quote` get `{{customer_name}}`, `{{subject}}`,
+  `{{items_table}}` (an auto-generated line-items table), `{{subtotal}}`/`{{total}}`, their
+  respective number/date placeholders (`{{invoice_number}}`/`{{invoice_date}}`/`{{due_date}}` or
+  `{{quote_number}}`/`{{quote_date}}`/`{{valid_until}}`), plus the same business placeholders —
+  `{{#if field}}...{{/if}}` wraps content that should only appear when `field` is set (e.g. the
+  optional Subject line, or a due date that isn't always present).
 
-  The preview's interpolation logic is a hand-kept copy of the backend's (see
-  `backend/README.md`), so what's previewed matches what's actually sent. **Invoices** holds four
+  `isHtmlBodyTrigger(trigger)` (true for `invoice`/`quote` only) decides how the body field is
+  edited and interpolated. For the original three, it's still a plain `<textarea>` — staff-authored
+  text, HTML-escaped and newline-to-`<br>`'d at send time, unchanged from before. For
+  `invoice`/`quote`, it's a `RichTextEditor` (`admin/src/components/RichTextEditor.tsx`) — a
+  `contentEditable` div driven by `document.execCommand` (bold/italic/underline, heading/paragraph
+  style, alignment, lists, a link, a table skeleton), plus a `<>` toggle to a raw-HTML `<textarea>`
+  for hand-editing markup or typing a `{{placeholder}}`/`{{#if}}` block directly — no new
+  dependency. `EditTemplateModal` guards contentEditable's lack of a native `required` on submit
+  (stripped-tags check) since the browser can't enforce that itself the way it does for the
+  textarea. Body here is used as raw HTML at send time (aside from placeholder substitution), not
+  escaped — see `backend/README.md`'s `sendTemplatedEmail`/`interpolateBody`. Opening "Set up" on
+  either for the first time prefills a starter body (`INVOICE_TEMPLATE_STARTER`/
+  `QUOTE_TEMPLATE_STARTER`) with a header bar, `{{items_table}}`, a Sub Total/Total mini-table, and
+  the document's number/dates, so staff start from a working layout rather than a blank editor.
+
+  A "Preview" button next to "Save template" runs the same interpolation client-side, trigger-aware:
+  the original three preview against a sample customer plus the real, currently saved Business
+  Info, exactly as before; `invoice`/`quote` preview against `SAMPLE_LINE_ITEMS` (its computed
+  subtotal is reused as both `{{subtotal}}` and `{{total}}`, so the two always agree) run through
+  `buildSampleItemsTableHtml()` — a hand-kept copy of the backend's `buildItemsTableHtml()`, same
+  markup — plus sample dates/numbers, with `{{#if subject}}` and friends actually resolving so
+  staff see the real conditional behavior, not the raw `{{#if}}...{{/if}}` tags.
+  `interpolateSubject`/`interpolateBody`/`stripConditionals` client-side are a hand-kept copy of
+  the backend's (see `backend/README.md`), so what's previewed matches what's actually sent.
+  **Invoices** holds four
   cards, in this order: **Document Numbering**, an independent-save form for
   `invoiceNumberTemplate`/`invoiceNextNumber`/`quoteNumberTemplate`/`quoteNextNumber` (see
   "Document numbering" in `backend/README.md`) — the template fields accept free text with

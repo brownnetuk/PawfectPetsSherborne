@@ -103,14 +103,15 @@ with a server-computed `subtotal`/`total` — `sum(quantity × unitPrice × (1 �
 100))`, and `total` simply equals `subtotal` since there's no tax field — an auto-generated
 `invoiceNumber` (see Document Numbering below), and an optional free-text `subject`. Status
 lifecycle: `draft` → `sent` → `paid` | `overdue` | `cancelled`; `paidAt` is stamped when status
-transitions to `paid`. Fully editable and deletable via the standard `PATCH`/`DELETE /:id` (wired
-into the admin UI's per-row Edit/Delete — see `admin/README.md`); an edit that includes
-`lineItems` recomputes `subtotal`/`total` server-side the same way creation does.
+transitions to `paid`. Fully editable and deletable via the standard `PATCH`/`DELETE /:id`, plus
+`POST /:id/send` to email it to the customer (see "Settings" below) — all three wired into the
+admin UI's per-row "Actions" menu (View/Edit, Send, Delete) — see `admin/README.md`. An edit that
+includes `lineItems` recomputes `subtotal`/`total` server-side the same way creation does.
 
 ### Quote (`/quotes`)
 
 Mirrors `Invoice` field-for-field (same `LineItem` sub-schema and totals formula, same optional
-`subject`, same standard REST shape including edit/delete) except `dueDate` → `validUntil` — a
+`subject`, same standard REST shape including edit/delete/send) except `dueDate` → `validUntil` — a
 quote hasn't been billed yet, so nothing is "due", but it does have an expiry — and its own
 `quoteNumber` sequence (see Document Numbering below, independent of invoice numbers). Status
 lifecycle: `draft` → `sent` → `accepted` | `declined` | `expired`, reflecting a quote's actual
@@ -206,24 +207,45 @@ via Microsoft Graph's application-only (client credentials) flow, to verify the 
 actually work — see [`admin`](../admin/README.md#sending-email-via-microsoft-365) for the Azure
 setup this requires and what staff see.
 
-`/settings/email-templates` *does* follow the standard shape, except keyed by `trigger` (one of a
-fixed `EmailTrigger` enum: `registration` | `update_info` | `add_pet`) instead of a Mongo `_id` --
-`GET` lists all configured templates, `PUT /settings/email-templates/:trigger` upserts the one for
-that trigger, `DELETE /settings/email-templates/:trigger` removes it. `POST /settings/email/send`
-(body: `{trigger, to, name, link}`) looks up the template for that trigger, interpolates
-`{{name}}`/`{{link}}` plus seven `{{business*}}` placeholders pulled from `BusinessInfo`
-(`businessName`/`businessAddress`/`businessTown`/`businessPostcode`/`businessTelephone`/
-`businessEmail`/`businessWebsite`) into its subject/body, and sends it the same way
-`/settings/email/test` does -- this is what backs the "Send email" button next to "Copy link"
-throughout the admin app.
+`/settings/email-templates` *does* follow the standard shape, except keyed by `trigger` (a fixed
+`EmailTrigger` enum: `registration` | `update_info` | `add_pet` | `invoice` | `quote`) instead of a
+Mongo `_id` -- `GET` lists all configured templates, `PUT /settings/email-templates/:trigger`
+upserts the one for that trigger, `DELETE /settings/email-templates/:trigger` removes it. `POST
+/settings/email/send` (body: `{trigger, to, name, link}`) is what backs the "Send email" button
+next to "Copy link" throughout the admin app, for the first three triggers only -- it's a thin
+wrapper that calls `SettingsService.sendTemplatedEmail(trigger, to, { name, link })`.
 
-The body is sent as HTML (subject stays plain text -- subjects don't support markup) so a
-`{{logo}}` placeholder can render the business's actual logo. The rest of the (staff-authored)
-body is HTML-escaped before placeholders are substituted in, and every non-`logo` placeholder
-value is escaped the same way -- `{{logo}}` is the one exception, since its whole point is to
-insert a raw `<img>` tag. The admin app's template editor keeps a hand-written copy of this same
-escaping/interpolation logic for its "Preview" button, so what staff preview matches what
-actually sends -- see `admin/README.md`.
+`sendTemplatedEmail(trigger, to, vars, rawVars?)` is the shared implementation, also called
+directly by `InvoicesService.sendEmail()`/`QuotesService.sendEmail()` (see Document numbering
+above's neighboring "Invoice"/"Quote" sections) for the `invoice`/`quote` triggers, which have no
+`/settings/email/send` equivalent -- there's no generic "to/name/link" shape that fits an invoice,
+so those two call `sendTemplatedEmail` with their own vars instead of going through the
+`SendTriggeredEmailDto` route. It looks up the template for `trigger`, merges `vars` with seven
+`{{business*}}` placeholders pulled from `BusinessInfo`, and interpolates them into the
+subject/body before sending via the same Microsoft Graph path `/settings/email/test` uses.
+
+Subject interpolation is always plain text substitution (subjects don't support markup) with one
+addition beyond simple `{{key}}` replacement: `{{#if field}}...{{/if}}` blocks are stripped
+entirely when `vars[field]` is falsy/empty, kept (tags removed) otherwise -- used for optional
+fields like an invoice's `subject`. Body interpolation branches on `trigger`: for the original
+three triggers, the (staff-authored, plain-text) body is HTML-escaped first, then conditionals are
+resolved, then placeholders are substituted in (each value escaped individually) -- unchanged from
+before. For `invoice`/`quote`, the body is already HTML (edited via a rich-text editor in the
+admin, not a plain textarea -- see `admin/README.md`) and is used as-is aside from conditionals
+and substitution; `rawVars` (currently `{{logo}}` for all triggers, plus `{{items_table}}` for
+invoice/quote) inserts its value unescaped instead, since those are themselves already HTML the
+caller built (`buildItemsTableHtml()` in `backend/src/common/invoice-email.util.ts`, from the
+invoice/quote's actual line items) rather than user-authored text. The admin app's template editor
+keeps a hand-written copy of this same conditional/escaping/interpolation logic for its "Preview"
+button (including a matching `buildSampleItemsTableHtml()` for invoice/quote), so what staff
+preview matches what actually sends -- see `admin/README.md`.
+
+`POST /invoices/:id/send` and `POST /quotes/:id/send` load the document (customer populated),
+call `sendTemplatedEmail` with its data (`customer_name`, `subject`, `subtotal`, `total`,
+`invoice_number`/`quote_number`, and the relevant dates, formatted `DD/MM/YYYY` via
+`formatUkDate()`), then -- if the document was still `draft` -- transition it to `sent`, the same
+way manually picking "sent" from the status dropdown would. There's no deposit or payment-amount
+tracking anywhere in the app; "Send" only emails the current line items/total, nothing more.
 
 Everything under `/settings/*` is staff-only except `GET /settings/terms` (see above), which the
 public intake form needs to read.
