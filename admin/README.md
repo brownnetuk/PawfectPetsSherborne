@@ -47,7 +47,13 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   address, phone, how they heard about us, services interested in, notes) that are logged to
   their own `Enquiry` collection (`/enquiries`) rather than forced into the Customer/Animal
   schema. Enquiries list below the Customers table with the same view-detail /
-  delete-with-confirmation pattern used elsewhere in the app.
+  delete-with-confirmation pattern used elsewhere in the app. Opening one shows a
+  "Convert to Customer" button that creates a pending customer from its
+  name/email/address/phone (same lead-creation call as "New customer", with address and
+  phone patched in afterwards) and deletes the enquiry once it succeeds — an enquiry
+  without an email is refused, since a customer record needs one to send the
+  registration link. The result reuses the same "copy link / send email" screen as
+  creating a customer from scratch.
 - **Customer detail** — tabs for overview (client/emergency/vet/security/agreement — alarm
   instructions are only decrypted on demand via "Reveal"), pets, bookings, invoices, and CRM
   activity, plus per-customer booking/invoice/activity creation. "Edit" on the overview covers
