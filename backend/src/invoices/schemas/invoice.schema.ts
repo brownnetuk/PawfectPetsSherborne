@@ -21,6 +21,9 @@ class LineItem {
 
   @Prop({ required: true, min: 0 })
   unitPrice: number;
+
+  @Prop({ min: 0, max: 100, default: 0 })
+  discountPercent?: number;
 }
 const LineItemSchema = SchemaFactory.createForClass(LineItem);
 
@@ -55,6 +58,9 @@ export class Invoice extends Document {
   // entry it was picked from is later edited.
   @Prop()
   paymentTerms?: string;
+
+  @Prop()
+  subject?: string;
 
   @Prop({ required: true })
   issueDate: Date;

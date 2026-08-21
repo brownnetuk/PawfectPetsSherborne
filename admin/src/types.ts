@@ -98,6 +98,7 @@ export interface LineItem {
   description: string;
   quantity: number;
   unitPrice: number;
+  discountPercent?: number;
 }
 
 export interface Invoice {
@@ -113,6 +114,7 @@ export interface Invoice {
   issueDate: string;
   dueDate: string;
   paymentTerms?: string;
+  subject?: string;
   paidAt?: string;
   createdAt: string;
 }
@@ -147,6 +149,7 @@ export interface Quote {
   issueDate: string;
   validUntil: string;
   paymentTerms?: string;
+  subject?: string;
   createdAt: string;
 }
 

@@ -145,9 +145,13 @@ export interface CreateInvoiceInput {
   issueDate: string;
   dueDate: string;
   paymentTerms?: string;
+  subject?: string;
 }
 export function createInvoice(input: CreateInvoiceInput): Promise<Invoice> {
   return request('/invoices', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateInvoice(id: string, input: Partial<CreateInvoiceInput>): Promise<Invoice> {
+  return request(`/invoices/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
 }
 export function updateInvoiceStatus(id: string, status: string): Promise<Invoice> {
   return request(`/invoices/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
@@ -168,12 +172,19 @@ export interface CreateQuoteInput {
   issueDate: string;
   validUntil: string;
   paymentTerms?: string;
+  subject?: string;
 }
 export function createQuote(input: CreateQuoteInput): Promise<Quote> {
   return request('/quotes', { method: 'POST', body: JSON.stringify(input) });
 }
+export function updateQuote(id: string, input: Partial<CreateQuoteInput>): Promise<Quote> {
+  return request(`/quotes/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
 export function updateQuoteStatus(id: string, status: string): Promise<Quote> {
   return request(`/quotes/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+}
+export function deleteQuote(id: string): Promise<void> {
+  return request(`/quotes/${id}`, { method: 'DELETE' });
 }
 
 // --- invoice terms ---

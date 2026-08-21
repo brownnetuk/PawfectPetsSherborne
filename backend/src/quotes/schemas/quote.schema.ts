@@ -21,6 +21,9 @@ class LineItem {
 
   @Prop({ required: true, min: 0 })
   unitPrice: number;
+
+  @Prop({ min: 0, max: 100, default: 0 })
+  discountPercent?: number;
 }
 const LineItemSchema = SchemaFactory.createForClass(LineItem);
 
@@ -62,6 +65,9 @@ export class Quote extends Document {
   // Copied in from an InvoiceTerm at creation time, same as Invoice.paymentTerms.
   @Prop()
   paymentTerms?: string;
+
+  @Prop()
+  subject?: string;
 }
 
 export const QuoteSchema = SchemaFactory.createForClass(Quote);

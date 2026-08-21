@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import Modal from '../components/Modal';
-import type { Customer, Invoice, InvoiceStatus, InvoiceTerm, LineItem, Quote, QuoteStatus } from '../types';
+import { PencilIcon, TrashIcon } from '../components/icons';
+import type { Customer, Invoice, InvoiceStatus, InvoiceTerm, LineItem, Product, Quote, QuoteStatus } from '../types';
 
 const INVOICE_STATUSES: InvoiceStatus[] = ['draft', 'sent', 'paid', 'overdue', 'cancelled'];
 const QUOTE_STATUSES: QuoteStatus[] = ['draft', 'sent', 'accepted', 'declined', 'expired'];
@@ -10,6 +11,10 @@ type Tab = 'invoices' | 'quotes';
 
 function customerLabel(customer: Invoice['customer'] | Quote['customer']): string {
   return typeof customer === 'string' ? customer : customer.name;
+}
+
+function customerId(customer: Invoice['customer'] | Quote['customer']): string {
+  return typeof customer === 'string' ? customer : customer._id;
 }
 
 // Date helpers work in local calendar-date components throughout (never
@@ -48,28 +53,8 @@ function calculateDueDate(issueDateStr: string, term: InvoiceTerm | undefined): 
   return null;
 }
 
-function PaymentTermsField({
-  terms,
-  termId,
-  onChange,
-}: {
-  terms: InvoiceTerm[];
-  termId: string;
-  onChange: (id: string) => void;
-}) {
-  return (
-    <div className="field">
-      <label>Payment Terms</label>
-      <select value={termId} onChange={(e) => onChange(e.target.value)}>
-        <option value="">None</option>
-        {terms.map((t) => (
-          <option key={t._id} value={t._id}>
-            {t.text}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
+function lineItemAmount(item: LineItem): number {
+  return item.quantity * item.unitPrice * (1 - (item.discountPercent ?? 0) / 100);
 }
 
 export default function InvoicesPage() {
@@ -100,6 +85,10 @@ function InvoicesTab() {
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState<Invoice | null>(null);
+  const [deleting, setDeleting] = useState<Invoice | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function refresh() {
     api.listInvoices().then(setInvoices).catch((err) => setError(err.message));
@@ -109,6 +98,21 @@ function InvoicesTab() {
   async function handleStatusChange(id: string, status: string) {
     await api.updateInvoiceStatus(id, status);
     refresh();
+  }
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteInvoice(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete invoice');
+    } finally {
+      setDeleteBusy(false);
+    }
   }
 
   return (
@@ -132,6 +136,7 @@ function InvoicesTab() {
                 <th>Total</th>
                 <th>Status</th>
                 <th>Due</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -150,6 +155,16 @@ function InvoicesTab() {
                     </select>
                   </td>
                   <td>{new Date(inv.dueDate).toLocaleDateString()}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 2 }}>
+                      <button className="icon-btn" title="Edit" onClick={() => setEditing(inv)}>
+                        <PencilIcon />
+                      </button>
+                      <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(inv)}>
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -158,13 +173,44 @@ function InvoicesTab() {
       </div>
 
       {showNew && (
-        <NewInvoiceModal
+        <DocumentFormModal
+          kind="invoice"
+          existing={null}
           onClose={() => setShowNew(false)}
-          onCreated={() => {
+          onSaved={() => {
             setShowNew(false);
             refresh();
           }}
         />
+      )}
+
+      {editing && (
+        <DocumentFormModal
+          kind="invoice"
+          existing={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal title="Delete invoice?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently deletes invoice <strong>{deleting.invoiceNumber}</strong>.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete invoice'}
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );
@@ -174,6 +220,10 @@ function QuotesTab() {
   const [quotes, setQuotes] = useState<Quote[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState<Quote | null>(null);
+  const [deleting, setDeleting] = useState<Quote | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function refresh() {
     api.listQuotes().then(setQuotes).catch((err) => setError(err.message));
@@ -183,6 +233,21 @@ function QuotesTab() {
   async function handleStatusChange(id: string, status: string) {
     await api.updateQuoteStatus(id, status);
     refresh();
+  }
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteQuote(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete quote');
+    } finally {
+      setDeleteBusy(false);
+    }
   }
 
   return (
@@ -206,6 +271,7 @@ function QuotesTab() {
                 <th>Total</th>
                 <th>Status</th>
                 <th>Valid until</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -224,6 +290,16 @@ function QuotesTab() {
                     </select>
                   </td>
                   <td>{new Date(q.validUntil).toLocaleDateString()}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 2 }}>
+                      <button className="icon-btn" title="Edit" onClick={() => setEditing(q)}>
+                        <PencilIcon />
+                      </button>
+                      <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(q)}>
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -232,261 +308,394 @@ function QuotesTab() {
       </div>
 
       {showNew && (
-        <NewQuoteModal
+        <DocumentFormModal
+          kind="quote"
+          existing={null}
           onClose={() => setShowNew(false)}
-          onCreated={() => {
+          onSaved={() => {
             setShowNew(false);
             refresh();
           }}
         />
       )}
+
+      {editing && (
+        <DocumentFormModal
+          kind="quote"
+          existing={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal title="Delete quote?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently deletes quote <strong>{deleting.quoteNumber}</strong>.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete quote'}
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
 
-function LineItemsField({
+function ItemTable({
   lineItems,
+  products,
+  datalistId,
   onChange,
 }: {
   lineItems: LineItem[];
+  products: Product[];
+  datalistId: string;
   onChange: (items: LineItem[]) => void;
 }) {
   function updateItem(i: number, patch: Partial<LineItem>) {
     onChange(lineItems.map((item, idx) => (idx === i ? { ...item, ...patch } : item)));
   }
+  function handleDescriptionChange(i: number, value: string) {
+    const product = products.find((p) => p.name === value);
+    updateItem(i, product ? { description: value, unitPrice: product.price } : { description: value });
+  }
   function addItem() {
-    onChange([...lineItems, { description: '', quantity: 1, unitPrice: 0 }]);
+    onChange([...lineItems, { description: '', quantity: 1, unitPrice: 0, discountPercent: 0 }]);
   }
   function removeItem(i: number) {
     onChange(lineItems.filter((_, idx) => idx !== i));
   }
 
   return (
-    <div className="field">
-      <label>Line items</label>
-      {lineItems.map((item, i) => (
-        <div className="line-item-row" key={i}>
-          <input
-            type="text"
-            placeholder="Description"
-            value={item.description}
-            onChange={(e) => updateItem(i, { description: e.target.value })}
-            required
-          />
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={item.quantity}
-            onChange={(e) => updateItem(i, { quantity: Number(e.target.value) })}
-            required
-          />
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={item.unitPrice}
-            onChange={(e) => updateItem(i, { unitPrice: Number(e.target.value) })}
-            required
-          />
-          <button type="button" className="remove-btn" onClick={() => removeItem(i)} disabled={lineItems.length === 1}>
-            ×
-          </button>
-        </div>
-      ))}
-      <button type="button" className="btn-link" onClick={addItem}>
-        + Add line item
+    <div>
+      <table>
+        <thead>
+          <tr>
+            <th>Item Details</th>
+            <th>Quantity</th>
+            <th>Rate (£)</th>
+            <th>Discount %</th>
+            <th>Amount</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {lineItems.map((item, i) => (
+            <tr key={i}>
+              <td>
+                <input
+                  type="text"
+                  list={datalistId}
+                  placeholder="Type or click to select an item"
+                  value={item.description}
+                  onChange={(e) => handleDescriptionChange(i, e.target.value)}
+                  style={{ width: '100%' }}
+                  required
+                />
+              </td>
+              <td>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={item.quantity}
+                  onChange={(e) => updateItem(i, { quantity: Number(e.target.value) })}
+                  style={{ width: 70 }}
+                  required
+                />
+              </td>
+              <td>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={item.unitPrice}
+                  onChange={(e) => updateItem(i, { unitPrice: Number(e.target.value) })}
+                  style={{ width: 90 }}
+                  required
+                />
+              </td>
+              <td>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={item.discountPercent ?? 0}
+                  onChange={(e) => updateItem(i, { discountPercent: Number(e.target.value) })}
+                  style={{ width: 70 }}
+                />
+              </td>
+              <td>£{lineItemAmount(item).toFixed(2)}</td>
+              <td>
+                <button
+                  type="button"
+                  className="remove-btn"
+                  onClick={() => removeItem(i)}
+                  disabled={lineItems.length === 1}
+                >
+                  ×
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <datalist id={datalistId}>
+        {products.map((p) => (
+          <option key={p._id} value={p.name} />
+        ))}
+      </datalist>
+      <button type="button" className="btn-link" onClick={addItem} style={{ marginTop: 8 }}>
+        + Add New Row
       </button>
     </div>
   );
 }
 
-function NewInvoiceModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function DocumentFormModal({
+  kind,
+  existing,
+  onClose,
+  onSaved,
+}: {
+  kind: 'invoice' | 'quote';
+  existing: Invoice | Quote | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customerId, setCustomerId] = useState('');
-  const [lineItems, setLineItems] = useState<LineItem[]>([{ description: '', quantity: 1, unitPrice: 0 }]);
-  const [tax, setTax] = useState('0');
-  const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
-  const [dueDate, setDueDate] = useState('');
+  const [products, setProducts] = useState<Product[]>([]);
   const [terms, setTerms] = useState<InvoiceTerm[]>([]);
-  const [termId, setTermId] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    api.listCustomers().then(setCustomers).catch(() => {});
-    api.listInvoiceTerms().then(setTerms).catch(() => {});
-  }, []);
-
-  // Re-suggests the due date whenever the chosen term or issue date changes --
-  // staff can still edit the date field afterward, this just keeps it in sync
-  // with an explicit term/issue-date choice rather than locking it.
-  useEffect(() => {
-    const computed = calculateDueDate(issueDate, terms.find((t) => t._id === termId));
-    if (computed) setDueDate(computed);
-  }, [termId, issueDate, terms]);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!customerId) {
-      setError('Choose a customer.');
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    try {
-      await api.createInvoice({
-        customer: customerId,
-        lineItems,
-        tax: Number(tax) || 0,
-        issueDate,
-        dueDate,
-        paymentTerms: terms.find((t) => t._id === termId)?.text,
-      });
-      onCreated();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create invoice');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <Modal title="New invoice" onClose={onClose} wide>
-      {error && <div className="error-banner">{error}</div>}
-      <form onSubmit={handleSubmit}>
-        <div className="field">
-          <label>Customer</label>
-          <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} required>
-            <option value="" disabled>
-              Select a customer…
-            </option>
-            {customers.map((c) => (
-              <option key={c._id} value={c._id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <LineItemsField lineItems={lineItems} onChange={setLineItems} />
-        <div className="field-row">
-          <div className="field">
-            <label>Tax (£)</label>
-            <input type="number" min="0" step="0.01" value={tax} onChange={(e) => setTax(e.target.value)} />
-          </div>
-        </div>
-        <div className="field-row">
-          <div className="field">
-            <label>Issue date</label>
-            <input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} required />
-          </div>
-          <div className="field">
-            <label>Due date</label>
-            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required />
-          </div>
-        </div>
-        <PaymentTermsField terms={terms} termId={termId} onChange={setTermId} />
-        <div className="modal-actions">
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? 'Creating…' : 'Create invoice'}
-          </button>
-        </div>
-      </form>
-    </Modal>
+  const [custId, setCustId] = useState(existing ? customerId(existing.customer) : '');
+  const [lineItems, setLineItems] = useState<LineItem[]>(
+    existing ? existing.lineItems.map((li) => ({ ...li })) : [{ description: '', quantity: 1, unitPrice: 0, discountPercent: 0 }],
   );
-}
-
-function NewQuoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customerId, setCustomerId] = useState('');
-  const [lineItems, setLineItems] = useState<LineItem[]>([{ description: '', quantity: 1, unitPrice: 0 }]);
-  const [tax, setTax] = useState('0');
-  const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
-  const [validUntil, setValidUntil] = useState('');
-  const [terms, setTerms] = useState<InvoiceTerm[]>([]);
+  const [tax, setTax] = useState(String(existing?.tax ?? 0));
+  const [issueDate, setIssueDate] = useState(
+    existing ? existing.issueDate.slice(0, 10) : new Date().toISOString().slice(0, 10),
+  );
+  const [dateValue, setDateValue] = useState(
+    existing ? ('dueDate' in existing ? existing.dueDate : existing.validUntil).slice(0, 10) : '',
+  );
+  const [subject, setSubject] = useState(existing?.subject ?? '');
   const [termId, setTermId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     api.listCustomers().then(setCustomers).catch(() => {});
-    api.listInvoiceTerms().then(setTerms).catch(() => {});
+    api.listProducts().then(setProducts).catch(() => {});
+    api.listInvoiceTerms().then((loaded) => {
+      setTerms(loaded);
+      if (existing?.paymentTerms) {
+        const match = loaded.find((t) => t.text === existing.paymentTerms);
+        if (match) setTermId(match._id);
+      }
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const computed = calculateDueDate(issueDate, terms.find((t) => t._id === termId));
-    if (computed) setValidUntil(computed);
-  }, [termId, issueDate, terms]);
+  // Re-suggests the due date/valid-until date when staff explicitly change the
+  // term or issue date -- wired to these onChange handlers (not a reactive
+  // effect) so that loading an existing document's term/date on mount never
+  // silently overwrites its already-saved date.
+  function handleTermChange(id: string) {
+    setTermId(id);
+    const computed = calculateDueDate(issueDate, terms.find((t) => t._id === id));
+    if (computed) setDateValue(computed);
+  }
+  function handleIssueDateChange(value: string) {
+    setIssueDate(value);
+    const computed = calculateDueDate(value, terms.find((t) => t._id === termId));
+    if (computed) setDateValue(computed);
+  }
+
+  const subtotal = lineItems.reduce((sum, item) => sum + lineItemAmount(item), 0);
+  const total = subtotal + (Number(tax) || 0);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!customerId) {
+    if (!custId) {
       setError('Choose a customer.');
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
-      await api.createQuote({
-        customer: customerId,
-        lineItems,
-        tax: Number(tax) || 0,
-        issueDate,
-        validUntil,
-        paymentTerms: terms.find((t) => t._id === termId)?.text,
-      });
-      onCreated();
+      const paymentTerms = terms.find((t) => t._id === termId)?.text;
+      if (kind === 'invoice') {
+        const payload = {
+          customer: custId,
+          lineItems,
+          tax: Number(tax) || 0,
+          issueDate,
+          dueDate: dateValue,
+          paymentTerms,
+          subject: subject || undefined,
+        };
+        if (existing) {
+          await api.updateInvoice(existing._id, payload);
+        } else {
+          await api.createInvoice(payload);
+        }
+      } else {
+        const payload = {
+          customer: custId,
+          lineItems,
+          tax: Number(tax) || 0,
+          issueDate,
+          validUntil: dateValue,
+          paymentTerms,
+          subject: subject || undefined,
+        };
+        if (existing) {
+          await api.updateQuote(existing._id, payload);
+        } else {
+          await api.createQuote(payload);
+        }
+      }
+      onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create quote');
+      setError(err instanceof Error ? err.message : `Failed to save ${kind}`);
     } finally {
       setSubmitting(false);
     }
   }
 
+  const isInvoice = kind === 'invoice';
+  const number = existing ? (isInvoice ? (existing as Invoice).invoiceNumber : (existing as Quote).quoteNumber) : null;
+  const title = `${existing ? 'Edit' : 'New'} ${isInvoice ? 'Invoice' : 'Quote'}`;
+  const dateLabel = isInvoice ? 'Due date' : 'Valid until';
+  const datalistId = `product-items-${kind}`;
+
   return (
-    <Modal title="New Quote" onClose={onClose} wide>
+    <Modal title={title} onClose={onClose} xl>
       {error && <div className="error-banner">{error}</div>}
       <form onSubmit={handleSubmit}>
-        <div className="field">
-          <label>Customer</label>
-          <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} required>
-            <option value="" disabled>
-              Select a customer…
-            </option>
-            {customers.map((c) => (
-              <option key={c._id} value={c._id}>
-                {c.name}
+        <div className="card">
+          <div className="section-title">Customer</div>
+          <div className="field">
+            <label>Customer</label>
+            <select value={custId} onChange={(e) => setCustId(e.target.value)} required>
+              <option value="" disabled>
+                Select a customer…
               </option>
-            ))}
-          </select>
-        </div>
-        <LineItemsField lineItems={lineItems} onChange={setLineItems} />
-        <div className="field-row">
-          <div className="field">
-            <label>Tax (£)</label>
-            <input type="number" min="0" step="0.01" value={tax} onChange={(e) => setTax(e.target.value)} />
+              {customers.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
-        <div className="field-row">
-          <div className="field">
-            <label>Issue date</label>
-            <input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} required />
+
+        <div className="card">
+          <div className="section-title">{isInvoice ? 'Invoice Details' : 'Quote Details'}</div>
+          {number && (
+            <div className="field">
+              <label>{isInvoice ? 'Invoice #' : 'Quote #'}</label>
+              <input type="text" value={number} disabled />
+            </div>
+          )}
+          <div className="field-row">
+            <div className="field">
+              <label>Issue date</label>
+              <input type="date" value={issueDate} onChange={(e) => handleIssueDateChange(e.target.value)} required />
+            </div>
+            <div className="field">
+              <label>Terms</label>
+              <select value={termId} onChange={(e) => handleTermChange(e.target.value)}>
+                <option value="">None</option>
+                {terms.map((t) => (
+                  <option key={t._id} value={t._id}>
+                    {t.text}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label>{dateLabel}</label>
+              <input type="date" value={dateValue} onChange={(e) => setDateValue(e.target.value)} required />
+            </div>
           </div>
           <div className="field">
-            <label>Valid until</label>
-            <input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} required />
+            <label>Subject</label>
+            <input
+              type="text"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder={`Let your customer know what this ${kind} is for`}
+            />
+          </div>
+          <div className="field-row">
+            <div className="field">
+              <label>Tax (£)</label>
+              <input type="number" min="0" step="0.01" value={tax} onChange={(e) => setTax(e.target.value)} />
+            </div>
           </div>
         </div>
-        <PaymentTermsField terms={terms} termId={termId} onChange={setTermId} />
+
+        <div className="card">
+          <div className="section-title">Item Table</div>
+          <ItemTable lineItems={lineItems} products={products} datalistId={datalistId} onChange={setLineItems} />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+            <div style={{ width: 260 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  padding: '6px 0',
+                  borderBottom: '1px solid var(--border)',
+                }}
+              >
+                <span style={{ color: 'var(--muted)' }}>Sub Total</span>
+                <span>£{subtotal.toFixed(2)}</span>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  padding: '6px 0',
+                  borderBottom: '1px solid var(--border)',
+                }}
+              >
+                <span style={{ color: 'var(--muted)' }}>Tax</span>
+                <span>£{(Number(tax) || 0).toFixed(2)}</span>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  padding: '10px 0',
+                  fontWeight: 700,
+                  fontSize: '1.05rem',
+                }}
+              >
+                <span>Total (£)</span>
+                <span>£{total.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel
           </button>
           <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? 'Creating…' : 'Create quote'}
+            {submitting ? 'Saving…' : existing ? 'Save changes' : `Create ${kind}`}
           </button>
         </div>
       </form>

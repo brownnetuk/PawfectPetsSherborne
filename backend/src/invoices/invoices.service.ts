@@ -9,8 +9,14 @@ import { Invoice, InvoiceStatus } from './schemas/invoice.schema';
 export class InvoicesService {
   constructor(@InjectModel(Invoice.name) private readonly invoiceModel: Model<Invoice>) {}
 
-  private calculateTotals(lineItems: { quantity: number; unitPrice: number }[], tax = 0) {
-    const subtotal = lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  private calculateTotals(
+    lineItems: { quantity: number; unitPrice: number; discountPercent?: number }[],
+    tax = 0,
+  ) {
+    const subtotal = lineItems.reduce(
+      (sum, item) => sum + item.quantity * item.unitPrice * (1 - (item.discountPercent ?? 0) / 100),
+      0,
+    );
     return { subtotal, tax, total: subtotal + tax };
   }
 
