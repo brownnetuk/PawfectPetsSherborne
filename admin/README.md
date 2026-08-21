@@ -89,9 +89,19 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   into headings/paragraphs/lists by `htmlToBlocks()` — the same content the customer actually saw
   and signed against on the intake form, rather than a separately-maintained copy. Falls back to a
   short hardcoded list if nothing's been uploaded yet.
-- **Bookings** / **Invoices** — global lists across all customers, inline status changes, edit
-  and delete on each row, and their own "New" flow with a customer picker (the customer-detail
-  versions reuse the same create/edit/delete calls with the customer pre-selected).
+- **Bookings** — a global list across all customers, inline status changes, edit and delete on
+  each row, and its own "New" flow with a customer picker (the customer-detail version reuses the
+  same create/edit/delete calls with the customer pre-selected).
+- **Invoices & Quotes** (`/invoices`) — tabbed: **Invoices** and **Quotes**, each a global list
+  across all customers with inline status changes and its own "New" flow (a customer picker plus
+  a shared line-item row editor, `LineItemsField`). A `Quote` is its own backend model
+  (`/quotes`), not an Invoice with a different status — mirrors `Invoice` field-for-field except
+  `dueDate` becomes `validUntil` (a quote hasn't been billed, so nothing is "due" yet) and its
+  status lifecycle is `draft → sent → accepted | declined | expired` rather than Invoice's
+  `draft → sent → paid | overdue | cancelled`, since a quote and an invoice represent different
+  stages of a sale. Quote numbers follow the same `QUO-<year>-<seq>` pattern as invoices'
+  `INV-<year>-<seq>`. Neither an invoice nor a quote can be edited or deleted anywhere in the app
+  yet — a row's status is the only thing that can change after it's created.
 - **Activity** — a read-only global CRM feed; activity itself is created from a customer's page
   so it's always tied to that customer.
 - **Settings** — tabbed (`/settings`): **Business Info** (shown first, and the default tab) holds

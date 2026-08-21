@@ -102,6 +102,17 @@ Line items with server-computed `subtotal`/`tax`/`total` and an auto-generated
 `invoiceNumber` (`INV-<year>-<sequence>`). Status lifecycle: `draft` → `sent` → `paid` |
 `overdue` | `cancelled`; `paidAt` is stamped when status transitions to `paid`.
 
+### Quote (`/quotes`)
+
+Mirrors `Invoice` field-for-field (same `LineItem` sub-schema, same server-computed
+`subtotal`/`tax`/`total`, same standard REST shape) except `dueDate` → `validUntil` — a quote
+hasn't been billed yet, so nothing is "due", but it does have an expiry — and its own
+`quoteNumber` sequence (`QUO-<year>-<sequence>`, independent of invoice numbers). Status
+lifecycle: `draft` → `sent` → `accepted` | `declined` | `expired`, reflecting a quote's actual
+outcomes rather than an invoice's payment states. Deliberately a separate collection/module
+rather than an `Invoice` with an extra status, since a quote and an invoice are different
+documents at different stages of a sale, not the same document in a different state.
+
 ### CRM activity (`/crm/activities`)
 
 Freeform activity log per customer — `note` | `call` | `email` | `task` | `status_change` —
