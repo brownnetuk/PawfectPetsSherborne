@@ -367,6 +367,27 @@ tbody tr:last-child td {
 .badge-sent { background: var(--info-light); color: var(--info); }
 .badge-paid { background: var(--sage-badge); color: var(--brand-green); }
 .badge-overdue { background: var(--error-light); color: var(--error); }
+.badge-accepted { background: var(--sage-badge); color: var(--brand-green); }
+.badge-declined { background: var(--error-light); color: var(--error); }
+.badge-expired { background: #eceff2; color: var(--muted); }
+
+/* A badge that wraps a native <select> so a status pill stays clickable to
+   change -- the select is stripped of its default chrome and inherits the
+   badge's color/background, so it reads as a pill but still opens the
+   browser's native option list on click. */
+.badge select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-weight: inherit;
+  color: inherit;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.badge select:focus { outline: none; }
 
 /* --- forms --- */
 .field {

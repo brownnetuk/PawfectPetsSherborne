@@ -146,13 +146,15 @@ function InvoicesTab() {
                   <td>{customerLabel(inv.customer)}</td>
                   <td>£{inv.total.toFixed(2)}</td>
                   <td onClick={(e) => e.stopPropagation()}>
-                    <select value={inv.status} onChange={(e) => handleStatusChange(inv._id, e.target.value)}>
-                      {INVOICE_STATUSES.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
+                    <span className={`badge badge-${inv.status}`}>
+                      <select value={inv.status} onChange={(e) => handleStatusChange(inv._id, e.target.value)}>
+                        {INVOICE_STATUSES.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    </span>
                   </td>
                   <td>{new Date(inv.dueDate).toLocaleDateString()}</td>
                   <td>
@@ -281,13 +283,15 @@ function QuotesTab() {
                   <td>{customerLabel(q.customer)}</td>
                   <td>£{q.total.toFixed(2)}</td>
                   <td onClick={(e) => e.stopPropagation()}>
-                    <select value={q.status} onChange={(e) => handleStatusChange(q._id, e.target.value)}>
-                      {QUOTE_STATUSES.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
+                    <span className={`badge badge-${q.status}`}>
+                      <select value={q.status} onChange={(e) => handleStatusChange(q._id, e.target.value)}>
+                        {QUOTE_STATUSES.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    </span>
                   </td>
                   <td>{new Date(q.validUntil).toLocaleDateString()}</td>
                   <td>
