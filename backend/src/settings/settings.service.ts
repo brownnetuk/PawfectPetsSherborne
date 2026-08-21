@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import * as mammoth from 'mammoth';
 import { Model } from 'mongoose';
 import { EncryptionService } from '../common/encryption/encryption.service';
+import { escapeHtml } from '../common/html.util';
 import { PreviewTermsDto } from './dto/preview-terms.dto';
 import { SendTestEmailDto } from './dto/send-test-email.dto';
 import { SendTriggeredEmailDto } from './dto/send-triggered-email.dto';
@@ -253,16 +254,31 @@ export class SettingsService {
 
   /** Sends a customer-facing email using the template configured for the given trigger (e.g. "here's your registration link"). */
   async sendTriggeredEmail(dto: SendTriggeredEmailDto): Promise<void> {
-    const template = await this.emailTemplateModel.findOne({ trigger: dto.trigger }).exec();
+    await this.sendTemplatedEmail(dto.trigger, dto.to, { name: dto.name, link: dto.link });
+  }
+
+  /**
+   * Renders the template configured for `trigger` against `vars` (escaped
+   * individually into the body) plus `rawVars` (inserted as-is, unescaped --
+   * for values that are themselves already HTML, like {{logo}} or
+   * {{items_table}}) and sends it. Shared by sendTriggeredEmail above (the
+   * registration/update_info/add_pet "copy link or send email" triggers) and
+   * InvoicesService/QuotesService's "Send" action.
+   */
+  async sendTemplatedEmail(
+    trigger: EmailTrigger,
+    to: string,
+    vars: Record<string, string | undefined>,
+    rawVars: Record<string, string> = {},
+  ): Promise<void> {
+    const template = await this.emailTemplateModel.findOne({ trigger }).exec();
     if (!template) {
       throw new BadRequestException(
         `No email template is set up for this yet -- add one in Settings > Email Templates first.`,
       );
     }
     const business = await this.getBusinessInfo();
-    const vars: Record<string, string> = {
-      name: dto.name,
-      link: dto.link,
+    const allVars: Record<string, string | undefined> = {
       businessName: business.name,
       businessAddress: business.address,
       businessTown: business.town,
@@ -270,31 +286,49 @@ export class SettingsService {
       businessTelephone: business.telephone,
       businessEmail: business.email,
       businessWebsite: business.website,
+      ...vars,
     };
     const logoTag = business.logoImage
       ? `<img src="${business.logoImage}" alt="${escapeHtml(business.name)}" style="max-height:60px;max-width:220px;display:block;" />`
       : '';
-    // Subject stays plain text -- email subjects have no markup. The body becomes
-    // HTML so {{logo}} can render the business's actual logo image; the rest of the
-    // (staff-authored) body text is escaped first so it round-trips safely as HTML,
-    // then placeholders are substituted in -- {{logo}} inserts the raw <img> tag,
-    // every other placeholder inserts its (also escaped) value.
-    const subject = template.subject.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '');
-    const body = escapeHtml(template.body)
-      .replace(/\{\{(\w+)\}\}/g, (_, key) => (key === 'logo' ? logoTag : escapeHtml(vars[key] ?? '')))
-      .replace(/\n/g, '<br>');
+    const allRawVars = { logo: logoTag, ...rawVars };
+
+    // invoice/quote templates are edited as raw HTML in the admin (a rich-text
+    // editor, not a plain textarea) -- their body is sent through as-is aside
+    // from placeholder substitution. Every other trigger's body is staff-authored
+    // plain text, so it's escaped and newlines become <br> the same way it
+    // always has.
+    const htmlBody = trigger === EmailTrigger.INVOICE || trigger === EmailTrigger.QUOTE;
+    const subject = interpolateSubject(template.subject, allVars);
+    const body = interpolateBody(template.body, allVars, allRawVars, htmlBody);
 
     const settings = await this.getSendableSettings();
     const token = await this.getAccessToken(settings.tenantId, settings.clientId, settings.clientSecret);
-    await this.graphSendMail(settings.fromAddress, token, dto.to, subject, body, 'HTML');
+    await this.graphSendMail(settings.fromAddress, token, to, subject, body, 'HTML');
   }
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+// Strips {{#if field}}...{{/if}} blocks whose field is falsy/empty, keeping
+// the inner content (with the tags removed) for truthy ones -- used by both
+// interpolateSubject and interpolateBody, on the raw template text.
+function stripConditionals(template: string, vars: Record<string, string | undefined>): string {
+  return template.replace(/\{\{#if (\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_, key, inner) => (vars[key] ? inner : ''));
+}
+
+function interpolateSubject(template: string, vars: Record<string, string | undefined>): string {
+  return stripConditionals(template, vars).replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '');
+}
+
+function interpolateBody(
+  template: string,
+  vars: Record<string, string | undefined>,
+  rawVars: Record<string, string>,
+  htmlBody: boolean,
+): string {
+  let working = htmlBody ? template : escapeHtml(template);
+  working = stripConditionals(working, vars);
+  working = working.replace(/\{\{(\w+)\}\}/g, (_, key) =>
+    key in rawVars ? rawVars[key] : escapeHtml(vars[key] ?? ''),
+  );
+  return htmlBody ? working : working.replace(/\n/g, '<br>');
 }

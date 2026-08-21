@@ -40,4 +40,9 @@ export class InvoicesController {
   remove(@Param('id') id: string) {
     return this.invoicesService.remove(id);
   }
+
+  @Post(':id/send')
+  sendEmail(@Param('id') id: string) {
+    return this.invoicesService.sendEmail(id);
+  }
 }

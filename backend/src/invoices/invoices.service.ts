@@ -1,8 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { buildItemsTableHtml, formatUkDate } from '../common/invoice-email.util';
 import { formatDocumentNumber } from '../common/document-number.util';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
+import { EmailTrigger } from '../settings/schemas/email-template.schema';
+import { SettingsService } from '../settings/settings.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { Invoice, InvoiceStatus } from './schemas/invoice.schema';
@@ -12,6 +15,7 @@ export class InvoicesService {
   constructor(
     @InjectModel(Invoice.name) private readonly invoiceModel: Model<Invoice>,
     @InjectModel(BusinessInfo.name) private readonly businessInfoModel: Model<BusinessInfo>,
+    private readonly settingsService: SettingsService,
   ) {}
 
   private calculateTotals(lineItems: { quantity: number; unitPrice: number; discountPercent?: number }[]) {
@@ -92,5 +96,32 @@ export class InvoicesService {
     if (!result) {
       throw new NotFoundException(`Invoice ${id} not found`);
     }
+  }
+
+  /** Emails the invoice to its customer using the "Invoice Template", then marks it sent if it was still a draft. */
+  async sendEmail(id: string): Promise<Invoice> {
+    const invoice = await this.findOne(id);
+    const customer = invoice.customer as unknown as { name?: string; email?: string };
+    if (!customer?.email) {
+      throw new BadRequestException('This customer has no email address on file.');
+    }
+    await this.settingsService.sendTemplatedEmail(
+      EmailTrigger.INVOICE,
+      customer.email,
+      {
+        customer_name: customer.name,
+        subject: invoice.subject,
+        invoice_number: invoice.invoiceNumber,
+        invoice_date: formatUkDate(invoice.issueDate),
+        due_date: formatUkDate(invoice.dueDate),
+        subtotal: invoice.subtotal.toFixed(2),
+        total: invoice.total.toFixed(2),
+      },
+      { items_table: buildItemsTableHtml(invoice.lineItems) },
+    );
+    if (invoice.status === InvoiceStatus.DRAFT) {
+      return this.update(id, { status: InvoiceStatus.SENT });
+    }
+    return invoice;
   }
 }

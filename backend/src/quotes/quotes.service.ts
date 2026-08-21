@@ -1,8 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { buildItemsTableHtml, formatUkDate } from '../common/invoice-email.util';
 import { formatDocumentNumber } from '../common/document-number.util';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
+import { EmailTrigger } from '../settings/schemas/email-template.schema';
+import { SettingsService } from '../settings/settings.service';
 import { CreateQuoteDto } from './dto/create-quote.dto';
 import { UpdateQuoteDto } from './dto/update-quote.dto';
 import { Quote, QuoteStatus } from './schemas/quote.schema';
@@ -12,6 +15,7 @@ export class QuotesService {
   constructor(
     @InjectModel(Quote.name) private readonly quoteModel: Model<Quote>,
     @InjectModel(BusinessInfo.name) private readonly businessInfoModel: Model<BusinessInfo>,
+    private readonly settingsService: SettingsService,
   ) {}
 
   private calculateTotals(lineItems: { quantity: number; unitPrice: number; discountPercent?: number }[]) {
@@ -86,5 +90,32 @@ export class QuotesService {
     if (!result) {
       throw new NotFoundException(`Quote ${id} not found`);
     }
+  }
+
+  /** Emails the quote to its customer using the "Quote Template", then marks it sent if it was still a draft. */
+  async sendEmail(id: string): Promise<Quote> {
+    const quote = await this.findOne(id);
+    const customer = quote.customer as unknown as { name?: string; email?: string };
+    if (!customer?.email) {
+      throw new BadRequestException('This customer has no email address on file.');
+    }
+    await this.settingsService.sendTemplatedEmail(
+      EmailTrigger.QUOTE,
+      customer.email,
+      {
+        customer_name: customer.name,
+        subject: quote.subject,
+        quote_number: quote.quoteNumber,
+        quote_date: formatUkDate(quote.issueDate),
+        valid_until: formatUkDate(quote.validUntil),
+        subtotal: quote.subtotal.toFixed(2),
+        total: quote.total.toFixed(2),
+      },
+      { items_table: buildItemsTableHtml(quote.lineItems) },
+    );
+    if (quote.status === QuoteStatus.DRAFT) {
+      return this.update(id, { status: QuoteStatus.SENT });
+    }
+    return quote;
   }
 }

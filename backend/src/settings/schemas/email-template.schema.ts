@@ -3,11 +3,17 @@ import { Document } from 'mongoose';
 
 // The fixed set of places in the app that can offer "send an email" as an
 // alternative to "copy this link" -- kept in sync by hand with the admin
-// frontend locations that call POST /settings/email/send.
+// frontend locations that call POST /settings/email/send. INVOICE/QUOTE are
+// different: they're sent via POST /invoices/:id/send and /quotes/:id/send
+// (SettingsService.sendTemplatedEmail), not /settings/email/send, and their
+// template body is edited as raw HTML rather than plain text -- see
+// interpolateBody in settings.service.ts.
 export enum EmailTrigger {
   REGISTRATION = 'registration',
   UPDATE_INFO = 'update_info',
   ADD_PET = 'add_pet',
+  INVOICE = 'invoice',
+  QUOTE = 'quote',
 }
 
 // One document per trigger (enforced via the unique index below) -- avoids

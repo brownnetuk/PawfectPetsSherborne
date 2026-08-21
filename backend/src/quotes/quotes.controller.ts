@@ -40,4 +40,9 @@ export class QuotesController {
   remove(@Param('id') id: string) {
     return this.quotesService.remove(id);
   }
+
+  @Post(':id/send')
+  sendEmail(@Param('id') id: string) {
+    return this.quotesService.sendEmail(id);
+  }
 }
