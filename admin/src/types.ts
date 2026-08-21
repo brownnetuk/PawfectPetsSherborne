@@ -116,6 +116,21 @@ export interface Invoice {
   createdAt: string;
 }
 
+export interface InvoiceTerm {
+  _id: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface Product {
+  _id: string;
+  productCode: string;
+  name: string;
+  description?: string;
+  price: number;
+  createdAt: string;
+}
+
 export interface Quote {
   _id: string;
   customer: CustomerRef | string;

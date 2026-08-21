@@ -3,17 +3,26 @@ import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import Modal from '../components/Modal';
 import { TrashIcon } from '../components/icons';
-import type { BusinessInfo, EmailSettings, EmailTemplate, EmailTrigger, Staff } from '../types';
+import type {
+  BusinessInfo,
+  EmailSettings,
+  EmailTemplate,
+  EmailTrigger,
+  InvoiceTerm,
+  Product,
+  Staff,
+} from '../types';
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
 
-type Tab = 'business' | 'staff' | 'email' | 'templates';
+type Tab = 'business' | 'staff' | 'email' | 'templates' | 'invoices';
 
 const TAB_LABELS: Record<Tab, string> = {
   business: 'Business Info',
   staff: 'Staff',
   email: 'Email',
   templates: 'Email Templates',
+  invoices: 'Invoices',
 };
 
 export default function SettingsPage() {
@@ -26,7 +35,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="tabs">
-        {(['business', 'staff', 'email', 'templates'] as Tab[]).map((t) => (
+        {(['business', 'staff', 'email', 'templates', 'invoices'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -37,6 +46,7 @@ export default function SettingsPage() {
       {tab === 'staff' && <StaffTab />}
       {tab === 'email' && <EmailTab />}
       {tab === 'templates' && <EmailTemplatesTab />}
+      {tab === 'invoices' && <InvoicesSettingsTab />}
     </div>
   );
 }
@@ -1065,6 +1075,326 @@ function TemplatePreviewModal({
           Close
         </button>
       </div>
+    </Modal>
+  );
+}
+
+function InvoicesSettingsTab() {
+  return (
+    <div>
+      <InvoiceTermsCard />
+      <ProductsCard />
+    </div>
+  );
+}
+
+function InvoiceTermsCard() {
+  const [terms, setTerms] = useState<InvoiceTerm[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [deleting, setDeleting] = useState<InvoiceTerm | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function refresh() {
+    api
+      .listInvoiceTerms()
+      .then(setTerms)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load invoice terms'));
+  }
+  useEffect(refresh, []);
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteInvoiceTerm(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete term');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <h2>Invoice Terms</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+            Standard terms staff can add to an invoice.
+          </p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+          Add term
+        </button>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      {!terms || terms.length === 0 ? (
+        <div className="empty-state">{terms === null ? 'Loading…' : 'No invoice terms yet.'}</div>
+      ) : (
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          {terms.map((t) => (
+            <li
+              key={t._id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                gap: 12,
+                padding: '12px 0',
+                borderTop: '1px solid var(--border)',
+              }}
+            >
+              <span style={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{t.text}</span>
+              <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(t)}>
+                <TrashIcon />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {showNew && (
+        <NewInvoiceTermModal
+          onClose={() => setShowNew(false)}
+          onCreated={() => {
+            setShowNew(false);
+            refresh();
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal title="Delete invoice term?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>This permanently removes this term.</p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete term'}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function NewInvoiceTermModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [text, setText] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.createInvoiceTerm(text);
+      onCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add term');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title="Add invoice term" onClose={onClose}>
+      {error && <div className="error-banner">{error}</div>}
+      <form onSubmit={handleSubmit}>
+        <div className="field">
+          <label>Term</label>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={4}
+            required
+            autoFocus
+            placeholder="e.g. Payment due within 14 days of invoice date."
+          />
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
+            {submitting ? 'Saving…' : 'Add term'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ProductsCard() {
+  const [products, setProducts] = useState<Product[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [deleting, setDeleting] = useState<Product | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function refresh() {
+    api
+      .listProducts()
+      .then(setProducts)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load products'));
+  }
+  useEffect(refresh, []);
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteProduct(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete product');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <h2>Products</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+            A reusable catalog of products and services for invoices and quotes.
+          </p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+          Add product
+        </button>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      {!products || products.length === 0 ? (
+        <div className="empty-state">{products === null ? 'Loading…' : 'No products yet.'}</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Product Code</th>
+              <th>Name</th>
+              <th>Description</th>
+              <th>Price</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.map((p) => (
+              <tr key={p._id}>
+                <td>{p.productCode}</td>
+                <td>{p.name}</td>
+                <td>{p.description || '—'}</td>
+                <td>£{p.price.toFixed(2)}</td>
+                <td>
+                  <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(p)}>
+                    <TrashIcon />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {showNew && (
+        <NewProductModal
+          onClose={() => setShowNew(false)}
+          onCreated={() => {
+            setShowNew(false);
+            refresh();
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal title="Delete product?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently removes <strong>{deleting.name}</strong> from the product catalog.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete product'}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function NewProductModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [productCode, setProductCode] = useState('');
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [price, setPrice] = useState('0');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.createProduct({
+        productCode,
+        name,
+        description: description || undefined,
+        price: Number(price) || 0,
+      });
+      onCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add product');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title="Add product" onClose={onClose}>
+      {error && <div className="error-banner">{error}</div>}
+      <form onSubmit={handleSubmit}>
+        <div className="field">
+          <label>Product Code</label>
+          <input type="text" value={productCode} onChange={(e) => setProductCode(e.target.value)} required autoFocus />
+        </div>
+        <div className="field">
+          <label>Name</label>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+        </div>
+        <div className="field">
+          <label>Description</label>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+        </div>
+        <div className="field">
+          <label>Price (£)</label>
+          <input type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} required />
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
+            {submitting ? 'Saving…' : 'Add product'}
+          </button>
+        </div>
+      </form>
     </Modal>
   );
 }

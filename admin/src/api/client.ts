@@ -9,7 +9,9 @@ import type {
   EmailTrigger,
   Enquiry,
   Invoice,
+  InvoiceTerm,
   LineItem,
+  Product,
   Quote,
   Staff,
 } from '../types';
@@ -170,6 +172,34 @@ export function createQuote(input: CreateQuoteInput): Promise<Quote> {
 }
 export function updateQuoteStatus(id: string, status: string): Promise<Quote> {
   return request(`/quotes/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+}
+
+// --- invoice terms ---
+export function listInvoiceTerms(): Promise<InvoiceTerm[]> {
+  return request('/invoice-terms');
+}
+export function createInvoiceTerm(text: string): Promise<InvoiceTerm> {
+  return request('/invoice-terms', { method: 'POST', body: JSON.stringify({ text }) });
+}
+export function deleteInvoiceTerm(id: string): Promise<void> {
+  return request(`/invoice-terms/${id}`, { method: 'DELETE' });
+}
+
+// --- products ---
+export function listProducts(): Promise<Product[]> {
+  return request('/products');
+}
+export interface CreateProductInput {
+  productCode: string;
+  name: string;
+  description?: string;
+  price: number;
+}
+export function createProduct(input: CreateProductInput): Promise<Product> {
+  return request('/products', { method: 'POST', body: JSON.stringify(input) });
+}
+export function deleteProduct(id: string): Promise<void> {
+  return request(`/products/${id}`, { method: 'DELETE' });
 }
 
 // --- CRM ---
