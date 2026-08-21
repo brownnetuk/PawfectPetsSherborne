@@ -114,12 +114,18 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   `LineItemsField` for closer visual parity with the reference layout — `CustomerDetailPage`'s own
   separate per-customer invoice-creation flow still uses the old `LineItemsField`/`.line-item-row`
   styling and was left as-is (it also has no tax field, for the same reason). Each line item's
-  **Item Details** field is a text input backed by an HTML `<datalist>` of product names (no new
-  dependency) — typing or picking a name that exactly matches a `Product` auto-fills that row's
-  Rate from the product's price; the Discount % (0–100, default 0) feeds into the row's Amount as
-  `quantity × unitPrice × (1 − discountPercent / 100)`, and the single Total (£) summary below the
-  table sums those amounts the same way the backend does (see `backend/README.md`) — there's no
-  separate Sub Total line since, with no tax, it would always equal Total.
+  **Item Details** cell is a free-text input (typing a description that exactly matches a
+  `Product` name auto-fills that row's Rate from the product's price) plus a chevron button that
+  opens `ProductPickerModal` — a searchable table of every `Product` (Name / Description / Price);
+  clicking a row fills in the description and rate and closes the picker. This replaced an earlier
+  HTML `<datalist>` version, whose dropdown rendered with plain OS/browser styling that didn't
+  match the rest of the app. Table cell inputs generally aren't wrapped in a `.field` div (unlike
+  the rest of the form), so `table input[type='text'|'number']` in `index.css` gives them the same
+  border/radius/focus-ring look as `.field input` directly. The Discount % (0–100, default 0)
+  feeds into the row's Amount as `quantity × unitPrice × (1 − discountPercent / 100)`, and the
+  single Total (£) summary below the table sums those amounts the same way the backend does (see
+  `backend/README.md`) — there's no separate Sub Total line since, with no tax, it would always
+  equal Total.
   In edit mode, the Payment Terms dropdown is preselected via a best-effort text match against the
   document's already-stored `paymentTerms` string (consistent with terms being copied, not
   referenced, at creation time — see below); if the original term was since deleted from the
