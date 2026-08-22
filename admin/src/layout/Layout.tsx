@@ -9,6 +9,7 @@ import {
   FinancialIcon,
   InvoicesIcon,
   LogoutIcon,
+  ReportsIcon,
   SettingsIcon,
 } from '../components/icons';
 
@@ -59,6 +60,10 @@ export default function Layout() {
           <NavLink to="/financial" className={({ isActive }) => (isActive ? 'active' : '')}>
             <FinancialIcon />
             Financial
+          </NavLink>
+          <NavLink to="/reports" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <ReportsIcon />
+            Reports
           </NavLink>
           <NavLink to="/activity" className={({ isActive }) => (isActive ? 'active' : '')}>
             <ActivityIcon />

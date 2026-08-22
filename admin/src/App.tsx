@@ -7,6 +7,7 @@ import CustomerDetailPage from './pages/CustomerDetailPage';
 import EnquiriesPage from './pages/EnquiriesPage';
 import BookingsPage from './pages/BookingsPage';
 import FinancialPage from './pages/FinancialPage';
+import ReportsPage from './pages/ReportsPage';
 import InvoicesPage from './pages/InvoicesPage';
 import ActivityPage from './pages/ActivityPage';
 import SettingsPage from './pages/SettingsPage';
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="/bookings" element={<BookingsPage />} />
         <Route path="/invoices" element={<InvoicesPage />} />
         <Route path="/financial" element={<FinancialPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
         <Route path="/activity" element={<ActivityPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
