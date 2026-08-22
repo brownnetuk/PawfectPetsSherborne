@@ -251,26 +251,34 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   concern.
 
   **Payments** (`PaymentsCard` in `FinancialPage.tsx`) is a read-mostly table of every recorded
-  `Payment` — Payment ID/Date/Invoice/Amount/Charges/Payment Method/Account, Delete only, no Create
-  button here since a payment is always recorded against a specific invoice (see **Payments** in
-  the invoice Actions menu above), not created ad hoc. Deleting one shows a confirmation naming its
-  Payment ID and explains that it restores the amount to the invoice's outstanding balance — see
-  `InvoicesService.reversePayment()` in `backend/README.md`. `RecordPaymentModal`
-  (`admin/src/components/RecordPaymentModal.tsx`) is the actual creation form, opened from an
-  invoice row rather than from this page: **Date** (defaults to today), **Amount (£)** (required,
-  pre-filled with the invoice's outstanding balance — `total - amountPaid` — since a payment
-  covering the full remaining balance is the common case; staff can still overwrite it for a
-  partial payment) and **Charges (£)** (optional) side by side, a **Payment Method** dropdown sourced from
-  `GET /payment-methods` (Settings → Finance → Payment Methods below), and an **Account** dropdown
-  sourced from `GET /bank-accounts` (this page's Bank Account tab), shown as "Name (Bank/Savings)".
-  No invoice-number field or deposit-percentage option — the invoice is already fixed by which row's
-  Actions menu opened the modal, and a fractional-deposit shortcut wasn't requested. Submitting
-  deducts the amount from the invoice's balance and, once fully covered, flips its status to
-  `paid` server-side (see `InvoicesService.applyPayment()` in `backend/README.md`) — the Invoices
-  page's own status pill/dropdown reflects this immediately on refresh, no separate polling needed.
-  A non-zero **Charges** value also creates a real linked expense behind the scenes (category
-  "Payment Charges") — nothing to configure here, but it's why a payment with charges shows up as
-  an extra row on the Expenses tab below, and why deleting that payment removes it again.
+  `Payment` — Payment ID/Date/Invoice/Amount/Charges/Payment Method/Account, Delete only (no Edit —
+  money movements get voided and redone, not silently edited). Deleting one shows a confirmation
+  naming its Payment ID and explains that it restores the amount to the invoice's outstanding
+  balance — see `InvoicesService.reversePayment()` in `backend/README.md`. A payment is recorded
+  one of two ways: from a specific invoice row's **Payments** Actions-menu item (`RecordPaymentModal`,
+  `admin/src/components/RecordPaymentModal.tsx`), or from this tab's **Add payment** button
+  (`AddPaymentModal`, `admin/src/components/AddPaymentModal.tsx`) for when staff are working from
+  the Financial page rather than a specific invoice. Both share the same Date/Amount/Charges/Payment
+  Method/Account fields and submit through the same `POST /payments`; `AddPaymentModal` additionally
+  has an **Invoice** dropdown as its first field, sourced from `GET /invoices` filtered client-side
+  to non-cancelled invoices with `total - amountPaid > 0`, each option labelled
+  `"{invoiceNumber} — {customerName} — £{balance} due"` — picking one fixes the rest of the form to
+  that invoice exactly as if its row's Actions menu had been used, including pre-filling **Amount
+  (£)** with the outstanding balance. In both modals: **Date** defaults to today, **Amount (£)**
+  (required, pre-filled with the invoice's outstanding balance — `total - amountPaid` — since a
+  payment covering the full remaining balance is the common case; staff can still overwrite it for a
+  partial payment) and **Charges (£)** (optional) side by side, a **Payment Method** dropdown sourced
+  from `GET /payment-methods` (Settings → Finance → Payment Methods below), and an **Account**
+  dropdown sourced from `GET /bank-accounts` (this page's Bank Account tab), shown as
+  "Name (Bank/Savings)". No invoice-number field or deposit-percentage option in the row-triggered
+  modal — the invoice is already fixed by which row's Actions menu opened it, and a
+  fractional-deposit shortcut wasn't requested. Submitting deducts the amount from the invoice's
+  balance and, once fully covered, flips its status to `paid` server-side (see
+  `InvoicesService.applyPayment()` in `backend/README.md`) — the Invoices page's own status
+  pill/dropdown reflects this immediately on refresh, no separate polling needed. A non-zero
+  **Charges** value also creates a real linked expense behind the scenes (category "Payment
+  Charges") — nothing to configure here, but it's why a payment with charges shows up as an extra
+  row on the Expenses tab below, and why deleting that payment removes it again.
 
   **Expenses** (`ExpensesCard`/`ExpenseModal`) has its own New/Edit/Delete — unlike Payments, an
   expense isn't tied to any other record, so it's created directly from this tab: **Date**,

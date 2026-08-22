@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
+import AddPaymentModal from '../components/AddPaymentModal';
 import BankAccountModal from '../components/BankAccountModal';
 import CreditNoteModal from '../components/CreditNoteModal';
 import ExpenseModal from '../components/ExpenseModal';
@@ -53,6 +54,7 @@ function accountLabel(account: Payment['account']): string {
 function PaymentsCard() {
   const [payments, setPayments] = useState<Payment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
   const [deleting, setDeleting] = useState<Payment | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -82,10 +84,18 @@ function PaymentsCard() {
 
   return (
     <div className="card">
-      <h2>Payments</h2>
-      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
-        Recorded from an invoice's Actions menu.
-      </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <h2>Payments</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+            Recorded from an invoice's Actions menu, or added directly against any invoice with a balance
+            outstanding.
+          </p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+          Add payment
+        </button>
+      </div>
       {error && <div className="error-banner">{error}</div>}
       {!payments || payments.length === 0 ? (
         <div className="empty-state">{payments === null ? 'Loading…' : 'No payments recorded yet.'}</div>
@@ -122,6 +132,16 @@ function PaymentsCard() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {showNew && (
+        <AddPaymentModal
+          onClose={() => setShowNew(false)}
+          onSaved={() => {
+            setShowNew(false);
+            refresh();
+          }}
+        />
       )}
 
       {deleting && (
