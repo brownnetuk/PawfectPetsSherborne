@@ -112,9 +112,22 @@ export class CustomersService {
     };
   }
 
+  // Case-insensitive: "Jane@x.com" and "jane@x.com" are the same customer for
+  // this purpose, so a duplicate can't slip in just by differing case. Uses
+  // $expr/$toLower rather than a regex so there's no need to escape user input.
+  private async assertEmailNotTaken(email: string) {
+    const existing = await this.customerModel
+      .findOne({ $expr: { $eq: [{ $toLower: '$email' }, email.toLowerCase()] } })
+      .exec();
+    if (existing) {
+      throw new ConflictException('A customer with this email address already exists.');
+    }
+  }
+
   async create(dto: CreateCustomerDto, actor = 'Customer'): Promise<Customer> {
     this.validateEmergencyContact(dto.emergencyContact);
     this.validateEmergencyVet(dto.emergencyVet);
+    await this.assertEmailNotTaken(dto.email);
 
     const payload: Record<string, any> = { ...dto };
     this.applyComputedFields(payload);
@@ -146,7 +159,8 @@ export class CustomersService {
   }
 
   /** Staff pre-create a minimal record; the public intake form link points at its id. */
-  createLead(dto: CreateLeadDto): Promise<Customer> {
+  async createLead(dto: CreateLeadDto): Promise<Customer> {
+    await this.assertEmailNotTaken(dto.email);
     const created = new this.customerModel({
       name: dto.name,
       email: dto.email,
