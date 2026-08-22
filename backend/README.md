@@ -277,26 +277,32 @@ instead — see `admin/README.md`.
 `Invoice`), `date`, `amount`, optional `charges` (default `0`), optional `paymentMethod` (a plain
 string copied from the chosen `PaymentMethod.name` at creation time — same reasoning as
 `Invoice.paymentTerms` below: a recorded payment shouldn't retroactively change if the method
-library entry is later edited or deleted), `account` (a real `ObjectId` ref to `BankAccount`, kept
-as a live reference rather than copied since a later build is expected to compute an account's
-running balance from its linked payments), and an auto-generated `paymentId` (see "Document
-numbering" above). Only `POST`/`GET`/`DELETE /:id` are exposed — no update endpoint, since editing
-a recorded payment's amount would require re-reconciling the invoice balance it already affected,
-which isn't supported; deleting and re-recording is the intended correction path.
+library entry is later edited or deleted), `account` (a real `ObjectId` ref to `BankAccount`),
+and an auto-generated `paymentId` (see "Document numbering" above). Only `POST`/`GET`/`DELETE
+/:id` are exposed — no update endpoint, since editing a recorded payment's amount would require
+re-reconciling the invoice balance it already affected, which isn't supported; deleting and
+re-recording is the intended correction path.
 
 `PaymentsService.create()` generates the `paymentId`, saves the record, then calls
 `InvoicesService.applyPayment(invoiceId, amount)`, which adds `amount` to the invoice's
-`amountPaid` and — once `amountPaid >= total` — flips `status` to `paid` and stamps `paidAt`.
-`PaymentsService.remove()` is the mirror: it deletes the record, then calls
-`InvoicesService.reversePayment(invoiceId, amount)`, which subtracts `amount` back out of
-`amountPaid` (floored at `0`) and, if that undoes a `paid` status, reverts `status` to `sent` and
-clears `paidAt` (via Mongo `$unset` — a plain `undefined` in a Mongoose update object is stripped
-before the query is built, so it silently fails to clear a field; `$unset` is required). Reverting
-to `sent` rather than trying to guess `overdue` is deliberate — `markOverdue()` (see "Invoice"
-above) re-flags it on the very next `GET /invoices` if the due date has in fact passed, so this
-doesn't need to duplicate that logic. `PaymentsModule` imports `InvoicesModule` directly (not just
-the `Invoice` Mongoose model) so `PaymentsService` can call these two methods rather than
+`amountPaid` and — once `amountPaid >= total` — flips `status` to `paid` and stamps `paidAt`, and
+`BankAccountsService.adjustBalance(account, amount - (charges ?? 0))` — net of any processing
+charges, since that's what actually lands in the bank. `PaymentsService.remove()` is the mirror:
+it deletes the record, then calls `InvoicesService.reversePayment(invoiceId, amount)`, which
+subtracts `amount` back out of `amountPaid` (floored at `0`) and, if that undoes a `paid` status,
+reverts `status` to `sent` and clears `paidAt` (via Mongo `$unset` — a plain `undefined` in a
+Mongoose update object is stripped before the query is built, so it silently fails to clear a
+field; `$unset` is required) — plus the mirrored, negated `adjustBalance` call. Reverting to
+`sent` rather than trying to guess `overdue` is deliberate — `markOverdue()` (see "Invoice" above)
+re-flags it on the very next `GET /invoices` if the due date has in fact passed, so this doesn't
+need to duplicate that logic. `PaymentsModule` imports `InvoicesModule` and `BankAccountsModule`
+directly (not just their Mongoose models) so `PaymentsService` can call these methods rather than
 duplicating the balance/status logic itself.
+
+`BankAccountsService.adjustBalance(id, delta)` (`bank-accounts.service.ts`) is the one place
+`BankAccount.currentBalance` is ever written — a plain `$inc` (atomic, no read-modify-write race),
+shared by `PaymentsService`, `ExpensesService`, and `CreditNotesService` below. `BankAccountsModule`
+exports the service for exactly this reason.
 
 In the admin app, "Payments" is an item in an invoice's row-level "Actions" menu
 (`admin/src/pages/InvoicesPage.tsx`), opening `RecordPaymentModal`
@@ -305,6 +311,53 @@ dropdown sourced from `GET /payment-methods`, and an Account dropdown sourced fr
 `GET /bank-accounts`. Recorded payments also list on the Financial page's Payments tab
 (Payment ID/Date/Invoice/Amount/Charges/Payment Method/Account, delete only — see
 `admin/README.md`).
+
+### Expense (`/expenses`)
+
+Money going out: `date`, a fixed `category` enum (`insurance`/`supplies`/`equipment`/
+`vehicle_fuel`/`veterinary`/`marketing`/`professional_fees`/`other`), optional `payee`,
+`description`, `amount`, an optional `account` ref (debited via `adjustBalance` on
+create/update/delete, credited back on update's old value/delete), and an optional `receipt`
+(base64 data URI, same storage approach as `Animal.photos`/`BusinessInfo.logoImage`). Deliberately
+a fixed schema enum for `category` rather than a new staff-managed named list like
+`PaymentMethod`/`Product` — a small business won't reclassify its cost categories often enough to
+justify a whole new module and Settings section for it. `ExpensesService.update()` fetches the
+document `before` the update (same pattern `CustomersService.update()`/`AnimalsService.update()`
+use for their own diffs) so it can revert the old amount from whichever account it was debited
+against and reapply the new one — one code path correctly handles an unchanged account, a changed
+account, and adding/removing the account entirely. Not audit-logged: `AuditLogEntry.customer` is
+required, and expenses have no customer at all — the Expenses list itself is the record, same as
+`PaymentMethod`/`Product`/`BankAccount` (none of which are audit-logged either). Full CRUD, no
+`@Public()` route — this never touches the public intake surface.
+
+### CreditNote (`/credit-notes`)
+
+A formal, numbered document for a refund (`creditNoteNumber`, e.g. `CN-2026-00001`, generated the
+same way as invoice/quote/payment numbers — see "Document numbering" above, with its own
+`creditNoteNumberTemplate`/`creditNoteNextNumber` pair on `BusinessInfo`), replacing what used to
+just be a payment quietly deleted with no record of why: `customer` (required), an optional
+`invoice` ref, `date`, `amount`, a required `reason`, and an optional `account` ref. Issuing one
+against an invoice calls `InvoicesService.reversePayment(invoice, amount)` directly — reducing
+`amountPaid` (and reverting a `paid` status if it drops below `total`) is exactly what a credit
+note against an invoice means, so there's no separate invoice-side logic to write. Deleting one
+mirrors it with `applyPayment()`. Either side effect also runs through
+`BankAccountsService.adjustBalance()` if an account was chosen, and both create and delete write a
+`credit_note_issued`/`credit_note_removed` `AuditLogEntry` (new `AuditEventType` values) — the same
+create-then-delete-with-compensation shape `PaymentsService` already uses, not a reject-if-referenced
+guard. No update endpoint, matching `Payment` (money movements get voided and redone, not edited
+in place).
+
+### Reports (`/reports`)
+
+Read-only aggregation, no schema of its own — `ReportsModule` declares its own
+`MongooseModule.forFeature([Payment, CreditNote, Expense])` rather than importing those modules'
+services, since it only ever reads. `GET /reports/income-vs-expenses?months=6` mirrors
+`AuditLogService.incomeByMonth()`'s aggregation/sparse-fill-zero-months approach (see "Audit log"
+below) but business-wide (no `customer` match clause) and grouped by each record's own `date`
+field rather than `createdAt`, merging three separate per-collection aggregations into one array
+of `{ month, income, expenses, net }`: `income` sums `Payment.amount - charges` minus
+`CreditNote.amount` for that month (both net of what actually happened to the money, consistent
+with the bank-balance wiring above); `expenses` sums `Expense.amount`.
 
 ### CRM activity (`/crm/activities`)
 
@@ -325,11 +378,13 @@ page's "Activity" tab (an income chart plus a timeline), which staff never edit.
 enum — `customer_created`/`customer_updated`/`invoice_created`/`invoice_updated`/
 `invoice_emailed`/`quote_created`/`quote_updated`/`quote_emailed`/`payment_received`/
 `payment_removed`/`animal_created`/`animal_updated`/`animal_removed`/`booking_created`/
-`booking_updated`/`booking_removed`), `title`, optional `description`, optional `amount` (only
-ever set on `payment_received` — the sole source the income chart sums from), and `actor`
-(who/what caused it). `AuditLogModule` is deliberately a leaf module (no dependencies on other
-feature modules) so
-`CustomersModule`/`InvoicesModule`/`QuotesModule`/`PaymentsModule`/`AnimalsModule`/`BookingsModule`
+`booking_updated`/`booking_removed`/`credit_note_issued`/`credit_note_removed`), `title`, optional
+`description`, optional `amount` (only ever set on `payment_received` — the sole source the
+per-customer income chart sums from; the business-wide Reports page sums straight from the
+`Payment`/`Expense`/`CreditNote` collections instead, not from this log), and `actor` (who/what
+caused it). `AuditLogModule` is deliberately a leaf module (no dependencies on other feature
+modules) so
+`CustomersModule`/`InvoicesModule`/`QuotesModule`/`PaymentsModule`/`AnimalsModule`/`BookingsModule`/`CreditNotesModule`
 can each import it and inject
 `AuditLogService` one-directionally, the same pattern already used for `PaymentsModule` →
 `InvoicesModule`. `AuditLogService.record(...)` swallows its own errors — a failure to log an

@@ -222,18 +222,21 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   edit mode specifically, since a document's Terms/Issue date are pre-filled from its saved values
   on open and must NOT trigger a recalculation before staff actually touch either field, or opening
   Edit would silently overwrite an already-correct (possibly manually-adjusted) date.
-- **Financial** (`/financial`) — tabbed: **Bank Account** and **Payments**. **Bank Account** has
-  real fields (`BankAccountsCard`/`BankAccountModal`, both in `FinancialPage.tsx`/
+- **Financial** (`/financial`) — tabbed (array + label-map pattern, matching `SettingsPage.tsx`):
+  **Bank Accounts**, **Payments**, **Expenses**, **Credit Notes**. **Bank Accounts** has real
+  fields (`BankAccountsCard`/`BankAccountModal`, both in `FinancialPage.tsx`/
   `BankAccountModal.tsx`): **Type** (a select, Bank/Savings, defaulting to Bank), **Account Name**,
   **Sort Code**, **Account Number**, shown as table columns in that order, plus a `currentBalance`
-  (defaults to `0`, not derived from anything yet — there's no transaction ledger to sum). Clicking
-  a row (not its Edit/Delete icons) opens `ViewBankAccountModal`, a read-only Account Details
-  `kv-grid` plus a **Transactions** section (Month/Year selects, defaulting to the current
-  month/year, and a settings gear button that's currently a no-op) — always shows "No transactions
-  for this period." since there's no transaction ledger yet, same scaffolding-ahead-of-the-feature
-  spirit as `currentBalance`. Not to be confused with the existing Settings → Invoices →
-  **Bank Details** card, which holds the one set of account details shown *on* invoices, a separate
-  concern.
+  that now genuinely reflects reality — it's adjusted automatically by every recorded payment,
+  expense, and credit note against that account (see `backend/README.md`'s
+  `BankAccountsService.adjustBalance()`), not something staff ever set directly. Clicking a row
+  (not its Edit/Delete icons) opens `ViewBankAccountModal`, a read-only Account Details `kv-grid`
+  plus a **Transactions** section (Month/Year selects, defaulting to the current month/year, and a
+  settings gear button that's currently a no-op) — still always shows "No transactions for this
+  period.", since that's a separate, not-yet-built per-account transaction *list* (the balance
+  total itself is real; a drill-down into what made it up isn't). Not to be confused with the
+  existing Settings → Invoices → **Bank Details** card, which holds the one set of account details
+  shown *on* invoices, a separate concern.
 
   **Payments** (`PaymentsCard` in `FinancialPage.tsx`) is a read-mostly table of every recorded
   `Payment` — Payment ID/Date/Invoice/Amount/Charges/Payment Method/Account, Delete only, no Create
@@ -253,6 +256,35 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   deducts the amount from the invoice's balance and, once fully covered, flips its status to
   `paid` server-side (see `InvoicesService.applyPayment()` in `backend/README.md`) — the Invoices
   page's own status pill/dropdown reflects this immediately on refresh, no separate polling needed.
+
+  **Expenses** (`ExpensesCard`/`ExpenseModal`) has its own New/Edit/Delete — unlike Payments, an
+  expense isn't tied to any other record, so it's created directly from this tab: **Date**,
+  **Category** (a fixed select — Insurance/Supplies/Equipment/Vehicle-Fuel/Veterinary/Marketing/
+  Professional Fees/Other, matching the backend's fixed enum rather than a Settings-managed list),
+  **Payee** (optional), **Description**, **Amount (£)**, an optional **Account** dropdown (same
+  `GET /bank-accounts` source and "Name (Bank/Savings)" labelling as Payments' picker — debits that
+  account's balance if chosen), and an optional **Receipt** photo upload (same single-file →
+  base64 pattern as a pet's photo, capped at 4MB client-side). Deleting one restores its amount to
+  the account balance, same compensating pattern as deleting a Payment.
+
+  **Credit Notes** (`CreditNotesCard`/`CreditNoteModal`) has New/Delete (no Edit, matching
+  Payments — money movements get voided and redone, not silently edited). The form: a **Customer**
+  dropdown (`GET /customers`, matching `DocumentFormModal`'s own customer-select) whose choice
+  drives a dependent **Invoice** dropdown (`GET /invoices?customer=`, refetched whenever the
+  customer changes, defaulting to "No invoice (standalone credit)"), **Date**, **Amount (£)**,
+  a required **Reason**, and the same optional Account picker as Expenses. Issuing one reduces the
+  linked invoice's paid amount exactly like reversing a payment does (see
+  `InvoicesService.reversePayment()`), and debits the chosen account; deleting one undoes both.
+  The table shows Number/Date/Customer/Invoice/Amount/Reason.
+- **Reports** (`/reports`, `ReportsPage.tsx`) — sits directly below Financial in the nav. One
+  report so far: **Income vs Expenses**, a Last 6/12 Months selector (same convention as the
+  customer Activity tab's income chart) driving `GET /reports/income-vs-expenses`. Rendered by
+  `IncomeExpenseChart.tsx` — a new sibling to the existing per-customer `IncomeChart.tsx` rather
+  than a generalization of it, specifically to avoid any risk to that already-working, still-used
+  component; it draws two bars per month (income/expenses, with a small legend) instead of one.
+  Below the chart, three running totals (Income/Expenses/Net, the last colour-coded green/red by
+  sign) and a plain Month/Income/Expenses/Net table for exact figures the chart's bars can't give
+  precisely.
 - **Notes** (`/activity`, `ActivityPage.tsx`) — a read-only global feed of CRM activity entries,
   labeled "Notes" in the UI though the underlying model (`CrmActivity`, `/crm/activities`) still
   covers note/call/email/task entries, not just notes proper — entries are created from a customer's
@@ -285,9 +317,10 @@ page always shows which revision they agreed to — see `backend/README.md`'s "S
 **Document Numbering**, below Terms and
   Conditions, is an independent-save form for
   `invoiceNumberTemplate`/`invoiceNextNumber`/`quoteNumberTemplate`/`quoteNextNumber`/
-  `paymentNumberTemplate`/`paymentNextNumber` (see "Document numbering" in `backend/README.md`) —
+  `paymentNumberTemplate`/`paymentNextNumber`/`creditNoteNumberTemplate`/`creditNoteNextNumber`
+  (see "Document numbering" in `backend/README.md`) —
   the template fields accept free text with `{year}`/`{seq}` placeholders (defaulting to
-  `INV-{year}-{seq}`/`QUO-{year}-{seq}`/`PAY-{year}-{seq}`), and the next-number fields are plain
+  `INV-{year}-{seq}`/`QUO-{year}-{seq}`/`PAY-{year}-{seq}`/`CN-{year}-{seq}`), and the next-number fields are plain
   integer inputs so staff can jump the sequence ahead (e.g. to clear past whatever numbers already
   existed before a counter was introduced) or realign it to match an external paper sequence.
   Surfaced here rather than under Invoices since it spans invoices, quotes, and payments alike, not
