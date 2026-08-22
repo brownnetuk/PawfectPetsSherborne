@@ -112,6 +112,9 @@ export function createAnimal(input: Record<string, unknown>): Promise<Animal> {
 export function updateAnimal(id: string, patch: Record<string, unknown>): Promise<Animal> {
   return request(`/animals/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
 }
+export function deleteAnimal(id: string): Promise<void> {
+  return request(`/animals/${id}`, { method: 'DELETE' });
+}
 
 // --- bookings ---
 export function listBookings(customerId?: string): Promise<Booking[]> {

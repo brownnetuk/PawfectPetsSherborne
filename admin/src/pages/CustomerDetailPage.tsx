@@ -470,6 +470,24 @@ function PetsTab({
   const [editing, setEditing] = useState<Animal | null>(null);
   const [showChoice, setShowChoice] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [deletingAnimal, setDeletingAnimal] = useState<Animal | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDelete() {
+    if (!deletingAnimal) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await api.deleteAnimal(deletingAnimal._id);
+      setDeletingAnimal(null);
+      onChange();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete pet');
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <div>
@@ -510,6 +528,16 @@ function PetsTab({
                     <button className="btn-link" onClick={() => setEditing(a)}>
                       Edit
                     </button>
+                    <button
+                      className="btn-link"
+                      style={{ color: 'var(--error)' }}
+                      onClick={() => {
+                        setDeleteError(null);
+                        setDeletingAnimal(a);
+                      }}
+                    >
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -549,6 +577,23 @@ function PetsTab({
             onChange();
           }}
         />
+      )}
+      {deletingAnimal && (
+        <Modal title="Delete pet?" onClose={() => setDeletingAnimal(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently deletes {deletingAnimal.name}'s record. If they're on any bookings,
+            deletion is blocked until those are removed first.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeletingAnimal(null)} disabled={deleting}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'Deleting…' : 'Delete pet'}
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );
