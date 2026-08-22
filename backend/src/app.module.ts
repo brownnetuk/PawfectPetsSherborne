@@ -12,6 +12,7 @@ import { AnimalsModule } from './animals/animals.module';
 import { BankAccountsModule } from './bank-accounts/bank-accounts.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { CreditNotesModule } from './credit-notes/credit-notes.module';
+import { ExpenseCategoriesModule } from './expense-categories/expense-categories.module';
 import { ExpensesModule } from './expenses/expenses.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { QuotesModule } from './quotes/quotes.module';
@@ -53,6 +54,7 @@ import { EnquiriesModule } from './enquiries/enquiries.module';
     SettingsModule,
     EnquiriesModule,
     ExpensesModule,
+    ExpenseCategoriesModule,
     CreditNotesModule,
     ReportsModule,
   ],
