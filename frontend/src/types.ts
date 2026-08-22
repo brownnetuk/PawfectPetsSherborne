@@ -31,7 +31,7 @@ export interface AnimalRecord {
   age: number;
   vaccinated: boolean;
   vaccineExpiryDate?: string;
-  photo?: string;
+  photos?: string[];
   colourMarkings?: string;
   microchipNumber?: string;
   temperamentNotes?: string;
@@ -128,7 +128,7 @@ export interface PetDetails {
   age: string;
   vaccinated: boolean | null;
   vaccineExpiryDate?: string;
-  photo?: string;
+  photos?: string[];
   colourMarkings?: string;
   microchipNumber?: string;
   temperamentNotes?: string;

@@ -333,6 +333,13 @@ h2 {
   font-size: 0.85rem;
 }
 
+.photo-upload-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
 .photo-upload {
   border: 1px solid var(--border);
   border-radius: 8px;

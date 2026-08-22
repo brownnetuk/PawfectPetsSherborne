@@ -90,7 +90,7 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
         />
       )}
 
-      <PhotoUpload value={value.photo} onChange={(v) => set('photo', v)} />
+      <PhotoUpload value={value.photos} onChange={(v) => set('photos', v)} />
 
       <TextField
         label="Colour / markings"
