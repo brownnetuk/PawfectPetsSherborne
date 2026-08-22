@@ -76,7 +76,11 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   array is the main one, and Edit pet's "Main pic" checkbox on the second photo just reorders the
   array to swap them (the checkbox on the first is checked and disabled, since there's always
   exactly one main once any photos exist). That first photo is what the Pets tab table shows as a
-  small thumbnail in its own leading column, before Name. Off-lead
+  small thumbnail in its own leading column, before Name. `ViewAnimalModal` itself uses a
+  `.modal-olive` background (`Modal`'s new optional `className` prop, added for exactly this —
+  `admin/src/components/Modal.tsx`) — the same `--sage-badge` green as the "Active" status pill —
+  with Details/Behaviour/Off-lead consent each in their own white `.card` on top, rather than one
+  flat white modal like everywhere else. Off-lead
   consent is deliberately read-only in the pet edit form — it's a customer-signed acknowledgment
   from the intake form, not something staff overwrite from here. A status dropdown next to the
   overview badge moves a customer between pending/active/inactive/update_info via a staff-only
