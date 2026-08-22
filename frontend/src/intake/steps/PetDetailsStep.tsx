@@ -1,4 +1,5 @@
 import { ChoiceGroup, SelectField, TextField, ToggleField } from '../fields';
+import PhotoUpload from '../PhotoUpload';
 import SignaturePad from '../SignaturePad';
 import type { PetDetails, Species } from '../../types';
 
@@ -88,6 +89,8 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
           required
         />
       )}
+
+      <PhotoUpload value={value.photo} onChange={(v) => set('photo', v)} />
 
       <TextField
         label="Colour / markings"

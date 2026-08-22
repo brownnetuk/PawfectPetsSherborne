@@ -71,6 +71,7 @@ function animalPayload(pet: PetDetails) {
     age: Number(pet.age),
     vaccinated: pet.vaccinated,
     vaccineExpiryDate: pet.vaccinated ? pet.vaccineExpiryDate : undefined,
+    photo: pet.photo,
     colourMarkings: pet.colourMarkings || undefined,
     microchipNumber: pet.microchipNumber || undefined,
     temperamentNotes: pet.temperamentNotes || undefined,

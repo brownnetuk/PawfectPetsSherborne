@@ -333,6 +333,20 @@ h2 {
   font-size: 0.85rem;
 }
 
+.photo-upload {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+}
+
+.photo-preview {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+}
+
 .hint {
   color: var(--muted);
 }

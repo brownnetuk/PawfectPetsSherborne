@@ -15,6 +15,7 @@ function emptyPet(): PetDetails {
     age: '',
     vaccinated: null,
     vaccineExpiryDate: '',
+    photo: undefined,
     colourMarkings: '',
     microchipNumber: '',
     temperamentNotes: '',
