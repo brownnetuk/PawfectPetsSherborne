@@ -69,6 +69,8 @@ export interface Customer {
     signedName?: string;
     signatureImage?: string;
     signedAt?: string;
+    termsVersion?: string;
+    termsDocumentDate?: string;
   };
 }
 
@@ -269,6 +271,8 @@ export interface BusinessInfo {
   logoImage: string;
   termsHtml: string;
   termsFileName: string;
+  termsVersion: string;
+  termsDocumentDate: string;
   bankName: string;
   sortCode: string;
   accountNumber: string;

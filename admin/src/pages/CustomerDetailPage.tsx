@@ -417,12 +417,39 @@ function OverviewTab({
       {customer.agreement?.signedName && (
         <div className="card">
           <div className="section-title">Agreement</div>
-          <dl className="kv-grid">
-            <dt>Signed by</dt>
-            <dd>{customer.agreement.signedName}</dd>
-            <dt>Signed at</dt>
-            <dd>{customer.agreement.signedAt ? new Date(customer.agreement.signedAt).toLocaleString() : '—'}</dd>
-          </dl>
+          <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <dl className="kv-grid" style={{ flex: 1, minWidth: 220 }}>
+              <dt>Signed by</dt>
+              <dd>{customer.agreement.signedName}</dd>
+              <dt>Signed at</dt>
+              <dd>{customer.agreement.signedAt ? new Date(customer.agreement.signedAt).toLocaleString() : '—'}</dd>
+              <dt>Version</dt>
+              <dd>{customer.agreement.termsVersion || '—'}</dd>
+              <dt>Document date</dt>
+              <dd>{customer.agreement.termsDocumentDate || '—'}</dd>
+            </dl>
+            {customer.agreement.signatureImage && (
+              <div
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  padding: 8,
+                  width: 220,
+                  height: 90,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <img
+                  src={customer.agreement.signatureImage}
+                  alt="Client signature"
+                  style={{ maxWidth: '100%', maxHeight: '100%' }}
+                />
+              </div>
+            )}
+          </div>
         </div>
       )}
     </>

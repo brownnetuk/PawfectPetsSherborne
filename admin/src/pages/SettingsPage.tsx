@@ -81,6 +81,8 @@ function BusinessInfoTab() {
   // was chosen. '' (set by Remove) explicitly clears the stored terms.
   const [termsFileName, setTermsFileName] = useState('');
   const [termsFile, setTermsFile] = useState<string | null>(null);
+  const [termsVersion, setTermsVersion] = useState('');
+  const [termsDocumentDate, setTermsDocumentDate] = useState('');
   const [termsError, setTermsError] = useState<string | null>(null);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -107,6 +109,8 @@ function BusinessInfoTab() {
         setLogoImage(i.logoImage);
         setTermsFileName(i.termsFileName);
         setTermsFile(null);
+        setTermsVersion(i.termsVersion);
+        setTermsDocumentDate(i.termsDocumentDate);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load business info'));
   }
@@ -205,12 +209,16 @@ function BusinessInfoTab() {
 
   async function handleSaveTerms(e: React.FormEvent) {
     e.preventDefault();
-    if (termsFile === null) return;
     setTermsSaving(true);
     setTermsError(null);
     setTermsSaved(false);
     try {
-      await api.updateBusinessInfo({ termsFile, termsFileName });
+      const patch: Record<string, unknown> = { termsVersion, termsDocumentDate };
+      if (termsFile !== null) {
+        patch.termsFile = termsFile;
+        patch.termsFileName = termsFileName;
+      }
+      await api.updateBusinessInfo(patch);
       setTermsSaved(true);
       refresh();
     } catch (err) {
@@ -350,8 +358,18 @@ function BusinessInfoTab() {
               {termsFileName ? `Uploaded: ${termsFileName}` : 'No terms uploaded yet.'} Upload a .docx to replace it.
             </div>
           </div>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+            <div className="field" style={{ flex: 1, minWidth: 160 }}>
+              <label>Version</label>
+              <input type="text" value={termsVersion} onChange={(e) => setTermsVersion(e.target.value)} placeholder="e.g. v2.1" />
+            </div>
+            <div className="field" style={{ flex: 1, minWidth: 160 }}>
+              <label>Document date</label>
+              <input type="text" value={termsDocumentDate} onChange={(e) => setTermsDocumentDate(e.target.value)} placeholder="e.g. 1 January 2026" />
+            </div>
+          </div>
           <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
-            <button className="btn btn-primary" type="submit" disabled={termsSaving || termsFile === null}>
+            <button className="btn btn-primary" type="submit" disabled={termsSaving}>
               {termsSaving ? 'Saving…' : 'Save changes'}
             </button>
             {termsSaved && (
