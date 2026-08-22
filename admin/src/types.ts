@@ -195,6 +195,47 @@ export interface Product {
   createdAt: string;
 }
 
+export type ExpenseCategory =
+  | 'insurance'
+  | 'supplies'
+  | 'equipment'
+  | 'vehicle_fuel'
+  | 'veterinary'
+  | 'marketing'
+  | 'professional_fees'
+  | 'other';
+
+export interface Expense {
+  _id: string;
+  date: string;
+  category: ExpenseCategory;
+  payee?: string;
+  description: string;
+  amount: number;
+  account?: { _id: string; name: string; type: BankAccountType } | string;
+  receipt?: string;
+  createdAt: string;
+}
+
+export interface CreditNote {
+  _id: string;
+  creditNoteNumber: string;
+  customer: { _id: string; name: string; email: string } | string;
+  invoice?: { _id: string; invoiceNumber: string } | string;
+  date: string;
+  amount: number;
+  reason: string;
+  account?: { _id: string; name: string; type: BankAccountType } | string;
+  createdAt: string;
+}
+
+export interface IncomeExpenseMonth {
+  month: string; // 'YYYY-MM'
+  income: number;
+  expenses: number;
+  net: number;
+}
+
 export interface Quote {
   _id: string;
   customer: CustomerRef | string;
@@ -243,7 +284,9 @@ export type AuditEventType =
   | 'animal_removed'
   | 'booking_created'
   | 'booking_updated'
-  | 'booking_removed';
+  | 'booking_removed'
+  | 'credit_note_issued'
+  | 'credit_note_removed';
 
 export interface AuditLogEntry {
   _id: string;
@@ -283,6 +326,8 @@ export interface BusinessInfo {
   quoteNextNumber: number;
   paymentNumberTemplate: string;
   paymentNextNumber: number;
+  creditNoteNumberTemplate: string;
+  creditNoteNextNumber: number;
   invoicePdfTemplate: PdfTemplateElement[];
 }
 

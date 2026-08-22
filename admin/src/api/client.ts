@@ -5,12 +5,16 @@ import type {
   BankAccountType,
   Booking,
   BusinessInfo,
+  CreditNote,
   Customer,
   CrmActivity,
   EmailSettings,
   EmailTemplate,
   EmailTrigger,
   Enquiry,
+  Expense,
+  ExpenseCategory,
+  IncomeExpenseMonth,
   IncomeMonth,
   Invoice,
   InvoiceTerm,
@@ -274,6 +278,57 @@ export function createPayment(input: PaymentInput): Promise<Payment> {
 }
 export function deletePayment(id: string): Promise<void> {
   return request(`/payments/${id}`, { method: 'DELETE' });
+}
+
+// --- expenses ---
+export function listExpenses(from?: string, to?: string): Promise<Expense[]> {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const qs = params.toString();
+  return request(`/expenses${qs ? `?${qs}` : ''}`);
+}
+export interface ExpenseInput {
+  date: string;
+  category: ExpenseCategory;
+  payee?: string;
+  description: string;
+  amount: number;
+  account?: string;
+  receipt?: string;
+}
+export function createExpense(input: ExpenseInput): Promise<Expense> {
+  return request('/expenses', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateExpense(id: string, input: ExpenseInput): Promise<Expense> {
+  return request(`/expenses/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deleteExpense(id: string): Promise<void> {
+  return request(`/expenses/${id}`, { method: 'DELETE' });
+}
+
+// --- credit notes ---
+export function listCreditNotes(customerId?: string): Promise<CreditNote[]> {
+  return request(`/credit-notes${customerId ? `?customer=${customerId}` : ''}`);
+}
+export interface CreditNoteInput {
+  customer: string;
+  invoice?: string;
+  date: string;
+  amount: number;
+  reason: string;
+  account?: string;
+}
+export function createCreditNote(input: CreditNoteInput): Promise<CreditNote> {
+  return request('/credit-notes', { method: 'POST', body: JSON.stringify(input) });
+}
+export function deleteCreditNote(id: string): Promise<void> {
+  return request(`/credit-notes/${id}`, { method: 'DELETE' });
+}
+
+// --- reports ---
+export function getIncomeExpenseReport(months: number): Promise<IncomeExpenseMonth[]> {
+  return request(`/reports/income-vs-expenses?months=${months}`);
 }
 
 // --- products ---
