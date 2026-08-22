@@ -6,8 +6,6 @@ export enum BankAccountType {
   SAVINGS = 'savings',
 }
 
-// Holds the account's own identifying details -- not yet linked to recorded
-// payments (see PaymentsService), that's a later build.
 @Schema({ timestamps: true })
 export class BankAccount extends Document {
   @Prop({ type: String, enum: BankAccountType, default: BankAccountType.BANK })
@@ -22,11 +20,25 @@ export class BankAccount extends Document {
   @Prop({ required: true })
   accountNumber: string;
 
-  // Not yet derived from anything (there's no transaction ledger to sum) --
-  // just defaults to 0 and is only ever displayed for now. A later build that
-  // adds real transactions would compute/update this from them.
+  // Kept in sync by BankAccountsService.adjustBalance() every time a Payment/
+  // Expense/CreditNote is recorded, updated, or removed against this account
+  // -- see backend/README.md. Reset (not incremented) by setOpeningBalance()
+  // below whenever staff reconcile against a real statement.
   @Prop({ default: 0 })
   currentBalance?: number;
+
+  // A reconciliation anchor: "as of this date, the balance was this amount" --
+  // set via the Transactions panel's settings gear (setOpeningBalance()).
+  // Unset means "since this account was created, balance 0", the original
+  // default before reconciliation existed. getTransactions() sums from here
+  // rather than from the beginning of time, so a period's own opening
+  // balance stays correct after a reconciliation even if there's older,
+  // now-irrelevant transaction history before it.
+  @Prop()
+  openingBalanceDate?: Date;
+
+  @Prop({ default: 0 })
+  openingBalance?: number;
 }
 
 export const BankAccountSchema = SchemaFactory.createForClass(BankAccount);

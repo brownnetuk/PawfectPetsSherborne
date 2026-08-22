@@ -5,6 +5,7 @@ import { CreditNote } from '../credit-notes/schemas/credit-note.schema';
 import { Expense } from '../expenses/schemas/expense.schema';
 import { Payment } from '../payments/schemas/payment.schema';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
+import { SetOpeningBalanceDto } from './dto/set-opening-balance.dto';
 import { BankAccount } from './schemas/bank-account.schema';
 
 export interface BankTransaction {
@@ -54,29 +55,79 @@ export class BankAccountsService {
     await this.bankAccountModel.updateOne({ _id: id }, { $inc: { currentBalance: delta } }).exec();
   }
 
+  // Sums a Payment/Expense/CreditNote model's `amount` for one account from
+  // `from` (inclusive) up to `to` if given, otherwise open-ended -- matches
+  // the $gte/$lt convention getTransactions() already uses for a calendar
+  // month.
+  private async sumBetween<T>(
+    model: Model<T>,
+    accountId: Types.ObjectId,
+    from: Date,
+    to?: Date,
+  ): Promise<number> {
+    const rows = await model
+      .aggregate<{ total: number }>([
+        { $match: { account: accountId, date: { $gte: from, ...(to ? { $lt: to } : {}) } } },
+        { $group: { _id: null, total: { $sum: '$amount' } } },
+      ])
+      .exec();
+    return rows[0]?.total ?? 0;
+  }
+
+  /**
+   * Reconciles the account against a real statement: "as of `date`, the
+   * balance was `balance`". Becomes the new anchor getTransactions() sums
+   * forward from, and `currentBalance` is recomputed from scratch (not
+   * incremented) as `balance` plus everything recorded from `date` onward --
+   * this is the one place a stray-adjustment drift (e.g. from deleting a
+   * payment that predated adjustBalance existing) can be corrected without
+   * touching the underlying transaction records themselves.
+   */
+  async setOpeningBalance(id: string, dto: SetOpeningBalanceDto): Promise<BankAccount> {
+    const openingBalanceDate = new Date(dto.date);
+    const accountObjectId = new Types.ObjectId(id);
+    const [paymentsSince, expensesSince, creditNotesSince] = await Promise.all([
+      this.sumBetween(this.paymentModel, accountObjectId, openingBalanceDate),
+      this.sumBetween(this.expenseModel, accountObjectId, openingBalanceDate),
+      this.sumBetween(this.creditNoteModel, accountObjectId, openingBalanceDate),
+    ]);
+    const currentBalance = dto.balance + paymentsSince - expensesSince - creditNotesSince;
+    const account = await this.bankAccountModel
+      .findByIdAndUpdate(
+        id,
+        { openingBalanceDate, openingBalance: dto.balance, currentBalance },
+        { new: true },
+      )
+      .exec();
+    if (!account) {
+      throw new NotFoundException(`Bank account ${id} not found`);
+    }
+    return account;
+  }
+
   /**
    * The account's own statement for one calendar month: every Payment,
    * Expense, and CreditNote recorded against it, merged into a single
    * signed, running-balance ledger -- Payment credits (+), Expense and
    * CreditNote debits (-), same sign convention `adjustBalance` already uses
-   * for each of them. `openingBalance` sums everything strictly before the
-   * period so the running balance is meaningful without fetching the whole
-   * account history every time.
+   * for each of them. The period's own opening balance sums from the
+   * account's reconciliation anchor (openingBalanceDate/openingBalance, see
+   * setOpeningBalance() -- defaults to account creation / £0 if never
+   * reconciled) rather than from the beginning of time, so it stays correct
+   * even when older, now-superseded transaction history exists before it.
    */
   async getTransactions(accountId: string, month: number, year: number) {
+    const account = await this.bankAccountModel.findById(accountId).exec();
+    if (!account) {
+      throw new NotFoundException(`Bank account ${accountId} not found`);
+    }
+    const createdAt = (account as unknown as { createdAt: Date }).createdAt;
+    const anchorDate = account.openingBalanceDate ?? createdAt;
+    const anchorBalance = account.openingBalance ?? 0;
+
     const periodStart = new Date(year, month - 1, 1);
     const periodEnd = new Date(year, month, 1);
     const accountObjectId = new Types.ObjectId(accountId);
-
-    const sumBefore = async <T>(model: Model<T>): Promise<number> => {
-      const rows = await model
-        .aggregate<{ total: number }>([
-          { $match: { account: accountObjectId, date: { $lt: periodStart } } },
-          { $group: { _id: null, total: { $sum: '$amount' } } },
-        ])
-        .exec();
-      return rows[0]?.total ?? 0;
-    };
 
     const [payments, expenses, creditNotes, paymentsBefore, expensesBefore, creditNotesBefore] =
       await Promise.all([
@@ -90,12 +141,12 @@ export class BankAccountsService {
         this.creditNoteModel
           .find({ account: accountId, date: { $gte: periodStart, $lt: periodEnd } })
           .exec(),
-        sumBefore(this.paymentModel),
-        sumBefore(this.expenseModel),
-        sumBefore(this.creditNoteModel),
+        this.sumBetween(this.paymentModel, accountObjectId, anchorDate, periodStart),
+        this.sumBetween(this.expenseModel, accountObjectId, anchorDate, periodStart),
+        this.sumBetween(this.creditNoteModel, accountObjectId, anchorDate, periodStart),
       ]);
 
-    const openingBalance = paymentsBefore - expensesBefore - creditNotesBefore;
+    const openingBalance = anchorBalance + paymentsBefore - expensesBefore - creditNotesBefore;
 
     type UnbalancedTransaction = Omit<BankTransaction, 'balance'>;
     const unbalanced: UnbalancedTransaction[] = [
