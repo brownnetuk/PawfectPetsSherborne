@@ -101,6 +101,13 @@ One record per client, created from the intake form submission.
 - `agreement` — typed signature (`signedName`), `signedAt`/`date` set server-side on creation
 - `status` — `pending` | `active` | `inactive`; flips to `active` on successful creation
 
+`email` must be unique across customers, checked case-insensitively (`assertEmailNotTaken()`, via
+`$expr`/`$toLower` rather than a regex so there's no user input to escape) on both creation paths —
+`create()` (the public intake form's fresh signup) and `createLead()` (staff's "New customer",
+which pre-creates a minimal pending record before the customer fills in the rest) — throwing a
+`ConflictException` (409) if another customer already has that email. Not enforced as a schema-level
+unique index, and not re-checked on `update()` — see `admin/README.md`'s Customers section.
+
 ### Animal (`/animals`)
 
 One record per pet, linked to a `Customer`. Covers type/breed, vaccination, colour/markings,

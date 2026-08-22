@@ -55,14 +55,18 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
 - **Customers** — list, search, and a "New customer" flow that creates a minimal lead
   (`POST /customers/leads`) and hands you a `VITE_INTAKE_URL/intake/<id>` link to copy and send.
   There's no full customer-creation form here on purpose — the intake form is where that detail
-  belongs, and duplicating it would just be two sources of truth for the same data.
+  belongs, and duplicating it would just be two sources of truth for the same data. The backend
+  rejects an email already used by another customer (case-insensitively) on this and on the public
+  intake form's own signup — the error banner just surfaces the backend's message as-is.
 - **Customer detail** — tabs for overview (client/emergency/vet/security/agreement — alarm
   instructions are only decrypted on demand via "Reveal"; the Agreement card shows Signed
   by/Signed at plus the Version/Document date snapshotted from Business Info at signing time, and
   renders the customer's signature image alongside them), pets, bookings, invoices, Notes (the
   manually-authored `CrmActivity` log, see below), and Activity (an automatic audit trail, see
   below), plus per-customer booking/invoice/note creation. "Edit" on the overview covers
-  client/emergency/vet/security fields; "Edit" on a pet row covers its full profile. Off-lead
+  client/emergency/vet/security fields; "Edit" on a pet row covers its full profile. A pet row also
+  has a "Delete" action, matching the confirm-modal pattern the Bookings tab already uses —
+  blocked with the backend's existing message if the pet is on any booking. Off-lead
   consent is deliberately read-only in the pet edit form — it's a customer-signed acknowledgment
   from the intake form, not something staff overwrite from here. A status dropdown next to the
   overview badge moves a customer between pending/active/inactive/update_info via a staff-only
