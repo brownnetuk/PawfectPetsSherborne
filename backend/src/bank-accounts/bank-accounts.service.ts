@@ -1,6 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { describeBlockers } from '../common/delete-guard.util';
 import { CreditNote } from '../credit-notes/schemas/credit-note.schema';
 import { Expense } from '../expenses/schemas/expense.schema';
 import { Payment } from '../payments/schemas/payment.schema';
@@ -19,10 +24,12 @@ export interface BankTransaction {
 @Injectable()
 export class BankAccountsService {
   constructor(
-    @InjectModel(BankAccount.name) private readonly bankAccountModel: Model<BankAccount>,
+    @InjectModel(BankAccount.name)
+    private readonly bankAccountModel: Model<BankAccount>,
     @InjectModel(Payment.name) private readonly paymentModel: Model<Payment>,
     @InjectModel(Expense.name) private readonly expenseModel: Model<Expense>,
-    @InjectModel(CreditNote.name) private readonly creditNoteModel: Model<CreditNote>,
+    @InjectModel(CreditNote.name)
+    private readonly creditNoteModel: Model<CreditNote>,
   ) {}
 
   create(dto: CreateBankAccountDto): Promise<BankAccount> {
@@ -34,7 +41,9 @@ export class BankAccountsService {
   }
 
   async update(id: string, dto: CreateBankAccountDto): Promise<BankAccount> {
-    const account = await this.bankAccountModel.findByIdAndUpdate(id, dto, { new: true }).exec();
+    const account = await this.bankAccountModel
+      .findByIdAndUpdate(id, dto, { new: true })
+      .exec();
     if (!account) {
       throw new NotFoundException(`Bank account ${id} not found`);
     }
@@ -42,6 +51,21 @@ export class BankAccountsService {
   }
 
   async remove(id: string): Promise<void> {
+    const [paymentCount, expenseCount, creditNoteCount] = await Promise.all([
+      this.paymentModel.countDocuments({ account: id }).exec(),
+      this.expenseModel.countDocuments({ account: id }).exec(),
+      this.creditNoteModel.countDocuments({ account: id }).exec(),
+    ]);
+    const blockers = describeBlockers({
+      payment: paymentCount,
+      expense: expenseCount,
+      'credit note': creditNoteCount,
+    });
+    if (blockers) {
+      throw new ConflictException(
+        `Can't delete this bank account: it has ${blockers} recorded against it. Remove those first.`,
+      );
+    }
     const result = await this.bankAccountModel.findByIdAndDelete(id).exec();
     if (!result) {
       throw new NotFoundException(`Bank account ${id} not found`);
@@ -51,8 +75,13 @@ export class BankAccountsService {
   // Shared by Payments/Expenses/CreditNotes so a bank account's balance stays
   // in sync with everything recorded against it -- $inc rather than
   // read-modify-write so concurrent adjustments can't race each other.
-  async adjustBalance(id: string | Types.ObjectId, delta: number): Promise<void> {
-    await this.bankAccountModel.updateOne({ _id: id }, { $inc: { currentBalance: delta } }).exec();
+  async adjustBalance(
+    id: string | Types.ObjectId,
+    delta: number,
+  ): Promise<void> {
+    await this.bankAccountModel
+      .updateOne({ _id: id }, { $inc: { currentBalance: delta } })
+      .exec();
   }
 
   // Sums a Payment/Expense/CreditNote model's `amount` for one account from
@@ -67,7 +96,12 @@ export class BankAccountsService {
   ): Promise<number> {
     const rows = await model
       .aggregate<{ total: number }>([
-        { $match: { account: accountId, date: { $gte: from, ...(to ? { $lt: to } : {}) } } },
+        {
+          $match: {
+            account: accountId,
+            date: { $gte: from, ...(to ? { $lt: to } : {}) },
+          },
+        },
         { $group: { _id: null, total: { $sum: '$amount' } } },
       ])
       .exec();
@@ -83,15 +117,23 @@ export class BankAccountsService {
    * payment that predated adjustBalance existing) can be corrected without
    * touching the underlying transaction records themselves.
    */
-  async setOpeningBalance(id: string, dto: SetOpeningBalanceDto): Promise<BankAccount> {
+  async setOpeningBalance(
+    id: string,
+    dto: SetOpeningBalanceDto,
+  ): Promise<BankAccount> {
     const openingBalanceDate = new Date(dto.date);
     const accountObjectId = new Types.ObjectId(id);
     const [paymentsSince, expensesSince, creditNotesSince] = await Promise.all([
       this.sumBetween(this.paymentModel, accountObjectId, openingBalanceDate),
       this.sumBetween(this.expenseModel, accountObjectId, openingBalanceDate),
-      this.sumBetween(this.creditNoteModel, accountObjectId, openingBalanceDate),
+      this.sumBetween(
+        this.creditNoteModel,
+        accountObjectId,
+        openingBalanceDate,
+      ),
     ]);
-    const currentBalance = dto.balance + paymentsSince - expensesSince - creditNotesSince;
+    const currentBalance =
+      dto.balance + paymentsSince - expensesSince - creditNotesSince;
     const account = await this.bankAccountModel
       .findByIdAndUpdate(
         id,
@@ -129,29 +171,61 @@ export class BankAccountsService {
     const periodEnd = new Date(year, month, 1);
     const accountObjectId = new Types.ObjectId(accountId);
 
-    const [payments, expenses, creditNotes, paymentsBefore, expensesBefore, creditNotesBefore] =
-      await Promise.all([
-        this.paymentModel
-          .find({ account: accountId, date: { $gte: periodStart, $lt: periodEnd } })
-          .populate('invoice', 'invoiceNumber')
-          .exec(),
-        this.expenseModel
-          .find({ account: accountId, date: { $gte: periodStart, $lt: periodEnd } })
-          .exec(),
-        this.creditNoteModel
-          .find({ account: accountId, date: { $gte: periodStart, $lt: periodEnd } })
-          .exec(),
-        this.sumBetween(this.paymentModel, accountObjectId, anchorDate, periodStart),
-        this.sumBetween(this.expenseModel, accountObjectId, anchorDate, periodStart),
-        this.sumBetween(this.creditNoteModel, accountObjectId, anchorDate, periodStart),
-      ]);
+    const [
+      payments,
+      expenses,
+      creditNotes,
+      paymentsBefore,
+      expensesBefore,
+      creditNotesBefore,
+    ] = await Promise.all([
+      this.paymentModel
+        .find({
+          account: accountId,
+          date: { $gte: periodStart, $lt: periodEnd },
+        })
+        .populate('invoice', 'invoiceNumber')
+        .exec(),
+      this.expenseModel
+        .find({
+          account: accountId,
+          date: { $gte: periodStart, $lt: periodEnd },
+        })
+        .exec(),
+      this.creditNoteModel
+        .find({
+          account: accountId,
+          date: { $gte: periodStart, $lt: periodEnd },
+        })
+        .exec(),
+      this.sumBetween(
+        this.paymentModel,
+        accountObjectId,
+        anchorDate,
+        periodStart,
+      ),
+      this.sumBetween(
+        this.expenseModel,
+        accountObjectId,
+        anchorDate,
+        periodStart,
+      ),
+      this.sumBetween(
+        this.creditNoteModel,
+        accountObjectId,
+        anchorDate,
+        periodStart,
+      ),
+    ]);
 
-    const openingBalance = anchorBalance + paymentsBefore - expensesBefore - creditNotesBefore;
+    const openingBalance =
+      anchorBalance + paymentsBefore - expensesBefore - creditNotesBefore;
 
     type UnbalancedTransaction = Omit<BankTransaction, 'balance'>;
     const unbalanced: UnbalancedTransaction[] = [
       ...payments.map((p): UnbalancedTransaction => {
-        const invoice = p.invoice as unknown as { invoiceNumber?: string } | undefined;
+        const invoice = p.invoice as unknown as
+          { invoiceNumber?: string } | undefined;
         return {
           date: p.date,
           description: `Payment ${p.paymentId}${invoice?.invoiceNumber ? ` — ${invoice.invoiceNumber}` : ''}`,

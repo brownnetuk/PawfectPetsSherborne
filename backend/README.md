@@ -154,12 +154,28 @@ previously crashed pages that read `.name`/`._id` straight off an unguarded popu
   `CrmActivity` records for that customer.
 - `AnimalsService.remove` — blocked by any `Booking` whose `animals` array includes it.
 - `BookingsService.remove` — blocked by any `Invoice`/`Quote` whose `booking` references it.
+- `InvoicesService.remove` — blocked by any `Payment` or `CreditNote` whose `invoice` references
+  it. Added after a real report: deleting an invoice that still had payments against it left them
+  with a dangling `invoice` ref, which crashed the Financial page's Payments tab the same way the
+  bug this whole section describes used to crash `BookingsPage`/`ActivityPage` — `invoiceLabel()`
+  in `admin/src/pages/FinancialPage.tsx` (`admin/README.md`) is the frontend's matching
+  defense-in-depth fix (renders "(deleted invoice)" instead of throwing), for any dangling
+  reference this guard doesn't catch — e.g. data that predates it.
+- `BankAccountsService.remove` — blocked by any `Payment`, `Expense`, or `CreditNote` whose
+  `account` references it, same reasoning (a payment's `account` is rendered the same way its
+  `invoice` is).
 
-`Invoice`/`Quote`/`CrmActivity` have no guard on their own `remove()` since nothing references
-them. The cross-module `@InjectModel` wiring this needs is set up in each entity's own
-`*.module.ts` (`CustomersModule` imports `AnimalsModule`/`BookingsModule`/`InvoicesModule`/
-`QuotesModule`/`CrmModule`, etc.) — there's no circular dependency since the reference graph only
-flows one way (Customer ← Animal ← Booking ← Invoice/Quote).
+`Quote`/`CrmActivity` have no guard on their own `remove()` since nothing references them. The
+cross-module `@InjectModel` wiring this needs is set up in each entity's own `*.module.ts`, one of
+two ways depending on which direction the module graph already flows: `CustomersModule` *imports*
+`AnimalsModule`/`BookingsModule`/`InvoicesModule`/`QuotesModule`/`CrmModule` directly, since nothing
+imports `CustomersModule` back (Customer ← Animal ← Booking ← Invoice/Quote is one-way). `Invoice`
+and `BankAccount` are different: `PaymentsModule`/`CreditNotesModule`/`ExpensesModule` already
+import `InvoicesModule`/`BankAccountsModule` the other way round (to call
+`applyPayment`/`adjustBalance` etc.), so `InvoicesModule`/`BankAccountsModule` importing them back
+would be circular — instead each registers `Payment`/`CreditNote`/`Expense`'s schemas directly via
+its own `MongooseModule.forFeature(...)` (read-only access to the model, no service/module import),
+the same trick `ReportsModule` already used for its own read-only cross-collection aggregations.
 
 ### Invoice (`/invoices`)
 

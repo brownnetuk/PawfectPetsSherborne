@@ -192,12 +192,16 @@ export interface BankAccountStatement {
 export interface Payment {
   _id: string;
   paymentId: string;
-  invoice: { _id: string; invoiceNumber: string } | string;
+  // null is a defensive case, not an expected one: the backend now blocks
+  // deleting an invoice/account that still has payments against it, but
+  // older data (or a future gap in that guard) could still leave a populated
+  // ref dangling, so this stays nullable rather than assuming it never is.
+  invoice: { _id: string; invoiceNumber: string } | string | null;
   date: string;
   amount: number;
   charges?: number;
   paymentMethod?: string;
-  account: { _id: string; name: string; type: BankAccountType } | string;
+  account: { _id: string; name: string; type: BankAccountType } | string | null;
   createdAt: string;
 }
 

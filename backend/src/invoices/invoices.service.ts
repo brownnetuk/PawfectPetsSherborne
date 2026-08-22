@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -7,6 +8,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
+import { describeBlockers } from '../common/delete-guard.util';
 import {
   buildItemsTableHtml,
   formatUkDate,
@@ -16,6 +18,8 @@ import {
   nextSequenceNumber,
 } from '../common/document-number.util';
 import { publicApiUrl, trackingPixelHtml } from '../common/tracking-pixel.util';
+import { CreditNote } from '../credit-notes/schemas/credit-note.schema';
+import { Payment } from '../payments/schemas/payment.schema';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
@@ -29,6 +33,9 @@ export class InvoicesService {
     @InjectModel(Invoice.name) private readonly invoiceModel: Model<Invoice>,
     @InjectModel(BusinessInfo.name)
     private readonly businessInfoModel: Model<BusinessInfo>,
+    @InjectModel(Payment.name) private readonly paymentModel: Model<Payment>,
+    @InjectModel(CreditNote.name)
+    private readonly creditNoteModel: Model<CreditNote>,
     private readonly settingsService: SettingsService,
     private readonly auditLogService: AuditLogService,
   ) {}
@@ -170,6 +177,19 @@ export class InvoicesService {
   }
 
   async remove(id: string): Promise<void> {
+    const [paymentCount, creditNoteCount] = await Promise.all([
+      this.paymentModel.countDocuments({ invoice: id }).exec(),
+      this.creditNoteModel.countDocuments({ invoice: id }).exec(),
+    ]);
+    const blockers = describeBlockers({
+      payment: paymentCount,
+      'credit note': creditNoteCount,
+    });
+    if (blockers) {
+      throw new ConflictException(
+        `Can't delete this invoice: it has ${blockers} recorded against it. Remove those first.`,
+      );
+    }
     const result = await this.invoiceModel.findByIdAndDelete(id).exec();
     if (!result) {
       throw new NotFoundException(`Invoice ${id} not found`);

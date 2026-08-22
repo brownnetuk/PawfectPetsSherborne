@@ -44,10 +44,12 @@ export default function FinancialPage() {
 }
 
 function invoiceLabel(invoice: Payment['invoice']): string {
+  if (!invoice) return '(deleted invoice)';
   return typeof invoice === 'string' ? invoice : invoice.invoiceNumber;
 }
 
 function accountLabel(account: Payment['account']): string {
+  if (!account) return '(deleted account)';
   return typeof account === 'string' ? account : account.name;
 }
 

@@ -258,7 +258,13 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   `Payment` — Payment ID/Date/Invoice/Amount/Charges/Payment Method/Account, Delete only (no Edit —
   money movements get voided and redone, not silently edited). Deleting one shows a confirmation
   naming its Payment ID and explains that it restores the amount to the invoice's outstanding
-  balance — see `InvoicesService.reversePayment()` in `backend/README.md`. A payment is recorded
+  balance — see `InvoicesService.reversePayment()` in `backend/README.md`. `invoiceLabel()`/
+  `accountLabel()` (the two small helpers backing this table's Invoice/Account columns) render
+  "(deleted invoice)"/"(deleted account)" rather than throwing if a payment's populated ref comes
+  back `null` — the backend now blocks deleting an invoice/bank account that still has payments
+  against it (`backend/README.md`'s "Deletion safeguards"), but this stays defensive for any
+  dangling reference that predates that guard, since a `null.invoiceNumber`/`null.name` read here
+  used to crash this entire tab blank. A payment is recorded
   one of two ways: from a specific invoice row's **Payments** Actions-menu item (`RecordPaymentModal`,
   `admin/src/components/RecordPaymentModal.tsx`), or from this tab's **Add payment** button
   (`AddPaymentModal`, `admin/src/components/AddPaymentModal.tsx`) for when staff are working from
