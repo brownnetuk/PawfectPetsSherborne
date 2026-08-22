@@ -37,6 +37,8 @@ export class SettingsService {
       logoImage: doc?.logoImage ?? '',
       termsHtml: doc?.termsHtml ?? '',
       termsFileName: doc?.termsFileName ?? '',
+      termsVersion: doc?.termsVersion ?? '',
+      termsDocumentDate: doc?.termsDocumentDate ?? '',
       bankName: doc?.bankName ?? '',
       sortCode: doc?.sortCode ?? '',
       accountNumber: doc?.accountNumber ?? '',
@@ -71,6 +73,8 @@ export class SettingsService {
         update.termsFileName = '';
       }
     }
+    if (dto.termsVersion !== undefined) update.termsVersion = dto.termsVersion;
+    if (dto.termsDocumentDate !== undefined) update.termsDocumentDate = dto.termsDocumentDate;
     if (dto.bankName !== undefined) update.bankName = dto.bankName;
     if (dto.sortCode !== undefined) update.sortCode = dto.sortCode;
     if (dto.accountNumber !== undefined) update.accountNumber = dto.accountNumber;

@@ -6,6 +6,7 @@ import { BookingsModule } from '../bookings/bookings.module';
 import { CrmModule } from '../crm/crm.module';
 import { InvoicesModule } from '../invoices/invoices.module';
 import { QuotesModule } from '../quotes/quotes.module';
+import { SettingsModule } from '../settings/settings.module';
 import { CustomersController } from './customers.controller';
 import { CustomersService } from './customers.service';
 import { Customer, CustomerSchema } from './schemas/customer.schema';
@@ -23,6 +24,7 @@ import { Customer, CustomerSchema } from './schemas/customer.schema';
     QuotesModule,
     CrmModule,
     AuditLogModule,
+    SettingsModule,
   ],
   controllers: [CustomersController],
   providers: [CustomersService],

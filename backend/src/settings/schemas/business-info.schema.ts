@@ -47,6 +47,16 @@ export class BusinessInfo extends Document {
   @Prop()
   termsFileName?: string;
 
+  // Free-text version label (e.g. "v2.1") and document date for the currently
+  // uploaded terms -- staff-entered, not derived from the file. Stamped onto
+  // Customer.agreement at signing time so each customer's record shows which
+  // terms revision they actually agreed to.
+  @Prop()
+  termsVersion?: string;
+
+  @Prop()
+  termsDocumentDate?: string;
+
   // Shown to customers on invoices so they know where to send payment --
   // not secret (it's meant to be disclosed), so no encryption, same as the
   // rest of the business's contact details above.

@@ -137,6 +137,16 @@ class Agreement {
 
   @Prop()
   date?: Date;
+
+  // Snapshotted from BusinessInfo.termsVersion/termsDocumentDate at the moment
+  // of signing (server-side, not client-supplied) so the record always shows
+  // which terms revision this customer actually agreed to, even if the
+  // business's terms are updated later.
+  @Prop()
+  termsVersion?: string;
+
+  @Prop()
+  termsDocumentDate?: string;
 }
 const AgreementSchema = SchemaFactory.createForClass(Agreement);
 

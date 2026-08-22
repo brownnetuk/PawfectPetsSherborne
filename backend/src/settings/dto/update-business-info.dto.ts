@@ -52,6 +52,14 @@ export class UpdateBusinessInfoDto {
 
   @IsOptional()
   @IsString()
+  termsVersion?: string;
+
+  @IsOptional()
+  @IsString()
+  termsDocumentDate?: string;
+
+  @IsOptional()
+  @IsString()
   bankName?: string;
 
   @IsOptional()

@@ -15,6 +15,7 @@ import { EncryptionService } from '../common/encryption/encryption.service';
 import { CrmActivity } from '../crm/schemas/crm-activity.schema';
 import { Invoice } from '../invoices/schemas/invoice.schema';
 import { Quote } from '../quotes/schemas/quote.schema';
+import { SettingsService } from '../settings/settings.service';
 import { describeCustomerChanges } from './audit-diff.util';
 import { formatAddress, formatFullName } from './customer-format.util';
 import {
@@ -38,6 +39,7 @@ export class CustomersService {
     private readonly crmActivityModel: Model<CrmActivity>,
     private readonly encryptionService: EncryptionService,
     private readonly auditLogService: AuditLogService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   private validateEmergencyContact(emergencyContact: EmergencyContactDto) {
@@ -117,11 +119,18 @@ export class CustomersService {
     const payload: Record<string, any> = { ...dto };
     this.applyComputedFields(payload);
 
+    const terms = dto.agreement ? await this.settingsService.getBusinessInfo() : null;
     const created = await new this.customerModel({
       ...payload,
       security: this.encryptSecurity(dto),
       agreement: dto.agreement
-        ? { ...dto.agreement, signedAt: new Date(), date: new Date() }
+        ? {
+            ...dto.agreement,
+            signedAt: new Date(),
+            date: new Date(),
+            termsVersion: terms?.termsVersion,
+            termsDocumentDate: terms?.termsDocumentDate,
+          }
         : undefined,
       status: CustomerStatus.ACTIVE,
     }).save();
@@ -223,10 +232,13 @@ export class CustomersService {
     // A signed agreement means the public intake form is submitting the completed
     // record (whether it started as a staff-created lead or a fresh submission).
     if (dto.agreement?.signedName) {
+      const terms = await this.settingsService.getBusinessInfo();
       update.agreement = {
         ...dto.agreement,
         signedAt: new Date(),
         date: new Date(),
+        termsVersion: terms.termsVersion,
+        termsDocumentDate: terms.termsDocumentDate,
       };
       update.status = CustomerStatus.ACTIVE;
     }
