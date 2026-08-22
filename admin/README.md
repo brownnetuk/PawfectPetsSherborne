@@ -72,7 +72,11 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   attached) in the New/Edit forms, and shown stacked to the right of the Details section in the
   View modal, matching where the intake form's own photo upload feeds it from. Clicking a photo
   there opens it full-size in a simple lightbox (a fixed-position dark overlay, no library) —
-  click anywhere to close. Off-lead
+  click anywhere to close. There's no separate "main photo" field: whichever photo is first in the
+  array is the main one, and Edit pet's "Main pic" checkbox on the second photo just reorders the
+  array to swap them (the checkbox on the first is checked and disabled, since there's always
+  exactly one main once any photos exist). That first photo is what the Pets tab table shows as a
+  small thumbnail in its own leading column, before Name. Off-lead
   consent is deliberately read-only in the pet edit form — it's a customer-signed acknowledgment
   from the intake form, not something staff overwrite from here. A status dropdown next to the
   overview badge moves a customer between pending/active/inactive/update_info via a staff-only
