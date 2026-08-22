@@ -6,7 +6,7 @@ import ExpenseModal from '../components/ExpenseModal';
 import Modal from '../components/Modal';
 import ViewBankAccountModal from '../components/ViewBankAccountModal';
 import { PencilIcon, TrashIcon } from '../components/icons';
-import type { BankAccount, CreditNote, Expense, ExpenseCategory, Payment } from '../types';
+import type { BankAccount, CreditNote, Expense, Payment } from '../types';
 
 type Tab = 'bank' | 'payments' | 'expenses' | 'creditNotes';
 
@@ -269,17 +269,6 @@ function BankAccountsCard() {
   );
 }
 
-const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
-  insurance: 'Insurance',
-  supplies: 'Supplies',
-  equipment: 'Equipment',
-  vehicle_fuel: 'Vehicle / Fuel',
-  veterinary: 'Veterinary',
-  marketing: 'Marketing',
-  professional_fees: 'Professional Fees',
-  other: 'Other',
-};
-
 function expenseAccountLabel(account: Expense['account']): string {
   if (!account) return '—';
   return typeof account === 'string' ? account : account.name;
@@ -350,7 +339,7 @@ function ExpensesCard() {
             {expenses.map((e) => (
               <tr key={e._id}>
                 <td>{new Date(e.date).toLocaleDateString()}</td>
-                <td>{CATEGORY_LABELS[e.category]}</td>
+                <td>{e.category}</td>
                 <td>{e.payee || '—'}</td>
                 <td>{e.description}</td>
                 <td>£{e.amount.toFixed(2)}</td>

@@ -12,6 +12,8 @@ interface Props<T extends NamedItem> {
   description: string;
   /** Singular, lowercase -- e.g. "payment method", "bank account". */
   itemNoun: string;
+  /** Only needed when plain `itemNoun + 's'` isn't right -- e.g. "expense categories". */
+  itemNounPlural?: string;
   createLabel?: string;
   namePlaceholder?: string;
   list: () => Promise<T[]>;
@@ -27,6 +29,7 @@ export default function NamedListCard<T extends NamedItem>({
   title,
   description,
   itemNoun,
+  itemNounPlural = `${itemNoun}s`,
   createLabel = 'Create new',
   namePlaceholder,
   list,
@@ -45,7 +48,7 @@ export default function NamedListCard<T extends NamedItem>({
   function refresh() {
     list()
       .then(setItems)
-      .catch((err) => setError(err instanceof Error ? err.message : `Failed to load ${itemNoun}s`));
+      .catch((err) => setError(err instanceof Error ? err.message : `Failed to load ${itemNounPlural}`));
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(refresh, [list]);
@@ -78,7 +81,7 @@ export default function NamedListCard<T extends NamedItem>({
       </div>
       {error && <div className="error-banner">{error}</div>}
       {!items || items.length === 0 ? (
-        <div className="empty-state">{items === null ? 'Loading…' : `No ${itemNoun}s yet.`}</div>
+        <div className="empty-state">{items === null ? 'Loading…' : `No ${itemNounPlural} yet.`}</div>
       ) : (
         <table>
           <thead>

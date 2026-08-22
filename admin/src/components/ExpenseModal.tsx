@@ -1,24 +1,13 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import Modal from './Modal';
-import type { BankAccount, Expense, ExpenseCategory } from '../types';
+import type { BankAccount, Expense, ExpenseCategoryOption } from '../types';
 
 interface Props {
   expense: Expense | null;
   onClose: () => void;
   onSaved: () => void;
 }
-
-const CATEGORY_OPTIONS: { value: ExpenseCategory; label: string }[] = [
-  { value: 'insurance', label: 'Insurance' },
-  { value: 'supplies', label: 'Supplies' },
-  { value: 'equipment', label: 'Equipment' },
-  { value: 'vehicle_fuel', label: 'Vehicle / Fuel' },
-  { value: 'veterinary', label: 'Veterinary' },
-  { value: 'marketing', label: 'Marketing' },
-  { value: 'professional_fees', label: 'Professional Fees' },
-  { value: 'other', label: 'Other' },
-];
 
 const MAX_RECEIPT_BYTES = 4 * 1024 * 1024;
 
@@ -29,8 +18,9 @@ function accountId(account: Expense['account']): string {
 
 export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
   const [accounts, setAccounts] = useState<BankAccount[] | null>(null);
+  const [categories, setCategories] = useState<ExpenseCategoryOption[] | null>(null);
   const [date, setDate] = useState(expense ? expense.date.slice(0, 10) : new Date().toISOString().slice(0, 10));
-  const [category, setCategory] = useState<ExpenseCategory>(expense?.category ?? 'other');
+  const [category, setCategory] = useState(expense?.category ?? '');
   const [payee, setPayee] = useState(expense?.payee ?? '');
   const [description, setDescription] = useState(expense?.description ?? '');
   const [amount, setAmount] = useState(expense ? String(expense.amount) : '');
@@ -42,6 +32,10 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
 
   useEffect(() => {
     api.listBankAccounts().then(setAccounts);
+    api.listExpenseCategories().then((list) => {
+      setCategories(list);
+      if (list.length > 0) setCategory((cur) => cur || list[0].name);
+    });
   }, []);
 
   function handleReceiptChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -101,12 +95,21 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
           </div>
           <div className="field">
             <label>Category *</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value as ExpenseCategory)} required>
-              {CATEGORY_OPTIONS.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
+            <select value={category} onChange={(e) => setCategory(e.target.value)} required>
+              {!categories || categories.length === 0 ? (
+                <option value="">No categories set up</option>
+              ) : (
+                categories.map((c) => (
+                  <option key={c._id} value={c.name}>
+                    {c.name}
+                  </option>
+                ))
+              )}
+              {/* Keeps an existing expense's stored category selectable even if it's since
+                  been renamed or removed from Settings > Finance. */}
+              {category && !categories?.some((c) => c.name === category) && (
+                <option value={category}>{category}</option>
+              )}
             </select>
           </div>
         </div>
@@ -169,7 +172,7 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary" disabled={submitting}>
+          <button type="submit" className="btn btn-primary" disabled={submitting || !category}>
             {submitting ? 'Saving…' : expense ? 'Save changes' : 'Create expense'}
           </button>
         </div>

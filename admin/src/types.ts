@@ -195,20 +195,16 @@ export interface Product {
   createdAt: string;
 }
 
-export type ExpenseCategory =
-  | 'insurance'
-  | 'supplies'
-  | 'equipment'
-  | 'vehicle_fuel'
-  | 'veterinary'
-  | 'marketing'
-  | 'professional_fees'
-  | 'other';
+export interface ExpenseCategoryOption {
+  _id: string;
+  name: string;
+  createdAt: string;
+}
 
 export interface Expense {
   _id: string;
   date: string;
-  category: ExpenseCategory;
+  category: string;
   payee?: string;
   description: string;
   amount: number;

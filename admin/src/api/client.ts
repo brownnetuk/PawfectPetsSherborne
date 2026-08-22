@@ -13,7 +13,7 @@ import type {
   EmailTrigger,
   Enquiry,
   Expense,
-  ExpenseCategory,
+  ExpenseCategoryOption,
   IncomeExpenseMonth,
   IncomeMonth,
   Invoice,
@@ -290,7 +290,7 @@ export function listExpenses(from?: string, to?: string): Promise<Expense[]> {
 }
 export interface ExpenseInput {
   date: string;
-  category: ExpenseCategory;
+  category: string;
   payee?: string;
   description: string;
   amount: number;
@@ -305,6 +305,23 @@ export function updateExpense(id: string, input: ExpenseInput): Promise<Expense>
 }
 export function deleteExpense(id: string): Promise<void> {
   return request(`/expenses/${id}`, { method: 'DELETE' });
+}
+
+// --- expense categories ---
+export function listExpenseCategories(): Promise<ExpenseCategoryOption[]> {
+  return request('/expense-categories');
+}
+export interface ExpenseCategoryInput {
+  name: string;
+}
+export function createExpenseCategory(input: ExpenseCategoryInput): Promise<ExpenseCategoryOption> {
+  return request('/expense-categories', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateExpenseCategory(id: string, input: ExpenseCategoryInput): Promise<ExpenseCategoryOption> {
+  return request(`/expense-categories/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deleteExpenseCategory(id: string): Promise<void> {
+  return request(`/expense-categories/${id}`, { method: 'DELETE' });
 }
 
 // --- credit notes ---

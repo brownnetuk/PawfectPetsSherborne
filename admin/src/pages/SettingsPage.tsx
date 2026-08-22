@@ -2051,13 +2051,24 @@ function FinancialTab() {
     <div>
       <NamedListCard
         title="Payment Methods"
-        description="Used with bank accounts and payments in a later build."
+        description="Shown as options when staff record a payment against an invoice."
         itemNoun="payment method"
         namePlaceholder="e.g. Bank Transfer"
         list={api.listPaymentMethods}
         create={api.createPaymentMethod}
         update={api.updatePaymentMethod}
         remove={api.deletePaymentMethod}
+      />
+      <NamedListCard
+        title="Expense Categories"
+        description="Shown as options when staff record an expense on the Financial page."
+        itemNoun="expense category"
+        itemNounPlural="expense categories"
+        namePlaceholder="e.g. Insurance"
+        list={api.listExpenseCategories}
+        create={api.createExpenseCategory}
+        update={api.updateExpenseCategory}
+        remove={api.deleteExpenseCategory}
       />
     </div>
   );
