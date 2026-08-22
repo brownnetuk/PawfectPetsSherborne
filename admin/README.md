@@ -57,7 +57,9 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   There's no full customer-creation form here on purpose — the intake form is where that detail
   belongs, and duplicating it would just be two sources of truth for the same data.
 - **Customer detail** — tabs for overview (client/emergency/vet/security/agreement — alarm
-  instructions are only decrypted on demand via "Reveal"), pets, bookings, invoices, Notes (the
+  instructions are only decrypted on demand via "Reveal"; the Agreement card shows Signed
+  by/Signed at plus the Version/Document date snapshotted from Business Info at signing time, and
+  renders the customer's signature image alongside them), pets, bookings, invoices, Notes (the
   manually-authored `CrmActivity` log, see below), and Activity (an automatic audit trail, see
   below), plus per-customer booking/invoice/note creation. "Edit" on the overview covers
   client/emergency/vet/security fields; "Edit" on a pet row covers its full profile. Off-lead
@@ -260,7 +262,13 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   filename; terms uploaded before this button existed only ever had their parsed HTML stored, so
   downloading those specifically isn't possible until re-uploaded — the error message says so
   rather than a generic failure. The public intake form's agreement step reads the parsed content
-  via `GET /settings/terms` — see `frontend/README.md`. **Document Numbering**, below Terms and
+  via `GET /settings/terms` — see `frontend/README.md`. Below the upload, **Version** and **Document
+date** are plain free-text fields (e.g. `"v2.1"`, `"1 January 2026"`) describing whichever terms
+are currently uploaded, saveable on their own without re-uploading the `.docx` (the submit handler
+only includes `termsFile`/`termsFileName` in the PATCH when a new file was actually chosen). The
+backend snapshots both onto a customer's `agreement` the moment they sign, so a customer's own
+page always shows which revision they agreed to — see `backend/README.md`'s "Settings" section.
+**Document Numbering**, below Terms and
   Conditions, is an independent-save form for
   `invoiceNumberTemplate`/`invoiceNextNumber`/`quoteNumberTemplate`/`quoteNextNumber`/
   `paymentNumberTemplate`/`paymentNextNumber` (see "Document numbering" in `backend/README.md`) —

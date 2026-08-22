@@ -382,6 +382,15 @@ just `{ html }` for the intake form to fetch and render
 (`frontend/src/intake/steps/AgreementStep.tsx`), falling back to its own hardcoded text if
 nothing's been uploaded.
 
+`BusinessInfo` also holds free-text `termsVersion`/`termsDocumentDate` (e.g. `"v2.1"` / `"1
+January 2026"`) — staff-entered labels for whichever terms are currently uploaded, saveable
+independently of re-uploading the `.docx` itself. `CustomersService.create()`/`update()` snapshot
+both onto `Customer.agreement` at the exact moment a customer signs (server-side, via
+`SettingsService.getBusinessInfo()` — not client-supplied, same trust boundary as `signedAt`/
+`date`), so each customer's record always shows which terms revision they actually agreed to even
+if the business's terms are updated afterwards. `CustomersModule` imports `SettingsModule` for
+this one-directional dependency.
+
 `GET/PATCH /settings/email` read and update the one `EmailSettings` document (a singleton, not a
 collection — Microsoft 365 Graph API credentials for sending mail from the app: tenant ID, client
 ID, an encrypted client secret, from address/name). `POST /settings/email/test` sends a real email
