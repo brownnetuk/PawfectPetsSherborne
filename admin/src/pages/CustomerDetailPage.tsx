@@ -1034,30 +1034,11 @@ function AuditLogTab({
   return (
     <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
       <div className="card" style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div>
-            <h2 style={{ marginBottom: 2 }}>Income</h2>
-            <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: 0 }}>
-              Payments received from this customer over time.
-            </p>
-          </div>
-          <select value={incomePeriod} onChange={(e) => onPeriodChange(Number(e.target.value))} style={{ width: 'auto' }}>
-            <option value={6}>Last 6 Months</option>
-            <option value={12}>Last 12 Months</option>
-          </select>
-        </div>
-        <IncomeChart data={incomeMonths} />
-        <div style={{ fontWeight: 600 }}>
-          Total Income ( Last {incomePeriod} Months ) - £{totalIncome.toFixed(2)}
-        </div>
-      </div>
-
-      <div className="card" style={{ flex: 1, minWidth: 0 }}>
         <h2>Activity</h2>
         {entries.length === 0 ? (
           <div className="empty-state">No activity recorded yet.</div>
         ) : (
-          <div style={{ position: 'relative', paddingLeft: 20 }}>
+          <div style={{ position: 'relative', paddingLeft: 20, maxHeight: 572, overflowY: 'auto' }}>
             <div style={{ position: 'absolute', left: 4, top: 6, bottom: 6, width: 2, background: 'var(--border)' }} />
             {entries.map((e) => (
               <div key={e._id} style={{ position: 'relative', paddingBottom: 20 }}>
@@ -1088,6 +1069,25 @@ function AuditLogTab({
             ))}
           </div>
         )}
+      </div>
+
+      <div className="card" style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <div>
+            <h2 style={{ marginBottom: 2 }}>Income</h2>
+            <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: 0 }}>
+              Payments received from this customer over time.
+            </p>
+          </div>
+          <select value={incomePeriod} onChange={(e) => onPeriodChange(Number(e.target.value))} style={{ width: 'auto' }}>
+            <option value={6}>Last 6 Months</option>
+            <option value={12}>Last 12 Months</option>
+          </select>
+        </div>
+        <IncomeChart data={incomeMonths} />
+        <div style={{ fontWeight: 600 }}>
+          Total Income ( Last {incomePeriod} Months ) - £{totalIncome.toFixed(2)}
+        </div>
       </div>
     </div>
   );
