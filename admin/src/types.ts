@@ -221,6 +221,37 @@ export interface CrmActivity {
   createdAt: string;
 }
 
+// Deliberately separate from CrmActivity above -- that's a manually-authored
+// note/call/email/task log (the "Notes" tab); this is an automatic,
+// system-generated audit trail (the "Activity" tab) staff never write to.
+export type AuditEventType =
+  | 'customer_created'
+  | 'customer_updated'
+  | 'invoice_created'
+  | 'invoice_updated'
+  | 'invoice_emailed'
+  | 'quote_created'
+  | 'quote_updated'
+  | 'quote_emailed'
+  | 'payment_received'
+  | 'payment_removed';
+
+export interface AuditLogEntry {
+  _id: string;
+  customer: string;
+  type: AuditEventType;
+  title: string;
+  description?: string;
+  amount?: number;
+  actor: string;
+  createdAt: string;
+}
+
+export interface IncomeMonth {
+  month: string; // 'YYYY-MM'
+  total: number;
+}
+
 export interface BusinessInfo {
   name: string;
   address: string;

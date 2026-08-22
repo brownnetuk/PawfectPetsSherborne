@@ -8,6 +8,7 @@ import EditAnimalModal from '../components/EditAnimalModal';
 import EditBookingModal from '../components/EditBookingModal';
 import EditCustomerModal from '../components/EditCustomerModal';
 import { PencilIcon, TrashIcon } from '../components/icons';
+import IncomeChart from '../components/IncomeChart';
 import Modal from '../components/Modal';
 import AddPetChoiceModal from '../components/AddPetChoiceModal';
 import NewAnimalModal from '../components/NewAnimalModal';
@@ -16,10 +17,12 @@ import { buildCustomerFormPdf } from '../pdf/customerFormPdf';
 import type {
   ActivityType,
   Animal,
+  AuditLogEntry,
   Booking,
   Customer,
   CustomerStatus,
   CrmActivity,
+  IncomeMonth,
   Invoice,
 } from '../types';
 import { useAuth } from '../auth/AuthContext';
@@ -33,7 +36,7 @@ function statusLabel(status: string): string {
   return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
-type Tab = 'overview' | 'pets' | 'bookings' | 'invoices' | 'activity';
+type Tab = 'overview' | 'pets' | 'bookings' | 'invoices' | 'activity' | 'log';
 
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -43,6 +46,9 @@ export default function CustomerDetailPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [activity, setActivity] = useState<CrmActivity[]>([]);
+  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
+  const [incomeMonths, setIncomeMonths] = useState<IncomeMonth[]>([]);
+  const [incomePeriod, setIncomePeriod] = useState(6);
   const [tab, setTab] = useState<Tab>('overview');
   const [error, setError] = useState<string | null>(null);
   const [alarmInstructions, setAlarmInstructions] = useState<string | null>(null);
@@ -64,9 +70,15 @@ export default function CustomerDetailPage() {
     api.listBookings(id).then(setBookings).catch(() => {});
     api.listInvoices(id).then(setInvoices).catch(() => {});
     api.listActivities(id).then(setActivity).catch(() => {});
+    api.listAuditLog(id).then(setAuditLog).catch(() => {});
   }
 
   useEffect(refresh, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    api.getIncomeChart(id, incomePeriod).then(setIncomeMonths).catch(() => {});
+  }, [id, incomePeriod]);
 
   if (!id) return null;
   if (error) return <div className="error-banner">{error}</div>;
@@ -210,13 +222,15 @@ export default function CustomerDetailPage() {
       )}
 
       <div className="tabs">
-        {(['overview', 'pets', 'bookings', 'invoices', 'activity'] as Tab[]).map((t) => (
+        {(['overview', 'pets', 'bookings', 'invoices', 'activity', 'log'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {t === 'pets'
               ? `Pets (${animals.length})`
               : t === 'activity'
                 ? 'Notes'
-                : t.charAt(0).toUpperCase() + t.slice(1)}
+                : t === 'log'
+                  ? 'Activity'
+                  : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
@@ -237,6 +251,14 @@ export default function CustomerDetailPage() {
       )}
       {tab === 'activity' && (
         <ActivityTab customer={customer} activity={activity} onChange={refresh} />
+      )}
+      {tab === 'log' && (
+        <AuditLogTab
+          entries={auditLog}
+          incomeMonths={incomeMonths}
+          incomePeriod={incomePeriod}
+          onPeriodChange={setIncomePeriod}
+        />
       )}
 
       {showDelete && (
@@ -986,6 +1008,87 @@ function ActivityItem({ activity, onChange }: { activity: CrmActivity; onChange:
           </div>
         </Modal>
       )}
+    </div>
+  );
+}
+
+// The "Activity" tab -- an automatic, system-generated audit trail (see
+// AuditLogEntry in types.ts), distinct from the "Notes" tab (ActivityTab/
+// ActivityItem above, which is the manually-authored CrmActivity log). Staff
+// never write to this one directly; it's just a read-only feed of things
+// that happened, fed by CustomerDetailPage's own eager-fetch-on-mount
+// (api.listAuditLog/api.getIncomeChart), same pattern the other tabs use.
+function AuditLogTab({
+  entries,
+  incomeMonths,
+  incomePeriod,
+  onPeriodChange,
+}: {
+  entries: AuditLogEntry[];
+  incomeMonths: IncomeMonth[];
+  incomePeriod: number;
+  onPeriodChange: (months: number) => void;
+}) {
+  const totalIncome = incomeMonths.reduce((sum, m) => sum + m.total, 0);
+
+  return (
+    <div>
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <div>
+            <h2 style={{ marginBottom: 2 }}>Income</h2>
+            <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: 0 }}>
+              Payments received from this customer over time.
+            </p>
+          </div>
+          <select value={incomePeriod} onChange={(e) => onPeriodChange(Number(e.target.value))} style={{ width: 'auto' }}>
+            <option value={6}>Last 6 Months</option>
+            <option value={12}>Last 12 Months</option>
+          </select>
+        </div>
+        <IncomeChart data={incomeMonths} />
+        <div style={{ fontWeight: 600 }}>
+          Total Income ( Last {incomePeriod} Months ) - £{totalIncome.toFixed(2)}
+        </div>
+      </div>
+
+      <div className="card">
+        <h2>Activity</h2>
+        {entries.length === 0 ? (
+          <div className="empty-state">No activity recorded yet.</div>
+        ) : (
+          <div style={{ position: 'relative', paddingLeft: 20 }}>
+            <div style={{ position: 'absolute', left: 4, top: 6, bottom: 6, width: 2, background: 'var(--border)' }} />
+            {entries.map((e) => (
+              <div key={e._id} style={{ position: 'relative', paddingBottom: 20 }}>
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: -20,
+                    top: 4,
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    background: 'var(--accent)',
+                    border: '2px solid white',
+                    boxShadow: '0 0 0 1px var(--border)',
+                  }}
+                />
+                <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
+                  {new Date(e.createdAt).toLocaleDateString()} {new Date(e.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+                <div className="card" style={{ marginTop: 4, padding: '12px 14px' }}>
+                  <div style={{ fontWeight: 600 }}>{e.title}</div>
+                  {e.description && (
+                    <div style={{ fontSize: '0.88rem', color: 'var(--muted)', marginTop: 2 }}>{e.description}</div>
+                  )}
+                  <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>by {e.actor}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

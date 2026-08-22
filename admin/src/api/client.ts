@@ -1,5 +1,6 @@
 import type {
   Animal,
+  AuditLogEntry,
   BankAccount,
   BankAccountType,
   Booking,
@@ -10,6 +11,7 @@ import type {
   EmailTemplate,
   EmailTrigger,
   Enquiry,
+  IncomeMonth,
   Invoice,
   InvoiceTerm,
   LineItem,
@@ -311,6 +313,14 @@ export function updateActivity(id: string, patch: Partial<CrmActivity>): Promise
 }
 export function deleteActivity(id: string): Promise<void> {
   return request(`/crm/activities/${id}`, { method: 'DELETE' });
+}
+
+// --- audit log ("Activity" tab -- automatic, distinct from CRM "Notes" above) ---
+export function listAuditLog(customerId: string): Promise<AuditLogEntry[]> {
+  return request(`/audit-log?customer=${customerId}`);
+}
+export function getIncomeChart(customerId: string, months: number): Promise<IncomeMonth[]> {
+  return request(`/audit-log/income?customer=${customerId}&months=${months}`);
 }
 
 // --- settings ---
