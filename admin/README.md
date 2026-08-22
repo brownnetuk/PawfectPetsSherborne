@@ -97,7 +97,18 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   status pill once the sent email's tracking pixel has fired (see `backend/README.md`'s "Open
   tracking" — it's a separate indicator, not a status value, since being opened doesn't change
   where a document sits in its own status lifecycle), and a per-row **Actions** dropdown
-  (`ActionsMenu`, closes on an outside click or after picking an item): **View / Edit** opens the
+  (`ActionsMenu`, closes on an outside click or after picking an item): **View** renders the
+  invoice/quote as a PDF (`buildInvoicePdf()`, `admin/src/pdf/invoicePdf.ts`) in a `PdfViewModal`
+  (`admin/src/components/PdfViewModal.tsx` — an iframe preview plus Close/Download, extracted from
+  the same pattern `CustomerDetailPage`'s own "View" already used for the customer registration-form
+  PDF, though that page keeps its own inline copy rather than being retrofit to the shared
+  component). The rendered layout comes from the staff-designed template at Settings → Invoices →
+  "PDF Template" (see below) if one's been saved, else a built-in default matching a standard
+  invoice layout (logo/business details top-left, Invoice#/Balance Due top-right, a diagonal "Paid"
+  stamp when an invoice's status is `paid`, an "Invoice To" block, an item table, Sub
+  Total/Total/Payment Made/Balance Due, Notes, bank transfer details, and a QR code). Quotes render
+  the same template with quote-appropriate substitutions and no payment/balance/paid-stamp elements
+  (quotes have no `amountPaid`/paid status at all). **Edit** opens the
   same form described below; **Send** opens `SendPreviewModal` rather than sending immediately —
   it fetches the configured "Invoice Template"/"Quote Template" and the real document's own data
   (actual line items, dates, totals, customer), renders them through the same
@@ -291,7 +302,7 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   conditional behavior, not the raw `{{#if}}...{{/if}}` tags. `interpolateSubject`/`interpolateBody`/
   `stripConditionals`, also in that shared file, are a hand-kept copy of the backend's (see
   `backend/README.md`), so what's previewed matches what's actually sent.
-  **Invoices** holds three
+  **Invoices** holds four
   cards, in this order: **Invoice Terms**, a small library of reusable free-text terms with add/edit/delete
   (`/invoice-terms`), each with a **Plus Days** column — how many days after the issue date the
   term's due date falls, or a fixed "End of the month" checkbox instead (always the last working
@@ -314,6 +325,37 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   small `SortableTh` component behind it isn't Product-specific, so another settings table can
   reuse it. Both `InvoiceTermsCard` and `ProductsCard` share one "New"/"Edit" modal component
   (taking an optional existing record) rather than separate Add and Edit components.
+
+  **PDF Template** (`PdfTemplateDesigner`, `admin/src/components/PdfTemplateDesigner.tsx`) is a
+  freeform drag-and-drop canvas editor for the invoice/quote PDF the Invoices & Quotes page's
+  "View" action renders (see above) — an A4-proportioned canvas (595.28×841.89pt, scaled to fit)
+  where every block (text, the logo, a line, a rectangle, a QR code, or the line-item table) is an
+  absolutely-positioned, plain-`pointerdown`/`pointermove`/`pointerup`-driven draggable/resizable
+  element (no drag-and-drop library — a single freeform canvas doesn't need one). Array order is
+  z-order (later elements draw on top and are hit-tested first); **Bring to front**/**Send to
+  back** reorder the array. **Undo**/**Redo** (also Ctrl+Z/Ctrl+Y) is an in-memory stack of whole-
+  template snapshots pushed on every committed change — a drag or resize pushes one snapshot at
+  pointer-up, not per pixel moved. Arrow keys nudge the selected element (1pt, 10pt with Shift),
+  ignored while focus is inside a form field so it doesn't hijack normal text-cursor navigation.
+  The property panel (right side) edits the selected element's position/size, a **Show** dropdown
+  (Always / only when an invoice is paid / only when unpaid — e.g. the default template's "PAID"
+  stamp is paid-only; meaningless for quotes, which have no paid state, so it's always treated as
+  unpaid there), and type-specific fields — text/QR content is free text with an "Insert
+  placeholder" dropdown that inserts a `{{token}}` (invoice/customer/business/bank fields — see
+  `PDF_PLACEHOLDERS` in `admin/src/pdf/invoicePdf.ts`) at the end of the field. The one block that
+  isn't freely editable internally is the **Item table** — its columns are fixed
+  (#/Item & Description/Qty/Unit Price/Line Total) since its content is the invoice/quote's actual
+  line items, not staff-authored text; only one is allowed per template. It's also the one block
+  whose rendered size isn't fixed — it grows with however many line items an invoice/quote has, so
+  the renderer shifts anything template-positioned below it down to match, and continues on a
+  second page if that still runs past the bottom margin (the card's own hint text tells staff to
+  leave clear space below it, since two intentionally-overlapping blocks there would collide once
+  it grows). **Preview** swaps the editable canvas for the real `buildInvoicePdf()` output (fed a
+  hardcoded sample invoice) in an iframe, since the canvas itself is only an HTML/CSS approximation
+  of the PDF's actual fonts/spacing — **Save Template** is what actually persists it
+  (`invoicePdfTemplate` on `BusinessInfo`, see `backend/README.md`); **Reset to Default** restores
+  `DEFAULT_INVOICE_TEMPLATE` (the same layout the renderer falls back to when nothing's been saved
+  yet, so there's one source of truth for "default" rather than two).
   **Finance**, a single **Payment Methods** card (`/payment-methods` — e.g. "Bank Transfer",
   "Cash", "Card") built with the shared `NamedListCard` component
   (`admin/src/components/NamedListCard.tsx`) — deliberately named differently from the top-level

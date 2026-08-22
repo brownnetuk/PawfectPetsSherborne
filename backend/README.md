@@ -192,6 +192,26 @@ template and the next number for all three counters are staff-editable via Setti
 Info → "Document Numbering" (see `admin/README.md`), letting staff skip ahead or realign the
 sequence.
 
+### Invoice/quote PDF (`BusinessInfo.invoicePdfTemplate`)
+
+`BusinessInfo.invoicePdfTemplate` is an array of freeform layout blocks (text, the business logo,
+a line, a rectangle, a QR code, or the line-item table) staff design themselves via a drag-and-drop
+canvas editor at Settings → Invoices → "PDF Template" (`admin/src/components/PdfTemplateDesigner.tsx`
+— see `admin/README.md`), and is what the Invoices & Quotes page's "View" action renders
+(`admin/src/pdf/invoicePdf.ts`, client-side jsPDF, same library as the existing customer-form PDF
+export). Stored as opaque Mongo `Mixed` JSON (`@Prop({ type: [MongooseSchema.Types.Mixed] })`) —
+the backend never interprets it, only round-trips it; the DTO validates just `@IsArray()` with no
+`@ValidateNested()`/`@Type()` on the elements, so arbitrary per-element keys pass the global
+whitelist through untouched. An empty/unset array means the frontend falls back to its own built-in
+default layout (`DEFAULT_INVOICE_TEMPLATE`), so "View" works even before a template's ever been
+saved.
+
+`.populate('customer', ...)` on `Invoice`/`Quote` was broadened from `'name email'` to
+`'name email address phoneNumber'` (every call site in both `invoices.service.ts` and
+`quotes.service.ts`) so the PDF's "Invoice To" block has something to show beyond a name/email —
+nothing else reads the extra fields, so this is a pure addition, not a behavior change for existing
+consumers.
+
 ### InvoiceTerm (`/invoice-terms`) and Product (`/products`)
 
 Two small reference lists surfaced under Settings → Invoices, both `POST`/`GET`/`PATCH`/`DELETE`.
