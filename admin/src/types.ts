@@ -216,6 +216,12 @@ export interface ExpenseCategoryOption {
   createdAt: string;
 }
 
+export interface VendorOption {
+  _id: string;
+  name: string;
+  createdAt: string;
+}
+
 export interface Expense {
   _id: string;
   date: string;

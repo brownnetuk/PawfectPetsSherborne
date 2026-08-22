@@ -363,10 +363,17 @@ their own diffs) so it can revert the old amount from whichever account it was d
 reapply the new one — one code path correctly handles an unchanged account, a changed account, and
 adding/removing the account entirely. Not audit-logged: `AuditLogEntry.customer` is required, and
 expenses have no customer at all — the Expenses list itself is the record, same as
-`PaymentMethod`/`ExpenseCategory`/`Product`/`BankAccount` (none of which are audit-logged either).
-Full CRUD, no `@Public()` route — this never touches the public intake surface.
+`PaymentMethod`/`ExpenseCategory`/`Vendor`/`Product`/`BankAccount` (none of which are audit-logged
+either). Full CRUD, no `@Public()` route — this never touches the public intake surface.
 `ExpensesModule` exports its service so `PaymentsModule` can create/remove the linked
 "Payment Charges" expense described above.
+
+`Vendor` (`/vendors`) is another byte-for-byte mirror of `PaymentMethod` (`name` only), surfaced
+under Settings → Finance below Expense Categories. Same as `category`, `Expense.payee` is a plain
+string copied from the chosen vendor's `name` at creation time, not a live reference — the admin
+frontend's Payee field is a dropdown sourced from `GET /vendors` rather than free text, but the
+schema field itself is unchanged (still an optional plain string, so this needed no backend
+migration — only the frontend's Expense form changed from a text input to a select).
 
 ### CreditNote (`/credit-notes`)
 

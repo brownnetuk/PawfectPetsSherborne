@@ -285,8 +285,10 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   **Category** (a select sourced from `GET /expense-categories` — Settings → Finance → Expense
   Categories below — same "fetch on mount, default to the first entry" pattern as
   `RecordPaymentModal`'s Payment Method/Account pickers; an expense's own already-stored category
-  stays selectable even if it's since been removed from that list), **Payee** (optional),
-  **Description**, **Amount (£)**, an optional **Account** dropdown (same `GET /bank-accounts`
+  stays selectable even if it's since been removed from that list), an optional **Payee** select
+  (same pattern, sourced from `GET /vendors` — Settings → Finance → Vendors below, with a "No
+  payee" option), **Description**, **Amount (£)**, an optional **Account** dropdown (same
+  `GET /bank-accounts`
   source and "Name (Bank/Savings)" labelling as Payments' picker — debits that account's balance if
   chosen), and an optional **Receipt** photo upload (same single-file → base64 pattern as a pet's
   photo, capped at 4MB client-side). Deleting one restores its amount to the account balance, same
@@ -491,16 +493,19 @@ page always shows which revision they agreed to — see `backend/README.md`'s "S
   (`invoicePdfTemplate` on `BusinessInfo`, see `backend/README.md`); **Reset to Default** restores
   `DEFAULT_INVOICE_TEMPLATE` (the same layout the renderer falls back to when nothing's been saved
   yet, so there's one source of truth for "default" rather than two).
-  **Finance** has two `NamedListCard` (`admin/src/components/NamedListCard.tsx`)-built lists:
+  **Finance** has three `NamedListCard` (`admin/src/components/NamedListCard.tsx`)-built lists:
   **Payment Methods** (`/payment-methods` — e.g. "Bank Transfer", "Cash", "Card"), feeding the
-  Payment Method dropdown in `RecordPaymentModal`, and **Expense Categories** (`/expense-categories`
-  — e.g. "Insurance", "Supplies"), feeding `ExpenseModal`'s Category dropdown on the Financial
-  page's Expenses tab. `NamedListCard` takes an optional `itemNounPlural` prop for cases where
-  `itemNoun + 's'` isn't right (`"expense category"` → `"expense categories"`, not
-  `"expense categorys"`) — every other current use just gets the default. Deliberately named
-  "Finance" rather than reusing "Financial" for this Settings tab despite the naming similarity,
-  since they're two different things: this one is small reference lists staff rarely touch, not
-  bank account details or the payments/expenses/credit-notes ledgers themselves.
+  Payment Method dropdown in `RecordPaymentModal`/`AddPaymentModal`; **Expense Categories**
+  (`/expense-categories` — e.g. "Insurance", "Supplies"), feeding `ExpenseModal`'s Category dropdown
+  on the Financial page's Expenses tab; and **Vendors** (`/vendors` — e.g. "Acme Pet Supplies"),
+  feeding that same `ExpenseModal`'s Payee dropdown (previously a free-text field — same reasoning
+  as Category's earlier fixed-enum-to-managed-list switch: a small, staff-managed reference list
+  beats retyping the same names). `NamedListCard` takes an optional `itemNounPlural` prop for cases
+  where `itemNoun + 's'` isn't right (`"expense category"` → `"expense categories"`, not
+  `"expense categorys"`) — Vendors doesn't need it (`"vendor"` → `"vendors"` is already correct).
+  Deliberately named "Finance" rather than reusing "Financial" for this Settings tab despite the
+  naming similarity, since they're two different things: this one is small reference lists staff
+  rarely touch, not bank account details or the payments/expenses/credit-notes ledgers themselves.
 
 ## Sending email via Microsoft 365
 

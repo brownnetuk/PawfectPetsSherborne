@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import Modal from './Modal';
-import type { BankAccount, Expense, ExpenseCategoryOption } from '../types';
+import type { BankAccount, Expense, ExpenseCategoryOption, VendorOption } from '../types';
 
 interface Props {
   expense: Expense | null;
@@ -19,6 +19,7 @@ function accountId(account: Expense['account']): string {
 export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
   const [accounts, setAccounts] = useState<BankAccount[] | null>(null);
   const [categories, setCategories] = useState<ExpenseCategoryOption[] | null>(null);
+  const [vendors, setVendors] = useState<VendorOption[] | null>(null);
   const [date, setDate] = useState(expense ? expense.date.slice(0, 10) : new Date().toISOString().slice(0, 10));
   const [category, setCategory] = useState(expense?.category ?? '');
   const [payee, setPayee] = useState(expense?.payee ?? '');
@@ -36,6 +37,7 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
       setCategories(list);
       if (list.length > 0) setCategory((cur) => cur || list[0].name);
     });
+    api.listVendors().then(setVendors);
   }, []);
 
   function handleReceiptChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -115,7 +117,17 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
         </div>
         <div className="field">
           <label>Payee</label>
-          <input type="text" value={payee} onChange={(e) => setPayee(e.target.value)} placeholder="Who was paid" />
+          <select value={payee} onChange={(e) => setPayee(e.target.value)}>
+            <option value="">No payee</option>
+            {vendors?.map((v) => (
+              <option key={v._id} value={v.name}>
+                {v.name}
+              </option>
+            ))}
+            {/* Keeps an existing expense's stored payee selectable even if it's since
+                been renamed or removed from Settings > Finance. */}
+            {payee && !vendors?.some((v) => v.name === payee) && <option value={payee}>{payee}</option>}
+          </select>
         </div>
         <div className="field">
           <label>Description *</label>

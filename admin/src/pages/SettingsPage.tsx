@@ -2070,6 +2070,16 @@ function FinancialTab() {
         update={api.updateExpenseCategory}
         remove={api.deleteExpenseCategory}
       />
+      <NamedListCard
+        title="Vendors"
+        description="Shown as Payee options when staff record an expense on the Financial page."
+        itemNoun="vendor"
+        namePlaceholder="e.g. Acme Pet Supplies"
+        list={api.listVendors}
+        create={api.createVendor}
+        update={api.updateVendor}
+        remove={api.deleteVendor}
+      />
     </div>
   );
 }

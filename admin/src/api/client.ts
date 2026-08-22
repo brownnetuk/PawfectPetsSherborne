@@ -25,6 +25,7 @@ import type {
   Product,
   Quote,
   Staff,
+  VendorOption,
 } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
@@ -340,6 +341,23 @@ export function updateExpenseCategory(id: string, input: ExpenseCategoryInput): 
 }
 export function deleteExpenseCategory(id: string): Promise<void> {
   return request(`/expense-categories/${id}`, { method: 'DELETE' });
+}
+
+// --- vendors ---
+export function listVendors(): Promise<VendorOption[]> {
+  return request('/vendors');
+}
+export interface VendorInput {
+  name: string;
+}
+export function createVendor(input: VendorInput): Promise<VendorOption> {
+  return request('/vendors', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateVendor(id: string, input: VendorInput): Promise<VendorOption> {
+  return request(`/vendors/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deleteVendor(id: string): Promise<void> {
+  return request(`/vendors/${id}`, { method: 'DELETE' });
 }
 
 // --- credit notes ---

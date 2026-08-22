@@ -24,6 +24,7 @@ import { CrmModule } from './crm/crm.module';
 import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
 import { EnquiriesModule } from './enquiries/enquiries.module';
+import { VendorsModule } from './vendors/vendors.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { EnquiriesModule } from './enquiries/enquiries.module';
     ExpenseCategoriesModule,
     CreditNotesModule,
     ReportsModule,
+    VendorsModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
