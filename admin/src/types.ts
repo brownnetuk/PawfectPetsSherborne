@@ -255,6 +255,7 @@ interface PdfElementBase {
   width: number;
   height: number;
   visibleWhen?: PdfVisibility;
+  groupId?: string;
 }
 
 export interface PdfTextElement extends PdfElementBase {

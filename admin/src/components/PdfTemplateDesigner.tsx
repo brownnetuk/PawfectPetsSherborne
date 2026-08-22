@@ -61,7 +61,7 @@ const ADD_TYPES: PdfElementType[] = ['text', 'image', 'line', 'rect', 'qrcode', 
 export default function PdfTemplateDesigner() {
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
   const [elements, setElements] = useState<PdfTemplateElement[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -75,7 +75,8 @@ export default function PdfTemplateDesigner() {
     handle?: string;
     startClientX: number;
     startClientY: number;
-    startEl: PdfTemplateElement;
+    ids: string[];
+    startEls: Map<string, PdfTemplateElement>;
   } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
@@ -114,40 +115,58 @@ export default function PdfTemplateDesigner() {
     setSaved(false);
   }
 
+  // Elements sharing a groupId always select/move/delete together -- clicking
+  // any member selects the whole group.
+  function groupMembers(id: string): string[] {
+    const el = elements.find((e) => e.id === id);
+    if (!el?.groupId) return [id];
+    return elements.filter((e) => e.groupId === el.groupId).map((e) => e.id);
+  }
+
   function updateSelected(patch: Partial<PdfTemplateElement>) {
-    if (!selectedId) return;
-    commitNow(elements.map((el) => (el.id === selectedId ? ({ ...el, ...patch } as PdfTemplateElement) : el)));
+    if (selectedIds.length !== 1) return;
+    const id = selectedIds[0];
+    commitNow(elements.map((el) => (el.id === id ? ({ ...el, ...patch } as PdfTemplateElement) : el)));
   }
 
   function addElement(type: PdfElementType) {
     const el = defaultElement(type);
     commitNow([...elements, el]);
-    setSelectedId(el.id);
+    setSelectedIds([el.id]);
   }
 
   function deleteSelected() {
-    if (!selectedId) return;
-    commitNow(elements.filter((el) => el.id !== selectedId));
-    setSelectedId(null);
+    if (selectedIds.length === 0) return;
+    commitNow(elements.filter((el) => !selectedIds.includes(el.id)));
+    setSelectedIds([]);
   }
 
   function bringToFront() {
-    if (!selectedId) return;
-    const el = elements.find((e) => e.id === selectedId);
-    if (!el) return;
-    commitNow([...elements.filter((e) => e.id !== selectedId), el]);
+    if (selectedIds.length === 0) return;
+    const picked = elements.filter((el) => selectedIds.includes(el.id));
+    commitNow([...elements.filter((el) => !selectedIds.includes(el.id)), ...picked]);
   }
 
   function sendToBack() {
-    if (!selectedId) return;
-    const el = elements.find((e) => e.id === selectedId);
-    if (!el) return;
-    commitNow([el, ...elements.filter((e) => e.id !== selectedId)]);
+    if (selectedIds.length === 0) return;
+    const picked = elements.filter((el) => selectedIds.includes(el.id));
+    commitNow([...picked, ...elements.filter((el) => !selectedIds.includes(el.id))]);
+  }
+
+  function groupSelected() {
+    if (selectedIds.length < 2) return;
+    const gid = newId();
+    commitNow(elements.map((el) => (selectedIds.includes(el.id) ? { ...el, groupId: gid } : el)));
+  }
+
+  function ungroupSelected() {
+    if (selectedIds.length === 0) return;
+    commitNow(elements.map((el) => (selectedIds.includes(el.id) ? { ...el, groupId: undefined } : el)));
   }
 
   function resetToDefault() {
     commitNow(DEFAULT_INVOICE_TEMPLATE);
-    setSelectedId(null);
+    setSelectedIds([]);
   }
 
   async function handleSave() {
@@ -182,11 +201,11 @@ export default function PdfTemplateDesigner() {
     }
   }
 
-  // Arrow-key nudge for the selected element -- ignored while focus is inside
-  // a form field, so it doesn't hijack normal text-cursor/select navigation.
+  // Arrow-key nudge for the selected block(s) -- ignored while focus is
+  // inside a form field, so it doesn't hijack normal text-cursor navigation.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (!selectedId) return;
+      if (selectedIds.length === 0) return;
       const tag = (document.activeElement?.tagName ?? '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
       if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
@@ -210,23 +229,49 @@ export default function PdfTemplateDesigner() {
       const delta = deltas[e.key];
       if (!delta) return;
       e.preventDefault();
-      const el = elements.find((x) => x.id === selectedId);
-      if (!el) return;
-      commitNow(elements.map((x) => (x.id === selectedId ? { ...x, x: x.x + delta[0], y: x.y + delta[1] } : x)));
+      commitNow(
+        elements.map((x) => (selectedIds.includes(x.id) ? { ...x, x: x.x + delta[0], y: x.y + delta[1] } : x)),
+      );
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, elements]);
+  }, [selectedIds, elements]);
 
-  function beginDrag(e: React.PointerEvent, el: PdfTemplateElement, mode: 'move' | 'resize', handle?: string) {
-    e.stopPropagation();
-    e.preventDefault();
-    setSelectedId(el.id);
+  function beginDrag(e: React.PointerEvent, ids: string[], mode: 'move' | 'resize', handle?: string) {
+    const startEls = new Map(elements.filter((el) => ids.includes(el.id)).map((el) => [el.id, el] as const));
     dragSnapshotRef.current = elements;
-    dragRef.current = { mode, handle, startClientX: e.clientX, startClientY: e.clientY, startEl: el };
+    dragRef.current = { mode, handle, startClientX: e.clientX, startClientY: e.clientY, ids, startEls };
     window.addEventListener('pointermove', onDragMove);
     window.addEventListener('pointerup', onDragEnd);
+  }
+
+  // Shift+click adds/removes a block (and its group) from the selection;
+  // clicking a block that's part of the current multi-selection drags the
+  // whole selection together; otherwise clicking replaces the selection with
+  // that block's group (or just itself, if ungrouped).
+  function handleElementPointerDown(e: React.PointerEvent, el: PdfTemplateElement) {
+    e.stopPropagation();
+    e.preventDefault();
+    let next: string[];
+    if (e.shiftKey) {
+      const members = groupMembers(el.id);
+      next = selectedIds.includes(el.id)
+        ? selectedIds.filter((id) => !members.includes(id))
+        : Array.from(new Set([...selectedIds, ...members]));
+    } else if (selectedIds.includes(el.id) && selectedIds.length > 1) {
+      next = selectedIds;
+    } else {
+      next = groupMembers(el.id);
+    }
+    setSelectedIds(next);
+    beginDrag(e, next, 'move');
+  }
+
+  function startResize(e: React.PointerEvent, el: PdfTemplateElement, handle: string) {
+    e.stopPropagation();
+    e.preventDefault();
+    beginDrag(e, [el.id], 'resize', handle);
   }
 
   function onDragMove(e: PointerEvent) {
@@ -236,20 +281,21 @@ export default function PdfTemplateDesigner() {
     const dy = (e.clientY - drag.startClientY) / SCALE;
     setElements((prev) =>
       prev.map((el) => {
-        if (el.id !== drag.startEl.id) return el;
+        const startEl = drag.startEls.get(el.id);
+        if (!startEl) return el;
         if (drag.mode === 'move') {
-          return { ...el, x: Math.max(0, drag.startEl.x + dx), y: Math.max(0, drag.startEl.y + dy) };
+          return { ...el, x: Math.max(0, startEl.x + dx), y: Math.max(0, startEl.y + dy) };
         }
-        let { x, y, width, height } = drag.startEl;
-        if (drag.handle?.includes('e')) width = Math.max(10, drag.startEl.width + dx);
-        if (drag.handle?.includes('s')) height = Math.max(10, drag.startEl.height + dy);
+        let { x, y, width, height } = startEl;
+        if (drag.handle?.includes('e')) width = Math.max(10, startEl.width + dx);
+        if (drag.handle?.includes('s')) height = Math.max(10, startEl.height + dy);
         if (drag.handle?.includes('w')) {
-          width = Math.max(10, drag.startEl.width - dx);
-          x = drag.startEl.x + dx;
+          width = Math.max(10, startEl.width - dx);
+          x = startEl.x + dx;
         }
         if (drag.handle?.includes('n')) {
-          height = Math.max(10, drag.startEl.height - dy);
-          y = drag.startEl.y + dy;
+          height = Math.max(10, startEl.height - dy);
+          y = startEl.y + dy;
         }
         return { ...el, x, y, width, height };
       }),
@@ -268,7 +314,7 @@ export default function PdfTemplateDesigner() {
     }
   }
 
-  const selected = elements.find((el) => el.id === selectedId) ?? null;
+  const selectedElements = elements.filter((el) => selectedIds.includes(el.id));
   const hasItemTable = elements.some((el) => el.type === 'itemTable');
 
   if (!businessInfo) {
@@ -286,10 +332,10 @@ export default function PdfTemplateDesigner() {
         <div>
           <h2>PDF Template</h2>
           <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
-            Drag, resize, add, and remove blocks to design the invoice/quote PDF shown by the "View" action. A block
-            whose real content (a long address, many line items) runs past its box automatically pushes anything
-            below it in the same column further down — the boxes here just set the starting layout. Use Preview to
-            see it with real content.
+            Drag, resize, add, and remove blocks to design the invoice/quote PDF shown by the "View" action.
+            Shift+click to select more than one, then Group them to move as one from now on. A block whose real
+            content (a long address, many line items) runs past its box automatically pushes anything below it in
+            the same column further down — use Preview to see it with real content.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -338,7 +384,7 @@ export default function PdfTemplateDesigner() {
         ) : (
           <div
             ref={canvasRef}
-            onPointerDown={() => setSelectedId(null)}
+            onPointerDown={() => setSelectedIds([])}
             style={{
               position: 'relative',
               width: CANVAS_W,
@@ -351,55 +397,60 @@ export default function PdfTemplateDesigner() {
               flexShrink: 0,
             }}
           >
-            {elements.map((el) => (
-              <div
-                key={el.id}
-                onPointerDown={(e) => beginDrag(e, el, 'move')}
-                style={{
-                  position: 'absolute',
-                  left: el.x * SCALE,
-                  top: el.y * SCALE,
-                  width: Math.max(el.width * SCALE, 4),
-                  height: Math.max(el.height * SCALE, 2),
-                  cursor: 'move',
-                  outline: selectedId === el.id ? '2px solid var(--accent)' : '1px dashed transparent',
-                  outlineOffset: 1,
-                  boxSizing: 'border-box',
-                }}
-              >
-                <ElementPreview el={el} />
-                {selectedId === el.id &&
-                  ['nw', 'ne', 'sw', 'se'].map((handle) => (
-                    <div
-                      key={handle}
-                      onPointerDown={(e) => beginDrag(e, el, 'resize', handle)}
-                      style={{
-                        position: 'absolute',
-                        width: 9,
-                        height: 9,
-                        background: 'var(--accent)',
-                        border: '1px solid white',
-                        borderRadius: 2,
-                        cursor: `${handle}-resize`,
-                        top: handle.includes('n') ? -5 : undefined,
-                        bottom: handle.includes('s') ? -5 : undefined,
-                        left: handle.includes('w') ? -5 : undefined,
-                        right: handle.includes('e') ? -5 : undefined,
-                      }}
-                    />
-                  ))}
-              </div>
-            ))}
+            {elements.map((el) => {
+              const isSelected = selectedIds.includes(el.id);
+              return (
+                <div
+                  key={el.id}
+                  onPointerDown={(e) => handleElementPointerDown(e, el)}
+                  style={{
+                    position: 'absolute',
+                    left: el.x * SCALE,
+                    top: el.y * SCALE,
+                    width: Math.max(el.width * SCALE, 4),
+                    height: Math.max(el.height * SCALE, 2),
+                    cursor: 'move',
+                    outline: isSelected ? '2px solid var(--accent)' : '1px dashed transparent',
+                    outlineOffset: 1,
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <ElementPreview el={el} />
+                  {isSelected && selectedIds.length === 1 &&
+                    ['nw', 'ne', 'sw', 'se'].map((handle) => (
+                      <div
+                        key={handle}
+                        onPointerDown={(e) => startResize(e, el, handle)}
+                        style={{
+                          position: 'absolute',
+                          width: 9,
+                          height: 9,
+                          background: 'var(--accent)',
+                          border: '1px solid white',
+                          borderRadius: 2,
+                          cursor: `${handle}-resize`,
+                          top: handle.includes('n') ? -5 : undefined,
+                          bottom: handle.includes('s') ? -5 : undefined,
+                          left: handle.includes('w') ? -5 : undefined,
+                          right: handle.includes('e') ? -5 : undefined,
+                        }}
+                      />
+                    ))}
+                </div>
+              );
+            })}
           </div>
         )}
 
         {!previewUrl && (
           <PropertyPanel
-            selected={selected}
+            selectedElements={selectedElements}
             onChange={updateSelected}
             onDelete={deleteSelected}
             onBringToFront={bringToFront}
             onSendToBack={sendToBack}
+            onGroup={groupSelected}
+            onUngroup={ungroupSelected}
           />
         )}
       </div>
@@ -490,30 +541,77 @@ function ElementPreview({ el }: { el: PdfTemplateElement }) {
 }
 
 interface PanelProps {
-  selected: PdfTemplateElement | null;
+  selectedElements: PdfTemplateElement[];
   onChange: (patch: Partial<PdfTemplateElement>) => void;
   onDelete: () => void;
   onBringToFront: () => void;
   onSendToBack: () => void;
+  onGroup: () => void;
+  onUngroup: () => void;
 }
 
-function PropertyPanel({ selected, onChange, onDelete, onBringToFront, onSendToBack }: PanelProps) {
-  if (!selected) {
+function PropertyPanel({
+  selectedElements,
+  onChange,
+  onDelete,
+  onBringToFront,
+  onSendToBack,
+  onGroup,
+  onUngroup,
+}: PanelProps) {
+  if (selectedElements.length === 0) {
     return (
       <div style={{ width: 260, flexShrink: 0, color: 'var(--muted)', fontSize: '0.85rem' }}>
-        Select a block to edit its position, size, and content. Use the buttons above to add a new one.
+        Select a block to edit its position, size, and content. Shift+click to select more than one. Use the
+        buttons above to add a new one.
       </div>
     );
   }
 
+  if (selectedElements.length > 1) {
+    const anyGrouped = selectedElements.some((el) => el.groupId);
+    return (
+      <div style={{ width: 260, flexShrink: 0 }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>{selectedElements.length} blocks selected</div>
+        <p style={{ color: 'var(--muted)', fontSize: '0.82rem', marginTop: 0 }}>
+          Group them to always select and move together — clicking any one afterwards selects the whole group.
+        </p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+          <button className="btn btn-primary btn-sm" onClick={onGroup}>
+            Group
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={onUngroup} disabled={!anyGrouped}>
+            Ungroup
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={onBringToFront}>
+            Bring to front
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={onSendToBack}>
+            Send to back
+          </button>
+          <button className="btn btn-danger btn-sm" onClick={onDelete}>
+            Delete
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const selected = selectedElements[0];
+
   function insertPlaceholder(token: string) {
-    if (selected!.type !== 'text' && selected!.type !== 'qrcode') return;
-    onChange({ content: `${selected!.content}{{${token}}}` } as Partial<PdfTemplateElement>);
+    if (selected.type !== 'text' && selected.type !== 'qrcode') return;
+    onChange({ content: `${selected.content}{{${token}}}` } as Partial<PdfTemplateElement>);
   }
 
   return (
     <div style={{ width: 260, flexShrink: 0 }}>
-      <div style={{ fontWeight: 700, marginBottom: 8 }}>{elementTypeLabel(selected.type)}</div>
+      <div style={{ fontWeight: 700, marginBottom: 8 }}>
+        {elementTypeLabel(selected.type)}
+        {selected.groupId && (
+          <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: '0.8rem' }}> · grouped</span>
+        )}
+      </div>
 
       <div className="field-row">
         <div className="field">
@@ -660,6 +758,11 @@ function PropertyPanel({ selected, onChange, onDelete, onBringToFront, onSendToB
         <button className="btn btn-secondary btn-sm" onClick={onSendToBack}>
           Send to back
         </button>
+        {selected.groupId && (
+          <button className="btn btn-secondary btn-sm" onClick={onUngroup}>
+            Ungroup
+          </button>
+        )}
         <button className="btn btn-danger btn-sm" onClick={onDelete}>
           Delete
         </button>

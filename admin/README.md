@@ -335,8 +335,18 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   z-order (later elements draw on top and are hit-tested first); **Bring to front**/**Send to
   back** reorder the array. **Undo**/**Redo** (also Ctrl+Z/Ctrl+Y) is an in-memory stack of whole-
   template snapshots pushed on every committed change — a drag or resize pushes one snapshot at
-  pointer-up, not per pixel moved. Arrow keys nudge the selected element (1pt, 10pt with Shift),
+  pointer-up, not per pixel moved. Arrow keys nudge the selected element(s) (1pt, 10pt with Shift),
   ignored while focus is inside a form field so it doesn't hijack normal text-cursor navigation.
+
+  Shift+click adds/removes a block from the selection; clicking a block that's already part of the
+  current multi-selection drags all of them together without disturbing the selection. **Group**
+  (shown once 2+ blocks are selected) assigns them a shared `groupId` — from then on, clicking any
+  member selects and drags the whole group as one, until **Ungroup** clears it. This is genuinely
+  persistent (saved with the template, not just a session-local multi-select), useful for e.g. a
+  label + its value that should always move together. Resize handles only appear for a single
+  selected block — resizing a group isn't supported, since scaling several unrelated block types
+  together has no one sensible meaning.
+
   The property panel (right side) edits the selected element's position/size, a **Show** dropdown
   (Always / only when an invoice is paid / only when unpaid — e.g. the default template's "PAID"
   stamp is paid-only; meaningless for quotes, which have no paid state, so it's always treated as
