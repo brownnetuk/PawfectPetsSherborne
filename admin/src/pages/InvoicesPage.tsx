@@ -136,7 +136,7 @@ function InvoicesTab() {
           <div className="empty-state">{invoices === null ? 'Loading…' : 'No invoices yet.'}</div>
         ) : viewing ? (
           <div style={{ display: 'flex', alignItems: 'stretch' }}>
-            <div style={{ width: 320, flexShrink: 0, borderRight: '1px solid var(--border)' }}>
+            <div style={{ width: 420, flexShrink: 0, borderRight: '1px solid var(--border)' }}>
               <table>
                 <tbody>
                   {invoices.map((inv) => (
