@@ -1,5 +1,7 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsDateString,
   IsEnum,
@@ -75,8 +77,10 @@ export class CreateAnimalDto {
   vaccineExpiryDate?: string;
 
   @IsOptional()
-  @IsString()
-  photo?: string;
+  @IsArray()
+  @ArrayMaxSize(2)
+  @IsString({ each: true })
+  photos?: string[];
 
   @IsOptional()
   @IsString()
