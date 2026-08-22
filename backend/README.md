@@ -83,9 +83,17 @@ One record per client, created from the intake form submission.
 - `emergencyVet` — practice details, structured address (`address1`/`town`/`postcode` required,
   `address2`/`county` optional), and an `authorisation` sub-object (`signedName`, optional
   `signatureImage`, server-set `signedAt`) modelled on `agreement` below — required to have a
-  `signedName` (checked in `CustomersService.validateEmergencyVet`). A computed
+  `signedName` on `create()` (checked in `CustomersService.validateEmergencyVet`). On `update()`,
+  that check only runs when the payload actually includes `authorisation` (i.e. the public intake
+  form's own agreement step) — the admin app's `EditCustomerModal` shows this read-only and never
+  sends it at all, so a plain staff edit (e.g. changing the vet's phone number) neither gets
+  rejected by a signature check nor silently wipes the existing signed authorisation: since
+  `emergencyVet` is written as a whole embedded-document replacement (not the dot-notation
+  field-level `$set` `security` uses below), `update()` explicitly carries the stored
+  `authorisation` forward whenever the incoming payload doesn't include it. A computed
   `alternativeVetAuthorised` boolean (`!!authorisation?.signedName`) is kept for existing
-  consumers that only need a yes/no.
+  consumers that only need a yes/no, recomputed alongside the carried-forward `authorisation` so
+  it never drifts out of sync with it.
 - `security` — `keysProvided`, `furtherInformation`, and `alarmInstructionsEncrypted`. Alarm
   instructions are submitted as plain text (`alarmInstructions` in the DTO) and encrypted at
   rest with AES-256-GCM before saving; they're stripped from list/read responses and only
@@ -278,7 +286,62 @@ dropdown sourced from `GET /payment-methods`, and an Account dropdown sourced fr
 ### CRM activity (`/crm/activities`)
 
 Freeform activity log per customer — `note` | `call` | `email` | `task` | `status_change` —
-with optional `dueDate`/`completed` for task tracking.
+with optional `dueDate`/`completed` for task tracking. Surfaced in the admin app as the "Notes"
+tab on a customer's page — see `AuditLogEntry` below for the similarly-named but unrelated
+automatic "Activity" tab.
+
+### Audit log (`/audit-log`, `AuditLogEntry`)
+
+Deliberately a separate model from `CrmActivity` above: that's a manually-authored log staff type
+into themselves; this is an automatic, system-generated record of things that happened on a
+customer's account — field edits, invoices/quotes created/updated/emailed, payments
+received/removed — that nothing writes to directly. Surfaced in the admin app as the customer
+page's "Activity" tab (an income chart plus a timeline), which staff never edit.
+
+`AuditLogEntry` (`backend/src/audit-log/`): `customer` (ref), `type` (a fixed `AuditEventType`
+enum — `customer_created`/`customer_updated`/`invoice_created`/`invoice_updated`/
+`invoice_emailed`/`quote_created`/`quote_updated`/`quote_emailed`/`payment_received`/
+`payment_removed`), `title`, optional `description`, optional `amount` (only ever set on
+`payment_received` — the sole source the income chart sums from), and `actor` (who/what caused
+it). `AuditLogModule` is deliberately a leaf module (no dependencies on other feature modules) so
+`CustomersModule`/`InvoicesModule`/`QuotesModule`/`PaymentsModule` can each import it and inject
+`AuditLogService` one-directionally, the same pattern already used for `PaymentsModule` →
+`InvoicesModule`. `AuditLogService.record(...)` swallows its own errors — a failure to log an
+event never fails the action it's describing.
+
+`GET /audit-log?customer=<id>` lists a customer's entries newest-first.
+`GET /audit-log/income?customer=<id>&months=6` aggregates `payment_received` amounts by calendar
+month (a Mongo `$group`/`$sum` over `createdAt`) and fills in zero for months with no payments, so
+the chart always shows a full run of bars — this is intentionally a simple sum of what was
+received, not a running balance: a later `payment_removed` doesn't retroactively reduce a prior
+month's total, matching "record what happened" rather than "maintain a derived running total".
+
+**Actor attribution** — every route that logs an event needs to know who's calling, which is
+straightforward for the invoices/quotes/payments controllers (all staff-only already, so a new
+`@CurrentUser()` decorator, `backend/src/auth/current-user.decorator.ts`, just reads the
+already-validated `req.user` Passport attaches) but genuinely awkward for `CustomersController`:
+`POST /customers` and `PATCH /customers/:id` are both `@Public()` (the public intake form calls
+the *same* routes the admin app's `EditCustomerModal`/"New customer" use), and `@Public()` makes
+`JwtAuthGuard.canActivate()` return `true` immediately without ever invoking Passport's strategy —
+so `req.user` is never populated on these routes, even when the admin app sends a valid staff
+JWT. `actor.util.ts`'s `actorFromRequest(req)` is a deliberately best-effort, unverified
+workaround used only there: it decodes the JWT payload's `name` claim directly (checking neither
+signature nor expiry) and falls back to `'Customer'` when no bearer token is present at all. This
+is explicitly not a security check — nothing on these routes grants permissions based on the
+result, so a forged token here only produces a wrong-but-harmless display name in the audit log,
+never a privilege change. Splitting these into genuinely separate public/staff routes would ripple
+into the public intake frontend and wasn't worth it just for this.
+
+`CustomersService.update()` also builds a plain-English "what changed" summary
+(`customers/audit-diff.util.ts`'s `describeCustomerChanges()`) by diffing the incoming DTO's
+provided keys against the customer's prior stored values — scalar fields (name/address
+parts/phone/email) only count as changed if the value genuinely differs; object fields
+(`emergencyContact`/`emergencyVet`/`security`) count as changed just by being present in the
+payload, since diffing their nested shapes precisely wasn't worth the complexity for a one-line
+audit description. Returns `null` (skip logging) when nothing recognisable changed, e.g. a
+no-op PATCH. A payload whose `agreement.signedName` is set (the public intake form completing
+registration) gets a more specific `'Registration form completed'` title instead of the generic
+one.
 
 ### Settings (`/settings`)
 

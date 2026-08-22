@@ -57,8 +57,9 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   There's no full customer-creation form here on purpose — the intake form is where that detail
   belongs, and duplicating it would just be two sources of truth for the same data.
 - **Customer detail** — tabs for overview (client/emergency/vet/security/agreement — alarm
-  instructions are only decrypted on demand via "Reveal"), pets, bookings, invoices, and CRM
-  activity, plus per-customer booking/invoice/activity creation. "Edit" on the overview covers
+  instructions are only decrypted on demand via "Reveal"), pets, bookings, invoices, Notes (the
+  manually-authored `CrmActivity` log, see below), and Activity (an automatic audit trail, see
+  below), plus per-customer booking/invoice/note creation. "Edit" on the overview covers
   client/emergency/vet/security fields; "Edit" on a pet row covers its full profile. Off-lead
   consent is deliberately read-only in the pet edit form — it's a customer-signed acknowledgment
   from the intake form, not something staff overwrite from here. A status dropdown next to the
@@ -89,6 +90,18 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   into headings/paragraphs/lists by `htmlToBlocks()` — the same content the customer actually saw
   and signed against on the intake form, rather than a separately-maintained copy. Falls back to a
   short hardcoded list if nothing's been uploaded yet.
+  The **Activity** tab (`AuditLogTab` in `CustomerDetailPage.tsx`) is read-only — staff never
+  write to it directly, unlike **Notes** next to it. It's fed by `AuditLogEntry`
+  (`backend/README.md`'s "Audit log" section), a system-generated record of things that happened
+  on the account: field edits, invoices/quotes created/updated/emailed, payments
+  received/removed. An **Income** card up top (`IncomeChart.tsx`, a small inline-SVG bar chart —
+  no charting library, just a fixed viewBox with bars/gridlines/axis labels sized off the data) sums
+  payments received per calendar month, with a Last 6 Months/Last 12 Months selector and a
+  "Total Income ( Last N Months ) - £X" line below it; below that, a vertical timeline (a plain
+  CSS rail + dot per entry, no library) lists every audit-log entry newest-first with its
+  date/time, title, description, and "by {actor}". Fetched the same eager-on-mount way the other
+  tabs' data is (`CustomerDetailPage`'s own `refresh()`), plus a separate effect re-fetching just
+  the income data when the period selector changes.
 - **Bookings** — a global list across all customers, inline status changes, edit and delete on
   each row, and its own "New" flow with a customer picker (the customer-detail version reuses the
   same create/edit/delete calls with the customer pre-selected).
