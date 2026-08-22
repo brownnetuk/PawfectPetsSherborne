@@ -1327,6 +1327,8 @@ function DocumentNumberingCard() {
   const [quoteNextNumber, setQuoteNextNumber] = useState('1');
   const [paymentNumberTemplate, setPaymentNumberTemplate] = useState('');
   const [paymentNextNumber, setPaymentNextNumber] = useState('1');
+  const [creditNoteNumberTemplate, setCreditNoteNumberTemplate] = useState('');
+  const [creditNoteNextNumber, setCreditNoteNextNumber] = useState('1');
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -1343,6 +1345,8 @@ function DocumentNumberingCard() {
         setQuoteNextNumber(String(info.quoteNextNumber));
         setPaymentNumberTemplate(info.paymentNumberTemplate);
         setPaymentNextNumber(String(info.paymentNextNumber));
+        setCreditNoteNumberTemplate(info.creditNoteNumberTemplate);
+        setCreditNoteNextNumber(String(info.creditNoteNextNumber));
         setLoaded(true);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load document numbering'));
@@ -1361,6 +1365,8 @@ function DocumentNumberingCard() {
         quoteNextNumber: Number(quoteNextNumber) || 1,
         paymentNumberTemplate,
         paymentNextNumber: Number(paymentNextNumber) || 1,
+        creditNoteNumberTemplate,
+        creditNoteNextNumber: Number(creditNoteNextNumber) || 1,
       });
       setSaved(true);
     } catch (err) {
@@ -1444,6 +1450,27 @@ function DocumentNumberingCard() {
                 step="1"
                 value={paymentNextNumber}
                 onChange={(e) => setPaymentNextNumber(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="field-row">
+            <div className="field">
+              <label>Credit Note Number Template</label>
+              <input
+                type="text"
+                value={creditNoteNumberTemplate}
+                onChange={(e) => setCreditNoteNumberTemplate(e.target.value)}
+                placeholder="CN-{year}-{seq}"
+              />
+            </div>
+            <div className="field">
+              <label>Next Credit Note Number</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={creditNoteNextNumber}
+                onChange={(e) => setCreditNoteNextNumber(e.target.value)}
               />
             </div>
           </div>
