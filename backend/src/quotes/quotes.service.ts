@@ -53,14 +53,14 @@ export class QuotesService {
     return this.quoteModel
       .find(filter)
       .sort({ createdAt: -1 })
-      .populate('customer', 'name email')
+      .populate('customer', 'name email address phoneNumber')
       .exec();
   }
 
   async findOne(id: string): Promise<Quote> {
     const quote = await this.quoteModel
       .findById(id)
-      .populate('customer', 'name email')
+      .populate('customer', 'name email address phoneNumber')
       .exec();
     if (!quote) {
       throw new NotFoundException(`Quote ${id} not found`);
@@ -76,7 +76,7 @@ export class QuotesService {
     }
     const quote = await this.quoteModel
       .findByIdAndUpdate(id, update, { new: true })
-      .populate('customer', 'name email')
+      .populate('customer', 'name email address phoneNumber')
       .exec();
     if (!quote) {
       throw new NotFoundException(`Quote ${id} not found`);

@@ -71,14 +71,14 @@ export class InvoicesService {
     return this.invoiceModel
       .find(filter)
       .sort({ createdAt: -1 })
-      .populate('customer', 'name email')
+      .populate('customer', 'name email address phoneNumber')
       .exec();
   }
 
   async findOne(id: string): Promise<Invoice> {
     const invoice = await this.invoiceModel
       .findById(id)
-      .populate('customer', 'name email')
+      .populate('customer', 'name email address phoneNumber')
       .exec();
     if (!invoice) {
       throw new NotFoundException(`Invoice ${id} not found`);
@@ -97,7 +97,7 @@ export class InvoicesService {
     }
     const invoice = await this.invoiceModel
       .findByIdAndUpdate(id, update, { new: true })
-      .populate('customer', 'name email')
+      .populate('customer', 'name email address phoneNumber')
       .exec();
     if (!invoice) {
       throw new NotFoundException(`Invoice ${id} not found`);
@@ -164,7 +164,7 @@ export class InvoicesService {
     }
     const updated = await this.invoiceModel
       .findByIdAndUpdate(id, update, { new: true })
-      .populate('customer', 'name email')
+      .populate('customer', 'name email address phoneNumber')
       .exec();
     return updated!;
   }

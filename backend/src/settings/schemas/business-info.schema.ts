@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Schema as MongooseSchema } from 'mongoose';
 
 // Singleton-style collection, same pattern as EmailSettings: exactly one
 // document holds the business's own details, used to brand invoices, email
@@ -82,6 +82,15 @@ export class BusinessInfo extends Document {
 
   @Prop({ default: 1 })
   paymentNextNumber?: number;
+
+  // Freeform layout for the invoice/quote PDF ("View" action, admin/src/pdf/invoicePdf.ts) --
+  // an array of staff-positioned blocks (text/image/line/rect/qrcode/itemTable), edited via
+  // the drag-and-drop designer at Settings > Invoices. Stored as opaque JSON (Mixed) since it's
+  // staff-only structured data the backend never needs to interpret, only round-trip; the
+  // frontend owns the actual PdfTemplateElement shape (admin/src/types.ts). Empty/unset means
+  // the renderer falls back to its own built-in default layout.
+  @Prop({ type: [MongooseSchema.Types.Mixed], default: [] })
+  invoicePdfTemplate?: Record<string, unknown>[];
 }
 
 export const BusinessInfoSchema = SchemaFactory.createForClass(BusinessInfo);

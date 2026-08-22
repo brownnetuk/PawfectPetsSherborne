@@ -46,6 +46,7 @@ export class SettingsService {
       quoteNextNumber: doc?.quoteNextNumber ?? 1,
       paymentNumberTemplate: doc?.paymentNumberTemplate ?? 'PAY-{year}-{seq}',
       paymentNextNumber: doc?.paymentNextNumber ?? 1,
+      invoicePdfTemplate: doc?.invoicePdfTemplate ?? [],
     };
   }
 
@@ -79,6 +80,7 @@ export class SettingsService {
     if (dto.quoteNextNumber !== undefined) update.quoteNextNumber = dto.quoteNextNumber;
     if (dto.paymentNumberTemplate !== undefined) update.paymentNumberTemplate = dto.paymentNumberTemplate;
     if (dto.paymentNextNumber !== undefined) update.paymentNextNumber = dto.paymentNextNumber;
+    if (dto.invoicePdfTemplate !== undefined) update.invoicePdfTemplate = dto.invoicePdfTemplate;
     await this.businessInfoModel.findOneAndUpdate({}, update, { upsert: true }).exec();
     return this.getBusinessInfo();
   }

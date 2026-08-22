@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsArray, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 // All plain @IsString() (no @IsEmail() on `email`) so every field, including
 // email, can genuinely be cleared by saving it blank -- unlike
@@ -91,4 +91,11 @@ export class UpdateBusinessInfoDto {
   @IsInt()
   @Min(1)
   paymentNextNumber?: number;
+
+  // Opaque staff-authored layout JSON (see BusinessInfo.invoicePdfTemplate) --
+  // no @ValidateNested()/@Type() on the array elements, so arbitrary per-element
+  // keys pass through the global whitelist untouched rather than being stripped.
+  @IsOptional()
+  @IsArray()
+  invoicePdfTemplate?: Record<string, unknown>[];
 }
