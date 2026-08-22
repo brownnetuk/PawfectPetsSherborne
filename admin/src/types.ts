@@ -101,6 +101,8 @@ export interface CustomerRef {
   _id: string;
   name: string;
   email: string;
+  address?: string;
+  phoneNumber?: string;
 }
 
 export interface Booking {
@@ -239,7 +241,67 @@ export interface BusinessInfo {
   quoteNextNumber: number;
   paymentNumberTemplate: string;
   paymentNextNumber: number;
+  invoicePdfTemplate: PdfTemplateElement[];
 }
+
+// --- Invoice/Quote PDF template (Settings > Invoices > PDF Template designer) ---
+
+export type PdfVisibility = 'always' | 'paid' | 'unpaid';
+
+interface PdfElementBase {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  visibleWhen?: PdfVisibility;
+}
+
+export interface PdfTextElement extends PdfElementBase {
+  type: 'text';
+  content: string;
+  fontSize: number;
+  fontWeight: 'normal' | 'bold';
+  color: string;
+  align: 'left' | 'center' | 'right';
+  rotation?: number;
+}
+
+export interface PdfImageElement extends PdfElementBase {
+  type: 'image';
+  src: 'logo';
+}
+
+export interface PdfLineElement extends PdfElementBase {
+  type: 'line';
+  strokeColor: string;
+  lineWidth: number;
+}
+
+export interface PdfRectElement extends PdfElementBase {
+  type: 'rect';
+  fillColor?: string;
+  strokeColor?: string;
+}
+
+export interface PdfQrElement extends PdfElementBase {
+  type: 'qrcode';
+  content: string;
+}
+
+export interface PdfItemTableElement extends PdfElementBase {
+  type: 'itemTable';
+}
+
+export type PdfTemplateElement =
+  | PdfTextElement
+  | PdfImageElement
+  | PdfLineElement
+  | PdfRectElement
+  | PdfQrElement
+  | PdfItemTableElement;
+
+export type PdfElementType = PdfTemplateElement['type'];
 
 export interface EmailSettings {
   tenantId: string;

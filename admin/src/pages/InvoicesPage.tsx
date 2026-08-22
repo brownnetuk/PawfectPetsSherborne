@@ -3,8 +3,10 @@ import * as api from '../api/client';
 import ActionsMenu from '../components/ActionsMenu';
 import DocumentFormModal from '../components/DocumentFormModal';
 import Modal from '../components/Modal';
+import PdfViewModal from '../components/PdfViewModal';
 import RecordPaymentModal from '../components/RecordPaymentModal';
 import SendPreviewModal, { customerLabel } from '../components/SendPreviewModal';
+import { buildInvoicePdf } from '../pdf/invoicePdf';
 import type { Invoice, InvoiceStatus, Quote, QuoteStatus } from '../types';
 
 const INVOICE_STATUSES: InvoiceStatus[] = ['draft', 'sent', 'paid', 'overdue', 'cancelled'];
@@ -47,11 +49,37 @@ function InvoicesTab() {
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [sendPreview, setSendPreview] = useState<Invoice | null>(null);
   const [recordingPayment, setRecordingPayment] = useState<Invoice | null>(null);
+  const [viewing, setViewing] = useState<Invoice | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   function refresh() {
     api.listInvoices().then(setInvoices).catch((err) => setError(err.message));
   }
   useEffect(refresh, []);
+
+  async function handleViewPdf(inv: Invoice) {
+    setViewing(inv);
+    setPdfLoading(true);
+    setPdfError(null);
+    try {
+      const businessInfo = await api.getBusinessInfo();
+      const doc = await buildInvoicePdf(inv, 'invoice', businessInfo);
+      setPdfUrl(URL.createObjectURL(doc.output('blob')));
+    } catch (err) {
+      setPdfError(err instanceof Error ? err.message : 'Failed to generate the PDF');
+    } finally {
+      setPdfLoading(false);
+    }
+  }
+
+  function closePdf() {
+    if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    setPdfUrl(null);
+    setPdfError(null);
+    setViewing(null);
+  }
 
   async function handleStatusChange(id: string, status: string) {
     await api.updateInvoiceStatus(id, status);
@@ -142,7 +170,8 @@ function InvoicesTab() {
                   <td onClick={(e) => e.stopPropagation()}>
                     <ActionsMenu
                       items={[
-                        { label: 'View / Edit', onClick: () => setEditing(inv) },
+                        { label: 'View', onClick: () => handleViewPdf(inv) },
+                        { label: 'Edit', onClick: () => setEditing(inv) },
                         {
                           label: sendingId === inv._id ? 'Sending…' : 'Send',
                           onClick: () => setSendPreview(inv),
@@ -204,6 +233,17 @@ function InvoicesTab() {
         />
       )}
 
+      {viewing && (
+        <PdfViewModal
+          title={`Invoice ${viewing.invoiceNumber}`}
+          pdfUrl={pdfUrl}
+          pdfLoading={pdfLoading}
+          pdfError={pdfError}
+          downloadName={`${viewing.invoiceNumber}.pdf`}
+          onClose={closePdf}
+        />
+      )}
+
       {deleting && (
         <Modal title="Delete invoice?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
@@ -234,11 +274,37 @@ function QuotesTab() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [sendPreview, setSendPreview] = useState<Quote | null>(null);
+  const [viewing, setViewing] = useState<Quote | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   function refresh() {
     api.listQuotes().then(setQuotes).catch((err) => setError(err.message));
   }
   useEffect(refresh, []);
+
+  async function handleViewPdf(q: Quote) {
+    setViewing(q);
+    setPdfLoading(true);
+    setPdfError(null);
+    try {
+      const businessInfo = await api.getBusinessInfo();
+      const doc = await buildInvoicePdf(q, 'quote', businessInfo);
+      setPdfUrl(URL.createObjectURL(doc.output('blob')));
+    } catch (err) {
+      setPdfError(err instanceof Error ? err.message : 'Failed to generate the PDF');
+    } finally {
+      setPdfLoading(false);
+    }
+  }
+
+  function closePdf() {
+    if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    setPdfUrl(null);
+    setPdfError(null);
+    setViewing(null);
+  }
 
   async function handleStatusChange(id: string, status: string) {
     await api.updateQuoteStatus(id, status);
@@ -323,7 +389,8 @@ function QuotesTab() {
                   <td onClick={(e) => e.stopPropagation()}>
                     <ActionsMenu
                       items={[
-                        { label: 'View / Edit', onClick: () => setEditing(q) },
+                        { label: 'View', onClick: () => handleViewPdf(q) },
+                        { label: 'Edit', onClick: () => setEditing(q) },
                         {
                           label: sendingId === q._id ? 'Sending…' : 'Send',
                           onClick: () => setSendPreview(q),
@@ -370,6 +437,17 @@ function QuotesTab() {
           doc={sendPreview}
           onClose={() => setSendPreview(null)}
           onConfirm={() => handleSend(sendPreview)}
+        />
+      )}
+
+      {viewing && (
+        <PdfViewModal
+          title={`Quote ${viewing.quoteNumber}`}
+          pdfUrl={pdfUrl}
+          pdfLoading={pdfLoading}
+          pdfError={pdfError}
+          downloadName={`${viewing.quoteNumber}.pdf`}
+          onClose={closePdf}
         />
       )}
 

@@ -3,6 +3,7 @@ import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import Modal from '../components/Modal';
 import NamedListCard from '../components/NamedListCard';
+import PdfTemplateDesigner from '../components/PdfTemplateDesigner';
 import RichTextEditor from '../components/RichTextEditor';
 import type { RichTextEditorHandle } from '../components/RichTextEditor';
 import { PencilIcon, SortIcon, TrashIcon } from '../components/icons';
@@ -1296,6 +1297,7 @@ function InvoicesSettingsTab() {
       <InvoiceTermsCard />
       <BankDetailsCard />
       <ProductsCard />
+      <PdfTemplateDesigner />
     </div>
   );
 }
