@@ -256,16 +256,21 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   deducts the amount from the invoice's balance and, once fully covered, flips its status to
   `paid` server-side (see `InvoicesService.applyPayment()` in `backend/README.md`) — the Invoices
   page's own status pill/dropdown reflects this immediately on refresh, no separate polling needed.
+  A non-zero **Charges** value also creates a real linked expense behind the scenes (category
+  "Payment Charges") — nothing to configure here, but it's why a payment with charges shows up as
+  an extra row on the Expenses tab below, and why deleting that payment removes it again.
 
   **Expenses** (`ExpensesCard`/`ExpenseModal`) has its own New/Edit/Delete — unlike Payments, an
   expense isn't tied to any other record, so it's created directly from this tab: **Date**,
-  **Category** (a fixed select — Insurance/Supplies/Equipment/Vehicle-Fuel/Veterinary/Marketing/
-  Professional Fees/Other, matching the backend's fixed enum rather than a Settings-managed list),
-  **Payee** (optional), **Description**, **Amount (£)**, an optional **Account** dropdown (same
-  `GET /bank-accounts` source and "Name (Bank/Savings)" labelling as Payments' picker — debits that
-  account's balance if chosen), and an optional **Receipt** photo upload (same single-file →
-  base64 pattern as a pet's photo, capped at 4MB client-side). Deleting one restores its amount to
-  the account balance, same compensating pattern as deleting a Payment.
+  **Category** (a select sourced from `GET /expense-categories` — Settings → Finance → Expense
+  Categories below — same "fetch on mount, default to the first entry" pattern as
+  `RecordPaymentModal`'s Payment Method/Account pickers; an expense's own already-stored category
+  stays selectable even if it's since been removed from that list), **Payee** (optional),
+  **Description**, **Amount (£)**, an optional **Account** dropdown (same `GET /bank-accounts`
+  source and "Name (Bank/Savings)" labelling as Payments' picker — debits that account's balance if
+  chosen), and an optional **Receipt** photo upload (same single-file → base64 pattern as a pet's
+  photo, capped at 4MB client-side). Deleting one restores its amount to the account balance, same
+  compensating pattern as deleting a Payment.
 
   **Credit Notes** (`CreditNotesCard`/`CreditNoteModal`) has New/Delete (no Edit, matching
   Payments — money movements get voided and redone, not silently edited). The form: a **Customer**
@@ -466,13 +471,16 @@ page always shows which revision they agreed to — see `backend/README.md`'s "S
   (`invoicePdfTemplate` on `BusinessInfo`, see `backend/README.md`); **Reset to Default** restores
   `DEFAULT_INVOICE_TEMPLATE` (the same layout the renderer falls back to when nothing's been saved
   yet, so there's one source of truth for "default" rather than two).
-  **Finance**, a single **Payment Methods** card (`/payment-methods` — e.g. "Bank Transfer",
-  "Cash", "Card") built with the shared `NamedListCard` component
-  (`admin/src/components/NamedListCard.tsx`) — deliberately named differently from the top-level
-  **Financial** page (`/financial`, see above) despite the naming similarity, since they're two
-  different things: this one is a small reference list for tagging how a customer paid (feeding the
-  Payment Method dropdown in `RecordPaymentModal`), not bank account details or the payments ledger
-  itself.
+  **Finance** has two `NamedListCard` (`admin/src/components/NamedListCard.tsx`)-built lists:
+  **Payment Methods** (`/payment-methods` — e.g. "Bank Transfer", "Cash", "Card"), feeding the
+  Payment Method dropdown in `RecordPaymentModal`, and **Expense Categories** (`/expense-categories`
+  — e.g. "Insurance", "Supplies"), feeding `ExpenseModal`'s Category dropdown on the Financial
+  page's Expenses tab. `NamedListCard` takes an optional `itemNounPlural` prop for cases where
+  `itemNoun + 's'` isn't right (`"expense category"` → `"expense categories"`, not
+  `"expense categorys"`) — every other current use just gets the default. Deliberately named
+  "Finance" rather than reusing "Financial" for this Settings tab despite the naming similarity,
+  since they're two different things: this one is small reference lists staff rarely touch, not
+  bank account details or the payments/expenses/credit-notes ledgers themselves.
 
 ## Sending email via Microsoft 365
 

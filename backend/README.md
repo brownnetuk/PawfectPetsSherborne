@@ -283,21 +283,27 @@ and an auto-generated `paymentId` (see "Document numbering" above). Only `POST`/
 re-reconciling the invoice balance it already affected, which isn't supported; deleting and
 re-recording is the intended correction path.
 
-`PaymentsService.create()` generates the `paymentId`, saves the record, then calls
-`InvoicesService.applyPayment(invoiceId, amount)`, which adds `amount` to the invoice's
-`amountPaid` and — once `amountPaid >= total` — flips `status` to `paid` and stamps `paidAt`, and
-`BankAccountsService.adjustBalance(account, amount - (charges ?? 0))` — net of any processing
-charges, since that's what actually lands in the bank. `PaymentsService.remove()` is the mirror:
-it deletes the record, then calls `InvoicesService.reversePayment(invoiceId, amount)`, which
-subtracts `amount` back out of `amountPaid` (floored at `0`) and, if that undoes a `paid` status,
-reverts `status` to `sent` and clears `paidAt` (via Mongo `$unset` — a plain `undefined` in a
-Mongoose update object is stripped before the query is built, so it silently fails to clear a
-field; `$unset` is required) — plus the mirrored, negated `adjustBalance` call. Reverting to
-`sent` rather than trying to guess `overdue` is deliberate — `markOverdue()` (see "Invoice" above)
-re-flags it on the very next `GET /invoices` if the due date has in fact passed, so this doesn't
-need to duplicate that logic. `PaymentsModule` imports `InvoicesModule` and `BankAccountsModule`
-directly (not just their Mongoose models) so `PaymentsService` can call these methods rather than
-duplicating the balance/status logic itself.
+`PaymentsService.create()` generates the `paymentId`; if `charges` is set, it first creates a real
+linked `Expense` for it (category `"Payment Charges"`, same `account` — see "Expense" below,
+stored back on the payment as `chargesExpense`) rather than just netting the fee invisibly out of
+the balance, so it shows up properly in the Expenses tab and Reports. It then saves the payment
+record, calls `InvoicesService.applyPayment(invoiceId, amount)` (adds the full `amount` to the
+invoice's `amountPaid`, flipping `status` to `paid` and stamping `paidAt` once `amountPaid >=
+total`), and `BankAccountsService.adjustBalance(account, amount)` — the *gross* amount; the
+charge, if any, was already debited separately via the linked expense's own `create()`, so netting
+it again here would double-count it. `PaymentsService.remove()` is the mirror: it deletes the
+payment record, deletes the linked `chargesExpense` first if one exists (which reverses that
+debit via `ExpensesService.remove()`), then calls `InvoicesService.reversePayment(invoiceId,
+amount)`, which subtracts `amount` back out of `amountPaid` (floored at `0`) and, if that undoes a
+`paid` status, reverts `status` to `sent` and clears `paidAt` (via Mongo `$unset` — a plain
+`undefined` in a Mongoose update object is stripped before the query is built, so it silently
+fails to clear a field; `$unset` is required) — plus the mirrored, negated `adjustBalance` call on
+the gross amount. Reverting to `sent` rather than trying to guess `overdue` is deliberate —
+`markOverdue()` (see "Invoice" above) re-flags it on the very next `GET /invoices` if the due date
+has in fact passed, so this doesn't need to duplicate that logic. `PaymentsModule` imports
+`InvoicesModule`, `BankAccountsModule`, and `ExpensesModule` directly (not just their Mongoose
+models) so `PaymentsService` can call these methods rather than duplicating the balance/status
+logic itself.
 
 `BankAccountsService.adjustBalance(id, delta)` (`bank-accounts.service.ts`) is the one place
 `BankAccount.currentBalance` is ever written — a plain `$inc` (atomic, no read-modify-write race),
@@ -312,23 +318,29 @@ dropdown sourced from `GET /payment-methods`, and an Account dropdown sourced fr
 (Payment ID/Date/Invoice/Amount/Charges/Payment Method/Account, delete only — see
 `admin/README.md`).
 
-### Expense (`/expenses`)
+### ExpenseCategory (`/expense-categories`), Expense (`/expenses`)
 
-Money going out: `date`, a fixed `category` enum (`insurance`/`supplies`/`equipment`/
-`vehicle_fuel`/`veterinary`/`marketing`/`professional_fees`/`other`), optional `payee`,
-`description`, `amount`, an optional `account` ref (debited via `adjustBalance` on
-create/update/delete, credited back on update's old value/delete), and an optional `receipt`
-(base64 data URI, same storage approach as `Animal.photos`/`BusinessInfo.logoImage`). Deliberately
-a fixed schema enum for `category` rather than a new staff-managed named list like
-`PaymentMethod`/`Product` — a small business won't reclassify its cost categories often enough to
-justify a whole new module and Settings section for it. `ExpensesService.update()` fetches the
-document `before` the update (same pattern `CustomersService.update()`/`AnimalsService.update()`
-use for their own diffs) so it can revert the old amount from whichever account it was debited
-against and reapply the new one — one code path correctly handles an unchanged account, a changed
-account, and adding/removing the account entirely. Not audit-logged: `AuditLogEntry.customer` is
-required, and expenses have no customer at all — the Expenses list itself is the record, same as
-`PaymentMethod`/`Product`/`BankAccount` (none of which are audit-logged either). Full CRUD, no
-`@Public()` route — this never touches the public intake surface.
+`ExpenseCategory` is a plain named list (`name` only, e.g. "Insurance", "Supplies") — a module
+that's a byte-for-byte mirror of `PaymentMethod` above, surfaced under Settings → Finance next to
+Payment Methods. `Expense.category` is a plain string copied from the chosen category's `name` at
+creation time, not a live reference — same reasoning as `Payment.paymentMethod`: a recorded
+expense shouldn't retroactively change if the category library entry is later renamed or deleted.
+(Originally a fixed schema enum before this list existed; switched over once a way to add custom
+categories was wanted.)
+
+`Expense` itself: `date`, `category`, optional `payee`, `description`, `amount`, an optional
+`account` ref (debited via `adjustBalance` on create/update/delete, credited back on update's old
+value/delete), and an optional `receipt` (base64 data URI, same storage approach as
+`Animal.photos`/`BusinessInfo.logoImage`). `ExpensesService.update()` fetches the document
+`before` the update (same pattern `CustomersService.update()`/`AnimalsService.update()` use for
+their own diffs) so it can revert the old amount from whichever account it was debited against and
+reapply the new one — one code path correctly handles an unchanged account, a changed account, and
+adding/removing the account entirely. Not audit-logged: `AuditLogEntry.customer` is required, and
+expenses have no customer at all — the Expenses list itself is the record, same as
+`PaymentMethod`/`ExpenseCategory`/`Product`/`BankAccount` (none of which are audit-logged either).
+Full CRUD, no `@Public()` route — this never touches the public intake surface.
+`ExpensesModule` exports its service so `PaymentsModule` can create/remove the linked
+"Payment Charges" expense described above.
 
 ### CreditNote (`/credit-notes`)
 
@@ -355,9 +367,10 @@ services, since it only ever reads. `GET /reports/income-vs-expenses?months=6` m
 `AuditLogService.incomeByMonth()`'s aggregation/sparse-fill-zero-months approach (see "Audit log"
 below) but business-wide (no `customer` match clause) and grouped by each record's own `date`
 field rather than `createdAt`, merging three separate per-collection aggregations into one array
-of `{ month, income, expenses, net }`: `income` sums `Payment.amount - charges` minus
-`CreditNote.amount` for that month (both net of what actually happened to the money, consistent
-with the bank-balance wiring above); `expenses` sums `Expense.amount`.
+of `{ month, income, expenses, net }`: `income` sums `Payment.amount` (gross — any processing
+charge is counted once, via the linked "Payment Charges" expense, not subtracted here too) minus
+`CreditNote.amount` for that month; `expenses` sums `Expense.amount`, which now naturally includes
+those payment-charge expenses alongside everything staff record directly.
 
 ### CRM activity (`/crm/activities`)
 
