@@ -70,7 +70,9 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   "View" (`ViewAnimalModal`) all support up to 2 optional photos — a file upload (each capped at
   4MB client-side, same base64 data URI storage as the logo/signatures elsewhere, hidden once 2 are
   attached) in the New/Edit forms, and shown stacked to the right of the Details section in the
-  View modal, matching where the intake form's own photo upload feeds it from. Off-lead
+  View modal, matching where the intake form's own photo upload feeds it from. Clicking a photo
+  there opens it full-size in a simple lightbox (a fixed-position dark overlay, no library) —
+  click anywhere to close. Off-lead
   consent is deliberately read-only in the pet edit form — it's a customer-signed acknowledgment
   from the intake form, not something staff overwrite from here. A status dropdown next to the
   overview badge moves a customer between pending/active/inactive/update_info via a staff-only
