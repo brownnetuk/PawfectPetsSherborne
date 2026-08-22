@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import ActionsMenu from '../components/ActionsMenu';
 import DocumentFormModal from '../components/DocumentFormModal';
+import InvoiceHtmlView from '../components/InvoiceHtmlView';
 import Modal from '../components/Modal';
 import PdfViewModal from '../components/PdfViewModal';
 import RecordPaymentModal from '../components/RecordPaymentModal';
 import SendPreviewModal, { customerLabel } from '../components/SendPreviewModal';
 import { buildInvoicePdf } from '../pdf/invoicePdf';
-import type { Invoice, InvoiceStatus, Quote, QuoteStatus } from '../types';
+import type { BusinessInfo, Invoice, InvoiceStatus, Quote, QuoteStatus } from '../types';
 
 const INVOICE_STATUSES: InvoiceStatus[] = ['draft', 'sent', 'paid', 'overdue', 'cancelled'];
 const QUOTE_STATUSES: QuoteStatus[] = ['draft', 'sent', 'accepted', 'declined', 'expired'];
@@ -50,6 +51,7 @@ function InvoicesTab() {
   const [sendPreview, setSendPreview] = useState<Invoice | null>(null);
   const [recordingPayment, setRecordingPayment] = useState<Invoice | null>(null);
   const [viewing, setViewing] = useState<Invoice | null>(null);
+  const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
@@ -59,6 +61,9 @@ function InvoicesTab() {
   }
   useEffect(refresh, []);
 
+  // Shows the invoice instantly as HTML (InvoiceHtmlView, below) once
+  // businessInfo is available -- doesn't wait on the PDF, which is only
+  // needed for the Download link and generates in the background.
   async function handleViewPdf(inv: Invoice) {
     if (pdfUrl) URL.revokeObjectURL(pdfUrl);
     setPdfUrl(null);
@@ -66,11 +71,12 @@ function InvoicesTab() {
     setPdfLoading(true);
     setPdfError(null);
     try {
-      const businessInfo = await api.getBusinessInfo();
-      const doc = await buildInvoicePdf(inv, 'invoice', businessInfo);
+      const info = businessInfo ?? (await api.getBusinessInfo());
+      if (!businessInfo) setBusinessInfo(info);
+      const doc = await buildInvoicePdf(inv, 'invoice', info);
       setPdfUrl(URL.createObjectURL(doc.output('blob')));
     } catch (err) {
-      setPdfError(err instanceof Error ? err.message : 'Failed to generate the PDF');
+      setPdfError(err instanceof Error ? err.message : 'Failed to prepare the PDF download');
     } finally {
       setPdfLoading(false);
     }
@@ -173,28 +179,29 @@ function InvoicesTab() {
               </table>
             </div>
 
-            <div style={{ flex: 1, minWidth: 0, padding: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ flex: 1, minWidth: 0, padding: '20px 24px', maxHeight: '85vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, maxWidth: 900, margin: '0 auto 16px' }}>
                 <h3 style={{ margin: 0 }}>Invoice {viewing.invoiceNumber}</h3>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  {pdfUrl && (
+                  {pdfUrl ? (
                     <a href={pdfUrl} download={`${viewing.invoiceNumber}.pdf`} className="btn btn-secondary btn-sm">
                       Download
                     </a>
+                  ) : (
+                    <button className="btn btn-secondary btn-sm" disabled>
+                      {pdfLoading ? 'Preparing…' : 'Download'}
+                    </button>
                   )}
                   <button className="btn btn-secondary btn-sm" onClick={closePdf}>
                     Close
                   </button>
                 </div>
               </div>
-              {pdfError && <div className="error-banner">{pdfError}</div>}
-              {pdfLoading && !pdfUrl && !pdfError && <div className="empty-state">Preparing the PDF…</div>}
-              {pdfUrl && (
-                <iframe
-                  src={pdfUrl}
-                  title={`Invoice ${viewing.invoiceNumber}`}
-                  style={{ width: '100%', height: '80vh', border: '1px solid var(--border)', borderRadius: 8 }}
-                />
+              {pdfError && <div className="error-banner" style={{ maxWidth: 900, margin: '0 auto 16px' }}>{pdfError}</div>}
+              {businessInfo ? (
+                <InvoiceHtmlView invoice={viewing} businessInfo={businessInfo} />
+              ) : (
+                <div className="empty-state">Loading…</div>
               )}
             </div>
           </div>

@@ -107,15 +107,25 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   substitutions and no payment/balance/paid-stamp elements (quotes have no `amountPaid`/paid status
   at all).
 
-  On the **Invoices** tab specifically, clicking anywhere on a row (or its Actions → View) opens the
-  PDF as an inline split view rather than a modal: the table itself condenses to a narrow left-hand
-  list (Invoice #/customer stacked in one cell, a status badge and remaining balance in another, the
-  Actions menu still available per row) and the PDF fills the remaining width on the right, with its
-  own Download/Close controls above an iframe. Clicking a different row swaps the preview in place
-  (revoking the previous blob URL first) without leaving the split view, so staff can flip through
-  several invoices' PDFs quickly; **Close** returns to the full 8-column table. This is
-  `InvoicesTab`'s own `viewing`/`pdfUrl` state in `admin/src/pages/InvoicesPage.tsx` — there's no
-  separate modal component for it. **Quotes** keeps the simpler modal approach instead
+  On the **Invoices** tab specifically, clicking anywhere on a row (or its Actions → View) opens an
+  inline split view rather than a modal: the table itself condenses to a narrow left-hand list
+  (Invoice #/customer stacked in one cell, a status badge and remaining balance in another, the
+  Actions menu still available per row) and the invoice fills the remaining width on the right, with
+  Download/Close controls above it. Clicking a different row swaps the preview in place (revoking
+  the previous PDF's blob URL first) without leaving the split view, so staff can flip through
+  several invoices quickly; **Close** returns to the full 8-column table. The on-screen content
+  itself is `InvoiceHtmlView` (`admin/src/components/InvoiceHtmlView.tsx`) — a normal flowing HTML
+  document (logo/business details, Invoice To, item table, totals, bank details, QR code, a CSS
+  "PAID" ribbon when the invoice's status is `paid`), deliberately *not* driven by the staff-designed
+  PDF template: that template is a freeform, absolutely-positioned canvas meant for print output,
+  whereas this renders instantly (no jsPDF round-trip) and never overlaps regardless of content
+  length, since it's real document flow rather than fixed coordinates. It reads directly from the
+  `Invoice`/`BusinessInfo` fields, not through the template's placeholder substitution. `buildInvoicePdf()`
+  still runs in the background the moment a row is opened, purely to produce the file behind
+  **Download** — the on-screen view doesn't wait on it, and does honour the staff template, so what's
+  downloaded can differ from what's shown on screen if a customized template's been saved. This is
+  `InvoicesTab`'s own `viewing`/`businessInfo`/`pdfUrl` state in `admin/src/pages/InvoicesPage.tsx` —
+  there's no separate modal component for it. **Quotes** keeps the simpler modal approach instead
   (`PdfViewModal`, `admin/src/components/PdfViewModal.tsx` — an iframe preview plus Close/Download,
   the same pattern `CustomerDetailPage`'s own "View" already used for the customer registration-form
   PDF, though that page keeps its own inline copy rather than being retrofit to the shared
