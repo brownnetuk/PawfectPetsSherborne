@@ -10,7 +10,7 @@ import {
 } from '../pdf/invoicePdf';
 import type { BusinessInfo, Invoice, PdfElementType, PdfTemplateElement, PdfVisibility } from '../types';
 
-const SCALE = 0.82; // px per pt -- keeps the A4 canvas comfortably inside a settings card
+const SCALE = 1.15; // px per pt -- large enough to actually work in, still fits most screens
 const CANVAS_W = PAGE_WIDTH * SCALE;
 const CANVAS_H = PAGE_HEIGHT * SCALE;
 
