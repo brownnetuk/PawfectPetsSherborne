@@ -10,6 +10,7 @@ interface Props {
 }
 
 const TRI_STATE_OPTIONS: TriState[] = ['yes', 'no', 'unsure'];
+const MAX_PET_PHOTO_BYTES = 4 * 1024 * 1024;
 
 export default function NewAnimalModal({ customerId, onClose, onCreated }: Props) {
   const [species, setSpecies] = useState<Species>('dog');
@@ -19,6 +20,8 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
   const [age, setAge] = useState('');
   const [vaccinated, setVaccinated] = useState(false);
   const [vaccineExpiryDate, setVaccineExpiryDate] = useState('');
+  const [photo, setPhoto] = useState('');
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [colourMarkings, setColourMarkings] = useState('');
   const [microchipNumber, setMicrochipNumber] = useState('');
   const [temperamentNotes, setTemperamentNotes] = useState('');
@@ -38,6 +41,21 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
 
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPhotoError(null);
+    if (file.size > MAX_PET_PHOTO_BYTES) {
+      setPhotoError('That photo is too large — please use one under 4MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setPhoto(reader.result as string);
+    reader.onerror = () => setPhotoError('Failed to read that file.');
+    reader.readAsDataURL(file);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -77,6 +95,7 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
         age: Number(age),
         vaccinated,
         vaccineExpiryDate: vaccinated ? vaccineExpiryDate : undefined,
+        photo: photo || undefined,
         colourMarkings: colourMarkings || undefined,
         microchipNumber: microchipNumber || undefined,
         temperamentNotes: temperamentNotes || undefined,
@@ -148,6 +167,28 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
         <div className="field">
           <label>Colour / markings</label>
           <input type="text" value={colourMarkings} onChange={(e) => setColourMarkings(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Photo</label>
+          {photo ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <img
+                src={photo}
+                alt="Pet"
+                style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+              />
+              <button type="button" className="btn-link" onClick={() => setPhoto('')}>
+                Remove
+              </button>
+            </div>
+          ) : (
+            <input type="file" accept="image/*" onChange={handlePhotoChange} />
+          )}
+          {photoError && (
+            <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--error)', marginTop: 4 }}>
+              {photoError}
+            </div>
+          )}
         </div>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontWeight: 400 }}>

@@ -84,6 +84,7 @@ export interface Animal {
   age: number;
   vaccinated: boolean;
   vaccineExpiryDate?: string;
+  photo?: string;
   colourMarkings?: string;
   microchipNumber?: string;
   temperamentNotes?: string;

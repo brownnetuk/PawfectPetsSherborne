@@ -12,29 +12,47 @@ export default function ViewAnimalModal({ animal, onClose }: Props) {
 
   return (
     <Modal title={animal.name} onClose={onClose} wide>
-      <div className="section-title">Details</div>
-      <dl className="kv-grid">
-        <dt>Species</dt>
-        <dd style={{ textTransform: 'capitalize' }}>{animal.species}</dd>
-        <dt>{isDog || isCat ? 'Breed' : 'Type of animal'}</dt>
-        <dd>{animal.breed}</dd>
-        <dt>Sex</dt>
-        <dd style={{ textTransform: 'capitalize' }}>{animal.sex}</dd>
-        <dt>Age</dt>
-        <dd>{animal.age}</dd>
-        <dt>Vaccinated</dt>
-        <dd>
-          {animal.vaccinated
-            ? `Yes${animal.vaccineExpiryDate ? ` (expires ${new Date(animal.vaccineExpiryDate).toLocaleDateString('en-GB')})` : ''}`
-            : 'No'}
-        </dd>
-        <dt>Colour / markings</dt>
-        <dd>{animal.colourMarkings || '—'}</dd>
-        <dt>Microchip number</dt>
-        <dd>{animal.microchipNumber || '—'}</dd>
-        <dt>Temperament notes</dt>
-        <dd>{animal.temperamentNotes || '—'}</dd>
-      </dl>
+      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="section-title">Details</div>
+          <dl className="kv-grid">
+            <dt>Species</dt>
+            <dd style={{ textTransform: 'capitalize' }}>{animal.species}</dd>
+            <dt>{isDog || isCat ? 'Breed' : 'Type of animal'}</dt>
+            <dd>{animal.breed}</dd>
+            <dt>Sex</dt>
+            <dd style={{ textTransform: 'capitalize' }}>{animal.sex}</dd>
+            <dt>Age</dt>
+            <dd>{animal.age}</dd>
+            <dt>Vaccinated</dt>
+            <dd>
+              {animal.vaccinated
+                ? `Yes${animal.vaccineExpiryDate ? ` (expires ${new Date(animal.vaccineExpiryDate).toLocaleDateString('en-GB')})` : ''}`
+                : 'No'}
+            </dd>
+            <dt>Colour / markings</dt>
+            <dd>{animal.colourMarkings || '—'}</dd>
+            <dt>Microchip number</dt>
+            <dd>{animal.microchipNumber || '—'}</dd>
+            <dt>Temperament notes</dt>
+            <dd>{animal.temperamentNotes || '—'}</dd>
+          </dl>
+        </div>
+        {animal.photo && (
+          <img
+            src={animal.photo}
+            alt={animal.name}
+            style={{
+              width: 200,
+              height: 200,
+              objectFit: 'cover',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              flexShrink: 0,
+            }}
+          />
+        )}
+      </div>
 
       <div className="section-title">Behaviour</div>
       <dl className="kv-grid">
