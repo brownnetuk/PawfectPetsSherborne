@@ -86,6 +86,11 @@ export class Animal extends Document {
   @Prop()
   vaccineExpiryDate?: Date;
 
+  // Base64 data URI, same storage approach as Customer.agreement.signatureImage
+  // and BusinessInfo.logoImage -- no filesystem/blob storage needed.
+  @Prop()
+  photo?: string;
+
   @Prop()
   colourMarkings?: string;
 

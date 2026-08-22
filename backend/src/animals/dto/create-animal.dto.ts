@@ -76,6 +76,10 @@ export class CreateAnimalDto {
 
   @IsOptional()
   @IsString()
+  photo?: string;
+
+  @IsOptional()
+  @IsString()
   colourMarkings?: string;
 
   @IsOptional()
