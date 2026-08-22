@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import Modal from './Modal';
+import SetOpeningBalanceModal from './SetOpeningBalanceModal';
 import { SettingsIcon } from './icons';
 import type { BankAccount, BankTransaction } from '../types';
 
@@ -18,32 +19,38 @@ const TYPE_LABELS: Record<BankTransaction['type'], string> = {
 interface Props {
   account: BankAccount;
   onClose: () => void;
+  /** Called after a successful opening-balance reconciliation, with the updated account. */
+  onAccountUpdated?: (account: BankAccount) => void;
 }
 
 function typeLabel(type: BankAccount['type']): string {
   return type === 'savings' ? 'Savings' : 'Bank';
 }
 
-export default function ViewBankAccountModal({ account, onClose }: Props) {
+export default function ViewBankAccountModal({ account: initialAccount, onClose, onAccountUpdated }: Props) {
+  const [account, setAccount] = useState(initialAccount);
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth());
   const [year, setYear] = useState(now.getFullYear());
   const [transactions, setTransactions] = useState<BankTransaction[] | null>(null);
-  const [openingBalance, setOpeningBalance] = useState(0);
+  const [periodOpeningBalance, setPeriodOpeningBalance] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [settingBalance, setSettingBalance] = useState(false);
 
   const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() - 2 + i);
 
-  useEffect(() => {
+  function refreshTransactions() {
     setTransactions(null);
     api
       .getBankAccountTransactions(account._id, month + 1, year)
       .then((statement) => {
-        setOpeningBalance(statement.openingBalance);
+        setPeriodOpeningBalance(statement.openingBalance);
         setTransactions(statement.transactions);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load transactions'));
-  }, [account._id, month, year]);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(refreshTransactions, [account._id, month, year]);
 
   return (
     <Modal title={account.name} onClose={onClose} wide>
@@ -90,7 +97,12 @@ export default function ViewBankAccountModal({ account, onClose }: Props) {
               </option>
             ))}
           </select>
-          <button type="button" className="icon-btn" title="Transaction settings">
+          <button
+            type="button"
+            className="icon-btn"
+            title="Set opening balance"
+            onClick={() => setSettingBalance(true)}
+          >
             <SettingsIcon />
           </button>
         </div>
@@ -120,7 +132,7 @@ export default function ViewBankAccountModal({ account, onClose }: Props) {
                 <td>—</td>
                 <td>Opening balance</td>
                 <td></td>
-                <td>£{openingBalance.toFixed(2)}</td>
+                <td>£{periodOpeningBalance.toFixed(2)}</td>
               </tr>
               <tr>
                 <td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px 0' }}>
@@ -134,7 +146,7 @@ export default function ViewBankAccountModal({ account, onClose }: Props) {
                 <td>—</td>
                 <td>Opening balance</td>
                 <td></td>
-                <td>£{openingBalance.toFixed(2)}</td>
+                <td>£{periodOpeningBalance.toFixed(2)}</td>
               </tr>
               {transactions.map((t, i) => (
                 <tr key={i}>
@@ -158,6 +170,19 @@ export default function ViewBankAccountModal({ account, onClose }: Props) {
           Close
         </button>
       </div>
+
+      {settingBalance && (
+        <SetOpeningBalanceModal
+          account={account}
+          onClose={() => setSettingBalance(false)}
+          onSaved={(updated) => {
+            setSettingBalance(false);
+            setAccount(updated);
+            onAccountUpdated?.(updated);
+            refreshTransactions();
+          }}
+        />
+      )}
     </Modal>
   );
 }

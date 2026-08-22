@@ -268,6 +268,16 @@ export function getBankAccountTransactions(
 ): Promise<BankAccountStatement> {
   return request(`/bank-accounts/${id}/transactions?month=${month}&year=${year}`);
 }
+export function setBankAccountOpeningBalance(
+  id: string,
+  date: string,
+  balance: number,
+): Promise<BankAccount> {
+  return request(`/bank-accounts/${id}/opening-balance`, {
+    method: 'PATCH',
+    body: JSON.stringify({ date, balance }),
+  });
+}
 
 // --- payments ---
 export function listPayments(): Promise<Payment[]> {

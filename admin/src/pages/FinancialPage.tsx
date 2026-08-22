@@ -232,7 +232,9 @@ function BankAccountsCard() {
         </table>
       )}
 
-      {viewing && <ViewBankAccountModal account={viewing} onClose={() => setViewing(null)} />}
+      {viewing && (
+        <ViewBankAccountModal account={viewing} onClose={() => setViewing(null)} onAccountUpdated={refresh} />
+      )}
 
       {(showNew || editing) && (
         <BankAccountModal
