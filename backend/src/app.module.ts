@@ -11,6 +11,8 @@ import { CustomersModule } from './customers/customers.module';
 import { AnimalsModule } from './animals/animals.module';
 import { BankAccountsModule } from './bank-accounts/bank-accounts.module';
 import { BookingsModule } from './bookings/bookings.module';
+import { CreditNotesModule } from './credit-notes/credit-notes.module';
+import { ExpensesModule } from './expenses/expenses.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { InvoiceTermsModule } from './invoice-terms/invoice-terms.module';
@@ -18,6 +20,7 @@ import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ProductsModule } from './products/products.module';
 import { CrmModule } from './crm/crm.module';
+import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
 import { EnquiriesModule } from './enquiries/enquiries.module';
 
@@ -49,6 +52,9 @@ import { EnquiriesModule } from './enquiries/enquiries.module';
     CrmModule,
     SettingsModule,
     EnquiriesModule,
+    ExpensesModule,
+    CreditNotesModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
