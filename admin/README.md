@@ -229,17 +229,22 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   **Sort Code**, **Account Number**, shown as table columns in that order, plus a `currentBalance`
   that now genuinely reflects reality — it's adjusted automatically by every recorded payment,
   expense, and credit note against that account (see `backend/README.md`'s
-  `BankAccountsService.adjustBalance()`), not something staff ever set directly. Clicking a row
+  `BankAccountsService.adjustBalance()`), not something staff type in directly. Clicking a row
   (not its Edit/Delete icons) opens `ViewBankAccountModal`, a read-only Account Details `kv-grid`
-  plus a **Transactions** section (Month/Year selects, defaulting to the current month/year, and a
-  settings gear button that's currently a no-op): an Opening Balance row followed by every
-  Payment/Expense/Credit Note recorded against that account in the selected month (each row
-  labelled by type, signed and colour-coded green/red, with a running Balance column), fetched from
-  `GET /bank-accounts/:id/transactions` whenever the account or the selectors change — refetches
-  fresh rather than trying to derive it from data the page already has. Falls back to "No
-  transactions for this period." only when that period genuinely has none. Not to be confused with
-  the existing Settings → Invoices → **Bank Details** card, which holds the one set of account
-  details shown *on* invoices, a separate concern.
+  plus a **Transactions** section (Month/Year selects, defaulting to the current month/year): an
+  Opening Balance row followed by every Payment/Expense/Credit Note recorded against that account
+  in the selected month (each row labelled by type, signed and colour-coded green/red, with a
+  running Balance column), fetched from `GET /bank-accounts/:id/transactions` whenever the account
+  or the selectors change — refetches fresh rather than trying to derive it from data the page
+  already has. Falls back to "No transactions for this period." only when that period genuinely
+  has none. The settings gear next to the selectors opens `SetOpeningBalanceModal` — Date and
+  Balance (£), prefilled from the account's existing reconciliation point if it has one, for when
+  staff need to correct the account against a real bank statement ("as of this date, the balance
+  was this amount"); saving updates both the Current Balance shown above and refetches the
+  Transactions list immediately, and refreshes the accounts table behind the modal too via an
+  `onAccountUpdated` callback. Not to be confused with the existing Settings → Invoices →
+  **Bank Details** card, which holds the one set of account details shown *on* invoices, a separate
+  concern.
 
   **Payments** (`PaymentsCard` in `FinancialPage.tsx`) is a read-mostly table of every recorded
   `Payment` — Payment ID/Date/Invoice/Amount/Charges/Payment Method/Account, Delete only, no Create

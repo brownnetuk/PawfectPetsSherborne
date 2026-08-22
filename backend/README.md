@@ -305,23 +305,36 @@ has in fact passed, so this doesn't need to duplicate that logic. `PaymentsModul
 models) so `PaymentsService` can call these methods rather than duplicating the balance/status
 logic itself.
 
-`BankAccountsService.adjustBalance(id, delta)` (`bank-accounts.service.ts`) is the one place
-`BankAccount.currentBalance` is ever written — a plain `$inc` (atomic, no read-modify-write race),
+`BankAccountsService.adjustBalance(id, delta)` (`bank-accounts.service.ts`) is the routine place
+`BankAccount.currentBalance` is written — a plain `$inc` (atomic, no read-modify-write race),
 shared by `PaymentsService`, `ExpensesService`, and `CreditNotesService` below. `BankAccountsModule`
-exports the service for exactly this reason.
+exports the service for exactly this reason. The other place is `setOpeningBalance()`, below.
 
 `GET /bank-accounts/:id/transactions?month=&year=` (`BankAccountsService.getTransactions()`)
 builds that account's actual statement for one calendar month, rather than staff just having to
 trust `currentBalance`: it queries `Payment`/`Expense`/`CreditNote` directly for that `account` and
 date range, merges them sorted by date into one signed list (`Payment` `+amount`, `Expense`/
 `CreditNote` `-amount` — the same sign convention `adjustBalance` calls already use for each), and
-walks a running `balance` through them starting from an `openingBalance` — a separate aggregation
-summing everything for that account strictly before the period, so the ledger doesn't need to
-refetch the account's entire history every time. `BankAccountsModule` declares its own
-`MongooseModule.forFeature([Payment, Expense, CreditNote])` for this (read-only, mirroring
-`ReportsModule`'s approach) rather than importing those three modules — the other direction
-already exists (they each import `BankAccountsModule` for `adjustBalance`), so importing them back
-here would be a real circular module dependency.
+walks a running `balance` through them starting from that period's own opening balance —
+`openingBalanceDate`/`openingBalance` on `BankAccount` (see reconciliation below; defaults to
+account creation / `£0` if never reconciled) plus a `$gte`/`$lt` aggregation summing everything for
+that account between the anchor date and the period start, so the ledger doesn't need to refetch
+the account's entire history every time — just what's happened since the last known-good point.
+`BankAccountsModule` declares its own `MongooseModule.forFeature([Payment, Expense, CreditNote])`
+for this (read-only, mirroring `ReportsModule`'s approach) rather than importing those three
+modules — the other direction already exists (they each import `BankAccountsModule` for
+`adjustBalance`), so importing them back here would be a real circular module dependency.
+
+`PATCH /bank-accounts/:id/opening-balance` (`SetOpeningBalanceDto`: `date`, `balance` — no
+`@Min(0)`, an account can genuinely be overdrawn) is a **reconciliation**, surfaced via the
+Transactions panel's settings gear: "as of this date, the balance was this amount." It sets
+`openingBalanceDate`/`openingBalance` to exactly that, then recomputes `currentBalance` from
+scratch — `balance` plus everything recorded for that account from `date` onward — rather than
+`$inc`-ing it, since the whole point is to correct drift, not compound it. This is the one place a
+stray `adjustBalance` gone wrong (e.g. deleting a payment that predated `adjustBalance` even
+existing, which happened once during this feature's own development — the deletion correctly
+reversed a credit that was never actually applied) can be fixed without touching the underlying
+`Payment`/`Expense`/`CreditNote` records themselves.
 
 In the admin app, "Payments" is an item in an invoice's row-level "Actions" menu
 (`admin/src/pages/InvoicesPage.tsx`), opening `RecordPaymentModal`
