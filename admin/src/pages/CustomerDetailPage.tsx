@@ -1032,8 +1032,8 @@ function AuditLogTab({
   const totalIncome = incomeMonths.reduce((sum, m) => sum + m.total, 0);
 
   return (
-    <div>
-      <div className="card">
+    <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+      <div className="card" style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div>
             <h2 style={{ marginBottom: 2 }}>Income</h2>
@@ -1052,7 +1052,7 @@ function AuditLogTab({
         </div>
       </div>
 
-      <div className="card">
+      <div className="card" style={{ flex: 1, minWidth: 0 }}>
         <h2>Activity</h2>
         {entries.length === 0 ? (
           <div className="empty-state">No activity recorded yet.</div>

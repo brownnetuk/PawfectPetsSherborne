@@ -234,7 +234,13 @@ export type AuditEventType =
   | 'quote_updated'
   | 'quote_emailed'
   | 'payment_received'
-  | 'payment_removed';
+  | 'payment_removed'
+  | 'animal_created'
+  | 'animal_updated'
+  | 'animal_removed'
+  | 'booking_created'
+  | 'booking_updated'
+  | 'booking_removed';
 
 export interface AuditLogEntry {
   _id: string;
