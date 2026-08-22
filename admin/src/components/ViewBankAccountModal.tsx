@@ -1,12 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import * as api from '../api/client';
 import Modal from './Modal';
 import { SettingsIcon } from './icons';
-import type { BankAccount } from '../types';
+import type { BankAccount, BankTransaction } from '../types';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
+
+const TYPE_LABELS: Record<BankTransaction['type'], string> = {
+  payment: 'Payment',
+  expense: 'Expense',
+  credit_note: 'Credit Note',
+};
 
 interface Props {
   account: BankAccount;
@@ -21,8 +28,22 @@ export default function ViewBankAccountModal({ account, onClose }: Props) {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth());
   const [year, setYear] = useState(now.getFullYear());
+  const [transactions, setTransactions] = useState<BankTransaction[] | null>(null);
+  const [openingBalance, setOpeningBalance] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() - 2 + i);
+
+  useEffect(() => {
+    setTransactions(null);
+    api
+      .getBankAccountTransactions(account._id, month + 1, year)
+      .then((statement) => {
+        setOpeningBalance(statement.openingBalance);
+        setTransactions(statement.transactions);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load transactions'));
+  }, [account._id, month, year]);
 
   return (
     <Modal title={account.name} onClose={onClose} wide>
@@ -75,6 +96,8 @@ export default function ViewBankAccountModal({ account, onClose }: Props) {
         </div>
       </div>
 
+      {error && <div className="error-banner">{error}</div>}
+
       <table style={{ marginTop: 10 }}>
         <thead>
           <tr>
@@ -85,11 +108,48 @@ export default function ViewBankAccountModal({ account, onClose }: Props) {
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px 0' }}>
-              No transactions for this period.
-            </td>
-          </tr>
+          {!transactions ? (
+            <tr>
+              <td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px 0' }}>
+                Loading…
+              </td>
+            </tr>
+          ) : transactions.length === 0 ? (
+            <>
+              <tr>
+                <td>—</td>
+                <td>Opening balance</td>
+                <td></td>
+                <td>£{openingBalance.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px 0' }}>
+                  No transactions for this period.
+                </td>
+              </tr>
+            </>
+          ) : (
+            <>
+              <tr>
+                <td>—</td>
+                <td>Opening balance</td>
+                <td></td>
+                <td>£{openingBalance.toFixed(2)}</td>
+              </tr>
+              {transactions.map((t, i) => (
+                <tr key={i}>
+                  <td>{new Date(t.date).toLocaleDateString()}</td>
+                  <td>
+                    {TYPE_LABELS[t.type]}: {t.description}
+                  </td>
+                  <td style={{ color: t.amount < 0 ? 'var(--error)' : 'var(--brand-green)' }}>
+                    {t.amount < 0 ? '-' : '+'}£{Math.abs(t.amount).toFixed(2)}
+                  </td>
+                  <td>£{t.balance.toFixed(2)}</td>
+                </tr>
+              ))}
+            </>
+          )}
         </tbody>
       </table>
 

@@ -2,6 +2,7 @@ import type {
   Animal,
   AuditLogEntry,
   BankAccount,
+  BankAccountStatement,
   BankAccountType,
   Booking,
   BusinessInfo,
@@ -259,6 +260,13 @@ export function updateBankAccount(id: string, input: BankAccountInput): Promise<
 }
 export function deleteBankAccount(id: string): Promise<void> {
   return request(`/bank-accounts/${id}`, { method: 'DELETE' });
+}
+export function getBankAccountTransactions(
+  id: string,
+  month: number,
+  year: number,
+): Promise<BankAccountStatement> {
+  return request(`/bank-accounts/${id}/transactions?month=${month}&year=${year}`);
 }
 
 // --- payments ---

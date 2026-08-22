@@ -174,6 +174,19 @@ export interface BankAccount {
   createdAt: string;
 }
 
+export interface BankTransaction {
+  date: string;
+  description: string;
+  amount: number;
+  balance: number;
+  type: 'payment' | 'expense' | 'credit_note';
+}
+
+export interface BankAccountStatement {
+  openingBalance: number;
+  transactions: BankTransaction[];
+}
+
 export interface Payment {
   _id: string;
   paymentId: string;
