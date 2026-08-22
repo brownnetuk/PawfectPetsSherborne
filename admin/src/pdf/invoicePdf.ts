@@ -571,15 +571,84 @@ export const DEFAULT_INVOICE_TEMPLATE: PdfTemplateElement[] = [
   },
 ];
 
+function rangesOverlap(a1: number, a2: number, b1: number, b2: number): boolean {
+  return a1 < b2 && b1 < a2;
+}
+
+function measureTextNaturalHeight(
+  doc: jsPDF,
+  el: Extract<PdfTemplateElement, { type: 'text' }>,
+  vars: Record<string, string>,
+): number {
+  const text = substitute(el.content, vars);
+  doc.setFont('helvetica', el.fontWeight === 'bold' ? 'bold' : 'normal');
+  doc.setFontSize(el.fontSize);
+  const lineHeight = el.fontSize * 1.25;
+  const wrapped = text.split('\n').flatMap((line) => doc.splitTextToSize(line, el.width) as string[]);
+  return wrapped.length * lineHeight;
+}
+
+interface LayoutResolution {
+  y: Map<string, number>;
+  naturalHeight: Map<string, number>;
+}
+
+/**
+ * Resolves each element's actual draw position. Content that grows past its
+ * configured height -- a long address, an item table with many rows -- pushes
+ * down anything positioned below it in the same horizontal lane; elements
+ * side by side (e.g. "Invoice To" and the date block, which share a y range
+ * but sit in different x ranges) don't affect each other, only elements
+ * genuinely stacked underneath one that grew. Processed top-to-bottom so
+ * growth cascades: if A pushes B down and B also grows, C (below B) is
+ * pushed by both.
+ */
+function resolveLayout(
+  doc: jsPDF,
+  elements: PdfTemplateElement[],
+  lineItems: Invoice['lineItems'],
+  vars: Record<string, string>,
+): LayoutResolution {
+  const sorted = [...elements].sort((a, b) => a.y - b.y);
+  const y = new Map<string, number>();
+  const naturalHeight = new Map<string, number>();
+  const zones: { x1: number; x2: number; shift: number }[] = [];
+
+  for (const el of sorted) {
+    let shift = 0;
+    for (const zone of zones) {
+      if (rangesOverlap(el.x, el.x + el.width, zone.x1, zone.x2)) shift = Math.max(shift, zone.shift);
+    }
+    const effectiveY = el.y + shift;
+    y.set(el.id, effectiveY);
+
+    let natural = el.height;
+    if (el.type === 'text') {
+      natural = Math.max(el.height, measureTextNaturalHeight(doc, el, vars));
+    } else if (el.type === 'itemTable') {
+      const rows = measureTableRows(doc, lineItems, el.width);
+      natural = Math.max(el.height, TABLE_HEADER_HEIGHT + rows.reduce((sum, r) => sum + r.height, 0));
+    }
+    naturalHeight.set(el.id, natural);
+
+    if (natural > el.height) {
+      zones.push({ x1: el.x, x2: el.x + el.width, shift: shift + (natural - el.height) });
+    }
+  }
+  return { y, naturalHeight };
+}
+
 /**
  * Renders an Invoice or Quote as a PDF, using the staff-designed template
  * from Settings > Invoices (BusinessInfo.invoicePdfTemplate) if one's been
- * saved, else DEFAULT_INVOICE_TEMPLATE. The item table is the one element
- * that isn't drawn at a fixed size: its actual height depends on how many
- * line items there are, so anything positioned below it in the template is
- * shifted down to match (computed once from each element's authored
- * position, not recomputed per shift) and, if that still runs past the page
- * bottom, continues on a fresh page alongside the rest of the table.
+ * saved, else DEFAULT_INVOICE_TEMPLATE. Every element's real draw position
+ * comes from resolveLayout() above -- content that overflows its configured
+ * box pushes lane-mates below it down, cascading through the rest of the
+ * page. Anything that still doesn't fit above the bottom margin (most
+ * commonly the item table itself, for an invoice with many line items) moves
+ * to a fresh page, offset so the first pushed element lands at the top
+ * margin; the item table additionally paginates its own rows internally,
+ * repeating the header row on each continuation page.
  */
 export async function buildInvoicePdf(
   record: Invoice | Quote,
@@ -600,27 +669,6 @@ export async function buildInvoicePdf(
     await Promise.all(qrElements.map(async (el) => [el.id, await qrDataUrl(substitute(el.content, vars))] as const)),
   );
 
-  const tableEl = visibleElements.find((el): el is PdfItemTableElement => el.type === 'itemTable');
-
-  if (!tableEl) {
-    for (const el of visibleElements) {
-      if (el.type === 'text') drawText(doc, el, vars);
-      else if (el.type === 'line') drawLine(doc, el);
-      else if (el.type === 'rect') drawRect(doc, el);
-      else if (el.type === 'image') drawImage(doc, el, logo);
-      else if (el.type === 'qrcode') drawQr(doc, el, qrDataUrls.get(el.id) ?? null);
-    }
-    return doc;
-  }
-
-  const rows = measureTableRows(doc, record.lineItems, tableEl.width);
-  const actualHeight = TABLE_HEADER_HEIGHT + rows.reduce((sum, r) => sum + r.height, 0);
-  const overflow = Math.max(0, actualHeight - tableEl.height);
-  const tableBottom = tableEl.y + tableEl.height;
-
-  const before = visibleElements.filter((el) => el !== tableEl && el.y < tableBottom);
-  const after = visibleElements.filter((el) => el !== tableEl && el.y >= tableBottom);
-
   const draw = (el: PdfTemplateElement) => {
     if (el.type === 'text') drawText(doc, el, vars);
     else if (el.type === 'line') drawLine(doc, el);
@@ -629,22 +677,33 @@ export async function buildInvoicePdf(
     else if (el.type === 'qrcode') drawQr(doc, el, qrDataUrls.get(el.id) ?? null);
   };
 
-  for (const el of before) draw(el);
-  const { endPage } = drawItemTable(doc, tableEl, record.lineItems);
-
   const bottomLimit = PAGE_HEIGHT - BOTTOM_MARGIN;
-  const shiftedAfter = after.map((el) => ({ ...el, y: el.y + overflow }));
-  const overflowing = shiftedAfter.filter((el) => el.y + el.height > bottomLimit);
-  const fitting = shiftedAfter.filter((el) => el.y + el.height <= bottomLimit);
+  const tableEl = visibleElements.find((el): el is PdfItemTableElement => el.type === 'itemTable');
+  const layout = resolveLayout(doc, visibleElements, record.lineItems, vars);
+  const resolved = visibleElements.map((el) => ({
+    el,
+    y: layout.y.get(el.id)!,
+    naturalHeight: layout.naturalHeight.get(el.id)!,
+  }));
+  const fits = (r: (typeof resolved)[number]) => r.y + r.naturalHeight <= bottomLimit;
 
-  if (doc.getCurrentPageInfo().pageNumber !== endPage) doc.setPage(endPage);
-  for (const el of fitting) draw(el);
+  for (const r of resolved) {
+    if (r.el === tableEl) continue; // drawn separately below -- paginates its own rows
+    if (fits(r)) draw({ ...r.el, y: r.y } as PdfTemplateElement);
+  }
 
+  if (tableEl) {
+    const tableY = layout.y.get(tableEl.id)!;
+    if (tableY > bottomLimit) doc.addPage();
+    drawItemTable(doc, { ...tableEl, y: tableY > bottomLimit ? TOP_MARGIN : tableY }, record.lineItems);
+  }
+
+  const overflowing = resolved.filter((r) => r.el !== tableEl && !fits(r));
   if (overflowing.length > 0) {
     doc.addPage();
-    const minY = Math.min(...overflowing.map((el) => el.y));
+    const minY = Math.min(...overflowing.map((r) => r.y));
     const pageOffset = TOP_MARGIN - minY;
-    for (const el of overflowing) draw({ ...el, y: el.y + pageOffset } as PdfTemplateElement);
+    for (const r of overflowing) draw({ ...r.el, y: r.y + pageOffset } as PdfTemplateElement);
   }
 
   return doc;

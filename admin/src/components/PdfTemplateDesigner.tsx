@@ -286,8 +286,10 @@ export default function PdfTemplateDesigner() {
         <div>
           <h2>PDF Template</h2>
           <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
-            Drag, resize, add, and remove blocks to design the invoice/quote PDF shown by the "View" action. The item
-            table grows with the number of line items — leave clear space below it.
+            Drag, resize, add, and remove blocks to design the invoice/quote PDF shown by the "View" action. A block
+            whose real content (a long address, many line items) runs past its box automatically pushes anything
+            below it in the same column further down — the boxes here just set the starting layout. Use Preview to
+            see it with real content.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

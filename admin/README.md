@@ -345,14 +345,20 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   `PDF_PLACEHOLDERS` in `admin/src/pdf/invoicePdf.ts`) at the end of the field. The one block that
   isn't freely editable internally is the **Item table** — its columns are fixed
   (#/Item & Description/Qty/Unit Price/Line Total) since its content is the invoice/quote's actual
-  line items, not staff-authored text; only one is allowed per template. It's also the one block
-  whose rendered size isn't fixed — it grows with however many line items an invoice/quote has, so
-  the renderer shifts anything template-positioned below it down to match, and continues on a
-  second page if that still runs past the bottom margin (the card's own hint text tells staff to
-  leave clear space below it, since two intentionally-overlapping blocks there would collide once
-  it grows). **Preview** swaps the editable canvas for the real `buildInvoicePdf()` output (fed a
-  hardcoded sample invoice) in an iframe, since the canvas itself is only an HTML/CSS approximation
-  of the PDF's actual fonts/spacing — **Save Template** is what actually persists it
+  line items, not staff-authored text; only one is allowed per template. More generally, no block's
+  rendered size is actually fixed — the box staff draw is just a starting size, and if the real
+  content (an item table's rows, a long customer address wrapped over several lines) needs more
+  room than that, the renderer pushes everything positioned below it *in the same horizontal lane*
+  further down to make space (columns side by side, e.g. "Invoice To" and the date block, don't
+  affect each other — only genuine stacking does), cascading through the rest of the page and
+  spilling onto a fresh page if it still runs past the bottom margin. This is `resolveLayout()` in
+  `admin/src/pdf/invoicePdf.ts`: every element's actual height is measured against its real,
+  substituted content before drawing, sorted top-to-bottom, with growth tracked as horizontal
+  "shift zones" so later elements in the same column inherit the push. The designer's own canvas
+  only shows the *authored* layout (it doesn't simulate this cascading, or even wrap text within a
+  box) — **Preview** is what actually shows this: it swaps the editable canvas for the real
+  `buildInvoicePdf()` output (fed a hardcoded sample invoice) in an iframe, since the canvas is only
+  an HTML/CSS approximation of the PDF's actual fonts/spacing — **Save Template** is what persists it
   (`invoicePdfTemplate` on `BusinessInfo`, see `backend/README.md`); **Reset to Default** restores
   `DEFAULT_INVOICE_TEMPLATE` (the same layout the renderer falls back to when nothing's been saved
   yet, so there's one source of truth for "default" rather than two).
