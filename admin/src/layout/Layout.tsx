@@ -62,7 +62,7 @@ export default function Layout() {
           </NavLink>
           <NavLink to="/activity" className={({ isActive }) => (isActive ? 'active' : '')}>
             <ActivityIcon />
-            Activity
+            Notes
           </NavLink>
           <NavLink to="/settings" className={({ isActive }) => (isActive ? 'active' : '')}>
             <SettingsIcon />

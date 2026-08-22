@@ -27,12 +27,12 @@ export default function ActivityPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>Activity</h1>
+        <h1>Notes</h1>
       </div>
       {error && <div className="error-banner">{error}</div>}
 
       {!activity || activity.length === 0 ? (
-        <div className="empty-state">{activity === null ? 'Loading…' : 'No activity logged yet.'}</div>
+        <div className="empty-state">{activity === null ? 'Loading…' : 'No notes logged yet.'}</div>
       ) : (
         <div className="card">
           {activity.map((a) => {

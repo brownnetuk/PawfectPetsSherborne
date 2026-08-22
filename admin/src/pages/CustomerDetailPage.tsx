@@ -212,7 +212,11 @@ export default function CustomerDetailPage() {
       <div className="tabs">
         {(['overview', 'pets', 'bookings', 'invoices', 'activity'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
-            {t === 'pets' ? `Pets (${animals.length})` : t.charAt(0).toUpperCase() + t.slice(1)}
+            {t === 'pets'
+              ? `Pets (${animals.length})`
+              : t === 'activity'
+                ? 'Notes'
+                : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
@@ -830,7 +834,7 @@ function ActivityTab({
       setDescription('');
       onChange();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add activity');
+      setError(err instanceof Error ? err.message : 'Failed to add note');
     } finally {
       setSubmitting(false);
     }
@@ -839,7 +843,7 @@ function ActivityTab({
   return (
     <div>
       <div className="card">
-        <div className="section-title">Add activity</div>
+        <div className="section-title">Add note</div>
         {error && <div className="error-banner">{error}</div>}
         <form onSubmit={handleSubmit}>
           <div className="field-row">
@@ -862,13 +866,13 @@ function ActivityTab({
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
           <button className="btn btn-primary btn-sm" type="submit" disabled={submitting}>
-            {submitting ? 'Adding…' : 'Add activity'}
+            {submitting ? 'Adding…' : 'Add note'}
           </button>
         </form>
       </div>
 
       {activity.length === 0 ? (
-        <div className="empty-state">No activity logged yet.</div>
+        <div className="empty-state">No notes logged yet.</div>
       ) : (
         <div className="card">
           {activity.map((a) => (
@@ -970,8 +974,8 @@ function ActivityItem({ activity, onChange }: { activity: CrmActivity; onChange:
       {activity.description && <div style={{ marginTop: 4 }}>{activity.description}</div>}
 
       {showDelete && (
-        <Modal title="Delete activity?" onClose={() => setShowDelete(false)}>
-          <p>This permanently deletes this activity entry.</p>
+        <Modal title="Delete note?" onClose={() => setShowDelete(false)}>
+          <p>This permanently deletes this note.</p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setShowDelete(false)}>
               Cancel

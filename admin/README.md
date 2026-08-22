@@ -221,8 +221,11 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   deducts the amount from the invoice's balance and, once fully covered, flips its status to
   `paid` server-side (see `InvoicesService.applyPayment()` in `backend/README.md`) — the Invoices
   page's own status pill/dropdown reflects this immediately on refresh, no separate polling needed.
-- **Activity** — a read-only global CRM feed; activity itself is created from a customer's page
-  so it's always tied to that customer.
+- **Notes** (`/activity`, `ActivityPage.tsx`) — a read-only global feed of CRM activity entries,
+  labeled "Notes" in the UI though the underlying model (`CrmActivity`, `/crm/activities`) still
+  covers note/call/email/task entries, not just notes proper — entries are created from a customer's
+  own "Notes" tab (`ActivityTab`/`ActivityItem` in `CustomerDetailPage.tsx`) so each is always tied
+  to that customer; this page just lists them all in one place.
 - **Settings** — tabbed (`/settings`): **Business Info** (shown first, and the default tab) holds
   the business's own name, address, town, postcode, telephone, email, and website, plus a logo — the
   letterhead details invoices and email templates draw from. All fields are plain strings saved
