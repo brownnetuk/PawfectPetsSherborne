@@ -118,10 +118,10 @@ species-gated there: `aggressionToOtherAnimals`, `travelsWellInCar`, and `chases
 apply to cats (rejected if sent), and `chasesLivestock` only applies to dogs (rejected for
 `other` too) — `chasesLivestock: 'yes'` requires `chasesLivestockDetails`.
 
-`photo` is an optional base64 data URI, same storage approach as `Customer.agreement`'s
-`signatureImage`/`BusinessInfo.logoImage` — plain `@IsString()`, no size limit enforced
-server-side (the intake form and admin's pet forms both cap uploads client-side at 4MB, comfortably
-under `main.ts`'s 8mb JSON body limit).
+`photos` is an optional array of up to 2 base64 data URIs (`@ArrayMaxSize(2)`), same storage
+approach as `Customer.agreement`'s `signatureImage`/`BusinessInfo.logoImage` — no per-image size
+limit enforced server-side (the intake form and admin's pet forms both cap each upload
+client-side at 4MB, comfortably under `main.ts`'s 8mb JSON body limit).
 
 ### Booking (`/bookings`)
 

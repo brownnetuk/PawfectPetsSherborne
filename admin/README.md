@@ -67,10 +67,10 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   client/emergency/vet/security fields; "Edit" on a pet row covers its full profile. A pet row also
   has a "Delete" action, matching the confirm-modal pattern the Bookings tab already uses —
   blocked with the backend's existing message if the pet is on any booking. New/Edit pet and
-  "View" (`ViewAnimalModal`) all support an optional photo — a plain file upload (capped at 4MB
-  client-side, same base64 data URI storage as the logo/signatures elsewhere) in the New/Edit forms,
-  and shown to the right of the Details section in the View modal, matching where the intake
-  form's own photo upload feeds it from. Off-lead
+  "View" (`ViewAnimalModal`) all support up to 2 optional photos — a file upload (each capped at
+  4MB client-side, same base64 data URI storage as the logo/signatures elsewhere, hidden once 2 are
+  attached) in the New/Edit forms, and shown stacked to the right of the Details section in the
+  View modal, matching where the intake form's own photo upload feeds it from. Off-lead
   consent is deliberately read-only in the pet edit form — it's a customer-signed acknowledgment
   from the intake form, not something staff overwrite from here. A status dropdown next to the
   overview badge moves a customer between pending/active/inactive/update_info via a staff-only
