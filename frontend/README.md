@@ -61,7 +61,11 @@ A few things only make sense once you know a customer can already have real data
 - **Existing pets are shown for review, not re-collected from scratch.** `IntakeForm.tsx` fetches
   the customer's own animals in full via `GET /animals/for-customer/:customerId` (also public, but
   scoped to that one customer) and renders one editable `PetDetailsStep` per pet, prefilled —
-  vaccination, behaviour, everything. After the last one, a "how many more pets?" step (with a
+  vaccination, behaviour, photo, everything. `PhotoUpload.tsx` (styled after `SignaturePad.tsx`'s
+  card layout, though it reads an uploaded file rather than a drawn canvas) lets the customer
+  attach an optional photo per pet — capped at 4MB client-side, read into a base64 data URI (same
+  storage approach the signatures/logo already use), with a preview and a "Remove" link once one's
+  chosen. After the last one, a "how many more pets?" step (with a
   "None" option) asks whether to add any new ones, which get their own blank steps appended after.
   On submit, a pet with an `_id` (one that was fetched, not newly added) is `PATCH`ed via
   `PATCH /animals/:id/for-customer/:customerId` — a public route scoped by comparing the animal's
