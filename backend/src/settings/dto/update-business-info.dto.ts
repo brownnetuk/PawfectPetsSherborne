@@ -100,6 +100,16 @@ export class UpdateBusinessInfoDto {
   @Min(1)
   paymentNextNumber?: number;
 
+  @IsOptional()
+  @IsString()
+  creditNoteNumberTemplate?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  creditNoteNextNumber?: number;
+
   // Opaque staff-authored layout JSON (see BusinessInfo.invoicePdfTemplate) --
   // no @ValidateNested()/@Type() on the array elements, so arbitrary per-element
   // keys pass through the global whitelist untouched rather than being stripped.

@@ -93,6 +93,12 @@ export class BusinessInfo extends Document {
   @Prop({ default: 1 })
   paymentNextNumber?: number;
 
+  @Prop({ default: 'CN-{year}-{seq}' })
+  creditNoteNumberTemplate?: string;
+
+  @Prop({ default: 1 })
+  creditNoteNextNumber?: number;
+
   // Freeform layout for the invoice/quote PDF ("View" action, admin/src/pdf/invoicePdf.ts) --
   // an array of staff-positioned blocks (text/image/line/rect/qrcode/itemTable), edited via
   // the drag-and-drop designer at Settings > Invoices. Stored as opaque JSON (Mixed) since it's
