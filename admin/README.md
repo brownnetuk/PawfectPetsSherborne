@@ -94,14 +94,15 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   write to it directly, unlike **Notes** next to it. It's fed by `AuditLogEntry`
   (`backend/README.md`'s "Audit log" section), a system-generated record of things that happened
   on the account: field edits, invoices/quotes created/updated/emailed, payments
-  received/removed. An **Income** card up top (`IncomeChart.tsx`, a small inline-SVG bar chart —
-  no charting library, just a fixed viewBox with bars/gridlines/axis labels sized off the data) sums
-  payments received per calendar month, with a Last 6 Months/Last 12 Months selector and a
-  "Total Income ( Last N Months ) - £X" line below it; below that, a vertical timeline (a plain
-  CSS rail + dot per entry, no library) lists every audit-log entry newest-first with its
-  date/time, title, description, and "by {actor}". Fetched the same eager-on-mount way the other
-  tabs' data is (`CustomerDetailPage`'s own `refresh()`), plus a separate effect re-fetching just
-  the income data when the period selector changes.
+  received/removed, pets added/updated/removed, and bookings created/updated/removed. Laid out as
+  two side-by-side cards (`display: flex`, 50/50), not stacked: an **Income** card
+  (`IncomeChart.tsx`, a small inline-SVG bar chart — no charting library, just a fixed viewBox with
+  bars/gridlines/axis labels sized off the data) summing payments received per calendar month, with
+  a Last 6 Months/Last 12 Months selector and a "Total Income ( Last N Months ) - £X" line below it;
+  next to it, a vertical timeline (a plain CSS rail + dot per entry, no library) listing every
+  audit-log entry newest-first with its date/time, title, description, and "by {actor}". Fetched
+  the same eager-on-mount way the other tabs' data is (`CustomerDetailPage`'s own `refresh()`),
+  plus a separate effect re-fetching just the income data when the period selector changes.
 - **Bookings** — a global list across all customers, inline status changes, edit and delete on
   each row, and its own "New" flow with a customer picker (the customer-detail version reuses the
   same create/edit/delete calls with the customer pre-selected).

@@ -301,10 +301,13 @@ page's "Activity" tab (an income chart plus a timeline), which staff never edit.
 `AuditLogEntry` (`backend/src/audit-log/`): `customer` (ref), `type` (a fixed `AuditEventType`
 enum — `customer_created`/`customer_updated`/`invoice_created`/`invoice_updated`/
 `invoice_emailed`/`quote_created`/`quote_updated`/`quote_emailed`/`payment_received`/
-`payment_removed`), `title`, optional `description`, optional `amount` (only ever set on
-`payment_received` — the sole source the income chart sums from), and `actor` (who/what caused
-it). `AuditLogModule` is deliberately a leaf module (no dependencies on other feature modules) so
-`CustomersModule`/`InvoicesModule`/`QuotesModule`/`PaymentsModule` can each import it and inject
+`payment_removed`/`animal_created`/`animal_updated`/`animal_removed`/`booking_created`/
+`booking_updated`/`booking_removed`), `title`, optional `description`, optional `amount` (only
+ever set on `payment_received` — the sole source the income chart sums from), and `actor`
+(who/what caused it). `AuditLogModule` is deliberately a leaf module (no dependencies on other
+feature modules) so
+`CustomersModule`/`InvoicesModule`/`QuotesModule`/`PaymentsModule`/`AnimalsModule`/`BookingsModule`
+can each import it and inject
 `AuditLogService` one-directionally, the same pattern already used for `PaymentsModule` →
 `InvoicesModule`. `AuditLogService.record(...)` swallows its own errors — a failure to log an
 event never fails the action it's describing.
