@@ -4,7 +4,7 @@ import ActionsMenu from '../components/ActionsMenu';
 import DocumentFormModal from '../components/DocumentFormModal';
 import InvoiceHtmlView from '../components/InvoiceHtmlView';
 import Modal from '../components/Modal';
-import PdfViewModal from '../components/PdfViewModal';
+import QuoteHtmlView from '../components/QuoteHtmlView';
 import RecordPaymentModal from '../components/RecordPaymentModal';
 import SendPreviewModal, { customerLabel } from '../components/SendPreviewModal';
 import { buildInvoicePdf } from '../pdf/invoicePdf';
@@ -343,6 +343,7 @@ function QuotesTab() {
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [sendPreview, setSendPreview] = useState<Quote | null>(null);
   const [viewing, setViewing] = useState<Quote | null>(null);
+  const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
@@ -353,15 +354,18 @@ function QuotesTab() {
   useEffect(refresh, []);
 
   async function handleViewPdf(q: Quote) {
+    if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    setPdfUrl(null);
     setViewing(q);
     setPdfLoading(true);
     setPdfError(null);
     try {
-      const businessInfo = await api.getBusinessInfo();
-      const doc = await buildInvoicePdf(q, 'quote', businessInfo);
+      const info = businessInfo ?? (await api.getBusinessInfo());
+      if (!businessInfo) setBusinessInfo(info);
+      const doc = await buildInvoicePdf(q, 'quote', info);
       setPdfUrl(URL.createObjectURL(doc.output('blob')));
     } catch (err) {
-      setPdfError(err instanceof Error ? err.message : 'Failed to generate the PDF');
+      setPdfError(err instanceof Error ? err.message : 'Failed to prepare the PDF download');
     } finally {
       setPdfLoading(false);
     }
@@ -419,6 +423,74 @@ function QuotesTab() {
       <div className="card" style={{ padding: 0 }}>
         {!quotes || quotes.length === 0 ? (
           <div className="empty-state">{quotes === null ? 'Loading…' : 'No quotes yet.'}</div>
+        ) : viewing ? (
+          <div style={{ display: 'flex', alignItems: 'stretch' }}>
+            <div style={{ width: 420, flexShrink: 0, borderRight: '1px solid var(--border)' }}>
+              <table>
+                <tbody>
+                  {quotes.map((q) => (
+                    <tr
+                      key={q._id}
+                      onClick={() => q._id !== viewing._id && handleViewPdf(q)}
+                      style={{
+                        cursor: 'pointer',
+                        background: q._id === viewing._id ? 'var(--sage)' : undefined,
+                      }}
+                    >
+                      <td style={{ padding: '10px 12px' }}>
+                        <div style={{ fontWeight: 600 }}>{q.quoteNumber}</div>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{customerLabel(q.customer)}</div>
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <span className={`badge badge-${q.status}`}>{q.status}</span>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>£{q.total.toFixed(2)}</div>
+                      </td>
+                      <td onClick={(e) => e.stopPropagation()} style={{ padding: '10px 8px 10px 0' }}>
+                        <ActionsMenu
+                          items={[
+                            { label: 'View', onClick: () => handleViewPdf(q) },
+                            { label: 'Edit', onClick: () => setEditing(q) },
+                            {
+                              label: sendingId === q._id ? 'Sending…' : 'Send',
+                              onClick: () => setSendPreview(q),
+                              disabled: sendingId === q._id,
+                            },
+                            { label: 'Delete', onClick: () => setDeleting(q), danger: true, dividerBefore: true },
+                          ]}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ flex: 1, minWidth: 0, padding: '20px 24px', maxHeight: '85vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, maxWidth: 900, margin: '0 auto 16px' }}>
+                <h3 style={{ margin: 0 }}>Quote {viewing.quoteNumber}</h3>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {pdfUrl ? (
+                    <a href={pdfUrl} download={`${viewing.quoteNumber}.pdf`} className="btn btn-secondary btn-sm">
+                      Download
+                    </a>
+                  ) : (
+                    <button className="btn btn-secondary btn-sm" disabled>
+                      {pdfLoading ? 'Preparing…' : 'Download'}
+                    </button>
+                  )}
+                  <button className="btn btn-secondary btn-sm" onClick={closePdf}>
+                    Close
+                  </button>
+                </div>
+              </div>
+              {pdfError && <div className="error-banner" style={{ maxWidth: 900, margin: '0 auto 16px' }}>{pdfError}</div>}
+              {businessInfo ? (
+                <QuoteHtmlView quote={viewing} businessInfo={businessInfo} />
+              ) : (
+                <div className="empty-state">Loading…</div>
+              )}
+            </div>
+          </div>
         ) : (
           <table>
             <thead>
@@ -433,7 +505,7 @@ function QuotesTab() {
             </thead>
             <tbody>
               {quotes.map((q) => (
-                <tr key={q._id}>
+                <tr key={q._id} onClick={() => handleViewPdf(q)} style={{ cursor: 'pointer' }}>
                   <td>{q.quoteNumber}</td>
                   <td>{customerLabel(q.customer)}</td>
                   <td>£{q.total.toFixed(2)}</td>
@@ -505,17 +577,6 @@ function QuotesTab() {
           doc={sendPreview}
           onClose={() => setSendPreview(null)}
           onConfirm={() => handleSend(sendPreview)}
-        />
-      )}
-
-      {viewing && (
-        <PdfViewModal
-          title={`Quote ${viewing.quoteNumber}`}
-          pdfUrl={pdfUrl}
-          pdfLoading={pdfLoading}
-          pdfError={pdfError}
-          downloadName={`${viewing.quoteNumber}.pdf`}
-          onClose={closePdf}
         />
       )}
 
