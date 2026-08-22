@@ -2,24 +2,18 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { BankAccount } from '../../bank-accounts/schemas/bank-account.schema';
 
-export enum ExpenseCategory {
-  INSURANCE = 'insurance',
-  SUPPLIES = 'supplies',
-  EQUIPMENT = 'equipment',
-  VEHICLE_FUEL = 'vehicle_fuel',
-  VETERINARY = 'veterinary',
-  MARKETING = 'marketing',
-  PROFESSIONAL_FEES = 'professional_fees',
-  OTHER = 'other',
-}
-
 @Schema({ timestamps: true })
 export class Expense extends Document {
   @Prop({ required: true })
   date: Date;
 
-  @Prop({ type: String, enum: ExpenseCategory, required: true })
-  category: ExpenseCategory;
+  // A plain string copied from the chosen ExpenseCategory's name at creation
+  // time, not a live reference -- same reasoning as Payment.paymentMethod: a
+  // recorded expense shouldn't retroactively change if the category library
+  // entry (Settings > Finance) is later renamed or deleted. Staff manage the
+  // list themselves via /expense-categories rather than a fixed schema enum.
+  @Prop({ required: true })
+  category: string;
 
   @Prop()
   payee?: string;

@@ -1,7 +1,6 @@
 import { Type } from 'class-transformer';
 import {
   IsDateString,
-  IsEnum,
   IsMongoId,
   IsNotEmpty,
   IsNumber,
@@ -9,14 +8,14 @@ import {
   IsString,
   Min,
 } from 'class-validator';
-import { ExpenseCategory } from '../schemas/expense.schema';
 
 export class CreateExpenseDto {
   @IsDateString()
   date: string;
 
-  @IsEnum(ExpenseCategory)
-  category: ExpenseCategory;
+  @IsNotEmpty()
+  @IsString()
+  category: string;
 
   @IsOptional()
   @IsString()

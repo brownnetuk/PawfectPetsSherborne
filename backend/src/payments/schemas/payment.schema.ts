@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { BankAccount } from '../../bank-accounts/schemas/bank-account.schema';
+import { Expense } from '../../expenses/schemas/expense.schema';
 import { Invoice } from '../../invoices/schemas/invoice.schema';
 
 @Schema({ timestamps: true })
@@ -29,6 +30,14 @@ export class Payment extends Document {
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: BankAccount.name, required: true })
   account: Types.ObjectId;
+
+  // Set when `charges` > 0: a real Expense record (category "Payment
+  // Charges") created alongside this payment so the fee shows up properly in
+  // the Expenses tab and Reports, rather than just being netted invisibly
+  // out of the account balance. Deleting this payment deletes the linked
+  // expense too -- see PaymentsService.
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Expense.name })
+  chargesExpense?: Types.ObjectId;
 }
 
 export const PaymentSchema = SchemaFactory.createForClass(Payment);

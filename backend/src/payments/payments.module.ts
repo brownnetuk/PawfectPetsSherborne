@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { BankAccountsModule } from '../bank-accounts/bank-accounts.module';
+import { ExpensesModule } from '../expenses/expenses.module';
 import { InvoicesModule } from '../invoices/invoices.module';
 import {
   BusinessInfo,
@@ -22,6 +23,7 @@ import { Payment, PaymentSchema } from './schemas/payment.schema';
     InvoicesModule,
     AuditLogModule,
     BankAccountsModule,
+    ExpensesModule,
   ],
   controllers: [PaymentsController],
   providers: [PaymentsService],

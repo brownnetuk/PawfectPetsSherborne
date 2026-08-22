@@ -40,14 +40,13 @@ export class ReportsService {
     });
 
     const [paymentRows, creditNoteRows, expenseRows] = await Promise.all([
+      // Gross amount -- any processing charge is now its own real Expense
+      // (category "Payment Charges", see PaymentsService.create()), already
+      // counted in the expense aggregation below, so summing net here would
+      // double-count it.
       this.paymentModel.aggregate<{ _id: string; total: number }>([
         { $match: { date: { $gte: since } } },
-        {
-          $group: {
-            _id: { $dateToString: { format: '%Y-%m', date: '$date' } },
-            total: { $sum: { $subtract: ['$amount', { $ifNull: ['$charges', 0] }] } },
-          },
-        },
+        groupByMonth(),
       ]),
       this.creditNoteModel.aggregate<{ _id: string; total: number }>([
         { $match: { date: { $gte: since } } },
