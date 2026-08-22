@@ -8,5 +8,6 @@ import { BankAccount, BankAccountSchema } from './schemas/bank-account.schema';
   imports: [MongooseModule.forFeature([{ name: BankAccount.name, schema: BankAccountSchema }])],
   controllers: [BankAccountsController],
   providers: [BankAccountsService],
+  exports: [BankAccountsService],
 })
 export class BankAccountsModule {}

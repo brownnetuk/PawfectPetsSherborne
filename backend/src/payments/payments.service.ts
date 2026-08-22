@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
+import { BankAccountsService } from '../bank-accounts/bank-accounts.service';
 import {
   formatDocumentNumber,
   nextSequenceNumber,
@@ -20,6 +21,7 @@ export class PaymentsService {
     private readonly businessInfoModel: Model<BusinessInfo>,
     private readonly invoicesService: InvoicesService,
     private readonly auditLogService: AuditLogService,
+    private readonly bankAccountsService: BankAccountsService,
   ) {}
 
   private async nextPaymentId(): Promise<string> {
@@ -41,6 +43,11 @@ export class PaymentsService {
     const invoice = await this.invoicesService.applyPayment(
       dto.invoice,
       dto.amount,
+    );
+    // Net of any processing charges -- that's what actually lands in the bank.
+    await this.bankAccountsService.adjustBalance(
+      dto.account,
+      dto.amount - (dto.charges ?? 0),
     );
     const customerId =
       (invoice.customer as unknown as { _id?: unknown })?._id ??
@@ -74,6 +81,10 @@ export class PaymentsService {
     // payment caused -- see InvoicesService.reversePayment().
     const invoiceId = payment.invoice.toString();
     await this.invoicesService.reversePayment(invoiceId, payment.amount);
+    await this.bankAccountsService.adjustBalance(
+      payment.account,
+      -(payment.amount - (payment.charges ?? 0)),
+    );
     const invoice = await this.invoicesService
       .findOne(invoiceId)
       .catch(() => null);

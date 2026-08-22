@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { BankAccount } from './schemas/bank-account.schema';
 
@@ -31,5 +31,12 @@ export class BankAccountsService {
     if (!result) {
       throw new NotFoundException(`Bank account ${id} not found`);
     }
+  }
+
+  // Shared by Payments/Expenses/CreditNotes so a bank account's balance stays
+  // in sync with everything recorded against it -- $inc rather than
+  // read-modify-write so concurrent adjustments can't race each other.
+  async adjustBalance(id: string | Types.ObjectId, delta: number): Promise<void> {
+    await this.bankAccountModel.updateOne({ _id: id }, { $inc: { currentBalance: delta } }).exec();
   }
 }
