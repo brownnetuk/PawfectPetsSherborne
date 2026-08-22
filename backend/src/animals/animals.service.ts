@@ -46,6 +46,26 @@ export class AnimalsService {
     }
   }
 
+  // Only called when the incoming payload actually included `photos` -- an edit
+  // that doesn't touch photos at all shouldn't claim they changed. Compared by
+  // value (not just count) so a same-count swap (remove one, add another in the
+  // same edit) is still reported rather than silently passing as "no change".
+  private describePhotoChange(before: string[] | undefined, after: string[] | undefined): string | undefined {
+    const beforeList = before ?? [];
+    const afterList = after ?? [];
+    if (JSON.stringify(beforeList) === JSON.stringify(afterList)) {
+      return undefined;
+    }
+    const diff = afterList.length - beforeList.length;
+    if (diff > 0) {
+      return diff === 1 ? 'photo added' : `${diff} photos added`;
+    }
+    if (diff < 0) {
+      return -diff === 1 ? 'photo removed' : `${-diff} photos removed`;
+    }
+    return 'photos changed';
+  }
+
   async create(dto: CreateAnimalDto, actor = 'Customer'): Promise<Animal> {
     this.validateOffLeadConsent(dto, true);
     this.validateSpeciesFields(dto);
@@ -84,15 +104,20 @@ export class AnimalsService {
   async update(id: string, dto: UpdateAnimalDto, actor = 'Staff'): Promise<Animal> {
     this.validateOffLeadConsent(dto, false);
     this.validateSpeciesFields(dto);
+    const before = await this.animalModel.findById(id).exec();
+    if (!before) {
+      throw new NotFoundException(`Animal ${id} not found`);
+    }
     const animal = await this.animalModel.findByIdAndUpdate(id, dto, { new: true }).exec();
     if (!animal) {
       throw new NotFoundException(`Animal ${id} not found`);
     }
+    const photoChange = dto.photos !== undefined ? this.describePhotoChange(before.photos, animal.photos) : undefined;
     await this.auditLogService.record(
       animal.customer,
       AuditEventType.ANIMAL_UPDATED,
       'Pet updated',
-      `${animal.name} updated`,
+      photoChange ? `${animal.name} updated — ${photoChange}` : `${animal.name} updated`,
       undefined,
       actor,
     );
@@ -120,11 +145,13 @@ export class AnimalsService {
     if (!animal) {
       throw new NotFoundException(`Animal ${id} not found`);
     }
+    const photoChange =
+      dto.photos !== undefined ? this.describePhotoChange(existing.photos, animal.photos) : undefined;
     await this.auditLogService.record(
       customerId,
       AuditEventType.ANIMAL_UPDATED,
       'Pet updated',
-      `${animal.name} updated`,
+      photoChange ? `${animal.name} updated — ${photoChange}` : `${animal.name} updated`,
       undefined,
       actor,
     );
