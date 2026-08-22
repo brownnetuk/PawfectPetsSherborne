@@ -64,6 +64,18 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
     reader.readAsDataURL(file);
   }
 
+  // The main photo is always whichever one is first in the array -- no separate
+  // field for it, so "making" one main is just moving it to the front.
+  function makeMainPhoto(index: number) {
+    setPhotos((prev) => {
+      if (index === 0) return prev;
+      const next = [...prev];
+      const [chosen] = next.splice(index, 1);
+      next.unshift(chosen);
+      return next;
+    });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (vaccinated && !vaccineExpiryDate) {
@@ -174,12 +186,21 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
           {photos.length > 0 && (
             <div style={{ display: 'flex', gap: 14, marginBottom: 10, flexWrap: 'wrap' }}>
               {photos.map((p, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <img
                     src={p}
                     alt="Pet"
                     style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
                   />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400, fontSize: '0.8rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={i === 0}
+                      disabled={i === 0}
+                      onChange={() => makeMainPhoto(i)}
+                    />
+                    Main pic
+                  </label>
                   <button
                     type="button"
                     className="btn-link"

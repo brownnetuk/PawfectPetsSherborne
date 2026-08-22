@@ -503,6 +503,7 @@ function PetsTab({
           <table>
             <thead>
               <tr>
+                <th></th>
                 <th>Name</th>
                 <th>Species</th>
                 <th>Breed</th>
@@ -515,6 +516,15 @@ function PetsTab({
             <tbody>
               {animals.map((a) => (
                 <tr key={a._id} onClick={() => setViewing(a)}>
+                  <td style={{ width: 44 }}>
+                    {a.photos?.[0] && (
+                      <img
+                        src={a.photos[0]}
+                        alt={a.name}
+                        style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 6, display: 'block' }}
+                      />
+                    )}
+                  </td>
                   <td>{a.name}</td>
                   <td>{a.species}</td>
                   <td>{a.breed}</td>
