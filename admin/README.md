@@ -98,17 +98,28 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   tracking" — it's a separate indicator, not a status value, since being opened doesn't change
   where a document sits in its own status lifecycle), and a per-row **Actions** dropdown
   (`ActionsMenu`, closes on an outside click or after picking an item): **View** renders the
-  invoice/quote as a PDF (`buildInvoicePdf()`, `admin/src/pdf/invoicePdf.ts`) in a `PdfViewModal`
-  (`admin/src/components/PdfViewModal.tsx` — an iframe preview plus Close/Download, extracted from
+  invoice/quote as a PDF (`buildInvoicePdf()`, `admin/src/pdf/invoicePdf.ts`). The rendered layout
+  comes from the staff-designed template at Settings → Invoices → "PDF Template" (see below) if
+  one's been saved, else a built-in default matching a standard invoice layout (logo/business
+  details top-left, Invoice#/Balance Due top-right, a diagonal "Paid" stamp when an invoice's status
+  is `paid`, an "Invoice To" block, an item table, Sub Total/Total/Payment Made/Balance Due, Notes,
+  bank transfer details, and a QR code). Quotes render the same template with quote-appropriate
+  substitutions and no payment/balance/paid-stamp elements (quotes have no `amountPaid`/paid status
+  at all).
+
+  On the **Invoices** tab specifically, clicking anywhere on a row (or its Actions → View) opens the
+  PDF as an inline split view rather than a modal: the table itself condenses to a narrow left-hand
+  list (Invoice #/customer stacked in one cell, a status badge and remaining balance in another, the
+  Actions menu still available per row) and the PDF fills the remaining width on the right, with its
+  own Download/Close controls above an iframe. Clicking a different row swaps the preview in place
+  (revoking the previous blob URL first) without leaving the split view, so staff can flip through
+  several invoices' PDFs quickly; **Close** returns to the full 8-column table. This is
+  `InvoicesTab`'s own `viewing`/`pdfUrl` state in `admin/src/pages/InvoicesPage.tsx` — there's no
+  separate modal component for it. **Quotes** keeps the simpler modal approach instead
+  (`PdfViewModal`, `admin/src/components/PdfViewModal.tsx` — an iframe preview plus Close/Download,
   the same pattern `CustomerDetailPage`'s own "View" already used for the customer registration-form
   PDF, though that page keeps its own inline copy rather than being retrofit to the shared
-  component). The rendered layout comes from the staff-designed template at Settings → Invoices →
-  "PDF Template" (see below) if one's been saved, else a built-in default matching a standard
-  invoice layout (logo/business details top-left, Invoice#/Balance Due top-right, a diagonal "Paid"
-  stamp when an invoice's status is `paid`, an "Invoice To" block, an item table, Sub
-  Total/Total/Payment Made/Balance Due, Notes, bank transfer details, and a QR code). Quotes render
-  the same template with quote-appropriate substitutions and no payment/balance/paid-stamp elements
-  (quotes have no `amountPaid`/paid status at all). **Edit** opens the
+  component), since quotes are a lower-volume, less frequently cross-referenced list. **Edit** opens the
   same form described below; **Send** opens `SendPreviewModal` rather than sending immediately —
   it fetches the configured "Invoice Template"/"Quote Template" and the real document's own data
   (actual line items, dates, totals, customer), renders them through the same

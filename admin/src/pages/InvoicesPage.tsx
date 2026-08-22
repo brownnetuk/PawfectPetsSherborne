@@ -60,6 +60,8 @@ function InvoicesTab() {
   useEffect(refresh, []);
 
   async function handleViewPdf(inv: Invoice) {
+    if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    setPdfUrl(null);
     setViewing(inv);
     setPdfLoading(true);
     setPdfError(null);
@@ -126,6 +128,76 @@ function InvoicesTab() {
       <div className="card" style={{ padding: 0 }}>
         {!invoices || invoices.length === 0 ? (
           <div className="empty-state">{invoices === null ? 'Loading…' : 'No invoices yet.'}</div>
+        ) : viewing ? (
+          <div style={{ display: 'flex', alignItems: 'stretch' }}>
+            <div style={{ width: 320, flexShrink: 0, borderRight: '1px solid var(--border)' }}>
+              <table>
+                <tbody>
+                  {invoices.map((inv) => (
+                    <tr
+                      key={inv._id}
+                      onClick={() => inv._id !== viewing._id && handleViewPdf(inv)}
+                      style={{
+                        cursor: 'pointer',
+                        background: inv._id === viewing._id ? 'var(--sage)' : undefined,
+                      }}
+                    >
+                      <td style={{ padding: '10px 12px' }}>
+                        <div style={{ fontWeight: 600 }}>{inv.invoiceNumber}</div>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{customerLabel(inv.customer)}</div>
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <span className={`badge badge-${inv.status}`}>{inv.status}</span>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+                          £{(inv.total - (inv.amountPaid ?? 0)).toFixed(2)}
+                        </div>
+                      </td>
+                      <td onClick={(e) => e.stopPropagation()} style={{ padding: '10px 8px 10px 0' }}>
+                        <ActionsMenu
+                          items={[
+                            { label: 'View', onClick: () => handleViewPdf(inv) },
+                            { label: 'Edit', onClick: () => setEditing(inv) },
+                            {
+                              label: sendingId === inv._id ? 'Sending…' : 'Send',
+                              onClick: () => setSendPreview(inv),
+                              disabled: sendingId === inv._id,
+                            },
+                            { label: 'Payments', onClick: () => setRecordingPayment(inv) },
+                            { label: 'Delete', onClick: () => setDeleting(inv), danger: true, dividerBefore: true },
+                          ]}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ flex: 1, minWidth: 0, padding: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <h3 style={{ margin: 0 }}>Invoice {viewing.invoiceNumber}</h3>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {pdfUrl && (
+                    <a href={pdfUrl} download={`${viewing.invoiceNumber}.pdf`} className="btn btn-secondary btn-sm">
+                      Download
+                    </a>
+                  )}
+                  <button className="btn btn-secondary btn-sm" onClick={closePdf}>
+                    Close
+                  </button>
+                </div>
+              </div>
+              {pdfError && <div className="error-banner">{pdfError}</div>}
+              {pdfLoading && !pdfUrl && !pdfError && <div className="empty-state">Preparing the PDF…</div>}
+              {pdfUrl && (
+                <iframe
+                  src={pdfUrl}
+                  title={`Invoice ${viewing.invoiceNumber}`}
+                  style={{ width: '100%', height: '80vh', border: '1px solid var(--border)', borderRadius: 8 }}
+                />
+              )}
+            </div>
+          </div>
         ) : (
           <table>
             <thead>
@@ -143,7 +215,7 @@ function InvoicesTab() {
             </thead>
             <tbody>
               {invoices.map((inv) => (
-                <tr key={inv._id}>
+                <tr key={inv._id} onClick={() => handleViewPdf(inv)} style={{ cursor: 'pointer' }}>
                   <td>{inv.invoiceNumber}</td>
                   <td>{customerLabel(inv.customer)}</td>
                   <td>{new Date(inv.issueDate).toLocaleDateString()}</td>
@@ -230,17 +302,6 @@ function InvoicesTab() {
             setRecordingPayment(null);
             refresh();
           }}
-        />
-      )}
-
-      {viewing && (
-        <PdfViewModal
-          title={`Invoice ${viewing.invoiceNumber}`}
-          pdfUrl={pdfUrl}
-          pdfLoading={pdfLoading}
-          pdfError={pdfError}
-          downloadName={`${viewing.invoiceNumber}.pdf`}
-          onClose={closePdf}
         />
       )}
 
