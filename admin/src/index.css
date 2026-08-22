@@ -619,6 +619,13 @@ table input:focus {
   width: 92vw;
 }
 
+/* Same olive green as the "Active" status pill (--sage-badge) -- used to set
+   a pet's details apart as sectioned white cards on top, rather than one flat
+   white sheet. */
+.modal.modal-olive {
+  background: var(--sage-badge);
+}
+
 .modal h2 {
   margin-top: 0;
   font-size: 1.2rem;
