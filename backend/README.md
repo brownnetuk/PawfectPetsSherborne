@@ -121,7 +121,18 @@ apply to cats (rejected if sent), and `chasesLivestock` only applies to dogs (re
 `photos` is an optional array of up to 2 base64 data URIs (`@ArrayMaxSize(2)`), same storage
 approach as `Customer.agreement`'s `signatureImage`/`BusinessInfo.logoImage` — no per-image size
 limit enforced server-side (the intake form and admin's pet forms both cap each upload
-client-side at 4MB, comfortably under `main.ts`'s 8mb JSON body limit).
+client-side at 4MB, comfortably under `main.ts`'s 8mb JSON body limit). Always sent as an array
+(never omitted) by every caller that edits it, including empty — unlike the plain-string fields
+here, omitting it on an edit that removed the last photo would mean "leave the stored photos
+alone" and silently undo the removal.
+
+`AnimalsService.update()`/`updateForCustomer()` diff the incoming `photos` against the stored
+value (by content, via `JSON.stringify`, not just length — so removing one photo and adding a
+different one in the same edit is still caught even though the count doesn't change) and append
+"photo added"/"photo removed"/"N photos added" etc. to the `ANIMAL_UPDATED` audit description when
+they actually changed, falling back to the plain `"{name} updated"` otherwise. Only computed when
+the payload actually includes `photos` at all, same guard `describeCustomerChanges()` uses for
+customer fields.
 
 ### Booking (`/bookings`)
 
