@@ -183,6 +183,14 @@ invoices stale for however long nobody was using the app; checking on every list
 self-heals the moment staff next open the Invoices page, regardless of how long the backend was
 asleep, with no extra dependency.
 
+There's no `partially_paid` value in `InvoiceStatus` — a part-payment (`0 < amountPaid < total`)
+leaves `status` at `sent` exactly as before (see `applyPayment()` above, only flips to `paid` once
+`amountPaid >= total`). "Partially Paid" is a purely frontend-derived display badge shown alongside
+the real status wherever invoices list, computed from `status === 'sent' && 0 < amountPaid <
+total` — see `admin/README.md`. Deliberately not a real status: the dropdown that changes an
+invoice's status still only ever offers/shows the five real values, so staff editing it always see
+what's actually stored.
+
 ### Quote (`/quotes`)
 
 Mirrors `Invoice` field-for-field (same `LineItem` sub-schema and totals formula, same optional
@@ -304,6 +312,18 @@ has in fact passed, so this doesn't need to duplicate that logic. `PaymentsModul
 `InvoicesModule`, `BankAccountsModule`, and `ExpensesModule` directly (not just their Mongoose
 models) so `PaymentsService` can call these methods rather than duplicating the balance/status
 logic itself.
+
+After all of the above, `PaymentsService.create()` makes a best-effort attempt to send a "Thank
+You" email (new `EmailTrigger.PAYMENT_RECEIVED = 'payment_received'`, see "Email templates" below)
+to the invoice's customer, if they have an email on file — `customer_name`, `invoice_number`,
+`amount` (this payment's own amount, not the invoice total), `payment_date`, `total`, and
+`balance_due` (the invoice's remaining balance, passed as `undefined` rather than `'0.00'` when
+fully paid, so `{{#if balance_due}}...{{/if}}` in the template can show a "you still owe" line only
+when there's genuinely something owing). Wrapped in a `try/catch` that's deliberately silent on
+failure — no template configured yet, or Microsoft Graph unreachable, must never undo an
+already-recorded payment, which is why this runs *after* every other side effect above, not
+before. `PaymentsModule` imports `SettingsModule` for this (a leaf module with no dependencies of
+its own, already imported by `InvoicesModule` the same way — no circularity risk).
 
 `BankAccountsService.adjustBalance(id, delta)` (`bank-accounts.service.ts`) is the routine place
 `BankAccount.currentBalance` is written — a plain `$inc` (atomic, no read-modify-write race),
@@ -528,8 +548,8 @@ actually work — see [`admin`](../admin/README.md#sending-email-via-microsoft-3
 setup this requires and what staff see.
 
 `/settings/email-templates` *does* follow the standard shape, except keyed by `trigger` (a fixed
-`EmailTrigger` enum: `registration` | `update_info` | `add_pet` | `invoice` | `quote`) instead of a
-Mongo `_id` -- `GET` lists all configured templates, `PUT /settings/email-templates/:trigger`
+`EmailTrigger` enum: `registration` | `update_info` | `add_pet` | `invoice` | `quote` |
+`payment_received`) instead of a Mongo `_id` -- `GET` lists all configured templates, `PUT /settings/email-templates/:trigger`
 upserts the one for that trigger, `DELETE /settings/email-templates/:trigger` removes it. `POST
 /settings/email/send` (body: `{trigger, to, name, link}`) is what backs the "Send email" button
 next to "Copy link" throughout the admin app, for the first three triggers only -- it's a thin
@@ -537,20 +557,23 @@ wrapper that calls `SettingsService.sendTemplatedEmail(trigger, to, { name, link
 
 `sendTemplatedEmail(trigger, to, vars, rawVars?)` is the shared implementation, also called
 directly by `InvoicesService.sendEmail()`/`QuotesService.sendEmail()` (see Document numbering
-above's neighboring "Invoice"/"Quote" sections) for the `invoice`/`quote` triggers, which have no
-`/settings/email/send` equivalent -- there's no generic "to/name/link" shape that fits an invoice,
-so those two call `sendTemplatedEmail` with their own vars instead of going through the
-`SendTriggeredEmailDto` route. It looks up the template for `trigger`, merges `vars` with seven
-`{{business*}}` placeholders pulled from `BusinessInfo`, and interpolates them into the
-subject/body before sending via the same Microsoft Graph path `/settings/email/test` uses.
+above's neighboring "Invoice"/"Quote" sections) for the `invoice`/`quote` triggers, and by
+`PaymentsService.create()` for `payment_received` (see "Payment" above) -- none of these three have
+a `/settings/email/send` equivalent, since there's no generic "to/name/link" shape that fits an
+invoice or a payment, so each calls `sendTemplatedEmail` directly with its own vars instead of
+going through the `SendTriggeredEmailDto` route. It looks up the template for `trigger`, merges
+`vars` with seven `{{business*}}` placeholders pulled from `BusinessInfo`, and interpolates them
+into the subject/body before sending via the same Microsoft Graph path `/settings/email/test`
+uses.
 
 Subject interpolation is always plain text substitution (subjects don't support markup) with one
 addition beyond simple `{{key}}` replacement: `{{#if field}}...{{/if}}` blocks are stripped
 entirely when `vars[field]` is falsy/empty, kept (tags removed) otherwise -- used for optional
-fields like an invoice's `subject`. Body interpolation branches on `trigger`: for the original
-three triggers, the (staff-authored, plain-text) body is HTML-escaped first, then conditionals are
-resolved, then placeholders are substituted in (each value escaped individually) -- unchanged from
-before. For `invoice`/`quote`, the body is already HTML (edited via a rich-text editor in the
+fields like an invoice's `subject` or a payment's `balance_due`. Body interpolation branches on
+`trigger`: for the four plain-text triggers (`registration`/`update_info`/`add_pet`/
+`payment_received`), the (staff-authored, plain-text) body is HTML-escaped first, then conditionals
+are resolved, then placeholders are substituted in (each value escaped individually) -- unchanged
+from before. For `invoice`/`quote`, the body is already HTML (edited via a rich-text editor in the
 admin, not a plain textarea -- see `admin/README.md`) and is used as-is aside from conditionals
 and substitution; `rawVars` (currently `{{logo}}` for all triggers, plus `{{items_table}}` for
 invoice/quote) inserts its value unescaped instead, since those are themselves already HTML the

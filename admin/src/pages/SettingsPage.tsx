@@ -804,6 +804,11 @@ export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: 
     label: 'Quote Template',
     description: 'Sent from Invoices & Quotes when staff choose "Send" on a quote.',
   },
+  {
+    value: 'payment_received',
+    label: 'Thank You for Payment',
+    description: 'Sent automatically whenever a payment is recorded against an invoice, from either place that can record one.',
+  },
 ];
 
 // invoice/quote templates are edited as raw HTML (RichTextEditor) and sent
@@ -1002,6 +1007,18 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
     { key: 'quote_date', hint: 'the issue date' },
     { key: 'valid_until', hint: 'the valid-until date' },
     ...BANK_PLACEHOLDERS,
+    ...BUSINESS_PLACEHOLDERS,
+  ],
+  payment_received: [
+    { key: 'customer_name', hint: "the customer's name" },
+    { key: 'invoice_number', hint: 'the invoice this payment was applied to' },
+    { key: 'amount', hint: 'this payment\'s amount (no £ sign)' },
+    { key: 'payment_date', hint: 'the date recorded against the payment' },
+    { key: 'total', hint: "the invoice's total amount (no £ sign)" },
+    {
+      key: 'balance_due',
+      hint: "remaining balance on the invoice (no £ sign) -- only present if not fully paid; wrap in {{#if balance_due}}...{{/if}}",
+    },
     ...BUSINESS_PLACEHOLDERS,
   ],
 };
@@ -1253,6 +1270,7 @@ function TemplatePreviewModal({
   };
   const htmlBody = isHtmlBodyTrigger(trigger);
   const isQuote = trigger === 'quote';
+  const isPaymentReceived = trigger === 'payment_received';
   const vars: Record<string, string | undefined> = htmlBody
     ? {
         ...businessVars,
@@ -1267,11 +1285,21 @@ function TemplatePreviewModal({
           ? { quote_number: 'QUO-2026-00001', quote_date: '21/08/2026', valid_until: '28/08/2026' }
           : { invoice_number: 'INV-2026-00001', invoice_date: '21/08/2026', due_date: '28/08/2026' }),
       }
-    : {
-        ...businessVars,
-        name: 'Jane Smith',
-        link: `${INTAKE_URL}/intake/sample-id`,
-      };
+    : isPaymentReceived
+      ? {
+          ...businessVars,
+          customer_name: 'Jane Smith',
+          invoice_number: 'INV-2026-00001',
+          amount: '25.00',
+          payment_date: '21/08/2026',
+          total: '75.00',
+          balance_due: '50.00',
+        }
+      : {
+          ...businessVars,
+          name: 'Jane Smith',
+          link: `${INTAKE_URL}/intake/sample-id`,
+        };
   const logoTag = businessInfo.logoImage
     ? `<img src="${businessInfo.logoImage}" alt="${escapeHtml(businessInfo.name)}" style="max-height:60px;max-width:220px;display:block;" />`
     : '';

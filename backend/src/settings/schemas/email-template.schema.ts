@@ -14,6 +14,7 @@ export enum EmailTrigger {
   ADD_PET = 'add_pet',
   INVOICE = 'invoice',
   QUOTE = 'quote',
+  PAYMENT_RECEIVED = 'payment_received',
 }
 
 // One document per trigger (enforced via the unique index below) -- avoids

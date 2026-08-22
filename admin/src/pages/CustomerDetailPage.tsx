@@ -36,6 +36,14 @@ function statusLabel(status: string): string {
   return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
+// A partial payment doesn't change the invoice's underlying status (it stays
+// "sent" until fully covered -- see InvoicesService.applyPayment()) -- this
+// is purely a derived display badge layered alongside the real status.
+function isPartiallyPaid(inv: Invoice): boolean {
+  const paid = inv.amountPaid ?? 0;
+  return inv.status === 'sent' && paid > 0 && paid < inv.total;
+}
+
 type Tab = 'overview' | 'pets' | 'bookings' | 'invoices' | 'activity' | 'log';
 
 export default function CustomerDetailPage() {
@@ -881,6 +889,7 @@ function InvoicesTab({
                   <td>£{inv.total.toFixed(2)}</td>
                   <td>
                     <Badge value={inv.status} />
+                    {isPartiallyPaid(inv) && <span className="badge badge-partially_paid">Partially Paid</span>}
                   </td>
                   <td>{new Date(inv.dueDate).toLocaleDateString()}</td>
                 </tr>

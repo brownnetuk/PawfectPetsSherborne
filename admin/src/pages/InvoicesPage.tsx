@@ -13,6 +13,15 @@ import type { BusinessInfo, Invoice, InvoiceStatus, Quote, QuoteStatus } from '.
 const INVOICE_STATUSES: InvoiceStatus[] = ['draft', 'sent', 'paid', 'overdue', 'cancelled'];
 const QUOTE_STATUSES: QuoteStatus[] = ['draft', 'sent', 'accepted', 'declined', 'expired'];
 
+// A partial payment doesn't change the invoice's underlying status (it stays
+// "sent" until fully covered -- see InvoicesService.applyPayment()) -- this
+// is purely a derived display badge layered alongside the real status, same
+// idea as the "Read" badge next to it below.
+function isPartiallyPaid(inv: Invoice): boolean {
+  const paid = inv.amountPaid ?? 0;
+  return inv.status === 'sent' && paid > 0 && paid < inv.total;
+}
+
 type Tab = 'invoices' | 'quotes';
 
 export default function InvoicesPage() {
@@ -154,6 +163,7 @@ function InvoicesTab() {
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                         <span className={`badge badge-${inv.status}`}>{inv.status}</span>
+                        {isPartiallyPaid(inv) && <span className="badge badge-partially_paid">Partially Paid</span>}
                         <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
                           £{(inv.total - (inv.amountPaid ?? 0)).toFixed(2)}
                         </div>
@@ -240,6 +250,7 @@ function InvoicesTab() {
                         ))}
                       </select>
                     </span>
+                    {isPartiallyPaid(inv) && <span className="badge badge-partially_paid">Partially Paid</span>}
                     {inv.openedAt && (
                       <span className="badge badge-read" title={`Opened ${new Date(inv.openedAt).toLocaleString()}`}>
                         Read

@@ -8,6 +8,7 @@ import {
   BusinessInfo,
   BusinessInfoSchema,
 } from '../settings/schemas/business-info.schema';
+import { SettingsModule } from '../settings/settings.module';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 import { Payment, PaymentSchema } from './schemas/payment.schema';
@@ -24,6 +25,7 @@ import { Payment, PaymentSchema } from './schemas/payment.schema';
     AuditLogModule,
     BankAccountsModule,
     ExpensesModule,
+    SettingsModule,
   ],
   controllers: [PaymentsController],
   providers: [PaymentsService],

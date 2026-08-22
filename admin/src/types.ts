@@ -421,7 +421,7 @@ export interface EmailSettings {
   clientSecretConfigured: boolean;
 }
 
-export type EmailTrigger = 'registration' | 'update_info' | 'add_pet' | 'invoice' | 'quote';
+export type EmailTrigger = 'registration' | 'update_info' | 'add_pet' | 'invoice' | 'quote' | 'payment_received';
 
 export interface EmailTemplate {
   trigger: EmailTrigger;

@@ -127,10 +127,14 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   each row, and its own "New" flow with a customer picker (the customer-detail version reuses the
   same create/edit/delete calls with the customer pre-selected).
 - **Invoices & Quotes** (`/invoices`) — tabbed: **Invoices** and **Quotes**, each a global list
-  across all customers with inline status changes, an `openedAt`-driven **Read** badge next to the
-  status pill once the sent email's tracking pixel has fired (see `backend/README.md`'s "Open
-  tracking" — it's a separate indicator, not a status value, since being opened doesn't change
-  where a document sits in its own status lifecycle), and a per-row **Actions** dropdown
+  across all customers with inline status changes, a **Partially Paid** badge (`isPartiallyPaid()`
+  in `InvoicesPage.tsx`/`CustomerDetailPage.tsx` — small, deliberately duplicated rather than
+  shared, same as this codebase's other one-off derived-display helpers) next to an invoice's
+  status pill whenever `status === 'sent'` and `0 < amountPaid < total`, an `openedAt`-driven
+  **Read** badge next to the status pill once the sent email's tracking pixel has fired (see
+  `backend/README.md`'s "Open tracking" — it's a separate indicator, not a status value, since
+  being opened doesn't change where a document sits in its own status lifecycle), and a per-row
+  **Actions** dropdown
   (`ActionsMenu`, closes on an outside click or after picking an item): **View** renders the
   invoice/quote as a PDF (`buildInvoicePdf()`, `admin/src/pdf/invoicePdf.ts`). The rendered layout
   comes from the staff-designed template at Settings → Invoices → "PDF Template" (see below) if
@@ -278,7 +282,11 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   pill/dropdown reflects this immediately on refresh, no separate polling needed. A non-zero
   **Charges** value also creates a real linked expense behind the scenes (category "Payment
   Charges") — nothing to configure here, but it's why a payment with charges shows up as an extra
-  row on the Expenses tab below, and why deleting that payment removes it again.
+  row on the Expenses tab below, and why deleting that payment removes it again. Recording a
+  payment through either modal also fires the "Thank You for Payment" email (Settings → Email
+  Templates below) to the invoice's customer, best-effort — nothing shown here if it fails (no
+  template configured yet, no email on file, Graph unreachable), since the payment itself is
+  already recorded regardless.
 
   **Expenses** (`ExpensesCard`/`ExpenseModal`) has its own New/Edit/Delete — unlike Payments, an
   expense isn't tied to any other record, so it's created directly from this tab: **Date**,
@@ -366,29 +374,36 @@ page always shows which revision they agreed to — see `backend/README.md`'s "S
   secret, and a from address/name, plus a "send a test email" button. The secret is encrypted at
   rest (`EncryptionService`, same as alarm instructions) and never sent back to the browser once
   saved; the field shows "Configured — leave blank to keep unchanged" instead. **Email Templates**
-  lists all five fixed triggers (`registration` / `update_info` / `add_pet` / `invoice` / `quote` —
-  `EMAIL_TRIGGERS`, kept in sync by hand with the backend's `EmailTrigger` enum) always, whether or
-  not each has a template yet, so it's obvious what still needs setting up. Each is one document —
-  editing "the registration template" is an upsert on that trigger, not a pick-from-a-list, so a
-  "Send" click never has to guess which of several templates to use. `TRIGGER_PLACEHOLDERS` gives
-  each trigger its own placeholder list, surfaced as an "Insert variable" `<select>` next to the
-  Email Body label (not a flat hint list any more — picking one inserts `{{token}}` at the current
-  cursor position, everywhere; see `RichTextEditor`/`handleInsertPlaceholder` below): the original
-  three share `{{name}}`/`{{link}}` plus seven business placeholders (`{{businessName}}`,
-  `{{businessAddress}}`, `{{businessTown}}`, `{{businessPostcode}}`, `{{businessTelephone}}`,
-  `{{businessEmail}}`, `{{businessWebsite}}`) and `{{logo}}`; `invoice`/`quote` get
-  `{{customer_name}}`, `{{subject}}`, `{{items_table}}` (an auto-generated line-items table),
-  `{{subtotal}}`/`{{total}}`, their respective number/date placeholders
-  (`{{invoice_number}}`/`{{invoice_date}}`/`{{due_date}}` or
+  lists all six fixed triggers (`registration` / `update_info` / `add_pet` / `invoice` / `quote` /
+  `payment_received` — `EMAIL_TRIGGERS`, kept in sync by hand with the backend's `EmailTrigger`
+  enum) always, whether or not each has a template yet, so it's obvious what still needs setting
+  up. Each is one document — editing "the registration template" is an upsert on that trigger, not
+  a pick-from-a-list, so a "Send" click never has to guess which of several templates to use.
+  `TRIGGER_PLACEHOLDERS` gives each trigger its own placeholder list, surfaced as an "Insert
+  variable" `<select>` next to the Email Body label (not a flat hint list any more — picking one
+  inserts `{{token}}` at the current cursor position, everywhere; see
+  `RichTextEditor`/`handleInsertPlaceholder` below): the original three share `{{name}}`/`{{link}}`
+  plus seven business placeholders (`{{businessName}}`, `{{businessAddress}}`, `{{businessTown}}`,
+  `{{businessPostcode}}`, `{{businessTelephone}}`, `{{businessEmail}}`, `{{businessWebsite}}`) and
+  `{{logo}}`; `invoice`/`quote` get `{{customer_name}}`, `{{subject}}`, `{{items_table}}` (an
+  auto-generated line-items table), `{{subtotal}}`/`{{total}}`, their respective number/date
+  placeholders (`{{invoice_number}}`/`{{invoice_date}}`/`{{due_date}}` or
   `{{quote_number}}`/`{{quote_date}}`/`{{valid_until}}`),
   `{{bank_name}}`/`{{sort_code}}`/`{{account_number}}` (from Settings → Invoices → Bank Details),
-  plus the same business placeholders — `{{#if field}}...{{/if}}` wraps content that should only
-  appear when `field` is set (e.g. the optional Subject line, a due date that isn't always present,
-  or the whole Payment Details section if bank details were never configured).
+  plus the same business placeholders; `payment_received` — the "Thank You for Payment" template,
+  sent automatically by `PaymentsService.create()` (`backend/README.md`) rather than from a Send
+  button anywhere in the admin app — gets `{{customer_name}}`, `{{invoice_number}}`, `{{amount}}`
+  (this payment's own amount, not the invoice total), `{{payment_date}}`, `{{total}}` (the
+  invoice's total), `{{balance_due}}` (the invoice's remaining balance — only set when it's still
+  greater than zero, so `{{#if balance_due}}...{{/if}}` can show a "you still owe" line only when
+  the invoice isn't yet fully paid), plus the same seven business placeholders. `{{#if
+  field}}...{{/if}}` wraps content that should only appear when `field` is set (e.g. the optional
+  Subject line, a due date that isn't always present, the whole Payment Details section if bank
+  details were never configured, or `payment_received`'s `balance_due` line).
 
   `isHtmlBodyTrigger(trigger)` (true for `invoice`/`quote` only) decides how the body field is
-  edited and interpolated. For the original three, it's still a plain `<textarea>` — staff-authored
-  text, HTML-escaped and newline-to-`<br>`'d at send time, unchanged from before; "Insert variable"
+  edited and interpolated. For the other four (including `payment_received`), it's still a plain
+  `<textarea>` — staff-authored text, HTML-escaped and newline-to-`<br>`'d at send time; "Insert variable"
   splices directly into its own `selectionStart`/`selectionEnd` via a ref held in
   `EditTemplateModal` (this textarea lives outside `RichTextEditor`, so that component can't own
   its cursor). For `invoice`/`quote`, it's a `RichTextEditor` (`admin/src/components/RichTextEditor.tsx`)

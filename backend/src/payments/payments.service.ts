@@ -8,9 +8,12 @@ import {
   formatDocumentNumber,
   nextSequenceNumber,
 } from '../common/document-number.util';
+import { formatUkDate } from '../common/invoice-email.util';
 import { ExpensesService } from '../expenses/expenses.service';
 import { InvoicesService } from '../invoices/invoices.service';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
+import { EmailTrigger } from '../settings/schemas/email-template.schema';
+import { SettingsService } from '../settings/settings.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { Payment } from './schemas/payment.schema';
 
@@ -24,6 +27,7 @@ export class PaymentsService {
     private readonly auditLogService: AuditLogService,
     private readonly bankAccountsService: BankAccountsService,
     private readonly expensesService: ExpensesService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   private async nextPaymentId(): Promise<string> {
@@ -53,7 +57,11 @@ export class PaymentsService {
       });
       chargesExpense = expense._id;
     }
-    const created = new this.paymentModel({ ...dto, paymentId, chargesExpense });
+    const created = new this.paymentModel({
+      ...dto,
+      paymentId,
+      chargesExpense,
+    });
     const saved = await created.save();
     // Deducts from the invoice's balance and flips it to paid once fully
     // covered -- see InvoicesService.applyPayment().
@@ -75,6 +83,33 @@ export class PaymentsService {
       dto.amount,
       actor,
     );
+    // Best-effort "Thank You" email -- a missing template/customer email/Graph
+    // failure must never undo an already-recorded payment, so this is never
+    // allowed to throw back out of create().
+    const customer = invoice.customer as unknown as {
+      name?: string;
+      email?: string;
+    };
+    if (customer?.email) {
+      const balanceDue = invoice.total - (invoice.amountPaid ?? 0);
+      try {
+        await this.settingsService.sendTemplatedEmail(
+          EmailTrigger.PAYMENT_RECEIVED,
+          customer.email,
+          {
+            customer_name: customer.name,
+            invoice_number: invoice.invoiceNumber,
+            amount: dto.amount.toFixed(2),
+            payment_date: formatUkDate(dto.date),
+            total: invoice.total.toFixed(2),
+            balance_due: balanceDue > 0 ? balanceDue.toFixed(2) : undefined,
+          },
+        );
+      } catch {
+        // No template configured yet, or Graph is unreachable -- the payment
+        // itself is already recorded, so swallow this rather than failing.
+      }
+    }
     return saved;
   }
 
@@ -101,7 +136,10 @@ export class PaymentsService {
     // payment caused -- see InvoicesService.reversePayment().
     const invoiceId = payment.invoice.toString();
     await this.invoicesService.reversePayment(invoiceId, payment.amount);
-    await this.bankAccountsService.adjustBalance(payment.account, -payment.amount);
+    await this.bankAccountsService.adjustBalance(
+      payment.account,
+      -payment.amount,
+    );
     const invoice = await this.invoicesService
       .findOne(invoiceId)
       .catch(() => null);

@@ -371,6 +371,7 @@ tbody tr:last-child td {
 .badge-declined { background: var(--error-light); color: var(--error); }
 .badge-expired { background: #eceff2; color: var(--muted); }
 .badge-read { background: var(--info-light); color: var(--info); margin-left: 6px; }
+.badge-partially_paid { background: var(--warn-light); color: var(--warn); margin-left: 6px; }
 
 /* A badge that wraps a native <select> so a status pill stays clickable to
    change -- the select is stripped of its default chrome and inherits the
