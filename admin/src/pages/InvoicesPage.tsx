@@ -102,11 +102,14 @@ function InvoicesTab() {
           <table>
             <thead>
               <tr>
-                <th>Invoice</th>
+                <th>Invoice Number</th>
                 <th>Customer</th>
-                <th>Total</th>
+                <th>Invoice Date</th>
+                <th>Due Date</th>
+                <th>Invoice Total</th>
+                <th>Amount Paid</th>
+                <th>Remaining Balance</th>
                 <th>Status</th>
-                <th>Due</th>
                 <th></th>
               </tr>
             </thead>
@@ -115,7 +118,11 @@ function InvoicesTab() {
                 <tr key={inv._id}>
                   <td>{inv.invoiceNumber}</td>
                   <td>{customerLabel(inv.customer)}</td>
+                  <td>{new Date(inv.issueDate).toLocaleDateString()}</td>
+                  <td>{new Date(inv.dueDate).toLocaleDateString()}</td>
                   <td>£{inv.total.toFixed(2)}</td>
+                  <td>£{(inv.amountPaid ?? 0).toFixed(2)}</td>
+                  <td>£{(inv.total - (inv.amountPaid ?? 0)).toFixed(2)}</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <span className={`badge badge-${inv.status}`}>
                       <select value={inv.status} onChange={(e) => handleStatusChange(inv._id, e.target.value)}>
@@ -132,7 +139,6 @@ function InvoicesTab() {
                       </span>
                     )}
                   </td>
-                  <td>{new Date(inv.dueDate).toLocaleDateString()}</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <ActionsMenu
                       items={[
