@@ -13,7 +13,8 @@ export default function RecordPaymentModal({ invoice, onClose, onSaved }: Props)
   const [accounts, setAccounts] = useState<BankAccount[] | null>(null);
   const [methods, setMethods] = useState<PaymentMethod[] | null>(null);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [amount, setAmount] = useState('');
+  const balanceDue = invoice.total - (invoice.amountPaid ?? 0);
+  const [amount, setAmount] = useState(balanceDue > 0 ? balanceDue.toFixed(2) : '');
   const [charges, setCharges] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [account, setAccount] = useState('');

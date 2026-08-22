@@ -225,8 +225,10 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   Payment ID and explains that it restores the amount to the invoice's outstanding balance — see
   `InvoicesService.reversePayment()` in `backend/README.md`. `RecordPaymentModal`
   (`admin/src/components/RecordPaymentModal.tsx`) is the actual creation form, opened from an
-  invoice row rather than from this page: **Date** (defaults to today), **Amount (£)** (required)
-  and **Charges (£)** (optional) side by side, a **Payment Method** dropdown sourced from
+  invoice row rather than from this page: **Date** (defaults to today), **Amount (£)** (required,
+  pre-filled with the invoice's outstanding balance — `total - amountPaid` — since a payment
+  covering the full remaining balance is the common case; staff can still overwrite it for a
+  partial payment) and **Charges (£)** (optional) side by side, a **Payment Method** dropdown sourced from
   `GET /payment-methods` (Settings → Finance → Payment Methods below), and an **Account** dropdown
   sourced from `GET /bank-accounts` (this page's Bank Account tab), shown as "Name (Bank/Savings)".
   No invoice-number field or deposit-percentage option — the invoice is already fixed by which row's
