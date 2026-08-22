@@ -1,12 +1,21 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import BankAccountModal from '../components/BankAccountModal';
+import CreditNoteModal from '../components/CreditNoteModal';
+import ExpenseModal from '../components/ExpenseModal';
 import Modal from '../components/Modal';
 import ViewBankAccountModal from '../components/ViewBankAccountModal';
 import { PencilIcon, TrashIcon } from '../components/icons';
-import type { BankAccount, Payment } from '../types';
+import type { BankAccount, CreditNote, Expense, ExpenseCategory, Payment } from '../types';
 
-type Tab = 'bank' | 'payments';
+type Tab = 'bank' | 'payments' | 'expenses' | 'creditNotes';
+
+const TAB_LABELS: Record<Tab, string> = {
+  bank: 'Bank Accounts',
+  payments: 'Payments',
+  expenses: 'Expenses',
+  creditNotes: 'Credit Notes',
+};
 
 export default function FinancialPage() {
   const [tab, setTab] = useState<Tab>('bank');
@@ -18,17 +27,17 @@ export default function FinancialPage() {
       </div>
 
       <div className="tabs">
-        <button className={tab === 'bank' ? 'active' : ''} onClick={() => setTab('bank')}>
-          Bank Account
-        </button>
-        <button className={tab === 'payments' ? 'active' : ''} onClick={() => setTab('payments')}>
-          Payments
-        </button>
+        {(['bank', 'payments', 'expenses', 'creditNotes'] as Tab[]).map((t) => (
+          <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
+            {TAB_LABELS[t]}
+          </button>
+        ))}
       </div>
 
       {tab === 'bank' && <BankAccountsCard />}
-
       {tab === 'payments' && <PaymentsCard />}
+      {tab === 'expenses' && <ExpensesCard />}
+      {tab === 'creditNotes' && <CreditNotesCard />}
     </div>
   );
 }
@@ -179,7 +188,7 @@ function BankAccountsCard() {
         <div>
           <h2>Bank Accounts</h2>
           <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
-            Reconciliation and linking to payments come in a later build.
+            Balance updates automatically from recorded payments, expenses, and credit notes.
           </p>
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
@@ -245,6 +254,263 @@ function BankAccountsCard() {
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
             This permanently removes <strong>{deleting.name}</strong>.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
+  insurance: 'Insurance',
+  supplies: 'Supplies',
+  equipment: 'Equipment',
+  vehicle_fuel: 'Vehicle / Fuel',
+  veterinary: 'Veterinary',
+  marketing: 'Marketing',
+  professional_fees: 'Professional Fees',
+  other: 'Other',
+};
+
+function expenseAccountLabel(account: Expense['account']): string {
+  if (!account) return '—';
+  return typeof account === 'string' ? account : account.name;
+}
+
+function ExpensesCard() {
+  const [expenses, setExpenses] = useState<Expense[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState<Expense | null>(null);
+  const [deleting, setDeleting] = useState<Expense | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function refresh() {
+    api
+      .listExpenses()
+      .then(setExpenses)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load expenses'));
+  }
+  useEffect(refresh, []);
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteExpense(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete this expense');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <h2>Expenses</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+            Money going out — debited from an account's balance if one is chosen.
+          </p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+          New expense
+        </button>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      {!expenses || expenses.length === 0 ? (
+        <div className="empty-state">{expenses === null ? 'Loading…' : 'No expenses recorded yet.'}</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Category</th>
+              <th>Payee</th>
+              <th>Description</th>
+              <th>Amount</th>
+              <th>Account</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {expenses.map((e) => (
+              <tr key={e._id}>
+                <td>{new Date(e.date).toLocaleDateString()}</td>
+                <td>{CATEGORY_LABELS[e.category]}</td>
+                <td>{e.payee || '—'}</td>
+                <td>{e.description}</td>
+                <td>£{e.amount.toFixed(2)}</td>
+                <td>{expenseAccountLabel(e.account)}</td>
+                <td>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    <button className="icon-btn" title="Edit" onClick={() => setEditing(e)}>
+                      <PencilIcon />
+                    </button>
+                    <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(e)}>
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {(showNew || editing) && (
+        <ExpenseModal
+          expense={editing}
+          onClose={() => {
+            setShowNew(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setShowNew(false);
+            setEditing(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal title="Delete expense?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently removes this expense{deleting.account ? ' and restores its amount to the account balance' : ''}.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function creditNoteCustomerLabel(customer: CreditNote['customer']): string {
+  return typeof customer === 'string' ? customer : customer.name;
+}
+
+function creditNoteInvoiceLabel(invoice: CreditNote['invoice']): string {
+  if (!invoice) return '—';
+  return typeof invoice === 'string' ? invoice : invoice.invoiceNumber;
+}
+
+function CreditNotesCard() {
+  const [creditNotes, setCreditNotes] = useState<CreditNote[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [deleting, setDeleting] = useState<CreditNote | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function refresh() {
+    api
+      .listCreditNotes()
+      .then(setCreditNotes)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load credit notes'));
+  }
+  useEffect(refresh, []);
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteCreditNote(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete this credit note');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <h2>Credit Notes</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+            A formal record of a refund, with a reason — reduces the linked invoice's paid amount.
+          </p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+          New credit note
+        </button>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      {!creditNotes || creditNotes.length === 0 ? (
+        <div className="empty-state">{creditNotes === null ? 'Loading…' : 'No credit notes issued yet.'}</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Number</th>
+              <th>Date</th>
+              <th>Customer</th>
+              <th>Invoice</th>
+              <th>Amount</th>
+              <th>Reason</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {creditNotes.map((c) => (
+              <tr key={c._id}>
+                <td>{c.creditNoteNumber}</td>
+                <td>{new Date(c.date).toLocaleDateString()}</td>
+                <td>{creditNoteCustomerLabel(c.customer)}</td>
+                <td>{creditNoteInvoiceLabel(c.invoice)}</td>
+                <td>£{c.amount.toFixed(2)}</td>
+                <td>{c.reason}</td>
+                <td>
+                  <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(c)}>
+                    <TrashIcon />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {showNew && (
+        <CreditNoteModal
+          onClose={() => setShowNew(false)}
+          onSaved={() => {
+            setShowNew(false);
+            refresh();
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal title="Delete credit note?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently removes credit note <strong>{deleting.creditNoteNumber}</strong> and reverses its
+            effect on the linked invoice and account balance, if any.
           </p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
