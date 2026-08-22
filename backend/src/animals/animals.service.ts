@@ -1,6 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
 import { Booking } from '../bookings/schemas/booking.schema';
 import { CreateAnimalDto } from './dto/create-animal.dto';
 import { PublicUpdateAnimalDto } from './dto/public-update-animal.dto';
@@ -12,6 +14,7 @@ export class AnimalsService {
   constructor(
     @InjectModel(Animal.name) private readonly animalModel: Model<Animal>,
     @InjectModel(Booking.name) private readonly bookingModel: Model<Booking>,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   // `requireForDogs` only applies on create: a dog must be registered with off-lead
@@ -43,7 +46,7 @@ export class AnimalsService {
     }
   }
 
-  create(dto: CreateAnimalDto): Promise<Animal> {
+  async create(dto: CreateAnimalDto, actor = 'Customer'): Promise<Animal> {
     this.validateOffLeadConsent(dto, true);
     this.validateSpeciesFields(dto);
     const payload = {
@@ -53,7 +56,16 @@ export class AnimalsService {
           ? { ...dto.offLeadConsent, acknowledgedAt: new Date(), date: new Date() }
           : undefined,
     };
-    return new this.animalModel(payload).save();
+    const created = await new this.animalModel(payload).save();
+    await this.auditLogService.record(
+      created.customer,
+      AuditEventType.ANIMAL_CREATED,
+      'Pet added',
+      `${created.name} added`,
+      undefined,
+      actor,
+    );
+    return created;
   }
 
   findAll(customerId?: string): Promise<Animal[]> {
@@ -69,13 +81,21 @@ export class AnimalsService {
     return animal;
   }
 
-  async update(id: string, dto: UpdateAnimalDto): Promise<Animal> {
+  async update(id: string, dto: UpdateAnimalDto, actor = 'Staff'): Promise<Animal> {
     this.validateOffLeadConsent(dto, false);
     this.validateSpeciesFields(dto);
     const animal = await this.animalModel.findByIdAndUpdate(id, dto, { new: true }).exec();
     if (!animal) {
       throw new NotFoundException(`Animal ${id} not found`);
     }
+    await this.auditLogService.record(
+      animal.customer,
+      AuditEventType.ANIMAL_UPDATED,
+      'Pet updated',
+      `${animal.name} updated`,
+      undefined,
+      actor,
+    );
     return animal;
   }
 
@@ -84,7 +104,12 @@ export class AnimalsService {
   // above). Ownership is checked against the animal's own `customer` field rather
   // than trusted from the request -- PublicUpdateAnimalDto has no `customer` field
   // at all, so there's nothing here for a caller to reassign.
-  async updateForCustomer(id: string, customerId: string, dto: PublicUpdateAnimalDto): Promise<Animal> {
+  async updateForCustomer(
+    id: string,
+    customerId: string,
+    dto: PublicUpdateAnimalDto,
+    actor = 'Customer',
+  ): Promise<Animal> {
     const existing = await this.animalModel.findById(id).exec();
     if (!existing || existing.customer.toString() !== customerId) {
       throw new NotFoundException(`Animal ${id} not found`);
@@ -95,10 +120,18 @@ export class AnimalsService {
     if (!animal) {
       throw new NotFoundException(`Animal ${id} not found`);
     }
+    await this.auditLogService.record(
+      customerId,
+      AuditEventType.ANIMAL_UPDATED,
+      'Pet updated',
+      `${animal.name} updated`,
+      undefined,
+      actor,
+    );
     return animal;
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, actor = 'Staff'): Promise<void> {
     const bookingCount = await this.bookingModel.countDocuments({ animals: id }).exec();
     if (bookingCount > 0) {
       throw new ConflictException(
@@ -109,5 +142,13 @@ export class AnimalsService {
     if (!result) {
       throw new NotFoundException(`Animal ${id} not found`);
     }
+    await this.auditLogService.record(
+      result.customer,
+      AuditEventType.ANIMAL_REMOVED,
+      'Pet removed',
+      `${result.name} removed`,
+      undefined,
+      actor,
+    );
   }
 }

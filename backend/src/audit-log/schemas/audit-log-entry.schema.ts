@@ -17,6 +17,12 @@ export enum AuditEventType {
   QUOTE_EMAILED = 'quote_emailed',
   PAYMENT_RECEIVED = 'payment_received',
   PAYMENT_REMOVED = 'payment_removed',
+  ANIMAL_CREATED = 'animal_created',
+  ANIMAL_UPDATED = 'animal_updated',
+  ANIMAL_REMOVED = 'animal_removed',
+  BOOKING_CREATED = 'booking_created',
+  BOOKING_UPDATED = 'booking_updated',
+  BOOKING_REMOVED = 'booking_removed',
 }
 
 @Schema({ timestamps: true })

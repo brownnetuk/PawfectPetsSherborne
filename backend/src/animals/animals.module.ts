@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 import { BookingsModule } from '../bookings/bookings.module';
 import { AnimalsController } from './animals.controller';
 import { AnimalsService } from './animals.service';
@@ -10,6 +11,7 @@ import { Animal, AnimalSchema } from './schemas/animal.schema';
     MongooseModule.forFeature([{ name: Animal.name, schema: AnimalSchema }]),
     // Needed so AnimalsService can check for Bookings referencing an animal before deleting it.
     BookingsModule,
+    AuditLogModule,
   ],
   controllers: [AnimalsController],
   providers: [AnimalsService],

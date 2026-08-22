@@ -8,6 +8,8 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
@@ -17,8 +19,8 @@ export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
   @Post()
-  create(@Body() dto: CreateBookingDto) {
-    return this.bookingsService.create(dto);
+  create(@Body() dto: CreateBookingDto, @CurrentUser() user: CurrentUserShape) {
+    return this.bookingsService.create(dto, user.name);
   }
 
   @Get()
@@ -32,12 +34,12 @@ export class BookingsController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateBookingDto) {
-    return this.bookingsService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateBookingDto, @CurrentUser() user: CurrentUserShape) {
+    return this.bookingsService.update(id, dto, user.name);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.bookingsService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: CurrentUserShape) {
+    return this.bookingsService.remove(id, user.name);
   }
 }

@@ -7,7 +7,12 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
+import { actorFromRequest } from '../auth/actor.util';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { Public } from '../auth/public.decorator';
 import { AnimalsService } from './animals.service';
 import { CreateAnimalDto } from './dto/create-animal.dto';
@@ -18,11 +23,13 @@ import { UpdateAnimalDto } from './dto/update-animal.dto';
 export class AnimalsController {
   constructor(private readonly animalsService: AnimalsService) {}
 
-  // Public: the intake form creates one Animal per pet on submit.
+  // Public: the intake form creates one Animal per pet on submit -- also used
+  // by the admin app's "Add manually" flow, so actor attribution here is
+  // best-effort rather than a proper @CurrentUser(); see auth/actor.util.ts.
   @Public()
   @Post()
-  create(@Body() dto: CreateAnimalDto) {
-    return this.animalsService.create(dto);
+  create(@Body() dto: CreateAnimalDto, @Req() req: Request) {
+    return this.animalsService.create(dto, actorFromRequest(req));
   }
 
   @Get()
@@ -49,8 +56,8 @@ export class AnimalsController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateAnimalDto) {
-    return this.animalsService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateAnimalDto, @CurrentUser() user: CurrentUserShape) {
+    return this.animalsService.update(id, dto, user.name);
   }
 
   // Public: the intake form uses this to let a customer edit their own existing
@@ -64,12 +71,13 @@ export class AnimalsController {
     @Param('id') id: string,
     @Param('customerId') customerId: string,
     @Body() dto: PublicUpdateAnimalDto,
+    @Req() req: Request,
   ) {
-    return this.animalsService.updateForCustomer(id, customerId, dto);
+    return this.animalsService.updateForCustomer(id, customerId, dto, actorFromRequest(req));
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.animalsService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: CurrentUserShape) {
+    return this.animalsService.remove(id, user.name);
   }
 }
