@@ -71,7 +71,10 @@ function animalPayload(pet: PetDetails) {
     age: Number(pet.age),
     vaccinated: pet.vaccinated,
     vaccineExpiryDate: pet.vaccinated ? pet.vaccineExpiryDate : undefined,
-    photos: pet.photos?.length ? pet.photos : undefined,
+    // Sent as-is, including empty -- for updateAnimal() specifically, omitting
+    // it when empty would mean "leave the stored photos alone", which would
+    // silently un-delete a photo the customer just removed while reviewing.
+    photos: pet.photos ?? [],
     colourMarkings: pet.colourMarkings || undefined,
     microchipNumber: pet.microchipNumber || undefined,
     temperamentNotes: pet.temperamentNotes || undefined,

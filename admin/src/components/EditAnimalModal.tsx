@@ -97,7 +97,10 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
         age: Number(age),
         vaccinated,
         vaccineExpiryDate: vaccinated ? vaccineExpiryDate : undefined,
-        photos: photos.length ? photos : undefined,
+        // Sent as-is, including empty -- unlike the plain-string fields below,
+        // omitting it when empty would mean "leave the stored photos alone",
+        // which would silently un-delete a photo the user just removed.
+        photos,
         colourMarkings: colourMarkings || undefined,
         microchipNumber: microchipNumber || undefined,
         temperamentNotes: temperamentNotes || undefined,
