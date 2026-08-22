@@ -11,6 +11,7 @@ interface Props {
 
 const TRI_STATE_OPTIONS: TriState[] = ['yes', 'no', 'unsure'];
 const MAX_PET_PHOTO_BYTES = 4 * 1024 * 1024;
+const MAX_PET_PHOTOS = 2;
 
 export default function NewAnimalModal({ customerId, onClose, onCreated }: Props) {
   const [species, setSpecies] = useState<Species>('dog');
@@ -20,7 +21,7 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
   const [age, setAge] = useState('');
   const [vaccinated, setVaccinated] = useState(false);
   const [vaccineExpiryDate, setVaccineExpiryDate] = useState('');
-  const [photo, setPhoto] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [colourMarkings, setColourMarkings] = useState('');
   const [microchipNumber, setMicrochipNumber] = useState('');
@@ -52,7 +53,7 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => setPhoto(reader.result as string);
+    reader.onload = () => setPhotos((prev) => [...prev, reader.result as string]);
     reader.onerror = () => setPhotoError('Failed to read that file.');
     reader.readAsDataURL(file);
   }
@@ -95,7 +96,7 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
         age: Number(age),
         vaccinated,
         vaccineExpiryDate: vaccinated ? vaccineExpiryDate : undefined,
-        photo: photo || undefined,
+        photos: photos.length ? photos : undefined,
         colourMarkings: colourMarkings || undefined,
         microchipNumber: microchipNumber || undefined,
         temperamentNotes: temperamentNotes || undefined,
@@ -169,20 +170,33 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
           <input type="text" value={colourMarkings} onChange={(e) => setColourMarkings(e.target.value)} />
         </div>
         <div className="field">
-          <label>Photo</label>
-          {photo ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <img
-                src={photo}
-                alt="Pet"
-                style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
-              />
-              <button type="button" className="btn-link" onClick={() => setPhoto('')}>
-                Remove
-              </button>
+          <label>Photos</label>
+          {photos.length > 0 && (
+            <div style={{ display: 'flex', gap: 14, marginBottom: 10, flexWrap: 'wrap' }}>
+              {photos.map((p, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <img
+                    src={p}
+                    alt="Pet"
+                    style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-link"
+                    onClick={() => setPhotos((prev) => prev.filter((_, j) => j !== i))}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
             </div>
-          ) : (
+          )}
+          {photos.length < MAX_PET_PHOTOS ? (
             <input type="file" accept="image/*" onChange={handlePhotoChange} />
+          ) : (
+            <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+              You've added the maximum of {MAX_PET_PHOTOS} photos.
+            </div>
           )}
           {photoError && (
             <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--error)', marginTop: 4 }}>

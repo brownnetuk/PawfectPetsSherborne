@@ -38,19 +38,23 @@ export default function ViewAnimalModal({ animal, onClose }: Props) {
             <dd>{animal.temperamentNotes || '—'}</dd>
           </dl>
         </div>
-        {animal.photo && (
-          <img
-            src={animal.photo}
-            alt={animal.name}
-            style={{
-              width: 200,
-              height: 200,
-              objectFit: 'cover',
-              borderRadius: 8,
-              border: '1px solid var(--border)',
-              flexShrink: 0,
-            }}
-          />
+        {animal.photos && animal.photos.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0 }}>
+            {animal.photos.map((p, i) => (
+              <img
+                key={i}
+                src={p}
+                alt={animal.name}
+                style={{
+                  width: 200,
+                  height: animal.photos!.length > 1 ? 140 : 200,
+                  objectFit: 'cover',
+                  borderRadius: 8,
+                  border: '1px solid var(--border)',
+                }}
+              />
+            ))}
+          </div>
         )}
       </div>
 
