@@ -1,15 +1,27 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Animal } from '../animals/schemas/animal.schema';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
 import { Booking } from '../bookings/schemas/booking.schema';
 import { describeBlockers } from '../common/delete-guard.util';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { CrmActivity } from '../crm/schemas/crm-activity.schema';
 import { Invoice } from '../invoices/schemas/invoice.schema';
 import { Quote } from '../quotes/schemas/quote.schema';
+import { describeCustomerChanges } from './audit-diff.util';
 import { formatAddress, formatFullName } from './customer-format.util';
-import { CreateCustomerDto, EmergencyContactDto, EmergencyVetDto } from './dto/create-customer.dto';
+import {
+  CreateCustomerDto,
+  EmergencyContactDto,
+  EmergencyVetDto,
+} from './dto/create-customer.dto';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { Customer, CustomerStatus } from './schemas/customer.schema';
@@ -22,15 +34,20 @@ export class CustomersService {
     @InjectModel(Booking.name) private readonly bookingModel: Model<Booking>,
     @InjectModel(Invoice.name) private readonly invoiceModel: Model<Invoice>,
     @InjectModel(Quote.name) private readonly quoteModel: Model<Quote>,
-    @InjectModel(CrmActivity.name) private readonly crmActivityModel: Model<CrmActivity>,
+    @InjectModel(CrmActivity.name)
+    private readonly crmActivityModel: Model<CrmActivity>,
     private readonly encryptionService: EncryptionService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   private validateEmergencyContact(emergencyContact: EmergencyContactDto) {
     if (
       !emergencyContact.sameAsClient &&
-      (!emergencyContact.firstName || !emergencyContact.address1 || !emergencyContact.town ||
-        !emergencyContact.postcode || !emergencyContact.phoneNumber)
+      (!emergencyContact.firstName ||
+        !emergencyContact.address1 ||
+        !emergencyContact.town ||
+        !emergencyContact.postcode ||
+        !emergencyContact.phoneNumber)
     ) {
       throw new BadRequestException(
         'Emergency contact name, address, and phone number are required unless "same as client" is set',
@@ -40,7 +57,9 @@ export class CustomersService {
 
   private validateEmergencyVet(emergencyVet: EmergencyVetDto) {
     if (!emergencyVet.authorisation?.signedName) {
-      throw new BadRequestException('Alternative vet care authorisation must be signed');
+      throw new BadRequestException(
+        'Alternative vet care authorisation must be signed',
+      );
     }
   }
 
@@ -54,8 +73,11 @@ export class CustomersService {
       update.name = formatFullName(update.firstName, update.surname);
     }
     if (
-      update.address1 !== undefined || update.address2 !== undefined ||
-      update.town !== undefined || update.county !== undefined || update.postcode !== undefined
+      update.address1 !== undefined ||
+      update.address2 !== undefined ||
+      update.town !== undefined ||
+      update.county !== undefined ||
+      update.postcode !== undefined
     ) {
       update.address = formatAddress(update);
     }
@@ -88,22 +110,30 @@ export class CustomersService {
     };
   }
 
-  async create(dto: CreateCustomerDto): Promise<Customer> {
+  async create(dto: CreateCustomerDto, actor = 'Customer'): Promise<Customer> {
     this.validateEmergencyContact(dto.emergencyContact);
     this.validateEmergencyVet(dto.emergencyVet);
 
     const payload: Record<string, any> = { ...dto };
     this.applyComputedFields(payload);
 
-    const created = new this.customerModel({
+    const created = await new this.customerModel({
       ...payload,
       security: this.encryptSecurity(dto),
       agreement: dto.agreement
         ? { ...dto.agreement, signedAt: new Date(), date: new Date() }
         : undefined,
       status: CustomerStatus.ACTIVE,
-    });
-    return created.save();
+    }).save();
+    await this.auditLogService.record(
+      created._id,
+      AuditEventType.CUSTOMER_CREATED,
+      'Customer created',
+      undefined,
+      undefined,
+      actor,
+    );
+    return created;
   }
 
   /** Staff pre-create a minimal record; the public intake form link points at its id. */
@@ -138,17 +168,42 @@ export class CustomersService {
     return customer;
   }
 
-  async update(id: string, dto: UpdateCustomerDto): Promise<Customer> {
+  async update(
+    id: string,
+    dto: UpdateCustomerDto,
+    actor = 'Customer',
+  ): Promise<Customer> {
     if (dto.emergencyContact) {
       this.validateEmergencyContact(dto.emergencyContact);
     }
-    if (dto.emergencyVet) {
+    // Only validated when this payload is actually trying to set the
+    // authorisation (e.g. the public intake form's agreement step) --
+    // EditCustomerModal shows it read-only and never sends it at all, so an
+    // ordinary staff edit shouldn't be blocked by a signature check that
+    // isn't part of what's being changed.
+    if (dto.emergencyVet?.authorisation) {
       this.validateEmergencyVet(dto.emergencyVet);
+    }
+
+    const before = await this.customerModel.findById(id).exec();
+    if (!before) {
+      throw new NotFoundException(`Customer ${id} not found`);
     }
 
     const { security, ...rest } = dto;
     const update: Record<string, any> = { ...rest };
     this.applyComputedFields(update);
+
+    // update.emergencyVet, once present, replaces the whole stored subdocument --
+    // EditCustomerModal shows the authorisation read-only and never sends it, so
+    // without this it would be silently wiped (and alternativeVetAuthorised reset
+    // to false) on every ordinary staff edit that merely changes e.g. the vet's
+    // phone number. Carry the existing signature forward whenever this payload
+    // isn't the one setting it.
+    if (update.emergencyVet && dto.emergencyVet?.authorisation === undefined) {
+      update.emergencyVet.authorisation = before.emergencyVet?.authorisation;
+      update.emergencyVet.alternativeVetAuthorised = !!before.emergencyVet?.authorisation?.signedName;
+    }
 
     // Field-level ($set via dot notation) rather than replacing the whole `security`
     // subdocument: the client is never given the plaintext alarm instructions back, so
@@ -160,14 +215,19 @@ export class CustomersService {
         update[`security.${key}`] = value;
       }
       if (alarmInstructions) {
-        update['security.alarmInstructionsEncrypted'] = this.encryptionService.encrypt(alarmInstructions);
+        update['security.alarmInstructionsEncrypted'] =
+          this.encryptionService.encrypt(alarmInstructions);
       }
     }
 
     // A signed agreement means the public intake form is submitting the completed
     // record (whether it started as a staff-created lead or a fresh submission).
     if (dto.agreement?.signedName) {
-      update.agreement = { ...dto.agreement, signedAt: new Date(), date: new Date() };
+      update.agreement = {
+        ...dto.agreement,
+        signedAt: new Date(),
+        date: new Date(),
+      };
       update.status = CustomerStatus.ACTIVE;
     }
 
@@ -177,6 +237,30 @@ export class CustomersService {
     if (!customer) {
       throw new NotFoundException(`Customer ${id} not found`);
     }
+
+    if (dto.agreement?.signedName) {
+      await this.auditLogService.record(
+        id,
+        AuditEventType.CUSTOMER_UPDATED,
+        'Registration form completed',
+        undefined,
+        undefined,
+        actor,
+      );
+    } else {
+      const changes = describeCustomerChanges(dto, before);
+      if (changes) {
+        await this.auditLogService.record(
+          id,
+          AuditEventType.CUSTOMER_UPDATED,
+          'Customer details updated',
+          changes,
+          undefined,
+          actor,
+        );
+      }
+    }
+
     return customer;
   }
 
@@ -191,13 +275,14 @@ export class CustomersService {
   }
 
   async remove(id: string): Promise<void> {
-    const [petCount, bookingCount, invoiceCount, quoteCount, activityCount] = await Promise.all([
-      this.animalModel.countDocuments({ customer: id }).exec(),
-      this.bookingModel.countDocuments({ customer: id }).exec(),
-      this.invoiceModel.countDocuments({ customer: id }).exec(),
-      this.quoteModel.countDocuments({ customer: id }).exec(),
-      this.crmActivityModel.countDocuments({ customer: id }).exec(),
-    ]);
+    const [petCount, bookingCount, invoiceCount, quoteCount, activityCount] =
+      await Promise.all([
+        this.animalModel.countDocuments({ customer: id }).exec(),
+        this.bookingModel.countDocuments({ customer: id }).exec(),
+        this.invoiceModel.countDocuments({ customer: id }).exec(),
+        this.quoteModel.countDocuments({ customer: id }).exec(),
+        this.crmActivityModel.countDocuments({ customer: id }).exec(),
+      ]);
     const blockers = describeBlockers({
       pet: petCount,
       booking: bookingCount,

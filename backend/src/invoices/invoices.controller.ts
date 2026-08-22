@@ -11,6 +11,8 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { Public } from '../auth/public.decorator';
 import { transparentGifBuffer } from '../common/tracking-pixel.util';
 import { InvoicesService } from './invoices.service';
@@ -22,8 +24,8 @@ export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
 
   @Post()
-  create(@Body() dto: CreateInvoiceDto) {
-    return this.invoicesService.create(dto);
+  create(@Body() dto: CreateInvoiceDto, @CurrentUser() user: CurrentUserShape) {
+    return this.invoicesService.create(dto, user.name);
   }
 
   @Get()
@@ -37,8 +39,12 @@ export class InvoicesController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateInvoiceDto) {
-    return this.invoicesService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateInvoiceDto,
+    @CurrentUser() user: CurrentUserShape,
+  ) {
+    return this.invoicesService.update(id, dto, user.name);
   }
 
   @Delete(':id')
@@ -47,8 +53,8 @@ export class InvoicesController {
   }
 
   @Post(':id/send')
-  sendEmail(@Param('id') id: string) {
-    return this.invoicesService.sendEmail(id);
+  sendEmail(@Param('id') id: string, @CurrentUser() user: CurrentUserShape) {
+    return this.invoicesService.sendEmail(id, user.name);
   }
 
   // Public: this is fetched by the recipient's mail client, not the admin app --
@@ -57,9 +63,15 @@ export class InvoicesController {
   // way and there's nothing useful to report back to a mail client.
   @Public()
   @Get(':id/pixel.gif')
-  async pixel(@Param('id') id: string, @Res({ passthrough: true }) res: Response) {
+  async pixel(
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     await this.invoicesService.markOpened(id).catch(() => {});
-    res.set({ 'Content-Type': 'image/gif', 'Cache-Control': 'no-store, no-cache, must-revalidate' });
+    res.set({
+      'Content-Type': 'image/gif',
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+    });
     return new StreamableFile(transparentGifBuffer());
   }
 }

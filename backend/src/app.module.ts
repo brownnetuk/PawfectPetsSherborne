@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
+import { AuditLogModule } from './audit-log/audit-log.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { EncryptionModule } from './common/encryption/encryption.module';
@@ -26,11 +27,15 @@ import { EnquiriesModule } from './enquiries/enquiries.module';
     MongooseModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI', 'mongodb://localhost:27017/pawfectpets'),
+        uri: configService.get<string>(
+          'MONGODB_URI',
+          'mongodb://localhost:27017/pawfectpets',
+        ),
       }),
     }),
     EncryptionModule,
     AuthModule,
+    AuditLogModule,
     CustomersModule,
     AnimalsModule,
     BankAccountsModule,

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AnimalsModule } from '../animals/animals.module';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 import { BookingsModule } from '../bookings/bookings.module';
 import { CrmModule } from '../crm/crm.module';
 import { InvoicesModule } from '../invoices/invoices.module';
@@ -11,7 +12,9 @@ import { Customer, CustomerSchema } from './schemas/customer.schema';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Customer.name, schema: CustomerSchema }]),
+    MongooseModule.forFeature([
+      { name: Customer.name, schema: CustomerSchema },
+    ]),
     // Needed so CustomersService can check for Animals/Bookings/Invoices/Quotes/CRM
     // activity referencing a customer before deleting it.
     AnimalsModule,
@@ -19,6 +22,7 @@ import { Customer, CustomerSchema } from './schemas/customer.schema';
     InvoicesModule,
     QuotesModule,
     CrmModule,
+    AuditLogModule,
   ],
   controllers: [CustomersController],
   providers: [CustomersService],

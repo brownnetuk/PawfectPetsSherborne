@@ -1,6 +1,10 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { BusinessInfo, BusinessInfoSchema } from '../settings/schemas/business-info.schema';
+import { AuditLogModule } from '../audit-log/audit-log.module';
+import {
+  BusinessInfo,
+  BusinessInfoSchema,
+} from '../settings/schemas/business-info.schema';
 import { SettingsModule } from '../settings/settings.module';
 import { QuotesController } from './quotes.controller';
 import { QuotesService } from './quotes.service';
@@ -13,6 +17,7 @@ import { Quote, QuoteSchema } from './schemas/quote.schema';
       { name: BusinessInfo.name, schema: BusinessInfoSchema },
     ]),
     SettingsModule,
+    AuditLogModule,
   ],
   controllers: [QuotesController],
   providers: [QuotesService],

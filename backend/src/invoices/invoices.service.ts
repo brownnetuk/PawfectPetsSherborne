@@ -1,8 +1,20 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { buildItemsTableHtml, formatUkDate } from '../common/invoice-email.util';
-import { formatDocumentNumber, nextSequenceNumber } from '../common/document-number.util';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
+import {
+  buildItemsTableHtml,
+  formatUkDate,
+} from '../common/invoice-email.util';
+import {
+  formatDocumentNumber,
+  nextSequenceNumber,
+} from '../common/document-number.util';
 import { publicApiUrl, trackingPixelHtml } from '../common/tracking-pixel.util';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
@@ -15,13 +27,25 @@ import { Invoice, InvoiceStatus } from './schemas/invoice.schema';
 export class InvoicesService {
   constructor(
     @InjectModel(Invoice.name) private readonly invoiceModel: Model<Invoice>,
-    @InjectModel(BusinessInfo.name) private readonly businessInfoModel: Model<BusinessInfo>,
+    @InjectModel(BusinessInfo.name)
+    private readonly businessInfoModel: Model<BusinessInfo>,
     private readonly settingsService: SettingsService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
-  private calculateTotals(lineItems: { quantity: number; unitPrice: number; discountPercent?: number }[]) {
+  private calculateTotals(
+    lineItems: {
+      quantity: number;
+      unitPrice: number;
+      discountPercent?: number;
+    }[],
+  ) {
     const subtotal = lineItems.reduce(
-      (sum, item) => sum + item.quantity * item.unitPrice * (1 - (item.discountPercent ?? 0) / 100),
+      (sum, item) =>
+        sum +
+        item.quantity *
+          item.unitPrice *
+          (1 - (item.discountPercent ?? 0) / 100),
       0,
     );
     return { subtotal, total: subtotal };
@@ -33,22 +57,33 @@ export class InvoicesService {
   // number -- the returned document is the state *before* the increment,
   // which is exactly the number this invoice should use.
   private async nextInvoiceNumber(): Promise<string> {
-    const seq = await nextSequenceNumber(this.businessInfoModel, 'invoiceNextNumber');
+    const seq = await nextSequenceNumber(
+      this.businessInfoModel,
+      'invoiceNextNumber',
+    );
     const info = await this.businessInfoModel.findOne().exec();
     const template = info?.invoiceNumberTemplate || 'INV-{year}-{seq}';
     return formatDocumentNumber(template, seq);
   }
 
-  async create(dto: CreateInvoiceDto): Promise<Invoice> {
+  async create(dto: CreateInvoiceDto, actor = 'Staff'): Promise<Invoice> {
     const totals = this.calculateTotals(dto.lineItems);
     const invoiceNumber = await this.nextInvoiceNumber();
-    const created = new this.invoiceModel({
+    const created = await new this.invoiceModel({
       ...dto,
       invoiceNumber,
       ...totals,
       status: InvoiceStatus.DRAFT,
-    });
-    return created.save();
+    }).save();
+    await this.auditLogService.record(
+      created.customer,
+      AuditEventType.INVOICE_CREATED,
+      'Invoice created',
+      `${invoiceNumber} created`,
+      undefined,
+      actor,
+    );
+    return created;
   }
 
   // Flips any invoice still sitting at "sent" past its due date to "overdue".
@@ -61,7 +96,10 @@ export class InvoicesService {
   // regardless of how long the backend was asleep.
   private async markOverdue(): Promise<void> {
     await this.invoiceModel
-      .updateMany({ status: InvoiceStatus.SENT, dueDate: { $lt: new Date() } }, { status: InvoiceStatus.OVERDUE })
+      .updateMany(
+        { status: InvoiceStatus.SENT, dueDate: { $lt: new Date() } },
+        { status: InvoiceStatus.OVERDUE },
+      )
       .exec();
   }
 
@@ -86,7 +124,11 @@ export class InvoicesService {
     return invoice;
   }
 
-  async update(id: string, dto: UpdateInvoiceDto): Promise<Invoice> {
+  async update(
+    id: string,
+    dto: UpdateInvoiceDto,
+    actor = 'System',
+  ): Promise<Invoice> {
     const update: Record<string, unknown> = { ...dto };
     if (dto.lineItems) {
       update.lineItems = dto.lineItems;
@@ -102,6 +144,28 @@ export class InvoicesService {
     if (!invoice) {
       throw new NotFoundException(`Invoice ${id} not found`);
     }
+    const customerId =
+      (invoice.customer as unknown as { _id?: unknown })?._id ??
+      invoice.customer;
+    if (dto.status !== undefined) {
+      await this.auditLogService.record(
+        customerId as string,
+        AuditEventType.INVOICE_UPDATED,
+        'Status changed',
+        `${invoice.invoiceNumber} status changed to ${dto.status}`,
+        undefined,
+        actor,
+      );
+    } else {
+      await this.auditLogService.record(
+        customerId as string,
+        AuditEventType.INVOICE_UPDATED,
+        'Invoice updated',
+        `${invoice.invoiceNumber} updated`,
+        undefined,
+        actor,
+      );
+    }
     return invoice;
   }
 
@@ -113,11 +177,17 @@ export class InvoicesService {
   }
 
   /** Emails the invoice to its customer using the "Invoice Template", then marks it sent if it was still a draft. */
-  async sendEmail(id: string): Promise<Invoice> {
+  async sendEmail(id: string, actor = 'Staff'): Promise<Invoice> {
     const invoice = await this.findOne(id);
-    const customer = invoice.customer as unknown as { name?: string; email?: string };
+    const customer = invoice.customer as unknown as {
+      _id?: unknown;
+      name?: string;
+      email?: string;
+    };
     if (!customer?.email) {
-      throw new BadRequestException('This customer has no email address on file.');
+      throw new BadRequestException(
+        'This customer has no email address on file.',
+      );
     }
     const business = await this.businessInfoModel.findOne().exec();
     const pixelUrl = `${publicApiUrl()}/invoices/${id}/pixel.gif`;
@@ -139,15 +209,28 @@ export class InvoicesService {
       { items_table: buildItemsTableHtml(invoice.lineItems) },
       trackingPixelHtml(pixelUrl),
     );
+    await this.auditLogService.record(
+      customer._id as string,
+      AuditEventType.INVOICE_EMAILED,
+      'Invoice emailed',
+      `${invoice.invoiceNumber} emailed to ${customer.email}`,
+      undefined,
+      actor,
+    );
     if (invoice.status === InvoiceStatus.DRAFT) {
-      return this.update(id, { status: InvoiceStatus.SENT });
+      return this.update(id, { status: InvoiceStatus.SENT }, actor);
     }
     return invoice;
   }
 
   /** First-open only -- called by the public GET /invoices/:id/pixel.gif when the sent email's tracking pixel loads. */
   async markOpened(id: string): Promise<void> {
-    await this.invoiceModel.updateOne({ _id: id, openedAt: { $exists: false } }, { openedAt: new Date() }).exec();
+    await this.invoiceModel
+      .updateOne(
+        { _id: id, openedAt: { $exists: false } },
+        { openedAt: new Date() },
+      )
+      .exec();
   }
 
   /** Adds a recorded payment's amount to amountPaid, flipping status to paid once it covers the total. */
@@ -177,12 +260,16 @@ export class InvoicesService {
     const invoice = await this.invoiceModel.findById(id).exec();
     if (!invoice) return;
     const amountPaid = Math.max(0, (invoice.amountPaid ?? 0) - amount);
-    const revertingPaidStatus = invoice.status === InvoiceStatus.PAID && amountPaid < invoice.total;
+    const revertingPaidStatus =
+      invoice.status === InvoiceStatus.PAID && amountPaid < invoice.total;
     await this.invoiceModel
       .updateOne(
         { _id: id },
         {
-          $set: { amountPaid, ...(revertingPaidStatus ? { status: InvoiceStatus.SENT } : {}) },
+          $set: {
+            amountPaid,
+            ...(revertingPaidStatus ? { status: InvoiceStatus.SENT } : {}),
+          },
           ...(revertingPaidStatus ? { $unset: { paidAt: '' } } : {}),
         },
       )

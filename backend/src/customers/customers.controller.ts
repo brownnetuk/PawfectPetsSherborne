@@ -6,7 +6,10 @@ import {
   Param,
   Patch,
   Post,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
+import { actorFromRequest } from '../auth/actor.util';
 import { Public } from '../auth/public.decorator';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -19,11 +22,13 @@ export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
   // Public: the intake form itself creates a Customer directly when it isn't
-  // starting from a staff-created lead link.
+  // starting from a staff-created lead link. Also used by the admin app's own
+  // "New customer" -- see actor.util.ts for why actor attribution here is
+  // best-effort rather than a proper @CurrentUser().
   @Public()
   @Post()
-  create(@Body() dto: CreateCustomerDto) {
-    return this.customersService.create(dto);
+  create(@Body() dto: CreateCustomerDto, @Req() req: Request) {
+    return this.customersService.create(dto, actorFromRequest(req));
   }
 
   // Staff-only: creating a lead link is a staff action.
@@ -46,14 +51,21 @@ export class CustomersController {
 
   @Get(':id/alarm-instructions')
   async getAlarmInstructions(@Param('id') id: string) {
-    return { instructions: await this.customersService.getAlarmInstructions(id) };
+    return {
+      instructions: await this.customersService.getAlarmInstructions(id),
+    };
   }
 
   // Public: the intake form completes its own (lead or fresh) record on submit.
+  // Also used by the admin app's own EditCustomerModal -- see actor.util.ts.
   @Public()
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateCustomerDto) {
-    return this.customersService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateCustomerDto,
+    @Req() req: Request,
+  ) {
+    return this.customersService.update(id, dto, actorFromRequest(req));
   }
 
   // Staff-only (deliberately not @Public()): the public intake form's own PATCH
