@@ -15,6 +15,7 @@ import type {
   Enquiry,
   Expense,
   ExpenseCategoryOption,
+  ExpenseCategoryTotal,
   IncomeExpenseMonth,
   IncomeMonth,
   Invoice,
@@ -382,6 +383,9 @@ export function deleteCreditNote(id: string): Promise<void> {
 // --- reports ---
 export function getIncomeExpenseReport(months: number): Promise<IncomeExpenseMonth[]> {
   return request(`/reports/income-vs-expenses?months=${months}`);
+}
+export function getExpensesByCategoryReport(months: number): Promise<ExpenseCategoryTotal[]> {
+  return request(`/reports/expenses-by-category?months=${months}`);
 }
 
 // --- products ---

@@ -12,11 +12,17 @@ export interface IncomeExpenseMonth {
   net: number;
 }
 
+export interface ExpenseCategoryTotal {
+  category: string;
+  total: number;
+}
+
 @Injectable()
 export class ReportsService {
   constructor(
     @InjectModel(Payment.name) private readonly paymentModel: Model<Payment>,
-    @InjectModel(CreditNote.name) private readonly creditNoteModel: Model<CreditNote>,
+    @InjectModel(CreditNote.name)
+    private readonly creditNoteModel: Model<CreditNote>,
     @InjectModel(Expense.name) private readonly expenseModel: Model<Expense>,
   ) {}
 
@@ -59,18 +65,40 @@ export class ReportsService {
     ]);
 
     const paymentsByMonth = new Map(paymentRows.map((r) => [r._id, r.total]));
-    const creditNotesByMonth = new Map(creditNoteRows.map((r) => [r._id, r.total]));
+    const creditNotesByMonth = new Map(
+      creditNoteRows.map((r) => [r._id, r.total]),
+    );
     const expensesByMonth = new Map(expenseRows.map((r) => [r._id, r.total]));
 
     const result: IncomeExpenseMonth[] = [];
     const cursor = new Date(since);
     for (let i = 0; i < months; i++) {
       const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
-      const income = (paymentsByMonth.get(key) ?? 0) - (creditNotesByMonth.get(key) ?? 0);
+      const income =
+        (paymentsByMonth.get(key) ?? 0) - (creditNotesByMonth.get(key) ?? 0);
       const expenses = expensesByMonth.get(key) ?? 0;
       result.push({ month: key, income, expenses, net: income - expenses });
       cursor.setMonth(cursor.getMonth() + 1);
     }
     return result;
+  }
+
+  // Same rolling since-window as incomeVsExpenses(), grouped by category
+  // instead of month, sorted highest-spend first.
+  async expensesByCategory(months: number): Promise<ExpenseCategoryTotal[]> {
+    const since = new Date();
+    since.setMonth(since.getMonth() - (months - 1));
+    since.setDate(1);
+    since.setHours(0, 0, 0, 0);
+
+    const rows = await this.expenseModel.aggregate<{
+      _id: string;
+      total: number;
+    }>([
+      { $match: { date: { $gte: since } } },
+      { $group: { _id: '$category', total: { $sum: '$amount' } } },
+      { $sort: { total: -1 } },
+    ]);
+    return rows.map((r) => ({ category: r._id, total: r.total }));
   }
 }

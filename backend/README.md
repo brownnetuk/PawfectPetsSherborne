@@ -405,6 +405,11 @@ charge is counted once, via the linked "Payment Charges" expense, not subtracted
 `CreditNote.amount` for that month; `expenses` sums `Expense.amount`, which now naturally includes
 those payment-charge expenses alongside everything staff record directly.
 
+`GET /reports/expenses-by-category?months=6` — same rolling since-window as the report above, but
+a single aggregation over `Expense` grouped by `category` instead of by month, sorted highest-spend
+first, returning `{ category, total }[]`. Feeds the admin Reports page's "Expenses by Category" tab
+(`ReportsPage.tsx`, `admin/README.md`).
+
 ### CRM activity (`/crm/activities`)
 
 Freeform activity log per customer — `note` | `call` | `email` | `task` | `status_change` —

@@ -253,6 +253,11 @@ export interface IncomeExpenseMonth {
   net: number;
 }
 
+export interface ExpenseCategoryTotal {
+  category: string;
+  total: number;
+}
+
 export interface Quote {
   _id: string;
   customer: CustomerRef | string;

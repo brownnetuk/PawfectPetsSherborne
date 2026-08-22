@@ -9,4 +9,9 @@ export class ReportsController {
   incomeVsExpenses(@Query('months') months?: string) {
     return this.reportsService.incomeVsExpenses(months ? Number(months) : 6);
   }
+
+  @Get('expenses-by-category')
+  expensesByCategory(@Query('months') months?: string) {
+    return this.reportsService.expensesByCategory(months ? Number(months) : 6);
+  }
 }

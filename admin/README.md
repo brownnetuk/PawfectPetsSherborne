@@ -303,15 +303,20 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   linked invoice's paid amount exactly like reversing a payment does (see
   `InvoicesService.reversePayment()`), and debits the chosen account; deleting one undoes both.
   The table shows Number/Date/Customer/Invoice/Amount/Reason.
-- **Reports** (`/reports`, `ReportsPage.tsx`) — sits directly below Financial in the nav. One
-  report so far: **Income vs Expenses**, a Last 6/12 Months selector (same convention as the
-  customer Activity tab's income chart) driving `GET /reports/income-vs-expenses`. Rendered by
-  `IncomeExpenseChart.tsx` — a new sibling to the existing per-customer `IncomeChart.tsx` rather
-  than a generalization of it, specifically to avoid any risk to that already-working, still-used
+- **Reports** (`/reports`, `ReportsPage.tsx`) — sits directly below Financial in the nav, tabbed
+  (same `Tab`/`TAB_LABELS` array-and-map pattern as `FinancialPage.tsx`). **P/L** is the original
+  Income vs Expenses report, unchanged: a Last 6/12 Months selector (same convention as the
+  customer Activity tab's income chart) driving `GET /reports/income-vs-expenses`, rendered by
+  `IncomeExpenseChart.tsx` — a sibling to the existing per-customer `IncomeChart.tsx` rather than a
+  generalization of it, specifically to avoid any risk to that already-working, still-used
   component; it draws two bars per month (income/expenses, with a small legend) instead of one.
   Below the chart, three running totals (Income/Expenses/Net, the last colour-coded green/red by
   sign) and a plain Month/Income/Expenses/Net table for exact figures the chart's bars can't give
-  precisely.
+  precisely. **Expenses by Category** is a second report, same Last 6/12 Months selector, driving
+  the new `GET /reports/expenses-by-category`: a horizontal bar per category (`ExpensesByCategoryChart.tsx`
+  — one labelled bar per row rather than `IncomeExpenseChart`'s vertical grouped-bars-per-month
+  layout, since category names vary in length and count rather than being a fixed monthly x-axis),
+  sorted highest-spend first, plus a Total figure and a Category/Amount/% of Total table below.
 - **Notes** (`/activity`, `ActivityPage.tsx`) — a read-only global feed of CRM activity entries,
   labeled "Notes" in the UI though the underlying model (`CrmActivity`, `/crm/activities`) still
   covers note/call/email/task entries, not just notes proper — entries are created from a customer's
