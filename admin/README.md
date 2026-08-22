@@ -232,11 +232,14 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   `BankAccountsService.adjustBalance()`), not something staff ever set directly. Clicking a row
   (not its Edit/Delete icons) opens `ViewBankAccountModal`, a read-only Account Details `kv-grid`
   plus a **Transactions** section (Month/Year selects, defaulting to the current month/year, and a
-  settings gear button that's currently a no-op) — still always shows "No transactions for this
-  period.", since that's a separate, not-yet-built per-account transaction *list* (the balance
-  total itself is real; a drill-down into what made it up isn't). Not to be confused with the
-  existing Settings → Invoices → **Bank Details** card, which holds the one set of account details
-  shown *on* invoices, a separate concern.
+  settings gear button that's currently a no-op): an Opening Balance row followed by every
+  Payment/Expense/Credit Note recorded against that account in the selected month (each row
+  labelled by type, signed and colour-coded green/red, with a running Balance column), fetched from
+  `GET /bank-accounts/:id/transactions` whenever the account or the selectors change — refetches
+  fresh rather than trying to derive it from data the page already has. Falls back to "No
+  transactions for this period." only when that period genuinely has none. Not to be confused with
+  the existing Settings → Invoices → **Bank Details** card, which holds the one set of account
+  details shown *on* invoices, a separate concern.
 
   **Payments** (`PaymentsCard` in `FinancialPage.tsx`) is a read-mostly table of every recorded
   `Payment` — Payment ID/Date/Invoice/Amount/Charges/Payment Method/Account, Delete only, no Create

@@ -310,6 +310,19 @@ logic itself.
 shared by `PaymentsService`, `ExpensesService`, and `CreditNotesService` below. `BankAccountsModule`
 exports the service for exactly this reason.
 
+`GET /bank-accounts/:id/transactions?month=&year=` (`BankAccountsService.getTransactions()`)
+builds that account's actual statement for one calendar month, rather than staff just having to
+trust `currentBalance`: it queries `Payment`/`Expense`/`CreditNote` directly for that `account` and
+date range, merges them sorted by date into one signed list (`Payment` `+amount`, `Expense`/
+`CreditNote` `-amount` — the same sign convention `adjustBalance` calls already use for each), and
+walks a running `balance` through them starting from an `openingBalance` — a separate aggregation
+summing everything for that account strictly before the period, so the ledger doesn't need to
+refetch the account's entire history every time. `BankAccountsModule` declares its own
+`MongooseModule.forFeature([Payment, Expense, CreditNote])` for this (read-only, mirroring
+`ReportsModule`'s approach) rather than importing those three modules — the other direction
+already exists (they each import `BankAccountsModule` for `adjustBalance`), so importing them back
+here would be a real circular module dependency.
+
 In the admin app, "Payments" is an item in an invoice's row-level "Actions" menu
 (`admin/src/pages/InvoicesPage.tsx`), opening `RecordPaymentModal`
 (`admin/src/components/RecordPaymentModal.tsx`) — Date, Amount, optional Charges, a Payment Method
