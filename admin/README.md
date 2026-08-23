@@ -277,10 +277,11 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   **Bank Accounts**, **Payments**, **Expenses**, **Credit Notes**. **Bank Accounts** has real
   fields (`BankAccountsCard`/`BankAccountModal`, both in `FinancialPage.tsx`/
   `BankAccountModal.tsx`): **Type** (a select, Bank/Savings, defaulting to Bank), **Account Name**,
-  **Sort Code**, **Account Number**, shown as table columns in that order, plus a `currentBalance`
-  that now genuinely reflects reality — it's adjusted automatically by every recorded payment,
-  expense, and credit note against that account (see `backend/README.md`'s
-  `BankAccountsService.adjustBalance()`), not something staff type in directly. Clicking a row
+  **Sort Code**, **Account Number**, **Balance**, shown as table columns in that order — Balance is
+  `currentBalance`, bold and colour-coded (green when zero or positive, red when negative), and now
+  genuinely reflects reality: it's adjusted automatically by every recorded payment, expense, and
+  credit note against that account (see `backend/README.md`'s `BankAccountsService.adjustBalance()`),
+  not something staff type in directly. Clicking a row
   (not its Edit/Delete icons) opens `ViewBankAccountModal`, a read-only Account Details `kv-grid`
   plus a **Transactions** section (Month/Year selects, defaulting to the current month/year): an
   Opening Balance row followed by every Payment/Expense/Credit Note recorded against that account

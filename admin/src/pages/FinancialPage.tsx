@@ -228,16 +228,22 @@ function BankAccountsCard() {
               <th>Account Name</th>
               <th>Sort Code</th>
               <th>Account Number</th>
+              <th>Balance</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {accounts.map((a) => (
+            {accounts.map((a) => {
+              const balance = a.currentBalance ?? 0;
+              return (
               <tr key={a._id} onClick={() => setViewing(a)}>
                 <td>{typeLabel(a.type)}</td>
                 <td>{a.name}</td>
                 <td>{a.sortCode}</td>
                 <td>{a.accountNumber}</td>
+                <td style={{ fontWeight: 700, color: balance < 0 ? 'var(--error)' : 'var(--brand-green)' }}>
+                  £{balance.toFixed(2)}
+                </td>
                 <td onClick={(e) => e.stopPropagation()}>
                   <div style={{ display: 'flex', gap: 2 }}>
                     <button className="icon-btn" title="Edit" onClick={() => setEditing(a)}>
@@ -249,7 +255,8 @@ function BankAccountsCard() {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       )}
