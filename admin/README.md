@@ -58,12 +58,11 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   belongs, and duplicating it would just be two sources of truth for the same data. The backend
   rejects an email already used by another customer (case-insensitively) on this and on the public
   intake form's own signup — the error banner just surfaces the backend's message as-is.
-  **Active**/**Archived** tabs (`CustomersPage.tsx`) sit below the search box, splitting the same
+  **Active**/**Inactive** tabs (`CustomersPage.tsx`) sit below the search box, splitting the same
   already-fetched list client-side (`listCustomers()` has no server-side filter to build on, same
-  as the search box already did) — Archived is `status === 'inactive'`, Active is everything else
-  (`pending`/`active`/`update_info`, all still someone staff are actively dealing with). Reuses the
-  existing `inactive` status rather than adding a new one — deliberately, since nothing else about
-  what "inactive" means changes, this just gives it its own tab instead of being mixed in.
+  as the search box already did) directly on the existing `status` field — Inactive is
+  `status === 'inactive'`, Active is everything else (`pending`/`active`/`update_info`, all still
+  someone staff are actively dealing with).
   Search still applies within whichever tab is selected. Defaults to Active on load/reload.
 - **Customer detail** — tabs for overview (client/emergency/vet/security/agreement — alarm
   instructions are only decrypted on demand via "Reveal"; the Agreement card shows Signed

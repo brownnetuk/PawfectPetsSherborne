@@ -8,7 +8,7 @@ import type { Customer } from '../types';
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
 
-type Tab = 'active' | 'archived';
+type Tab = 'active' | 'inactive';
 
 export default function CustomersPage() {
   const navigate = useNavigate();
@@ -27,9 +27,6 @@ export default function CustomersPage() {
 
   useEffect(refresh, []);
 
-  // "Archived" reuses the existing inactive status rather than a new value --
-  // everything else (pending/active/update_info) is still someone staff are
-  // actively dealing with, so it stays under "Active".
   const filtered = (customers ?? []).filter((c) => {
     if (tab === 'active' ? c.status === 'inactive' : c.status !== 'inactive') return false;
     const q = search.toLowerCase();
@@ -60,15 +57,15 @@ export default function CustomersPage() {
         <button className={tab === 'active' ? 'active' : ''} onClick={() => setTab('active')}>
           Active
         </button>
-        <button className={tab === 'archived' ? 'active' : ''} onClick={() => setTab('archived')}>
-          Archived
+        <button className={tab === 'inactive' ? 'active' : ''} onClick={() => setTab('inactive')}>
+          Inactive
         </button>
       </div>
 
       <div className="card" style={{ padding: 0 }}>
         {filtered.length === 0 ? (
           <div className="empty-state">
-            {customers === null ? 'Loading…' : tab === 'active' ? 'No active customers yet.' : 'No archived customers.'}
+            {customers === null ? 'Loading…' : tab === 'active' ? 'No active customers yet.' : 'No inactive customers.'}
           </div>
         ) : (
           <table>
