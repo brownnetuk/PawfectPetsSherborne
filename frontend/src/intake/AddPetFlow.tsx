@@ -14,7 +14,7 @@ function emptyPet(): PetDetails {
     sex: '',
     age: '',
     dateOfBirth: '',
-    vaccinated: null,
+    vaccinated: false,
     vaccineExpiryDate: '',
     photos: [],
     colourMarkings: '',
@@ -78,7 +78,6 @@ export default function AddPetFlow({ customerId }: { customerId: string }) {
       const pet = pets[step - 1];
       if (!pet) return null;
       if (!pet.breed || !pet.name || !pet.sex || !pet.age) return 'Please fill in all required fields.';
-      if (pet.vaccinated === null) return 'Please let us know if this pet is vaccinated.';
       if (pet.vaccinated && !pet.vaccineExpiryDate) return 'Vaccine expiry date is required.';
       if (pet.aggressionToPeople === null) return 'Please answer the aggression questions.';
       if (pet.aggressionToPeople && !pet.aggressionToPeopleDetails)

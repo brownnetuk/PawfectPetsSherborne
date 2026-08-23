@@ -97,11 +97,7 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
         onChange={(v) => set('dateOfBirth', v)}
       />
 
-      <ToggleField
-        label="Vaccinated"
-        value={!!value.vaccinated}
-        onChange={(v) => set('vaccinated', v)}
-      />
+      <ToggleField label="Vaccinated" value={value.vaccinated} onChange={(v) => set('vaccinated', v)} />
       {value.vaccinated && (
         <TextField
           label="Vaccine expiry date"

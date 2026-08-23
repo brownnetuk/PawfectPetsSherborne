@@ -141,7 +141,10 @@ export interface PetDetails {
   sex: Sex | '';
   age: string;
   dateOfBirth?: string;
-  vaccinated: boolean | null;
+  // A plain boolean, not tri-state like the aggression fields below -- it's
+  // shown as a toggle switch, which always renders definitively on or off,
+  // so there's no meaningful "unanswered" state to represent or validate.
+  vaccinated: boolean;
   vaccineExpiryDate?: string;
   photos?: string[];
   colourMarkings?: string;

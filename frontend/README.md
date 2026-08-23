@@ -119,7 +119,15 @@ file. Adding a pet this way should never risk their other data.
    of the single free-text field it used to be — each entry needs a Medication Name, with Illness
    treating/Dosage/Frequency/Additional Info as free text and Vet Prescribed/Pawfect Pets To
    administer as Yes/No selects; "+ Add Medication" adds another, "Remove" drops one, and there
-   must be at least one entry (with a name) before advancing
+   must be at least one entry (with a name) before advancing. "Vaccinated" is a plain `boolean`
+   (`PetDetails.vaccinated`), not tri-state like the aggression fields below it — it's rendered as
+   a `ToggleField` switch, which always shows definitively on or off, so there's no way for it to
+   display an "unanswered" state the way `ChoiceGroup`'s Yes/No button pairs can (neither button
+   highlighted). A previous version kept `vaccinated: boolean | null` with a "please answer" check
+   that only cleared once the switch was touched at least once — meaning a customer who correctly
+   left it at its default off position (intending "no, not vaccinated") got blocked by a validation
+   error that looked like nothing had been answered, when the toggle was already showing a real
+   answer. `emptyPet()` now defaults it to `false` outright and the step has no null-check for it.
 7. Security arrangements (alarm instructions are sent to the backend, which encrypts them at rest)
 8. Client agreement — scrollable terms (see below), typed signature + drawn signature (both
    required), auto-filled date, submit
