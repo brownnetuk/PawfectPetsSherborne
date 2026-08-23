@@ -47,13 +47,15 @@ interface ToggleFieldProps {
 
 export function ToggleField({ label, value, onChange }: ToggleFieldProps) {
   return (
-    <div className="toggle-row">
-      <label className="toggle">
+    // The whole row is one label (not just the switch) so tapping the text
+    // toggles it too -- a 44x24px switch alone is a small target on mobile.
+    <label className="toggle-row">
+      <span className="toggle">
         <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} />
         <span className="toggle-slider" />
-      </label>
+      </span>
       <span>{label}</span>
-    </div>
+    </label>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 interface Props {
   value?: string;
@@ -10,19 +10,46 @@ export default function SignaturePad({ value, onChange }: Props) {
   const drawing = useRef(false);
   const [hasSignature, setHasSignature] = useState(!!value);
 
+  // Kept in sync via effect below rather than read directly, so the resize
+  // handler (attached once) always redraws whatever's actually on the pad
+  // instead of a stale value captured at mount.
+  const valueRef = useRef(value);
   useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  // Sizes the canvas's actual pixel buffer to match its rendered CSS size
+  // (times devicePixelRatio, for crisp lines on high-DPI phone screens)
+  // rather than a fixed 480x160 buffer that CSS then stretches or squashes
+  // to fit -- a canvas's width/height attributes set its own coordinate
+  // system independent of its rendered size, so on a narrower mobile
+  // viewport the old fixed buffer left both the drawn signature and the
+  // touch coordinates mismatched with where the finger actually was.
+  function resize() {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
     ctx.strokeStyle = '#1f2933';
-    if (value) {
+    const current = valueRef.current;
+    if (current) {
       const img = new Image();
-      img.onload = () => ctx.drawImage(img, 0, 0);
-      img.src = value;
+      img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height);
+      img.src = current;
     }
+  }
+
+  useLayoutEffect(() => {
+    resize();
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getPos = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -66,8 +93,6 @@ export default function SignaturePad({ value, onChange }: Props) {
     <div className="signature-pad">
       <canvas
         ref={canvasRef}
-        width={480}
-        height={160}
         className="signature-canvas"
         onPointerDown={start}
         onPointerMove={move}

@@ -138,6 +138,41 @@ pattern on a much smaller scale: it fetches `GET /settings/vet-authorisation` (p
 this time rather than HTML) on mount, staff-editable as a plain textarea in Settings → Business
 Info (below Terms and Conditions), same hardcoded-string fallback if unset or the fetch fails.
 
+## Mobile
+
+Most customers fill this in on a phone, so the layout is mobile-first rather than a desktop form
+that happens to shrink: `index.html`'s viewport meta tag, `.card`/`.brand-header`/`.progress`
+capping at `max-width: 640px` (so it's just 100% of the viewport on a phone rather than a fixed
+desktop width), and `.grid-2` (the two-column field rows used throughout the step components)
+collapsing to one column under 480px via a media query in `index.css`.
+
+`SignaturePad.tsx`'s canvas is the one place this needed real work rather than just falling out of
+the layout being relative-sized. A `<canvas>`'s `width`/`height` attributes set its own internal
+drawing coordinate system, independent of whatever size it's actually rendered at — the canvas used
+to have those fixed at `480x160` regardless of viewport, so on a narrower phone screen the CSS
+(`width: 100%; height: 160px`) squashed that 480-wide coordinate system into a smaller box, and
+`getPos()`'s `clientX/clientY` (already correctly in CSS-pixel terms) ended up drawing into the
+wrong part of that squashed buffer — signatures came out visibly distorted and misaligned from
+where the finger actually was. `resize()` now measures the canvas's actual rendered
+`getBoundingClientRect()` on mount (and again on `window`'s `resize` event, e.g. an orientation
+change) and sets `canvas.width`/`height` to that size times `devicePixelRatio` (for crisp lines on
+high-DPI phone screens), then `ctx.scale(dpr, dpr)`s the context so drawing calls can keep using
+plain CSS-pixel coordinates — which `getPos()` already produced, so it needed no changes itself.
+Setting `canvas.width`/`height` clears the canvas and resets the context's transform as a
+side-effect (per the Canvas spec), which is what keeps repeated `resize()` calls (e.g. two
+orientation changes in a row) from compounding the scale instead of replacing it. A `valueRef`
+(kept current via a separate effect) is what `resize()` redraws from on a resize, rather than the
+`value` prop directly, so a `window.resize` listener attached once on mount doesn't redraw a stale
+signature captured at that first render.
+
+Two tap-target fixes alongside it: `.btn-link` (the "Clear"/"Remove" text links next to the
+signature pad and photo upload) gained real padding with a matching negative margin, widening the
+actual hit area well past the visible underlined text without shifting any surrounding layout.
+`ToggleField` (`fields.tsx`) — the switch used for "Same as client"/"Vaccinated"/"Keys provided" —
+now wraps its whole row (switch *and* label text) in one `<label>` instead of just the 44×24px
+switch itself, so tapping the words toggles it too, standard behaviour for a labelled switch and a
+much bigger target than the switch alone.
+
 ## Notes
 
 - No authentication — anyone with a lead link (or the bare form URL) can submit. Access control
