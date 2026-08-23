@@ -1204,6 +1204,7 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
   const [forms, setForms] = useState<FormRecord[]>([]);
   const [pickedFormId, setPickedFormId] = useState('');
   const [sendingForm, setSendingForm] = useState<FormRecord | null>(null);
+  const [resendChoice, setResendChoice] = useState<FormSubmissionRecord | null>(null);
   const [resending, setResending] = useState<FormSubmissionRecord | null>(null);
   const [editing, setEditing] = useState<FormSubmissionRecord | null>(null);
   const [deleting, setDeleting] = useState<FormSubmissionRecord | null>(null);
@@ -1307,13 +1308,9 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
                 <td onClick={(e) => e.stopPropagation()}>
                   <ActionsMenu
                     items={[
-                      ...(s.status === 'pending'
-                        ? [
-                            { label: 'Resend', onClick: () => setResending(s) },
-                            { label: 'Edit', onClick: () => setEditing(s) },
-                          ]
-                        : []),
-                      { label: 'Delete', onClick: () => setDeleting(s), danger: true, dividerBefore: s.status === 'pending' },
+                      { label: 'Resend', onClick: () => setResendChoice(s) },
+                      { label: 'Edit', onClick: () => setEditing(s) },
+                      { label: 'Delete', onClick: () => setDeleting(s), danger: true, dividerBefore: true },
                     ]}
                   />
                 </td>
@@ -1334,6 +1331,48 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
             refresh();
           }}
         />
+      )}
+      {resendChoice && (
+        <Modal title={`Resend "${resendChoice.formName}"`} onClose={() => setResendChoice(null)}>
+          <p style={{ color: 'var(--muted)' }}>
+            Resend the same link (it still shows their existing answers/status if already filled
+            in), or send a brand-new one so they can fill the form in again.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6, marginBottom: 22 }}>
+            <button
+              className="btn btn-secondary"
+              style={{ justifyContent: 'flex-start' }}
+              onClick={() => {
+                setResending(resendChoice);
+                setResendChoice(null);
+              }}
+            >
+              Resend the existing link
+            </button>
+            <button
+              className="btn btn-secondary"
+              style={{ justifyContent: 'flex-start' }}
+              disabled={!forms.some((f) => f._id === resendChoice.form)}
+              onClick={() => {
+                setSendingForm(formFor(resendChoice));
+                setResendChoice(null);
+              }}
+            >
+              Send a new link
+            </button>
+            {!forms.some((f) => f._id === resendChoice.form) && (
+              <div style={{ color: 'var(--muted)', fontSize: '0.8rem', marginTop: -4 }}>
+                The original "{resendChoice.formName}" form has since been deleted, so only the
+                existing link can be resent.
+              </div>
+            )}
+          </div>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setResendChoice(null)}>
+              Cancel
+            </button>
+          </div>
+        </Modal>
       )}
       {resending && (
         <SendFormModal

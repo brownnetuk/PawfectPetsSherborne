@@ -94,19 +94,15 @@ export class FormSubmissionsService {
     }).save();
   }
 
-  // Staff fixing a typo'd recipient before resending, or similar -- rejected
-  // once completed since the answers (and any Customer/Animal they created)
-  // are already real, submitted data at that point, not a draft.
+  // Staff fixing a typo'd recipient, or correcting who a record shows as sent
+  // to after the fact -- allowed regardless of status, since this only ever
+  // touches the recipient name/email on file, never the submitted answers or
+  // whatever Customer/Animal a completed submission already created.
   async update(
     id: string,
     dto: UpdateFormSubmissionDto,
   ): Promise<FormSubmission> {
     const submission = await this.findOne(id);
-    if (submission.status === FormSubmissionStatus.COMPLETED) {
-      throw new BadRequestException(
-        "Can't edit a submission that's already been filled in.",
-      );
-    }
     if (dto.recipientName !== undefined)
       submission.recipientName = dto.recipientName;
     if (dto.recipientEmail !== undefined)
