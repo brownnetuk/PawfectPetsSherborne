@@ -1439,10 +1439,10 @@ function TemplatePreviewModal({
 function InvoicesSettingsTab() {
   return (
     <div>
-      <InvoiceTermsCard />
-      <BankDetailsCard />
       <ProductsCard />
       <PdfTemplateDesigner />
+      <InvoiceTermsCard />
+      <BankDetailsCard />
     </div>
   );
 }

@@ -176,7 +176,7 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   **Actions** dropdown
   (`ActionsMenu`, closes on an outside click or after picking an item): **View** renders the
   invoice/quote as a PDF (`buildInvoicePdf()`, `admin/src/pdf/invoicePdf.ts`). The rendered layout
-  comes from the staff-designed template at Settings → Invoices → "PDF Template" (see below) if
+  comes from the staff-designed template at Settings → Invoices → "Invoice Template" (see below) if
   one's been saved, else a built-in default matching a standard invoice layout (logo/business
   details top-left, Invoice#/Balance Due top-right, a diagonal "Paid" stamp when an invoice's status
   is `paid`, an "Invoice To" block, an item table, Sub Total/Total/Payment Made/Balance Due, Notes,
@@ -506,21 +506,7 @@ since there's only ever this one placeholder.
   `stripConditionals`, also in that shared file, are a hand-kept copy of the backend's (see
   `backend/README.md`), so what's previewed matches what's actually sent.
   **Invoices** holds four
-  cards, in this order: **Invoice Terms**, a small library of reusable free-text terms with add/edit/delete
-  (`/invoice-terms`), each with a **Plus Days** column — how many days after the issue date the
-  term's due date falls, or a fixed "End of the month" checkbox instead (always the last working
-  day, Mon–Fri, of the issue date's month — a fixed day-count doesn't make sense when months have
-  different lengths). Terms back the "Terms" dropdown on the invoice/quote `DocumentFormModal`
-  (Invoices & Quotes page — see above): picking one copies the chosen term's text onto the
-  invoice/quote as `paymentTerms` at creation time rather than referencing the `InvoiceTerm` (so an
-  issued invoice/quote can't retroactively change if the library entry is edited later), and
-  auto-fills Due Date/Valid Until from `calculateDueDate()` (issue date + Plus Days, or the
-  end-of-month rule) — staff can still edit that date afterward; it only recalculates in response
-  to staff actually changing the Terms dropdown or Issue date, not on initial load. **Bank Details** (Bank Name, Sort
-  Code, Account Number) is its own independent-save form on the same three `BusinessInfo` fields
-  Business Info's "Terms and Conditions" card also draws from, just surfaced here instead since
-  it's invoice-specific, not general business branding — shown to customers on invoices so they
-  know where to send payment; not encrypted, since it's meant to be disclosed. **Products**, a
+  cards, in this order: **Products**, a
   reusable catalog (`/products` — Product Code, Name, Description, Price) for invoice/quote line
   items, now also supports edit, not just add/delete. Its column headers are sortable — click one
   to sort ascending, click again for descending; the `SortIcon` on each header shows which column
@@ -529,7 +515,8 @@ since there's only ever this one placeholder.
   reuse it. Both `InvoiceTermsCard` and `ProductsCard` share one "New"/"Edit" modal component
   (taking an optional existing record) rather than separate Add and Edit components.
 
-  **PDF Template** (`PdfTemplateDesigner`, `admin/src/components/PdfTemplateDesigner.tsx`) is a
+  **Invoice Template** (`PdfTemplateDesigner`, `admin/src/components/PdfTemplateDesigner.tsx`,
+  named for the invoice/quote PDF it designs) is a
   freeform drag-and-drop canvas editor for the invoice/quote PDF the Invoices & Quotes page's
   "View" action renders (see above) — an A4-proportioned canvas (595.28×841.89pt, scaled to fit)
   where every block (text, the logo, a line, a rectangle, a QR code, or the line-item table) is an
@@ -575,6 +562,23 @@ since there's only ever this one placeholder.
   (`invoicePdfTemplate` on `BusinessInfo`, see `backend/README.md`); **Reset to Default** restores
   `DEFAULT_INVOICE_TEMPLATE` (the same layout the renderer falls back to when nothing's been saved
   yet, so there's one source of truth for "default" rather than two).
+
+  **Invoice Terms**, a small library of reusable free-text terms with add/edit/delete
+  (`/invoice-terms`), each with a **Plus Days** column — how many days after the issue date the
+  term's due date falls, or a fixed "End of the month" checkbox instead (always the last working
+  day, Mon–Fri, of the issue date's month — a fixed day-count doesn't make sense when months have
+  different lengths). Terms back the "Terms" dropdown on the invoice/quote `DocumentFormModal`
+  (Invoices & Quotes page — see above): picking one copies the chosen term's text onto the
+  invoice/quote as `paymentTerms` at creation time rather than referencing the `InvoiceTerm` (so an
+  issued invoice/quote can't retroactively change if the library entry is edited later), and
+  auto-fills Due Date/Valid Until from `calculateDueDate()` (issue date + Plus Days, or the
+  end-of-month rule) — staff can still edit that date afterward; it only recalculates in response
+  to staff actually changing the Terms dropdown or Issue date, not on initial load. **Bank Details**
+  (Bank Name, Sort Code, Account Number) is its own independent-save form on the same three
+  `BusinessInfo` fields Business Info's "Terms and Conditions" card also draws from, just surfaced
+  here instead since it's invoice-specific, not general business branding — shown to customers on
+  invoices so they know where to send payment; not encrypted, since it's meant to be disclosed.
+
   **Finance** has three `NamedListCard` (`admin/src/components/NamedListCard.tsx`)-built lists:
   **Payment Methods** (`/payment-methods` — e.g. "Bank Transfer", "Cash", "Card"), feeding the
   Payment Method dropdown in `RecordPaymentModal`/`AddPaymentModal`; **Expense Categories**

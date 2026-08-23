@@ -320,7 +320,7 @@ export default function PdfTemplateDesigner() {
   if (!businessInfo) {
     return (
       <div className="card">
-        <h2>PDF Template</h2>
+        <h2>Invoice Template</h2>
         {error ? <div className="error-banner">{error}</div> : <div className="empty-state">Loading…</div>}
       </div>
     );
@@ -330,7 +330,7 @@ export default function PdfTemplateDesigner() {
     <div className="card" style={{ maxWidth: 'none' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <h2>PDF Template</h2>
+          <h2>Invoice Template</h2>
           <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
             Drag, resize, add, and remove blocks to design the invoice/quote PDF shown by the "View" action.
             Shift+click to select more than one, then Group them to move as one from now on. A block whose real
