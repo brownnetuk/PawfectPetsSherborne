@@ -19,6 +19,9 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
   const [name, setName] = useState(animal.name);
   const [sex, setSex] = useState<Sex>(animal.sex);
   const [age, setAge] = useState(String(animal.age));
+  const [dateOfBirth, setDateOfBirth] = useState(
+    animal.dateOfBirth ? animal.dateOfBirth.slice(0, 10) : '',
+  );
   const [vaccinated, setVaccinated] = useState(animal.vaccinated);
   const [vaccineExpiryDate, setVaccineExpiryDate] = useState(
     animal.vaccineExpiryDate ? animal.vaccineExpiryDate.slice(0, 10) : '',
@@ -107,6 +110,7 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
         name,
         sex,
         age: Number(age),
+        dateOfBirth: dateOfBirth || undefined,
         vaccinated,
         vaccineExpiryDate: vaccinated ? vaccineExpiryDate : undefined,
         // Sent as-is, including empty -- unlike the plain-string fields below,
@@ -172,6 +176,12 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
             <label>Age</label>
             <input type="number" min="0" value={age} onChange={(e) => setAge(e.target.value)} required />
           </div>
+          <div className="field">
+            <label>Date of birth</label>
+            <input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} />
+          </div>
+        </div>
+        <div className="field-row">
           <div className="field">
             <label>Microchip number</label>
             <input type="text" value={microchipNumber} onChange={(e) => setMicrochipNumber(e.target.value)} />

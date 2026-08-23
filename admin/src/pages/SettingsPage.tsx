@@ -87,6 +87,11 @@ function BusinessInfoTab() {
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
+  const [emergencyVetAuthorisationText, setEmergencyVetAuthorisationText] = useState('');
+  const [vetAuthSaving, setVetAuthSaving] = useState(false);
+  const [vetAuthError, setVetAuthError] = useState<string | null>(null);
+  const [vetAuthSaved, setVetAuthSaved] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -111,6 +116,7 @@ function BusinessInfoTab() {
         setTermsFile(null);
         setTermsVersion(i.termsVersion);
         setTermsDocumentDate(i.termsDocumentDate);
+        setEmergencyVetAuthorisationText(i.emergencyVetAuthorisationText);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load business info'));
   }
@@ -225,6 +231,22 @@ function BusinessInfoTab() {
       setTermsError(err instanceof Error ? err.message : 'Failed to save terms and conditions');
     } finally {
       setTermsSaving(false);
+    }
+  }
+
+  async function handleSaveVetAuth(e: React.FormEvent) {
+    e.preventDefault();
+    setVetAuthSaving(true);
+    setVetAuthError(null);
+    setVetAuthSaved(false);
+    try {
+      await api.updateBusinessInfo({ emergencyVetAuthorisationText });
+      setVetAuthSaved(true);
+      refresh();
+    } catch (err) {
+      setVetAuthError(err instanceof Error ? err.message : 'Failed to save this wording');
+    } finally {
+      setVetAuthSaving(false);
     }
   }
 
@@ -381,6 +403,33 @@ function BusinessInfoTab() {
         {previewHtml !== null && (
           <TermsPreviewModal html={previewHtml} onClose={() => setPreviewHtml(null)} />
         )}
+      </div>
+
+      <div className="card">
+        <h2>Alternative Vet Care Authorisation</h2>
+        <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+          Shown to customers on the intake form's Emergency Vet step, above the typed-name and
+          signature fields.
+        </p>
+        {vetAuthError && <div className="error-banner">{vetAuthError}</div>}
+        <form onSubmit={handleSaveVetAuth}>
+          <div className="field">
+            <label>Authorisation wording</label>
+            <textarea
+              value={emergencyVetAuthorisationText}
+              onChange={(e) => setEmergencyVetAuthorisationText(e.target.value)}
+              rows={4}
+            />
+          </div>
+          <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+            <button className="btn btn-primary" type="submit" disabled={vetAuthSaving}>
+              {vetAuthSaving ? 'Saving…' : 'Save changes'}
+            </button>
+            {vetAuthSaved && (
+              <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
+            )}
+          </div>
+        </form>
       </div>
 
       <DocumentNumberingCard />

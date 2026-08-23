@@ -28,6 +28,8 @@ export default function ViewAnimalModal({ animal, onClose }: Props) {
                 <dd style={{ textTransform: 'capitalize' }}>{animal.sex}</dd>
                 <dt>Age</dt>
                 <dd>{animal.age}</dd>
+                <dt>Date of birth</dt>
+                <dd>{animal.dateOfBirth ? new Date(animal.dateOfBirth).toLocaleDateString('en-GB') : '—'}</dd>
                 <dt>Vaccinated</dt>
                 <dd>
                   {animal.vaccinated

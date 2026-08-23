@@ -60,6 +60,10 @@ export class UpdateBusinessInfoDto {
 
   @IsOptional()
   @IsString()
+  emergencyVetAuthorisationText?: string;
+
+  @IsOptional()
+  @IsString()
   bankName?: string;
 
   @IsOptional()

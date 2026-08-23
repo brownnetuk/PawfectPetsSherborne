@@ -26,6 +26,7 @@ function emptyPet(): PetDetails {
     name: '',
     sex: '',
     age: '',
+    dateOfBirth: '',
     vaccinated: null,
     vaccineExpiryDate: '',
     photos: [],
@@ -52,6 +53,7 @@ function petFromRecord(a: AnimalRecord): PetDetails {
     name: a.name,
     sex: a.sex,
     age: String(a.age),
+    dateOfBirth: a.dateOfBirth ? a.dateOfBirth.slice(0, 10) : '',
     vaccinated: a.vaccinated,
     vaccineExpiryDate: a.vaccineExpiryDate ? a.vaccineExpiryDate.slice(0, 10) : '',
     photos: a.photos ?? [],
@@ -208,6 +210,7 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
       if (!v.practiceName || !v.address1 || !v.town || !v.postcode || !v.telephone)
         return 'Please fill in all required fields.';
       if (!v.authorisation?.signedName) return 'Please sign to authorise alternative vet care.';
+      if (!v.authorisation?.signatureImage) return 'Please draw your signature to authorise alternative vet care.';
     }
     const petIndex = petIndexForStep(step);
     if (petIndex !== null) {
@@ -238,6 +241,7 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
     }
     if (step === agreementStepIndex) {
       if (!state.agreement.signedName) return 'Please type your name to sign.';
+      if (!state.agreement.signatureImage) return 'Please draw your signature to sign.';
     }
     return null;
   }

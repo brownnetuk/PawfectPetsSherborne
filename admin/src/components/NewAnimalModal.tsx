@@ -19,6 +19,7 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
   const [name, setName] = useState('');
   const [sex, setSex] = useState<Sex>('male');
   const [age, setAge] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [vaccinated, setVaccinated] = useState(false);
   const [vaccineExpiryDate, setVaccineExpiryDate] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
@@ -94,6 +95,7 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
         name,
         sex,
         age: Number(age),
+        dateOfBirth: dateOfBirth || undefined,
         vaccinated,
         vaccineExpiryDate: vaccinated ? vaccineExpiryDate : undefined,
         photos: photos.length ? photos : undefined,
@@ -160,6 +162,12 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
             <label>Age</label>
             <input type="number" min="0" value={age} onChange={(e) => setAge(e.target.value)} required />
           </div>
+          <div className="field">
+            <label>Date of birth</label>
+            <input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} />
+          </div>
+        </div>
+        <div className="field-row">
           <div className="field">
             <label>Microchip number</label>
             <input type="text" value={microchipNumber} onChange={(e) => setMicrochipNumber(e.target.value)} />

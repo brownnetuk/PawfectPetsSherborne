@@ -62,7 +62,12 @@ const OffLeadConsentSchema = SchemaFactory.createForClass(OffLeadConsent);
 
 @Schema({ timestamps: true })
 export class Animal extends Document {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Customer.name, required: true, index: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: Customer.name,
+    required: true,
+    index: true,
+  })
   customer: Types.ObjectId;
 
   @Prop({ type: String, enum: Species, required: true })
@@ -79,6 +84,12 @@ export class Animal extends Document {
 
   @Prop({ required: true, min: 0 })
   age: number;
+
+  // Optional, alongside age rather than replacing it -- staff/customers may
+  // not always know an exact birth date (e.g. a rescue), so age stays the
+  // one required field.
+  @Prop()
+  dateOfBirth?: Date;
 
   @Prop({ required: true })
   vaccinated: boolean;

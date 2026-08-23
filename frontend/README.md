@@ -102,13 +102,17 @@ file. Adding a pet this way should never risk their other data.
 1. Welcome (pre-filled name)
 2. Client details
 3. Emergency contact (`sameAsClient` toggle hides name/address; at least one phone required)
-4. Emergency vet (+ alternative-care authorisation acknowledgment)
+4. Emergency vet (+ alternative-care authorisation acknowledgment — typed name and drawn
+   signature both required; see "Terms and conditions" below for the authorisation wording itself)
 5. Pet count (1–6)
 6. Pet details — **repeats once per animal**, and folds in off-lead consent (spec screen 7) as
-   part of the same step for dogs only, since consent belongs to that specific animal
+   part of the same step for dogs only, since consent belongs to that specific animal. Age
+   (required, whole years) sits alongside an optional Date of birth field — kept as two separate
+   fields rather than replacing one with the other, since not every customer knows an exact birth
+   date (e.g. a rescue) but everyone can give an age
 7. Security arrangements (alarm instructions are sent to the backend, which encrypts them at rest)
-8. Client agreement — scrollable terms (see below), typed signature (required) + optional
-   signature pad, auto-filled date, submit
+8. Client agreement — scrollable terms (see below), typed signature + drawn signature (both
+   required), auto-filled date, submit
 
 The progress bar recomputes its total step count from the number of pets entered. Each step
 validates client-side before advancing; the final submit calls `PATCH/POST /customers` followed
@@ -123,6 +127,11 @@ last uploaded as a `.docx` in the admin app's Settings → Business Info — the
 has been uploaded yet (or the fetch fails, e.g. backend unreachable), the component falls back to
 its own hardcoded terms text baked into the component itself, so the agreement step is never
 blank.
+
+`EmergencyVetStep.tsx`'s "Alternative vet care authorisation" sentence follows the identical
+pattern on a much smaller scale: it fetches `GET /settings/vet-authorisation` (public, plain text
+this time rather than HTML) on mount, staff-editable as a plain textarea in Settings → Business
+Info (below Terms and Conditions), same hardcoded-string fallback if unset or the fetch fails.
 
 ## Notes
 

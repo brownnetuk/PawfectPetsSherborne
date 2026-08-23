@@ -1,6 +1,11 @@
+import { useEffect, useState } from 'react';
+import * as api from '../../api/client';
 import SignaturePad from '../SignaturePad';
 import { TextField } from '../fields';
 import type { EmergencyVetData } from '../../types';
+
+const DEFAULT_AUTHORISATION_TEXT =
+  'I authorise PawfectPets Sherborne to arrange alternative veterinary care for my pet if my usual vet is unobtainable in an emergency.';
 
 interface Props {
   value: EmergencyVetData;
@@ -22,6 +27,16 @@ export default function EmergencyVetStep({ value, onChange }: Props) {
       ...value,
       authorisation: { signedName: '', ...value.authorisation, ...v },
     });
+
+  // Staff can edit this wording (Settings > Business Info); falls back to the
+  // text below if none has been set yet, or the fetch fails.
+  const [authorisationText, setAuthorisationText] = useState(DEFAULT_AUTHORISATION_TEXT);
+  useEffect(() => {
+    api
+      .fetchVetAuthorisationText()
+      .then((r) => setAuthorisationText(r.text || DEFAULT_AUTHORISATION_TEXT))
+      .catch(() => setAuthorisationText(DEFAULT_AUTHORISATION_TEXT));
+  }, []);
 
   return (
     <div>
@@ -68,10 +83,7 @@ export default function EmergencyVetStep({ value, onChange }: Props) {
       <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
         <h2 style={{ fontSize: '1.15rem' }}>Alternative vet care authorisation</h2>
         <div className="terms-box">
-          <p>
-            I authorise PawfectPets Sherborne to arrange alternative veterinary care for my pet
-            if my usual vet is unobtainable in an emergency.
-          </p>
+          <p>{authorisationText}</p>
         </div>
         <TextField
           label="Typed signature (full name)"
@@ -81,7 +93,9 @@ export default function EmergencyVetStep({ value, onChange }: Props) {
           hint="Your typed name plus today's date acts as your signature."
         />
         <div className="field">
-          <label>Or sign with your mouse or finger (optional)</label>
+          <label>
+            Or sign with your mouse or finger <span className="required">*</span>
+          </label>
           <SignaturePad
             value={value.authorisation?.signatureImage}
             onChange={(sig) => setAuth({ signatureImage: sig })}

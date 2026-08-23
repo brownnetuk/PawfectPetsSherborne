@@ -29,6 +29,7 @@ export interface AnimalRecord {
   name: string;
   sex: Sex;
   age: number;
+  dateOfBirth?: string;
   vaccinated: boolean;
   vaccineExpiryDate?: string;
   photos?: string[];
@@ -126,6 +127,7 @@ export interface PetDetails {
   name: string;
   sex: Sex | '';
   age: string;
+  dateOfBirth?: string;
   vaccinated: boolean | null;
   vaccineExpiryDate?: string;
   photos?: string[];

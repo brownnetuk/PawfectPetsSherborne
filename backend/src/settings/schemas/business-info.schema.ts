@@ -57,6 +57,14 @@ export class BusinessInfo extends Document {
   @Prop()
   termsDocumentDate?: string;
 
+  // Shown on the public intake form's "Alternative vet care authorisation" step,
+  // above the typed-name/signature fields -- staff-editable so the wording can
+  // be changed without a code deploy. Falls back to a sensible default in
+  // getBusinessInfo() below rather than being required, so this never blocks
+  // the intake form if it's never been touched.
+  @Prop()
+  emergencyVetAuthorisationText?: string;
+
   // Shown to customers on invoices so they know where to send payment --
   // not secret (it's meant to be disclosed), so no encryption, same as the
   // rest of the business's contact details above.

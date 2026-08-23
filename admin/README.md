@@ -70,7 +70,11 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   renders the customer's signature image alongside them), pets, bookings, invoices, Notes (the
   manually-authored `CrmActivity` log, see below), and Activity (an automatic audit trail, see
   below), plus per-customer booking/invoice/note creation. "Edit" on the overview covers
-  client/emergency/vet/security fields; "Edit" on a pet row covers its full profile. A pet row also
+  client/emergency/vet/security fields; "Edit" on a pet row covers its full profile, including an
+  optional **Date of birth** alongside the existing required **Age** (in whole years) — kept as two
+  separate fields rather than one replacing the other, since not everyone knows an exact birth date
+  (e.g. a rescue) but everyone can give an age; shown in `ViewAnimalModal` and the customer PDF
+  export too. A pet row also
   has a "Delete" action, matching the confirm-modal pattern the Bookings tab already uses —
   blocked with the backend's existing message if the pet is on any booking. New/Edit pet and
   "View" (`ViewAnimalModal`) all support up to 2 optional photos — a file upload (each capped at
@@ -371,6 +375,12 @@ are currently uploaded, saveable on their own without re-uploading the `.docx` (
 only includes `termsFile`/`termsFileName` in the PATCH when a new file was actually chosen). The
 backend snapshots both onto a customer's `agreement` the moment they sign, so a customer's own
 page always shows which revision they agreed to — see `backend/README.md`'s "Settings" section.
+**Alternative Vet Care Authorisation**, below Terms and Conditions, is a single plain `<textarea>`
+bound directly to `BusinessInfo.emergencyVetAuthorisationText` — much smaller than the Terms card
+since there's no file upload involved, just the one sentence shown on the intake form's Emergency
+Vet step above its typed-name/signature fields (`GET /settings/vet-authorisation`, public — see
+`frontend/README.md`). Falls back to the original hardcoded wording server-side if never set, so
+this card is never required setup, just an optional override.
 **Document Numbering**, below Terms and
   Conditions, is an independent-save form for
   `invoiceNumberTemplate`/`invoiceNextNumber`/`quoteNumberTemplate`/`quoteNextNumber`/

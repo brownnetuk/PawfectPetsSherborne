@@ -23,8 +23,9 @@ import { EmailTrigger } from './schemas/email-template.schema';
 import { SettingsService } from './settings.service';
 
 // Staff-only by default (the global JWT guard), same as the rest of settings --
-// the one exception is GET /settings/terms below, which the public intake form
-// needs in order to show the business's terms and conditions on its agreement step.
+// the exceptions are GET /settings/terms and GET /settings/vet-authorisation
+// below, which the public intake form needs in order to show the business's
+// terms and conditions / vet-authorisation wording on its own steps.
 @Controller('settings')
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
@@ -46,7 +47,10 @@ export class SettingsController {
   @Get('business/logo')
   async getLogo(@Res({ passthrough: true }) res: Response) {
     const { buffer, contentType } = await this.settingsService.getLogoFile();
-    res.set({ 'Content-Type': contentType, 'Cache-Control': 'public, max-age=3600' });
+    res.set({
+      'Content-Type': contentType,
+      'Cache-Control': 'public, max-age=3600',
+    });
     return new StreamableFile(buffer);
   }
 
@@ -61,11 +65,18 @@ export class SettingsController {
     return this.settingsService.getTermsHtml();
   }
 
+  @Public()
+  @Get('vet-authorisation')
+  getVetAuthorisationText() {
+    return this.settingsService.getVetAuthorisationText();
+  }
+
   @Get('terms/download')
   async downloadTerms(@Res({ passthrough: true }) res: Response) {
     const file = await this.settingsService.getTermsFile();
     res.set({
-      'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'Content-Type':
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'Content-Disposition': `attachment; filename="${file.fileName}"`,
     });
     return new StreamableFile(file.buffer);
@@ -105,7 +116,9 @@ export class SettingsController {
   }
 
   @Delete('email-templates/:trigger')
-  deleteEmailTemplate(@Param('trigger', new ParseEnumPipe(EmailTrigger)) trigger: EmailTrigger) {
+  deleteEmailTemplate(
+    @Param('trigger', new ParseEnumPipe(EmailTrigger)) trigger: EmailTrigger,
+  ) {
     return this.settingsService.deleteEmailTemplate(trigger);
   }
 }

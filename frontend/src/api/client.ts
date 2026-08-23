@@ -26,6 +26,10 @@ export function fetchTerms(): Promise<{ html: string }> {
   return request('/settings/terms');
 }
 
+export function fetchVetAuthorisationText(): Promise<{ text: string }> {
+  return request('/settings/vet-authorisation');
+}
+
 export function fetchAnimalsForCustomer(customerId: string): Promise<AnimalRecord[]> {
   return request(`/animals/for-customer/${customerId}`);
 }
@@ -69,6 +73,7 @@ function animalPayload(pet: PetDetails) {
     name: pet.name,
     sex: pet.sex,
     age: Number(pet.age),
+    dateOfBirth: pet.dateOfBirth || undefined,
     vaccinated: pet.vaccinated,
     vaccineExpiryDate: pet.vaccinated ? pet.vaccineExpiryDate : undefined,
     // Sent as-is, including empty -- for updateAnimal() specifically, omitting

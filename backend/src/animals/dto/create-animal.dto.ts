@@ -68,6 +68,10 @@ export class CreateAnimalDto {
   @Min(0)
   age: number;
 
+  @IsOptional()
+  @IsDateString()
+  dateOfBirth?: string;
+
   @IsBoolean()
   vaccinated: boolean;
 

@@ -74,6 +74,12 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
           required
         />
       </div>
+      <TextField
+        label="Date of birth"
+        type="date"
+        value={value.dateOfBirth ?? ''}
+        onChange={(v) => set('dateOfBirth', v)}
+      />
 
       <ToggleField
         label="Vaccinated"

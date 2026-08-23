@@ -82,6 +82,7 @@ export interface Animal {
   name: string;
   sex: Sex;
   age: number;
+  dateOfBirth?: string;
   vaccinated: boolean;
   vaccineExpiryDate?: string;
   photos?: string[];
@@ -345,6 +346,7 @@ export interface BusinessInfo {
   termsFileName: string;
   termsVersion: string;
   termsDocumentDate: string;
+  emergencyVetAuthorisationText: string;
   bankName: string;
   sortCode: string;
   accountNumber: string;

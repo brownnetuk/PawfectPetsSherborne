@@ -394,6 +394,11 @@ export async function buildCustomerFormPdf(
       fieldBlock(doc, 'Age', String(animal.age)),
       fieldBlock(
         doc,
+        'Date of birth',
+        animal.dateOfBirth ? new Date(animal.dateOfBirth).toLocaleDateString('en-GB') : '',
+      ),
+      fieldBlock(
+        doc,
         'Vaccinated',
         animal.vaccinated
           ? `Yes (expires ${animal.vaccineExpiryDate ? new Date(animal.vaccineExpiryDate).toLocaleDateString('en-GB') : 'unknown'})`

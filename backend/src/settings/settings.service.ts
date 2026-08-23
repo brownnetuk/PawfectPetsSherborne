@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as mammoth from 'mammoth';
 import { Model } from 'mongoose';
@@ -15,12 +19,21 @@ import { BusinessInfo } from './schemas/business-info.schema';
 import { EmailSettings } from './schemas/email-settings.schema';
 import { EmailTemplate, EmailTrigger } from './schemas/email-template.schema';
 
+// The original hardcoded copy on the intake form's "Alternative vet care
+// authorisation" step, kept as the fallback so an unconfigured BusinessInfo
+// document doesn't leave that step with blank text.
+const DEFAULT_EMERGENCY_VET_AUTHORISATION_TEXT =
+  'I authorise PawfectPets Sherborne to arrange alternative veterinary care for my pet if my usual vet is unobtainable in an emergency.';
+
 @Injectable()
 export class SettingsService {
   constructor(
-    @InjectModel(BusinessInfo.name) private readonly businessInfoModel: Model<BusinessInfo>,
-    @InjectModel(EmailSettings.name) private readonly emailSettingsModel: Model<EmailSettings>,
-    @InjectModel(EmailTemplate.name) private readonly emailTemplateModel: Model<EmailTemplate>,
+    @InjectModel(BusinessInfo.name)
+    private readonly businessInfoModel: Model<BusinessInfo>,
+    @InjectModel(EmailSettings.name)
+    private readonly emailSettingsModel: Model<EmailSettings>,
+    @InjectModel(EmailTemplate.name)
+    private readonly emailTemplateModel: Model<EmailTemplate>,
     private readonly encryptionService: EncryptionService,
   ) {}
 
@@ -39,6 +52,9 @@ export class SettingsService {
       termsFileName: doc?.termsFileName ?? '',
       termsVersion: doc?.termsVersion ?? '',
       termsDocumentDate: doc?.termsDocumentDate ?? '',
+      emergencyVetAuthorisationText:
+        doc?.emergencyVetAuthorisationText ??
+        DEFAULT_EMERGENCY_VET_AUTHORISATION_TEXT,
       bankName: doc?.bankName ?? '',
       sortCode: doc?.sortCode ?? '',
       accountNumber: doc?.accountNumber ?? '',
@@ -48,7 +64,8 @@ export class SettingsService {
       quoteNextNumber: doc?.quoteNextNumber ?? 1,
       paymentNumberTemplate: doc?.paymentNumberTemplate ?? 'PAY-{year}-{seq}',
       paymentNextNumber: doc?.paymentNextNumber ?? 1,
-      creditNoteNumberTemplate: doc?.creditNoteNumberTemplate ?? 'CN-{year}-{seq}',
+      creditNoteNumberTemplate:
+        doc?.creditNoteNumberTemplate ?? 'CN-{year}-{seq}',
       creditNoteNextNumber: doc?.creditNoteNextNumber ?? 1,
       invoicePdfTemplate: doc?.invoicePdfTemplate ?? [],
     };
@@ -76,20 +93,35 @@ export class SettingsService {
       }
     }
     if (dto.termsVersion !== undefined) update.termsVersion = dto.termsVersion;
-    if (dto.termsDocumentDate !== undefined) update.termsDocumentDate = dto.termsDocumentDate;
+    if (dto.termsDocumentDate !== undefined)
+      update.termsDocumentDate = dto.termsDocumentDate;
+    if (dto.emergencyVetAuthorisationText !== undefined)
+      update.emergencyVetAuthorisationText = dto.emergencyVetAuthorisationText;
     if (dto.bankName !== undefined) update.bankName = dto.bankName;
     if (dto.sortCode !== undefined) update.sortCode = dto.sortCode;
-    if (dto.accountNumber !== undefined) update.accountNumber = dto.accountNumber;
-    if (dto.invoiceNumberTemplate !== undefined) update.invoiceNumberTemplate = dto.invoiceNumberTemplate;
-    if (dto.invoiceNextNumber !== undefined) update.invoiceNextNumber = dto.invoiceNextNumber;
-    if (dto.quoteNumberTemplate !== undefined) update.quoteNumberTemplate = dto.quoteNumberTemplate;
-    if (dto.quoteNextNumber !== undefined) update.quoteNextNumber = dto.quoteNextNumber;
-    if (dto.paymentNumberTemplate !== undefined) update.paymentNumberTemplate = dto.paymentNumberTemplate;
-    if (dto.paymentNextNumber !== undefined) update.paymentNextNumber = dto.paymentNextNumber;
-    if (dto.creditNoteNumberTemplate !== undefined) update.creditNoteNumberTemplate = dto.creditNoteNumberTemplate;
-    if (dto.creditNoteNextNumber !== undefined) update.creditNoteNextNumber = dto.creditNoteNextNumber;
-    if (dto.invoicePdfTemplate !== undefined) update.invoicePdfTemplate = dto.invoicePdfTemplate;
-    await this.businessInfoModel.findOneAndUpdate({}, update, { upsert: true }).exec();
+    if (dto.accountNumber !== undefined)
+      update.accountNumber = dto.accountNumber;
+    if (dto.invoiceNumberTemplate !== undefined)
+      update.invoiceNumberTemplate = dto.invoiceNumberTemplate;
+    if (dto.invoiceNextNumber !== undefined)
+      update.invoiceNextNumber = dto.invoiceNextNumber;
+    if (dto.quoteNumberTemplate !== undefined)
+      update.quoteNumberTemplate = dto.quoteNumberTemplate;
+    if (dto.quoteNextNumber !== undefined)
+      update.quoteNextNumber = dto.quoteNextNumber;
+    if (dto.paymentNumberTemplate !== undefined)
+      update.paymentNumberTemplate = dto.paymentNumberTemplate;
+    if (dto.paymentNextNumber !== undefined)
+      update.paymentNextNumber = dto.paymentNextNumber;
+    if (dto.creditNoteNumberTemplate !== undefined)
+      update.creditNoteNumberTemplate = dto.creditNoteNumberTemplate;
+    if (dto.creditNoteNextNumber !== undefined)
+      update.creditNoteNextNumber = dto.creditNoteNextNumber;
+    if (dto.invoicePdfTemplate !== undefined)
+      update.invoicePdfTemplate = dto.invoicePdfTemplate;
+    await this.businessInfoModel
+      .findOneAndUpdate({}, update, { upsert: true })
+      .exec();
     return this.getBusinessInfo();
   }
 
@@ -99,25 +131,51 @@ export class SettingsService {
 
   /** Returns just the parsed terms HTML -- the public intake form's agreement step reads this. */
   async getTermsHtml(): Promise<{ html: string }> {
-    const doc = await this.businessInfoModel.findOne().select('termsHtml').exec();
+    const doc = await this.businessInfoModel
+      .findOne()
+      .select('termsHtml')
+      .exec();
     return { html: doc?.termsHtml ?? '' };
+  }
+
+  /** Returns just the vet-authorisation text -- the public intake form's Emergency Vet step reads this. */
+  async getVetAuthorisationText(): Promise<{ text: string }> {
+    const doc = await this.businessInfoModel
+      .findOne()
+      .select('emergencyVetAuthorisationText')
+      .exec();
+    return {
+      text:
+        doc?.emergencyVetAuthorisationText ??
+        DEFAULT_EMERGENCY_VET_AUTHORISATION_TEXT,
+    };
   }
 
   /** Returns the original uploaded .docx for download -- never re-parsed, just handed back as-is. */
   async getTermsFile(): Promise<{ buffer: Buffer; fileName: string }> {
-    const doc = await this.businessInfoModel.findOne().select('termsDocx termsHtml termsFileName').exec();
+    const doc = await this.businessInfoModel
+      .findOne()
+      .select('termsDocx termsHtml termsFileName')
+      .exec();
     if (!doc?.termsDocx) {
       if (doc?.termsHtml) {
         // Terms uploaded before this feature existed only kept the parsed
         // HTML, not the original file -- there's genuinely nothing to serve.
         throw new BadRequestException(
-          'The original file for the current terms isn\'t available to download -- this can happen for terms uploaded before downloading was supported. Re-upload the file to make it downloadable.',
+          "The original file for the current terms isn't available to download -- this can happen for terms uploaded before downloading was supported. Re-upload the file to make it downloadable.",
         );
       }
-      throw new NotFoundException('No terms and conditions file has been uploaded.');
+      throw new NotFoundException(
+        'No terms and conditions file has been uploaded.',
+      );
     }
-    const base64 = doc.termsDocx.includes(',') ? doc.termsDocx.slice(doc.termsDocx.indexOf(',') + 1) : doc.termsDocx;
-    return { buffer: Buffer.from(base64, 'base64'), fileName: doc.termsFileName || 'terms.docx' };
+    const base64 = doc.termsDocx.includes(',')
+      ? doc.termsDocx.slice(doc.termsDocx.indexOf(',') + 1)
+      : doc.termsDocx;
+    return {
+      buffer: Buffer.from(base64, 'base64'),
+      fileName: doc.termsFileName || 'terms.docx',
+    };
   }
 
   /**
@@ -128,7 +186,10 @@ export class SettingsService {
    * breaks the logo despite it rendering fine in every in-app preview.
    */
   async getLogoFile(): Promise<{ buffer: Buffer; contentType: string }> {
-    const doc = await this.businessInfoModel.findOne().select('logoImage').exec();
+    const doc = await this.businessInfoModel
+      .findOne()
+      .select('logoImage')
+      .exec();
     const match = doc?.logoImage?.match(/^data:([^;]+);base64,(.+)$/s);
     if (!match) {
       throw new NotFoundException('No logo has been uploaded.');
@@ -139,18 +200,24 @@ export class SettingsService {
 
   /** Converts an uploaded .docx (base64 data URI) into HTML via mammoth. */
   private async parseTermsDocx(dataUri: string): Promise<string> {
-    const base64 = dataUri.includes(',') ? dataUri.slice(dataUri.indexOf(',') + 1) : dataUri;
+    const base64 = dataUri.includes(',')
+      ? dataUri.slice(dataUri.indexOf(',') + 1)
+      : dataUri;
     let buffer: Buffer;
     try {
       buffer = Buffer.from(base64, 'base64');
     } catch {
-      throw new BadRequestException('That doesn\'t look like a valid file upload.');
+      throw new BadRequestException(
+        "That doesn't look like a valid file upload.",
+      );
     }
     try {
       const result = await mammoth.convertToHtml({ buffer });
       return result.value;
     } catch {
-      throw new BadRequestException('Could not read that .docx file -- make sure it\'s a valid Word document.');
+      throw new BadRequestException(
+        "Could not read that .docx file -- make sure it's a valid Word document.",
+      );
     }
   }
 
@@ -174,9 +241,13 @@ export class SettingsService {
     if (dto.fromAddress !== undefined) update.fromAddress = dto.fromAddress;
     if (dto.fromName !== undefined) update.fromName = dto.fromName;
     if (dto.clientSecret) {
-      update.clientSecretEncrypted = this.encryptionService.encrypt(dto.clientSecret);
+      update.clientSecretEncrypted = this.encryptionService.encrypt(
+        dto.clientSecret,
+      );
     }
-    await this.emailSettingsModel.findOneAndUpdate({}, update, { upsert: true }).exec();
+    await this.emailSettingsModel
+      .findOneAndUpdate({}, update, { upsert: true })
+      .exec();
     return this.getEmailSettings();
   }
 
@@ -184,34 +255,53 @@ export class SettingsService {
     return this.emailTemplateModel.find().exec();
   }
 
-  async upsertEmailTemplate(trigger: EmailTrigger, dto: UpsertEmailTemplateDto) {
+  async upsertEmailTemplate(
+    trigger: EmailTrigger,
+    dto: UpsertEmailTemplateDto,
+  ) {
     return this.emailTemplateModel
-      .findOneAndUpdate({ trigger }, { trigger, ...dto }, { upsert: true, new: true })
+      .findOneAndUpdate(
+        { trigger },
+        { trigger, ...dto },
+        { upsert: true, new: true },
+      )
       .exec();
   }
 
   async deleteEmailTemplate(trigger: EmailTrigger): Promise<void> {
-    const result = await this.emailTemplateModel.findOneAndDelete({ trigger }).exec();
+    const result = await this.emailTemplateModel
+      .findOneAndDelete({ trigger })
+      .exec();
     if (!result) {
-      throw new NotFoundException(`No email template configured for "${trigger}"`);
+      throw new NotFoundException(
+        `No email template configured for "${trigger}"`,
+      );
     }
   }
 
-  private async getAccessToken(tenantId: string, clientId: string, clientSecret: string): Promise<string> {
-    const res = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        scope: 'https://graph.microsoft.com/.default',
-        grant_type: 'client_credentials',
-      }),
-    });
-    const body = await res.json().catch(() => ({}) as Record<string, unknown>);
+  private async getAccessToken(
+    tenantId: string,
+    clientId: string,
+    clientSecret: string,
+  ): Promise<string> {
+    const res = await fetch(
+      `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          scope: 'https://graph.microsoft.com/.default',
+          grant_type: 'client_credentials',
+        }),
+      },
+    );
+    const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       throw new BadRequestException(
-        (body.error_description as string) || 'Microsoft rejected the tenant ID, client ID, or client secret.',
+        (body.error_description as string) ||
+          'Microsoft rejected the tenant ID, client ID, or client secret.',
       );
     }
     return body.access_token as string;
@@ -220,9 +310,14 @@ export class SettingsService {
   /** Loads and decrypts the stored connection, failing with a clear message if it isn't fully set up yet. */
   private async getSendableSettings() {
     const doc = await this.emailSettingsModel.findOne().exec();
-    if (!doc?.tenantId || !doc.clientId || !doc.clientSecretEncrypted || !doc.fromAddress) {
+    if (
+      !doc?.tenantId ||
+      !doc.clientId ||
+      !doc.clientSecretEncrypted ||
+      !doc.fromAddress
+    ) {
       throw new BadRequestException(
-        'Email sending isn\'t set up yet -- save a tenant ID, client ID, client secret, and from address in Settings > Email first.',
+        "Email sending isn't set up yet -- save a tenant ID, client ID, client secret, and from address in Settings > Email first.",
       );
     }
     let clientSecret: string;
@@ -237,7 +332,12 @@ export class SettingsService {
         'Could not decrypt the stored client secret -- this usually means ENCRYPTION_KEY has changed since it was saved. Re-enter the client secret in Settings > Email to fix it.',
       );
     }
-    return { tenantId: doc.tenantId, clientId: doc.clientId, clientSecret, fromAddress: doc.fromAddress };
+    return {
+      tenantId: doc.tenantId,
+      clientId: doc.clientId,
+      clientSecret,
+      fromAddress: doc.fromAddress,
+    };
   }
 
   /** Sends via Microsoft Graph, application-only auth (client credentials) -- see admin/README.md for the Azure setup this requires. */
@@ -253,7 +353,10 @@ export class SettingsService {
       `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromAddress)}/sendMail`,
       {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           message: {
             subject,
@@ -266,15 +369,21 @@ export class SettingsService {
       },
     );
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}) as Record<string, unknown>);
+      const body = await res.json().catch(() => ({}));
       const error = body.error as { message?: string } | undefined;
-      throw new BadRequestException(error?.message || 'Microsoft Graph rejected the send request.');
+      throw new BadRequestException(
+        error?.message || 'Microsoft Graph rejected the send request.',
+      );
     }
   }
 
   async sendTestEmail(dto: SendTestEmailDto): Promise<void> {
     const settings = await this.getSendableSettings();
-    const token = await this.getAccessToken(settings.tenantId, settings.clientId, settings.clientSecret);
+    const token = await this.getAccessToken(
+      settings.tenantId,
+      settings.clientId,
+      settings.clientSecret,
+    );
     await this.graphSendMail(
       settings.fromAddress,
       token,
@@ -286,7 +395,10 @@ export class SettingsService {
 
   /** Sends a customer-facing email using the template configured for the given trigger (e.g. "here's your registration link"). */
   async sendTriggeredEmail(dto: SendTriggeredEmailDto): Promise<void> {
-    await this.sendTemplatedEmail(dto.trigger, dto.to, { name: dto.name, link: dto.link });
+    await this.sendTemplatedEmail(dto.trigger, dto.to, {
+      name: dto.name,
+      link: dto.link,
+    });
   }
 
   /**
@@ -336,28 +448,54 @@ export class SettingsService {
     // from placeholder substitution. Every other trigger's body is staff-authored
     // plain text, so it's escaped and newlines become <br> the same way it
     // always has.
-    const htmlBody = trigger === EmailTrigger.INVOICE || trigger === EmailTrigger.QUOTE;
+    const htmlBody =
+      trigger === EmailTrigger.INVOICE || trigger === EmailTrigger.QUOTE;
     const subject = interpolateSubject(template.subject, allVars);
     // appendHtml (currently just the tracking pixel) isn't a placeholder --
     // it's always added regardless of what the staff-authored template does
     // or doesn't reference, so it can't be silently lost by editing the body.
-    const body = interpolateBody(template.body, allVars, allRawVars, htmlBody) + appendHtml;
+    const body =
+      interpolateBody(template.body, allVars, allRawVars, htmlBody) +
+      appendHtml;
 
     const settings = await this.getSendableSettings();
-    const token = await this.getAccessToken(settings.tenantId, settings.clientId, settings.clientSecret);
-    await this.graphSendMail(settings.fromAddress, token, to, subject, body, 'HTML');
+    const token = await this.getAccessToken(
+      settings.tenantId,
+      settings.clientId,
+      settings.clientSecret,
+    );
+    await this.graphSendMail(
+      settings.fromAddress,
+      token,
+      to,
+      subject,
+      body,
+      'HTML',
+    );
   }
 }
 
 // Strips {{#if field}}...{{/if}} blocks whose field is falsy/empty, keeping
 // the inner content (with the tags removed) for truthy ones -- used by both
 // interpolateSubject and interpolateBody, on the raw template text.
-function stripConditionals(template: string, vars: Record<string, string | undefined>): string {
-  return template.replace(/\{\{#if (\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_, key, inner) => (vars[key] ? inner : ''));
+function stripConditionals(
+  template: string,
+  vars: Record<string, string | undefined>,
+): string {
+  return template.replace(
+    /\{\{#if (\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g,
+    (_, key, inner) => (vars[key] ? inner : ''),
+  );
 }
 
-function interpolateSubject(template: string, vars: Record<string, string | undefined>): string {
-  return stripConditionals(template, vars).replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '');
+function interpolateSubject(
+  template: string,
+  vars: Record<string, string | undefined>,
+): string {
+  return stripConditionals(template, vars).replace(
+    /\{\{(\w+)\}\}/g,
+    (_, key) => vars[key] ?? '',
+  );
 }
 
 function interpolateBody(

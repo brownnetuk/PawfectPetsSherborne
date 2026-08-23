@@ -118,6 +118,11 @@ species-gated there: `aggressionToOtherAnimals`, `travelsWellInCar`, and `chases
 apply to cats (rejected if sent), and `chasesLivestock` only applies to dogs (rejected for
 `other` too) — `chasesLivestock: 'yes'` requires `chasesLivestockDetails`.
 
+`age` (whole years, required) is still the one mandatory way to say how old a pet is; `dateOfBirth`
+sits alongside it as an optional exact date — not a replacement, since not every customer knows a
+precise birth date (e.g. a rescue) but everyone can give an age. Nothing derives one from the
+other; both are plain stored values, round-tripped as-is.
+
 `photos` is an optional array of up to 2 base64 data URIs (`@ArrayMaxSize(2)`), same storage
 approach as `Customer.agreement`'s `signatureImage`/`BusinessInfo.logoImage` — no per-image size
 limit enforced server-side (the intake form and admin's pet forms both cap each upload
@@ -557,6 +562,14 @@ generic 404. `GET /settings/terms` is the one `@Public()` route in this controll
 just `{ html }` for the intake form to fetch and render
 (`frontend/src/intake/steps/AgreementStep.tsx`), falling back to its own hardcoded text if
 nothing's been uploaded.
+
+`BusinessInfo.emergencyVetAuthorisationText` is a much smaller version of the same idea: one
+staff-editable sentence shown on the intake form's Emergency Vet step, above its typed-name and
+signature fields. Plain `@IsString()`, no file/HTML parsing involved. `GET
+/settings/vet-authorisation` is the second `@Public()` route in this controller, returning
+`{ text }` — falls back to the original hardcoded wording (a module-level constant,
+`DEFAULT_EMERGENCY_VET_AUTHORISATION_TEXT`) both here and in `getBusinessInfo()`'s own response, so
+an unconfigured `BusinessInfo` document never leaves that step blank.
 
 `BusinessInfo` also holds free-text `termsVersion`/`termsDocumentDate` (e.g. `"v2.1"` / `"1
 January 2026"`) — staff-entered labels for whichever terms are currently uploaded, saveable

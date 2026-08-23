@@ -13,6 +13,7 @@ function emptyPet(): PetDetails {
     name: '',
     sex: '',
     age: '',
+    dateOfBirth: '',
     vaccinated: null,
     vaccineExpiryDate: '',
     photos: [],
