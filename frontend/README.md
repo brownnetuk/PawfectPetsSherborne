@@ -106,7 +106,12 @@ file. Adding a pet this way should never risk their other data.
    signature both required; see "Terms and conditions" below for the authorisation wording itself)
 5. Pet count (1–6)
 6. Pet details — **repeats once per animal**, and folds in off-lead consent (spec screen 7) as
-   part of the same step for dogs only, since consent belongs to that specific animal. Age
+   part of the same step for dogs only, since consent belongs to that specific animal — its
+   sentence is staff-editable (Settings → Business Info → "Off-Lead Consent") the same way the
+   Emergency Vet authorisation text is, fetched via `GET /settings/off-lead-consent` on mount with
+   the original hardcoded sentence as a fallback; it carries a `{{petName}}` placeholder (a plain
+   `.replace()`, not full `{{token}}` interpolation) substituted with the pet's own name, since
+   this one sentence is reused per-dog rather than fixed like the vet authorisation text. Age
    (required, whole years) sits alongside an optional Date of birth field — kept as two separate
    fields rather than replacing one with the other, since not every customer knows an exact birth
    date (e.g. a rescue) but everyone can give an age. "On medication" → Yes reveals a repeatable

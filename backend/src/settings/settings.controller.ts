@@ -23,9 +23,9 @@ import { EmailTrigger } from './schemas/email-template.schema';
 import { SettingsService } from './settings.service';
 
 // Staff-only by default (the global JWT guard), same as the rest of settings --
-// the exceptions are GET /settings/terms and GET /settings/vet-authorisation
-// below, which the public intake form needs in order to show the business's
-// terms and conditions / vet-authorisation wording on its own steps.
+// the exceptions are GET /settings/terms, GET /settings/vet-authorisation, and
+// GET /settings/off-lead-consent below, which the public intake form needs in
+// order to show the business's own wording on its own steps.
 @Controller('settings')
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
@@ -69,6 +69,12 @@ export class SettingsController {
   @Get('vet-authorisation')
   getVetAuthorisationText() {
     return this.settingsService.getVetAuthorisationText();
+  }
+
+  @Public()
+  @Get('off-lead-consent')
+  getOffLeadConsentText() {
+    return this.settingsService.getOffLeadConsentText();
   }
 
   @Get('terms/download')

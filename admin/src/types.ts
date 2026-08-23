@@ -360,6 +360,7 @@ export interface BusinessInfo {
   termsVersion: string;
   termsDocumentDate: string;
   emergencyVetAuthorisationText: string;
+  offLeadConsentText: string;
   bankName: string;
   sortCode: string;
   accountNumber: string;

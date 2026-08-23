@@ -40,6 +40,11 @@ const TERMS = [
 const DEFAULT_VET_AUTHORISATION_TEXT =
   'I authorise PawfectPets Sherborne to arrange alternative veterinary care for my pet if my usual vet is unobtainable in an emergency.';
 
+// Same idea, for Off-lead consent -- {{petName}} is substituted with the
+// actual pet's name below.
+const DEFAULT_OFF_LEAD_CONSENT_TEXT =
+  'I consent to {{petName}} being exercised off the lead, and understand this is at my own risk.';
+
 /** A pre-measured, self-contained chunk of content: know its height before drawing it. */
 interface Block {
   height: number;
@@ -345,6 +350,7 @@ export async function buildCustomerFormPdf(
   alarmInstructions: string | null,
   termsHtml?: string,
   emergencyVetAuthorisationText?: string,
+  offLeadConsentText?: string,
 ): Promise<jsPDF> {
   const logo = await loadLogoDataUrl();
   const w = new PdfWriter();
@@ -477,7 +483,7 @@ export async function buildCustomerFormPdf(
         blocks.push(
           paragraphBlock(
             doc,
-            `I consent to ${animal.name} being exercised off the lead, and understand this is at my own risk.`,
+            (offLeadConsentText || DEFAULT_OFF_LEAD_CONSENT_TEXT).replace('{{petName}}', animal.name),
           ),
         );
         if (animal.offLeadConsent.signature) {

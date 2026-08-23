@@ -92,6 +92,11 @@ function BusinessInfoTab() {
   const [vetAuthError, setVetAuthError] = useState<string | null>(null);
   const [vetAuthSaved, setVetAuthSaved] = useState(false);
 
+  const [offLeadConsentText, setOffLeadConsentText] = useState('');
+  const [offLeadSaving, setOffLeadSaving] = useState(false);
+  const [offLeadError, setOffLeadError] = useState<string | null>(null);
+  const [offLeadSaved, setOffLeadSaved] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -117,6 +122,7 @@ function BusinessInfoTab() {
         setTermsVersion(i.termsVersion);
         setTermsDocumentDate(i.termsDocumentDate);
         setEmergencyVetAuthorisationText(i.emergencyVetAuthorisationText);
+        setOffLeadConsentText(i.offLeadConsentText);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load business info'));
   }
@@ -247,6 +253,22 @@ function BusinessInfoTab() {
       setVetAuthError(err instanceof Error ? err.message : 'Failed to save this wording');
     } finally {
       setVetAuthSaving(false);
+    }
+  }
+
+  async function handleSaveOffLead(e: React.FormEvent) {
+    e.preventDefault();
+    setOffLeadSaving(true);
+    setOffLeadError(null);
+    setOffLeadSaved(false);
+    try {
+      await api.updateBusinessInfo({ offLeadConsentText });
+      setOffLeadSaved(true);
+      refresh();
+    } catch (err) {
+      setOffLeadError(err instanceof Error ? err.message : 'Failed to save this wording');
+    } finally {
+      setOffLeadSaving(false);
     }
   }
 
@@ -426,6 +448,34 @@ function BusinessInfoTab() {
               {vetAuthSaving ? 'Saving…' : 'Save changes'}
             </button>
             {vetAuthSaved && (
+              <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
+            )}
+          </div>
+        </form>
+      </div>
+
+      <div className="card">
+        <h2>Off-Lead Consent</h2>
+        <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+          Shown to customers on the intake form's Pet details step (dogs only), above the
+          signature field, and in the customer PDF export. Use <code>{'{{petName}}'}</code> to
+          insert the pet's name.
+        </p>
+        {offLeadError && <div className="error-banner">{offLeadError}</div>}
+        <form onSubmit={handleSaveOffLead}>
+          <div className="field">
+            <label>Consent wording</label>
+            <textarea
+              value={offLeadConsentText}
+              onChange={(e) => setOffLeadConsentText(e.target.value)}
+              rows={4}
+            />
+          </div>
+          <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+            <button className="btn btn-primary" type="submit" disabled={offLeadSaving}>
+              {offLeadSaving ? 'Saving…' : 'Save changes'}
+            </button>
+            {offLeadSaved && (
               <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
             )}
           </div>

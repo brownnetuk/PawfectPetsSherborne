@@ -64,6 +64,10 @@ export class UpdateBusinessInfoDto {
 
   @IsOptional()
   @IsString()
+  offLeadConsentText?: string;
+
+  @IsOptional()
+  @IsString()
   bankName?: string;
 
   @IsOptional()

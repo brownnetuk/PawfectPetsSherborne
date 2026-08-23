@@ -129,13 +129,15 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   into headings/paragraphs/lists by `htmlToBlocks()` — the same content the customer actually saw
   and signed against on the intake form, rather than a separately-maintained copy. Falls back to a
   short hardcoded list if nothing's been uploaded yet. The Emergency Vet section's alternative-care
-  authorisation signature works the same way, on a smaller scale: `buildCustomerFormPdf()` also
-  takes `emergencyVetAuthorisationText` (from that same `BusinessInfo` fetch — see Settings →
-  Business Info's own "Alternative Vet Care Authorisation" card above), rendered as a plain
-  paragraph directly above the signature whenever one was given, so the PDF shows what the customer
-  actually agreed to rather than just "Signed by X on date" with no context — matching how
-  off-lead consent's own sentence already sits directly above its signature. Falls back to the
-  same hardcoded default the backend and intake form use if the field's never been set.
+  authorisation signature and each dog's off-lead consent signature work the same way, on a smaller
+  scale: `buildCustomerFormPdf()` also takes `emergencyVetAuthorisationText` and
+  `offLeadConsentText` (from that same `BusinessInfo` fetch — see Settings → Business Info's own
+  "Alternative Vet Care Authorisation"/"Off-Lead Consent" cards above), each rendered as a plain
+  paragraph directly above its signature whenever one was given, so the PDF shows what the customer
+  actually agreed to rather than just "Signed by X on date" with no context. `offLeadConsentText`'s
+  `{{petName}}` placeholder is substituted with the actual animal's name the same way the intake
+  form does it. Both fall back to the same hardcoded defaults the backend and intake form use if
+  the fields have never been set.
   The **Activity** tab (`AuditLogTab` in `CustomerDetailPage.tsx`) is read-only — staff never
   write to it directly, unlike **Notes** next to it. It's fed by `AuditLogEntry`
   (`backend/README.md`'s "Audit log" section), a system-generated record of things that happened
@@ -397,6 +399,13 @@ since there's no file upload involved, just the one sentence shown on the intake
 Vet step above its typed-name/signature fields (`GET /settings/vet-authorisation`, public — see
 `frontend/README.md`). Falls back to the original hardcoded wording server-side if never set, so
 this card is never required setup, just an optional override.
+**Off-Lead Consent**, directly below it, is the identical pattern for
+`BusinessInfo.offLeadConsentText` — shown on the intake form's Pet details step (dogs only, above
+the signature field) and in the customer PDF export (see below). The one difference from the vet
+authorisation card: this text is reused per-dog rather than fixed, so it contains a `{{petName}}`
+placeholder (the card's own hint says so) substituted with the actual pet's name wherever it's
+rendered — a plain `.replace()`, not the full `{{token}}` interpolation engine email templates use,
+since there's only ever this one placeholder.
 **Document Numbering**, below Terms and
   Conditions, is an independent-save form for
   `invoiceNumberTemplate`/`invoiceNextNumber`/`quoteNumberTemplate`/`quoteNextNumber`/

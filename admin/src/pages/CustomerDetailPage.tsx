@@ -143,6 +143,7 @@ export default function CustomerDetailPage() {
         alarm,
         businessInfo?.termsHtml ?? '',
         businessInfo?.emergencyVetAuthorisationText ?? '',
+        businessInfo?.offLeadConsentText ?? '',
       );
       const url = URL.createObjectURL(doc.output('blob'));
       setPdfUrl(url);

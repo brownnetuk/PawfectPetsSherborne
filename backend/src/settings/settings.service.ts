@@ -25,6 +25,11 @@ import { EmailTemplate, EmailTrigger } from './schemas/email-template.schema';
 const DEFAULT_EMERGENCY_VET_AUTHORISATION_TEXT =
   'I authorise PawfectPets Sherborne to arrange alternative veterinary care for my pet if my usual vet is unobtainable in an emergency.';
 
+// Same idea, for the Off-lead consent section (dogs only) -- {{petName}} is
+// substituted with the actual pet's name wherever this is rendered.
+const DEFAULT_OFF_LEAD_CONSENT_TEXT =
+  'I consent to {{petName}} being exercised off the lead, and understand this is at my own risk.';
+
 @Injectable()
 export class SettingsService {
   constructor(
@@ -55,6 +60,8 @@ export class SettingsService {
       emergencyVetAuthorisationText:
         doc?.emergencyVetAuthorisationText ??
         DEFAULT_EMERGENCY_VET_AUTHORISATION_TEXT,
+      offLeadConsentText:
+        doc?.offLeadConsentText ?? DEFAULT_OFF_LEAD_CONSENT_TEXT,
       bankName: doc?.bankName ?? '',
       sortCode: doc?.sortCode ?? '',
       accountNumber: doc?.accountNumber ?? '',
@@ -97,6 +104,8 @@ export class SettingsService {
       update.termsDocumentDate = dto.termsDocumentDate;
     if (dto.emergencyVetAuthorisationText !== undefined)
       update.emergencyVetAuthorisationText = dto.emergencyVetAuthorisationText;
+    if (dto.offLeadConsentText !== undefined)
+      update.offLeadConsentText = dto.offLeadConsentText;
     if (dto.bankName !== undefined) update.bankName = dto.bankName;
     if (dto.sortCode !== undefined) update.sortCode = dto.sortCode;
     if (dto.accountNumber !== undefined)
@@ -148,6 +157,17 @@ export class SettingsService {
       text:
         doc?.emergencyVetAuthorisationText ??
         DEFAULT_EMERGENCY_VET_AUTHORISATION_TEXT,
+    };
+  }
+
+  /** Returns just the off-lead consent text -- the public intake form's Pet details step reads this. */
+  async getOffLeadConsentText(): Promise<{ text: string }> {
+    const doc = await this.businessInfoModel
+      .findOne()
+      .select('offLeadConsentText')
+      .exec();
+    return {
+      text: doc?.offLeadConsentText ?? DEFAULT_OFF_LEAD_CONSENT_TEXT,
     };
   }
 

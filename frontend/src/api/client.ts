@@ -30,6 +30,10 @@ export function fetchVetAuthorisationText(): Promise<{ text: string }> {
   return request('/settings/vet-authorisation');
 }
 
+export function fetchOffLeadConsentText(): Promise<{ text: string }> {
+  return request('/settings/off-lead-consent');
+}
+
 export function fetchAnimalsForCustomer(customerId: string): Promise<AnimalRecord[]> {
   return request(`/animals/for-customer/${customerId}`);
 }

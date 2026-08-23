@@ -585,6 +585,13 @@ signature fields. Plain `@IsString()`, no file/HTML parsing involved. `GET
 `DEFAULT_EMERGENCY_VET_AUTHORISATION_TEXT`) both here and in `getBusinessInfo()`'s own response, so
 an unconfigured `BusinessInfo` document never leaves that step blank.
 
+`BusinessInfo.offLeadConsentText` is the identical pattern for the Off-lead consent section (dogs
+only) — `GET /settings/off-lead-consent` is the third `@Public()` route, same fallback shape via
+`DEFAULT_OFF_LEAD_CONSENT_TEXT`. The one difference: this sentence is reused per-dog rather than
+fixed, so it carries a `{{petName}}` placeholder that whoever renders it (the intake form, the
+customer PDF export) substitutes with the actual animal's name — the backend itself never resolves
+this placeholder, it just stores and serves the template text as-is.
+
 `BusinessInfo` also holds free-text `termsVersion`/`termsDocumentDate` (e.g. `"v2.1"` / `"1
 January 2026"`) — staff-entered labels for whichever terms are currently uploaded, saveable
 independently of re-uploading the `.docx` itself. `CustomersService.create()`/`update()` snapshot

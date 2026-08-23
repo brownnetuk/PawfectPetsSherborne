@@ -65,6 +65,15 @@ export class BusinessInfo extends Document {
   @Prop()
   emergencyVetAuthorisationText?: string;
 
+  // Shown on the public intake form's Off-lead consent section (dogs only),
+  // above the typed-name/signature fields -- same staff-editable pattern as
+  // emergencyVetAuthorisationText above. `{{petName}}` is substituted with
+  // the actual pet's name wherever this is rendered (intake form, customer
+  // PDF export), since this one sentence is reused per-dog rather than fixed
+  // like the vet authorisation text.
+  @Prop()
+  offLeadConsentText?: string;
+
   // Shown to customers on invoices so they know where to send payment --
   // not secret (it's meant to be disclosed), so no encryption, same as the
   // rest of the business's contact details above.

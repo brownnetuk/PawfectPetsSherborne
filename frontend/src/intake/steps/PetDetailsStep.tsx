@@ -1,8 +1,13 @@
+import { useEffect, useState } from 'react';
+import * as api from '../../api/client';
 import { ChoiceGroup, SelectField, TextField, ToggleField } from '../fields';
 import MedicationEntriesField from '../MedicationEntriesField';
 import PhotoUpload from '../PhotoUpload';
 import SignaturePad from '../SignaturePad';
 import type { PetDetails, Species } from '../../types';
+
+const DEFAULT_OFF_LEAD_CONSENT_TEXT =
+  'I consent to {{petName}} being exercised off the lead, and understand this is at my own risk.';
 
 interface Props {
   index: number;
@@ -34,6 +39,16 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
 
   const isDog = value.species === 'dog';
   const isCat = value.species === 'cat';
+
+  // Staff can edit this wording (Settings > Business Info); falls back to the
+  // text below if none has been set yet, or the fetch fails.
+  const [offLeadConsentText, setOffLeadConsentText] = useState(DEFAULT_OFF_LEAD_CONSENT_TEXT);
+  useEffect(() => {
+    api
+      .fetchOffLeadConsentText()
+      .then((r) => setOffLeadConsentText(r.text || DEFAULT_OFF_LEAD_CONSENT_TEXT))
+      .catch(() => setOffLeadConsentText(DEFAULT_OFF_LEAD_CONSENT_TEXT));
+  }, []);
 
   return (
     <div>
@@ -232,8 +247,7 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
           {value.offLeadConsent?.mode === 'off_lead' && (
             <>
               <p className="field-hint" style={{ marginBottom: 10 }}>
-                I consent to {value.name || 'my dog'} being exercised off the lead, and understand
-                this is at my own risk.
+                {offLeadConsentText.replace('{{petName}}', value.name || 'my dog')}
               </p>
               <SignaturePad
                 value={value.offLeadConsent?.signature}
