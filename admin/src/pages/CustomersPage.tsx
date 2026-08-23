@@ -8,11 +8,14 @@ import type { Customer } from '../types';
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
 
+type Tab = 'active' | 'archived';
+
 export default function CustomersPage() {
   const navigate = useNavigate();
   const [customers, setCustomers] = useState<Customer[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [tab, setTab] = useState<Tab>('active');
   const [showNewModal, setShowNewModal] = useState(false);
 
   function refresh() {
@@ -24,7 +27,11 @@ export default function CustomersPage() {
 
   useEffect(refresh, []);
 
+  // "Archived" reuses the existing inactive status rather than a new value --
+  // everything else (pending/active/update_info) is still someone staff are
+  // actively dealing with, so it stays under "Active".
   const filtered = (customers ?? []).filter((c) => {
+    if (tab === 'active' ? c.status === 'inactive' : c.status !== 'inactive') return false;
     const q = search.toLowerCase();
     return c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q);
   });
@@ -49,10 +56,19 @@ export default function CustomersPage() {
         />
       </div>
 
+      <div className="tabs">
+        <button className={tab === 'active' ? 'active' : ''} onClick={() => setTab('active')}>
+          Active
+        </button>
+        <button className={tab === 'archived' ? 'active' : ''} onClick={() => setTab('archived')}>
+          Archived
+        </button>
+      </div>
+
       <div className="card" style={{ padding: 0 }}>
         {filtered.length === 0 ? (
           <div className="empty-state">
-            {customers === null ? 'Loading…' : 'No customers yet.'}
+            {customers === null ? 'Loading…' : tab === 'active' ? 'No active customers yet.' : 'No archived customers.'}
           </div>
         ) : (
           <table>
