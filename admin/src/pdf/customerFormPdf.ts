@@ -34,6 +34,12 @@ const TERMS = [
   'This agreement remains in effect for all future bookings unless the client notifies PawfectPets Sherborne of a change in circumstances.',
 ];
 
+// Fallback only -- used when Settings > Business Info has never had this
+// field set. Mirrors the default in backend/src/settings/settings.service.ts
+// and the frontend's own copy in frontend/src/intake/steps/EmergencyVetStep.tsx.
+const DEFAULT_VET_AUTHORISATION_TEXT =
+  'I authorise PawfectPets Sherborne to arrange alternative veterinary care for my pet if my usual vet is unobtainable in an emergency.';
+
 /** A pre-measured, self-contained chunk of content: know its height before drawing it. */
 interface Block {
   height: number;
@@ -338,6 +344,7 @@ export async function buildCustomerFormPdf(
   animals: Animal[],
   alarmInstructions: string | null,
   termsHtml?: string,
+  emergencyVetAuthorisationText?: string,
 ): Promise<jsPDF> {
   const logo = await loadLogoDataUrl();
   const w = new PdfWriter();
@@ -388,6 +395,11 @@ export async function buildCustomerFormPdf(
         : 'Not signed',
     ),
   ];
+  if (ev?.authorisation?.signedName) {
+    evBlocks.push(
+      paragraphBlock(doc, emergencyVetAuthorisationText || DEFAULT_VET_AUTHORISATION_TEXT),
+    );
+  }
   if (ev?.authorisation?.signatureImage) {
     evBlocks.push(spacerBlock(4));
     evBlocks.push(signatureBlock(ev.authorisation.signatureImage, 'Alternative vet care authorisation signature'));

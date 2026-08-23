@@ -128,7 +128,14 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   conditions section pulls the same `termsHtml` uploaded in Settings → Business Info, converted
   into headings/paragraphs/lists by `htmlToBlocks()` — the same content the customer actually saw
   and signed against on the intake form, rather than a separately-maintained copy. Falls back to a
-  short hardcoded list if nothing's been uploaded yet.
+  short hardcoded list if nothing's been uploaded yet. The Emergency Vet section's alternative-care
+  authorisation signature works the same way, on a smaller scale: `buildCustomerFormPdf()` also
+  takes `emergencyVetAuthorisationText` (from that same `BusinessInfo` fetch — see Settings →
+  Business Info's own "Alternative Vet Care Authorisation" card above), rendered as a plain
+  paragraph directly above the signature whenever one was given, so the PDF shows what the customer
+  actually agreed to rather than just "Signed by X on date" with no context — matching how
+  off-lead consent's own sentence already sits directly above its signature. Falls back to the
+  same hardcoded default the backend and intake form use if the field's never been set.
   The **Activity** tab (`AuditLogTab` in `CustomerDetailPage.tsx`) is read-only — staff never
   write to it directly, unlike **Notes** next to it. It's fed by `AuditLogEntry`
   (`backend/README.md`'s "Audit log" section), a system-generated record of things that happened
