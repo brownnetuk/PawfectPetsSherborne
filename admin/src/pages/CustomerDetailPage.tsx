@@ -1174,7 +1174,7 @@ function AuditLogTab({
               Payments received from this customer over time.
             </p>
           </div>
-          <select value={incomePeriod} onChange={(e) => onPeriodChange(Number(e.target.value))} style={{ width: 'auto' }}>
+          <select className="select-inline" value={incomePeriod} onChange={(e) => onPeriodChange(Number(e.target.value))}>
             <option value={6}>Last 6 Months</option>
             <option value={12}>Last 12 Months</option>
           </select>

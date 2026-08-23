@@ -60,7 +60,7 @@ function ProfitAndLossReport() {
               Income is payments received net of any charges, minus credit notes issued.
             </p>
           </div>
-          <select value={period} onChange={(e) => setPeriod(Number(e.target.value))} style={{ width: 'auto' }}>
+          <select className="select-inline" value={period} onChange={(e) => setPeriod(Number(e.target.value))}>
             <option value={6}>Last 6 Months</option>
             <option value={12}>Last 12 Months</option>
           </select>
@@ -126,7 +126,7 @@ function ExpensesByCategoryReport() {
               Where recorded expenses have gone, grouped by category.
             </p>
           </div>
-          <select value={period} onChange={(e) => setPeriod(Number(e.target.value))} style={{ width: 'auto' }}>
+          <select className="select-inline" value={period} onChange={(e) => setPeriod(Number(e.target.value))}>
             <option value={6}>Last 6 Months</option>
             <option value={12}>Last 12 Months</option>
           </select>
