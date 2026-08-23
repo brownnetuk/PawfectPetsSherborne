@@ -1,4 +1,4 @@
-import type { AnimalRecord, CustomerRecord, IntakeState, PetDetails } from '../types';
+import type { AnimalRecord, CustomerRecord, FormSubmissionPublic, IntakeState, PetDetails } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
@@ -115,5 +115,16 @@ export function updateAnimal(id: string, customerId: string, pet: PetDetails) {
   return request(`/animals/${id}/for-customer/${customerId}`, {
     method: 'PATCH',
     body: JSON.stringify(animalPayload(pet)),
+  });
+}
+
+export function fetchFormSubmission(id: string): Promise<FormSubmissionPublic> {
+  return request(`/form-submissions/${id}/public`);
+}
+
+export function submitFormSubmission(id: string, answers: Record<string, unknown>) {
+  return request(`/form-submissions/${id}/submit`, {
+    method: 'POST',
+    body: JSON.stringify({ answers }),
   });
 }

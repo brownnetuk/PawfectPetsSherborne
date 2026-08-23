@@ -162,6 +162,18 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   audit-log entry newest-first with its date/time, title, description, and "by {actor}". Fetched
   the same eager-on-mount way the other tabs' data is (`CustomerDetailPage`'s own `refresh()`),
   plus a separate effect re-fetching just the income data when the period selector changes.
+  The **Forms** tab (`FormSubmissionsTab`, also in `CustomerDetailPage.tsx`) lists this customer's
+  filled-in `FormSubmission`s (form name, status, sent/submitted dates) — the one tab on this page
+  that deliberately *doesn't* follow the eager-on-mount convention above: it lazy-fetches only once
+  staff actually open it (`listFormSubmissions(customer._id)` inside the tab component itself, not
+  `CustomerDetailPage`'s shared `refresh()`), since submissions are comparatively rarely viewed. A
+  "Choose a form…" picker + Send button opens `SendFormModal` (see Settings → Forms above) prefilled
+  with this customer; clicking a submission row opens `ViewFormSubmissionModal`
+  (`admin/src/components/ViewFormSubmissionModal.tsx`) — a read-only view of every answer, grouped
+  by field label, a repeatable group's repetitions shown as their own "Pet 1"/"Pet 2" sub-sections,
+  with unmapped fields still shown (labelled "(not mapped)") since they were captured even though
+  they never wrote anywhere. Signature/file-type answers render as inline images rather than raw
+  base64 text.
 - **Bookings** — a global list across all customers, inline status changes, edit and delete on
   each row, and its own "New" flow with a customer picker (the customer-detail version reuses the
   same create/edit/delete calls with the customer pre-selected).
@@ -437,9 +449,9 @@ since there's only ever this one placeholder.
   secret, and a from address/name, plus a "send a test email" button. The secret is encrypted at
   rest (`EncryptionService`, same as alarm instructions) and never sent back to the browser once
   saved; the field shows "Configured — leave blank to keep unchanged" instead. **Email Templates**
-  lists all six fixed triggers (`registration` / `update_info` / `add_pet` / `invoice` / `quote` /
-  `payment_received` — `EMAIL_TRIGGERS`, kept in sync by hand with the backend's `EmailTrigger`
-  enum) always, whether or not each has a template yet, so it's obvious what still needs setting
+  lists all seven fixed triggers (`registration` / `update_info` / `add_pet` / `invoice` / `quote` /
+  `payment_received` / `form` — `EMAIL_TRIGGERS`, kept in sync by hand with the backend's
+  `EmailTrigger` enum) always, whether or not each has a template yet, so it's obvious what still needs setting
   up. Each is one document — editing "the registration template" is an upsert on that trigger, not
   a pick-from-a-list, so a "Send" click never has to guess which of several templates to use.
   `TRIGGER_PLACEHOLDERS` gives each trigger its own placeholder list, surfaced as an "Insert
@@ -579,6 +591,36 @@ since there's only ever this one placeholder.
   `BusinessInfo` fields Business Info's "Terms and Conditions" card also draws from, just surfaced
   here instead since it's invoice-specific, not general business branding — shown to customers on
   invoices so they know where to send payment; not encrypted, since it's meant to be disclosed.
+
+  **Forms** (`FormsTab` in `SettingsPage.tsx`, backed by `backend/README.md`'s "Forms" section) is
+  a generic form builder — create/edit/delete forms, each an ordered list of fields, optionally
+  mapped to a real Customer/Animal record field so a filled-in form can create or update actual
+  data rather than just capturing a response. `FormsListCard` (table + Create new/Send/Edit/Delete)
+  swaps in place for `FormBuilder` (`admin/src/components/FormBuilder.tsx`) when creating or
+  editing one — a plain local-state toggle in `FormsTab`, no new routing, matching how nothing else
+  in Settings uses nested routes. `FormBuilder` is deliberately a linear ordered list with ↑/↓
+  reorder buttons, not drag-and-drop — `PdfTemplateDesigner` below's freeform x/y canvas machinery
+  exists to serve spatial layout, which a field list doesn't need; only its generic conventions
+  (flat array of a discriminated-union type, add/select/delete as plain array ops, a panel editing
+  the selected item) carry over. Each field's type-specific config (an `options: string[]` editor
+  for **Choice**/**Multiple choice**, `maxFiles` for **File / photo**, `minRepeats`/`maxRepeats`
+  for **Repeatable group**) shows inline once selected, alongside a "Map to customer/pet field"
+  dropdown sourced from `admin/src/utils/formFieldCatalog.ts` — a flat, hand-kept catalog mirroring
+  `CreateCustomerDto`/`CreateAnimalDto` field-for-field (kept in sync by hand with the backend DTOs,
+  same convention as `EMAIL_TRIGGERS`/`TRIGGER_PLACEHOLDERS` below), filtered by both the field's
+  own type (a toggle only offers boolean-kind targets, etc. — `compatibleKinds()`) and by whether
+  it's a top-level field (customer paths only) or nested inside a group (animal paths only). Saving
+  shows a non-blocking advisory banner if the form maps some customer fields but is missing a
+  mapping for `email`/`firstName`/`address1`/`town`/`postcode`/`phoneNumber` or has no emergency-vet
+  mapping at all — some forms legitimately only update an existing customer or capture a subset, so
+  this never blocks saving; the backend's own submit-time validation (`backend/README.md`) is the
+  real safety net. `SendFormModal` (`admin/src/components/SendFormModal.tsx`) mirrors
+  `AddPetChoiceModal`'s copy-link/send-email shape: pick an existing customer (prefills
+  name/email, both then read-only) or type a new recipient, "Generate link" calls
+  `POST /form-submissions` and builds `VITE_INTAKE_URL/forms/<submissionId>`, then Copy
+  link/Send email (`api.sendTriggeredEmail('form', ...)`) exactly like every other "send a link"
+  flow in this app. Reachable from `FormsListCard`'s per-row mail icon (form fixed, pick/enter a
+  recipient) and from a customer's own new **Forms** tab below (customer fixed, pick a form).
 
   **Finance** has three `NamedListCard` (`admin/src/components/NamedListCard.tsx`)-built lists:
   **Payment Methods** (`/payment-methods` — e.g. "Bank Transfer", "Cash", "Card"), feeding the

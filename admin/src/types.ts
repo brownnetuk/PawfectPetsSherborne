@@ -443,13 +443,88 @@ export interface EmailSettings {
   clientSecretConfigured: boolean;
 }
 
-export type EmailTrigger = 'registration' | 'update_info' | 'add_pet' | 'invoice' | 'quote' | 'payment_received';
+export type EmailTrigger =
+  | 'registration'
+  | 'update_info'
+  | 'add_pet'
+  | 'invoice'
+  | 'quote'
+  | 'payment_received'
+  | 'form';
 
 export interface EmailTemplate {
   trigger: EmailTrigger;
   name: string;
   subject: string;
   body: string;
+}
+
+// --- Forms builder (Settings > Forms) ---
+
+export type FieldTarget = 'customer' | 'animal';
+
+export interface FieldMapping {
+  target: FieldTarget;
+  // Dot-path into the Customer/Animal record -- see admin/src/utils/formFieldCatalog.ts
+  // for the catalog of valid paths this can point at.
+  path: string;
+}
+
+export interface FormFieldBase {
+  id: string;
+  label: string;
+  required: boolean;
+  mapping?: FieldMapping;
+}
+
+export type SimpleFormField = FormFieldBase & {
+  type: 'text' | 'textarea' | 'number' | 'date' | 'toggle' | 'signature';
+};
+
+export type FileFormField = FormFieldBase & {
+  type: 'file';
+  maxFiles?: number;
+};
+
+export type ChoiceFormField = FormFieldBase & {
+  type: 'choice' | 'multichoice';
+  options: string[];
+};
+
+// Repeatable group -- nested fields map only to target: 'animal'; each
+// repetition the customer fills in on the public form creates one Animal.
+export type GroupFormField = FormFieldBase & {
+  type: 'group';
+  repeatable: true;
+  minRepeats: number;
+  maxRepeats?: number;
+  fields: FormField[];
+};
+
+export type FormField = SimpleFormField | FileFormField | ChoiceFormField | GroupFormField;
+
+export interface FormRecord {
+  _id: string;
+  name: string;
+  description?: string;
+  fields: FormField[];
+  createdAt: string;
+}
+
+export type FormSubmissionStatus = 'pending' | 'completed';
+
+export interface FormSubmissionRecord {
+  _id: string;
+  form: string;
+  formName: string;
+  formFieldsSnapshot: FormField[];
+  status: FormSubmissionStatus;
+  customer?: CustomerRef | string;
+  recipientEmail: string;
+  recipientName?: string;
+  answers?: Record<string, unknown>;
+  submittedAt?: string;
+  createdAt: string;
 }
 
 export type EnquiryService = 'dog_walking' | 'pet_visits' | 'boarding' | 'day_care';

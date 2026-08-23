@@ -27,6 +27,7 @@ export enum AuditEventType {
   BOOKING_REMOVED = 'booking_removed',
   CREDIT_NOTE_ISSUED = 'credit_note_issued',
   CREDIT_NOTE_REMOVED = 'credit_note_removed',
+  FORM_SUBMITTED = 'form_submitted',
 }
 
 @Schema({ timestamps: true })

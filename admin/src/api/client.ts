@@ -16,6 +16,9 @@ import type {
   Expense,
   ExpenseCategoryOption,
   ExpenseCategoryTotal,
+  FormField,
+  FormRecord,
+  FormSubmissionRecord,
   IncomeExpenseMonth,
   IncomeMonth,
   Invoice,
@@ -497,6 +500,45 @@ export function saveEmailTemplate(
 }
 export function deleteEmailTemplate(trigger: EmailTrigger): Promise<void> {
   return request(`/settings/email-templates/${trigger}`, { method: 'DELETE' });
+}
+
+// --- forms ---
+export function listForms(): Promise<FormRecord[]> {
+  return request('/forms');
+}
+export function getForm(id: string): Promise<FormRecord> {
+  return request(`/forms/${id}`);
+}
+export interface FormInput {
+  name: string;
+  description?: string;
+  fields: FormField[];
+}
+export function createForm(input: FormInput): Promise<FormRecord> {
+  return request('/forms', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateForm(id: string, input: FormInput): Promise<FormRecord> {
+  return request(`/forms/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deleteForm(id: string): Promise<void> {
+  return request(`/forms/${id}`, { method: 'DELETE' });
+}
+
+// --- form submissions ---
+export interface CreateFormSubmissionInput {
+  form: string;
+  customer?: string;
+  recipientEmail: string;
+  recipientName?: string;
+}
+export function createFormSubmission(input: CreateFormSubmissionInput): Promise<FormSubmissionRecord> {
+  return request('/form-submissions', { method: 'POST', body: JSON.stringify(input) });
+}
+export function listFormSubmissions(customerId?: string): Promise<FormSubmissionRecord[]> {
+  return request(`/form-submissions${customerId ? `?customer=${customerId}` : ''}`);
+}
+export function getFormSubmission(id: string): Promise<FormSubmissionRecord> {
+  return request(`/form-submissions/${id}`);
 }
 
 // --- enquiries ---

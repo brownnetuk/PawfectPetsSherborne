@@ -12,7 +12,9 @@ import IncomeChart from '../components/IncomeChart';
 import Modal from '../components/Modal';
 import AddPetChoiceModal from '../components/AddPetChoiceModal';
 import NewAnimalModal from '../components/NewAnimalModal';
+import SendFormModal from '../components/SendFormModal';
 import ViewAnimalModal from '../components/ViewAnimalModal';
+import ViewFormSubmissionModal from '../components/ViewFormSubmissionModal';
 import { buildCustomerFormPdf } from '../pdf/customerFormPdf';
 import type {
   ActivityType,
@@ -22,6 +24,8 @@ import type {
   Customer,
   CustomerStatus,
   CrmActivity,
+  FormRecord,
+  FormSubmissionRecord,
   IncomeMonth,
   Invoice,
 } from '../types';
@@ -44,7 +48,7 @@ function isPartiallyPaid(inv: Invoice): boolean {
   return inv.status === 'sent' && paid > 0 && paid < inv.total;
 }
 
-type Tab = 'overview' | 'pets' | 'bookings' | 'invoices' | 'activity' | 'log';
+type Tab = 'overview' | 'pets' | 'bookings' | 'invoices' | 'activity' | 'log' | 'forms';
 
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -234,7 +238,7 @@ export default function CustomerDetailPage() {
       )}
 
       <div className="tabs">
-        {(['overview', 'pets', 'bookings', 'invoices', 'activity', 'log'] as Tab[]).map((t) => (
+        {(['overview', 'pets', 'bookings', 'invoices', 'activity', 'log', 'forms'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {t === 'pets'
               ? `Pets (${animals.length})`
@@ -272,6 +276,7 @@ export default function CustomerDetailPage() {
           onPeriodChange={setIncomePeriod}
         />
       )}
+      {tab === 'forms' && <FormSubmissionsTab customer={customer} />}
 
       {showDelete && (
         <Modal title="Delete customer?" onClose={() => setShowDelete(false)}>
@@ -1184,6 +1189,102 @@ function AuditLogTab({
           Total Income ( Last {incomePeriod} Months ) - £{totalIncome.toFixed(2)}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Deliberately lazy-fetches (unlike this page's other tabs, which are all fed
+// from CustomerDetailPage's own eager-fetch-on-mount) -- submissions are
+// rarely viewed, so there's no reason to fetch them for every customer page
+// load regardless of which tab staff actually open.
+function FormSubmissionsTab({ customer }: { customer: Customer }) {
+  const [submissions, setSubmissions] = useState<FormSubmissionRecord[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<FormSubmissionRecord | null>(null);
+  const [forms, setForms] = useState<FormRecord[]>([]);
+  const [pickedFormId, setPickedFormId] = useState('');
+  const [sendingForm, setSendingForm] = useState<FormRecord | null>(null);
+
+  function refresh() {
+    api
+      .listFormSubmissions(customer._id)
+      .then(setSubmissions)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load forms'));
+  }
+  useEffect(refresh, [customer._id]);
+  useEffect(() => {
+    api.listForms().then(setForms).catch(() => {});
+  }, []);
+
+  function statusLabel(status: FormSubmissionRecord['status']): string {
+    return status === 'completed' ? 'Completed' : 'Sent — awaiting response';
+  }
+
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <h2>Forms</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+            Forms sent to and filled in by this customer.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <select value={pickedFormId} onChange={(e) => setPickedFormId(e.target.value)}>
+            <option value="">Choose a form…</option>
+            {forms.map((f) => (
+              <option key={f._id} value={f._id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={!pickedFormId}
+            onClick={() => setSendingForm(forms.find((f) => f._id === pickedFormId) ?? null)}
+          >
+            Send
+          </button>
+        </div>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      {!submissions || submissions.length === 0 ? (
+        <div className="empty-state">{submissions === null ? 'Loading…' : 'No forms sent yet.'}</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Form</th>
+              <th>Status</th>
+              <th>Sent</th>
+              <th>Submitted</th>
+            </tr>
+          </thead>
+          <tbody>
+            {submissions.map((s) => (
+              <tr key={s._id} onClick={() => setViewing(s)}>
+                <td>{s.formName}</td>
+                <td>{statusLabel(s.status)}</td>
+                <td>{new Date(s.createdAt).toLocaleDateString()}</td>
+                <td>{s.submittedAt ? new Date(s.submittedAt).toLocaleDateString() : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {viewing && <ViewFormSubmissionModal submission={viewing} onClose={() => setViewing(null)} />}
+      {sendingForm && (
+        <SendFormModal
+          form={sendingForm}
+          customer={customer}
+          onClose={() => {
+            setSendingForm(null);
+            setPickedFormId('');
+            refresh();
+          }}
+        />
+      )}
     </div>
   );
 }

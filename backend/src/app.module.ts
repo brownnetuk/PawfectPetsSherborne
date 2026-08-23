@@ -25,6 +25,8 @@ import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
 import { EnquiriesModule } from './enquiries/enquiries.module';
 import { VendorsModule } from './vendors/vendors.module';
+import { FormsModule } from './forms/forms.module';
+import { FormSubmissionsModule } from './form-submissions/form-submissions.module';
 
 @Module({
   imports: [
@@ -59,6 +61,8 @@ import { VendorsModule } from './vendors/vendors.module';
     CreditNotesModule,
     ReportsModule,
     VendorsModule,
+    FormsModule,
+    FormSubmissionsModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],

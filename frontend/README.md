@@ -95,6 +95,50 @@ resending it here (with the customer/emergency/security/agreement fields all bac
 defaults, since this flow never asks for them) would silently blank out whatever's already on
 file. Adding a pet this way should never risk their other data.
 
+## Forms
+
+```
+https://<this-app>/forms/<formSubmissionId>
+```
+
+A third, unrelated kind of link, generated from the admin app's Settings → Forms (or a customer's
+own "Forms" tab) rather than from a Customer id — see `backend/README.md`'s "Forms" section for the
+full builder/mapping design. This app has no routing library (`react-router-dom` is an `admin`-only
+dependency); `App.tsx`'s `parseUrl()` just regex-matches `window.location.pathname` directly,
+same as the other two link shapes, and renders `src/forms/FormFillPage.tsx` for this one.
+
+`FormFillPage` fetches `GET /form-submissions/:id/public` (no auth) and renders every field in the
+form's `fields` array top-to-bottom on one page — not a multi-step wizard like `IntakeForm`, since a
+generic staff-built form has no reason to assume the same screen-per-topic structure the fixed
+intake flow does. `src/forms/fields.tsx` re-exports `intake/fields.tsx`'s already-generic
+`TextField`/`ToggleField`/`ChoiceGroup`/`SelectField` (nothing intake-specific about them) and adds
+one new one, `MultiChoiceField` (a checkbox group) — no equivalent existed anywhere in this codebase
+before, since neither the wizard nor this page previously needed a real multi-select. `SignaturePad`/
+`PhotoUpload` are reused as-is for `signature`/`file` fields.
+
+A `group` field (`repeatable: true`) renders via `src/forms/RepeatableGroup.tsx` as `minRepeats`+
+inline blocks with "+ Add another"/"Remove" — closer in spirit to `MedicationEntriesField.tsx`'s
+inline-repeatable-list pattern than to `IntakeForm.tsx`'s one-repetition-per-wizard-step approach,
+since everything here lives on a single scrollable page. `FormFillPage` resolves every answer change
+— including each repetition's own fields — through a `setAnswers` functional state update keyed off
+the *previous* state, never off a value already sitting in a prop/closure: two fields in the same
+repetition changing within one React batch would otherwise each compute "the next array" from the
+same stale snapshot, and the second call would silently discard the first's change (found via this
+feature's own end-to-end testing — rapid, scripted field changes reproduced it every time; a real
+person clicking through the page at normal speed mostly wouldn't have hit it, but it was a genuine
+correctness gap, not just a test artifact). A toggle field's answer starts as a real `false` rather
+than `undefined` the moment its repetition/form initializes (`src/forms/formDefaults.ts`) — the same
+bug shape already fixed once for the real wizard's own `Vaccinated` toggle (see "Screen flow" below):
+a toggle always visually shows a definite on/off state, so an untouched one submitting as "missing"
+would silently fail a backend validation the customer never saw any indication of.
+
+Client-side validation only enforces `required`, field by field — no cross-field conditional logic
+(a generic form has no wizard-author available to encode "only show X if Y" rules the way each
+intake step's own component does by hand). Submitting posts to `POST /form-submissions/:id/submit`;
+a `pending`→`completed` transition happens server-side, and reloading the same link afterward shows
+an "already submitted" state rather than a re-fillable form (`GET .../public` reports `status`, and
+`FormFillPage` renders that state instead of the form whenever it's `completed`).
+
 ## Screen flow
 
 `src/intake/IntakeForm.tsx` drives a wizard over the screens from the intake-form spec:

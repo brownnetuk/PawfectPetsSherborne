@@ -447,6 +447,86 @@ create-then-delete-with-compensation shape `PaymentsService` already uses, not a
 guard. No update endpoint, matching `Payment` (money movements get voided and redone, not edited
 in place).
 
+### Forms (`/forms`, `/form-submissions`)
+
+A generic form builder, separate from (and much more configurable than) the hardcoded intake
+wizard: staff build a `Form` (`name`, `description?`, `fields`) out of reusable field types —
+`text | textarea | number | date | toggle | choice | multichoice | file | signature`, plus a
+`group` type (`repeatable: true`, `minRepeats`, `maxRepeats?`, its own nested `fields`) for
+collecting one-or-more of something per submission (pets, for the seeded form below). `Form.fields`
+is stored as a loosely-validated `Mixed` array (same technique as `BusinessInfo.invoicePdfTemplate`)
+but — unlike that field — genuinely interpreted server-side, so real TypeScript types for the shape
+live in `forms/form-field.types.ts` rather than treating it as opaque JSON.
+
+Any field can carry an optional `mapping: { target: 'customer' | 'animal', path }` — a dot-path
+(with one narrow extra capability, a single trailing `[N]` array index per segment, e.g.
+`medication.medications[0].name` — see `form-submission-mapping.util.ts`) into the corresponding
+`Create*Dto` shape. A top-level field maps only to `customer`; a field nested inside a `group` maps
+only to `animal`, since each repetition of the group becomes one `Animal` on submit.
+
+`FormsService.onModuleInit()` seeds a **"Customer Intake"** form once, idempotently
+(`findOneAndUpdate` with `$setOnInsert` — a single atomic upsert, not a find-then-insert pair, to
+avoid a race across multiple app instances) — a first-of-its-kind seed-on-boot pattern in this
+codebase. It's built from `default-customer-intake-form.ts`, mirroring every field the real
+`frontend/src/intake/` wizard collects, pre-mapped to the same Customer/Animal paths that wizard's
+own submission writes to. Staff can freely edit or delete it afterward like any other form (it's
+never re-created once it exists). Two deliberate simplifications versus the real wizard: no
+conditional field visibility (every field in a form/group is always shown, regardless of
+species/other answers), and no nested-repeatable-within-a-repeatable (the seeded form's medication
+section uses the `[0]`-index escape hatch above for a single entry, rather than a second level of
+repetition the builder doesn't support).
+
+`FormSubmission` (`form-submissions/`) is the record of one link generated for one recipient:
+`form` ref, `formName`/`formFieldsSnapshot` (both **snapshotted at send-time** — same reasoning as
+invoices snapshotting `paymentTerms` text instead of referencing the live `InvoiceTerm`, so editing
+or deleting the `Form` later can't retroactively change an in-flight or already-completed
+submission), `status: pending | completed`, an optional `customer` ref (set up front if sent
+against an existing customer, or filled in by `submit()` once one's created), `recipientEmail`/
+`recipientName`, and `answers` (keyed by field id; a group's answer is an array of per-repetition
+records). Staff routes: `POST /form-submissions` (generate a link), `GET /form-submissions?customer=`,
+`GET /form-submissions/:id`. `@Public()`: `GET /form-submissions/:id/public` (strips `mapping` from
+the returned fields — not a hard security boundary, submit still re-validates everything, just no
+reason to leak DB path names) and `POST /form-submissions/:id/submit`.
+
+**`FormSubmissionsService.submit()`'s validation approach is the load-bearing design decision
+here.** `main.ts`'s global `ValidationPipe` only runs at the HTTP controller boundary — it does
+nothing when this service calls `customersService.create()`/`animalsService.create()` in-process.
+Two concrete gaps that would otherwise bite:
+- `CustomersService.create()` dereferences `dto.emergencyContact`/`dto.emergencyVet`
+  unconditionally (unlike `update()`, which guards both) — passing `undefined` throws a raw
+  `TypeError`, not a clean 400. `submit()` stubs both to `{}` for a brand-new customer specifically
+  to avoid this (an empty object still fails the DTO's own `@IsNotEmpty()` decorators cleanly).
+- `AnimalsService.create()`'s per-species business rules (`validateSpeciesFields`,
+  `validateOffLeadConsent`) are plain imperative checks, not `class-validator` decorators, so they
+  don't run as part of `submit()`'s own validate-before-write pass — and since the Forms builder
+  has no conditional visibility, every pet-group repetition answers species-inapplicable fields
+  regardless. `form-submission-mapping.util.ts` mirrors `frontend/src/api/client.ts`'s
+  `animalPayload()` species-stripping exactly (`stripSpeciesInapplicableFields`) so those fields
+  are simply never sent, and separately replicates the "off-lead consent required for dogs" check
+  (`validateAnimalBusinessRules`) so a dog missing it fails *before* any write, not after
+  `AnimalsService.create()` throws mid-loop (found and fixed via an actual end-to-end submission
+  during this feature's own testing — the first version only replicated the "reject if present"
+  species rules, not the "reject if absent" off-lead one).
+
+`submit()` therefore: builds the full customer patch + every pet-group repetition's patch (species
+stripping and off-lead check applied), runs each through `class-validator`'s `validate()` against
+the real DTO classes (`CreateCustomerDto`/`UpdateCustomerDto` depending on whether a customer's
+already resolved; a local `ValidateAnimalDto extends OmitType(CreateAnimalDto, ['customer'])` for
+pets, since `customer` isn't known until the customer write succeeds) — and only once everything
+passes does it start writing. No DB transactions exist anywhere in this codebase and none are
+introduced here; validating up front closes off nearly all of the failure window. The one residual
+case — customer created, then a pet write fails — is handled by persisting `submission.customer`
+immediately after the customer write succeeds (before any pet writes), so a retried submit detects
+it's already resolved and switches to `update()` rather than re-`create()`ing against the
+now-taken email.
+
+Reuses `AuditLogEntry`'s existing `CUSTOMER_CREATED`/`CUSTOMER_UPDATED`/`ANIMAL_CREATED` types for
+the resulting writes (so the customer "Activity" tab needs no changes to show them), plus a new
+`FORM_SUBMITTED` type for the submission event itself. `EmailTrigger` gained a `FORM` value —
+sending a form's link reuses the existing generic `POST /settings/email/send` (no per-form
+template; one shared "Forms" template like `registration`/`add_pet`), so no backend change was
+needed for delivery itself beyond the enum value.
+
 ### Reports (`/reports`)
 
 Read-only aggregation, no schema of its own — `ReportsModule` declares its own

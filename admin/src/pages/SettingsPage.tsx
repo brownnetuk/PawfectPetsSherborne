@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import FormBuilder from '../components/FormBuilder';
+import FormsListCard from '../components/FormsListCard';
 import Modal from '../components/Modal';
 import NamedListCard from '../components/NamedListCard';
 import PdfTemplateDesigner from '../components/PdfTemplateDesigner';
@@ -13,6 +15,7 @@ import type {
   EmailSettings,
   EmailTemplate,
   EmailTrigger,
+  FormRecord,
   InvoiceTerm,
   Product,
   Staff,
@@ -20,7 +23,7 @@ import type {
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
 
-type Tab = 'business' | 'staff' | 'email' | 'templates' | 'invoices' | 'financial';
+type Tab = 'business' | 'staff' | 'email' | 'templates' | 'invoices' | 'forms' | 'financial';
 
 const TAB_LABELS: Record<Tab, string> = {
   business: 'Business Info',
@@ -28,6 +31,7 @@ const TAB_LABELS: Record<Tab, string> = {
   email: 'Email',
   templates: 'Email Templates',
   invoices: 'Invoices',
+  forms: 'Forms',
   financial: 'Finance',
 };
 
@@ -41,7 +45,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="tabs">
-        {(['business', 'staff', 'email', 'templates', 'invoices', 'financial'] as Tab[]).map((t) => (
+        {(['business', 'staff', 'email', 'templates', 'invoices', 'forms', 'financial'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -53,9 +57,26 @@ export default function SettingsPage() {
       {tab === 'email' && <EmailTab />}
       {tab === 'templates' && <EmailTemplatesTab />}
       {tab === 'invoices' && <InvoicesSettingsTab />}
+      {tab === 'forms' && <FormsTab />}
       {tab === 'financial' && <FinancialTab />}
     </div>
   );
+}
+
+function FormsTab() {
+  const [editing, setEditing] = useState<FormRecord | null | 'new'>(null);
+
+  if (editing) {
+    return (
+      <FormBuilder
+        form={editing === 'new' ? null : editing}
+        onClose={() => setEditing(null)}
+        onSaved={() => setEditing(null)}
+      />
+    );
+  }
+
+  return <FormsListCard onEdit={(form) => setEditing(form ?? 'new')} />;
 }
 
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
@@ -908,6 +929,11 @@ export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: 
     label: 'Thank You for Payment',
     description: 'Sent automatically whenever a payment is recorded against an invoice, from either place that can record one.',
   },
+  {
+    value: 'form',
+    label: 'Forms',
+    description: 'Sent from Settings > Forms (or a customer\'s "Forms" tab) when staff choose "Send email" for a form link.',
+  },
 ];
 
 // invoice/quote templates are edited as raw HTML (RichTextEditor) and sent
@@ -1118,6 +1144,11 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
       key: 'balance_due',
       hint: "remaining balance on the invoice (no £ sign) -- only present if not fully paid; wrap in {{#if balance_due}}...{{/if}}",
     },
+    ...BUSINESS_PLACEHOLDERS,
+  ],
+  form: [
+    { key: 'name', hint: "the recipient's name" },
+    { key: 'link', hint: 'the link being sent' },
     ...BUSINESS_PLACEHOLDERS,
   ],
 };

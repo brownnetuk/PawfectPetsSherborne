@@ -162,6 +162,52 @@ export interface PetDetails {
   offLeadConsent?: OffLeadConsentData;
 }
 
+// --- Forms (public form-fill page, src/forms/) ---
+
+export interface FieldMapping {
+  target: 'customer' | 'animal';
+  path: string;
+}
+
+export interface FormFieldBase {
+  id: string;
+  label: string;
+  required: boolean;
+  mapping?: FieldMapping;
+}
+
+export type SimpleFormField = FormFieldBase & {
+  type: 'text' | 'textarea' | 'number' | 'date' | 'toggle' | 'signature';
+};
+
+export type FileFormField = FormFieldBase & {
+  type: 'file';
+  maxFiles?: number;
+};
+
+export type ChoiceFormField = FormFieldBase & {
+  type: 'choice' | 'multichoice';
+  options: string[];
+};
+
+export type GroupFormField = FormFieldBase & {
+  type: 'group';
+  repeatable: true;
+  minRepeats: number;
+  maxRepeats?: number;
+  fields: FormField[];
+};
+
+export type FormField = SimpleFormField | FileFormField | ChoiceFormField | GroupFormField;
+
+export interface FormSubmissionPublic {
+  _id: string;
+  formName: string;
+  fields: FormField[];
+  status: 'pending' | 'completed';
+  recipientName?: string;
+}
+
 export interface IntakeState {
   customerId: string | null;
   client: ClientDetails;
