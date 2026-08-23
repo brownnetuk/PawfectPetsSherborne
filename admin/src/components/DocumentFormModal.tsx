@@ -3,7 +3,7 @@ import * as api from '../api/client';
 import Modal from './Modal';
 import SendPreviewModal from './SendPreviewModal';
 import { ChevronDownIcon } from './icons';
-import type { Customer, Invoice, InvoiceTerm, LineItem, Product, Quote } from '../types';
+import type { Animal, Customer, Invoice, InvoiceTerm, LineItem, Product, Quote } from '../types';
 
 function customerId(customer: Invoice['customer'] | Quote['customer']): string {
   if (!customer) return '';
@@ -303,6 +303,9 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [terms, setTerms] = useState<InvoiceTerm[]>([]);
+  // Purely a visual double-check that the right customer is selected -- these
+  // pets are never sent on the invoice/quote itself.
+  const [customerPets, setCustomerPets] = useState<Animal[]>([]);
 
   const [custId, setCustId] = useState(existing ? customerId(existing.customer) : presetCustomerId ?? '');
   const [lineItems, setLineItems] = useState<LineItem[]>(
@@ -343,6 +346,14 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
     }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!custId) {
+      setCustomerPets([]);
+      return;
+    }
+    api.listAnimals(custId).then(setCustomerPets).catch(() => setCustomerPets([]));
+  }, [custId]);
 
   // Re-suggests the due date/valid-until date when staff explicitly change the
   // term or issue date -- wired to these onChange handlers (not a reactive
@@ -473,6 +484,16 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
               <dd>{selectedCustomer.phoneNumber || '—'}</dd>
               <dt>Email</dt>
               <dd>{selectedCustomer.email || '—'}</dd>
+              {customerPets.length > 0 && (
+                <>
+                  <dt>Pets</dt>
+                  <dd>
+                    {customerPets.map((pet) => (
+                      <div key={pet._id}>{pet.name}</div>
+                    ))}
+                  </dd>
+                </>
+              )}
             </dl>
           )}
         </div>

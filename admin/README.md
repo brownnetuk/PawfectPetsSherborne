@@ -235,7 +235,11 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   required references to a real `Customer` document — once one is picked, its Address/Phone
   number/Email are shown read-only below the select in the same
   `kv-grid` layout `CustomerDetailPage`'s Overview tab uses, sourced from the already-fetched
-  `listCustomers()` result rather than a separate lookup); **Invoice/Quote Details** (Invoice #/Quote #
+  `listCustomers()` result rather than a separate lookup, plus a **Pets** row listing that
+  customer's animals by name, one per line — fetched via `GET /animals?customer=` on selection
+  change, purely so staff can double-check the right customer is selected before continuing; it's
+  never part of the submitted `custId`/line-items payload, so it has no effect on the saved
+  invoice/quote); **Invoice/Quote Details** (Invoice #/Quote #
   shown read-only in edit mode only, Issue date, Terms, Due date/Valid until, and an optional
   free-text **Subject** — no tax field, since neither model has one); and **Item Table**, a real
   table (Item Details / Quantity / Rate (£) / Discount % / Amount) replacing the old div-grid
