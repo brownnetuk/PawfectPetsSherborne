@@ -176,7 +176,7 @@ export class InvoicesService {
     return invoice;
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, actor = 'Staff'): Promise<void> {
     const [paymentCount, creditNoteCount] = await Promise.all([
       this.paymentModel.countDocuments({ invoice: id }).exec(),
       this.creditNoteModel.countDocuments({ invoice: id }).exec(),
@@ -194,6 +194,14 @@ export class InvoicesService {
     if (!result) {
       throw new NotFoundException(`Invoice ${id} not found`);
     }
+    await this.auditLogService.record(
+      result.customer,
+      AuditEventType.INVOICE_REMOVED,
+      'Invoice removed',
+      `${result.invoiceNumber} removed`,
+      undefined,
+      actor,
+    );
   }
 
   /** Emails the invoice to its customer using the "Invoice Template", then marks it sent if it was still a draft. */

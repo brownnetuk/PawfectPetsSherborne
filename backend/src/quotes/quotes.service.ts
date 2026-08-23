@@ -144,11 +144,19 @@ export class QuotesService {
     return quote;
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, actor = 'Staff'): Promise<void> {
     const result = await this.quoteModel.findByIdAndDelete(id).exec();
     if (!result) {
       throw new NotFoundException(`Quote ${id} not found`);
     }
+    await this.auditLogService.record(
+      result.customer,
+      AuditEventType.QUOTE_REMOVED,
+      'Quote removed',
+      `${result.quoteNumber} removed`,
+      undefined,
+      actor,
+    );
   }
 
   /** Emails the quote to its customer using the "Quote Template", then marks it sent if it was still a draft. */

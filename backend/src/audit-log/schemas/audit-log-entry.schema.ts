@@ -12,9 +12,11 @@ export enum AuditEventType {
   INVOICE_CREATED = 'invoice_created',
   INVOICE_UPDATED = 'invoice_updated',
   INVOICE_EMAILED = 'invoice_emailed',
+  INVOICE_REMOVED = 'invoice_removed',
   QUOTE_CREATED = 'quote_created',
   QUOTE_UPDATED = 'quote_updated',
   QUOTE_EMAILED = 'quote_emailed',
+  QUOTE_REMOVED = 'quote_removed',
   PAYMENT_RECEIVED = 'payment_received',
   PAYMENT_REMOVED = 'payment_removed',
   ANIMAL_CREATED = 'animal_created',
@@ -46,7 +48,9 @@ export class AuditLogEntry extends Document {
   @Prop()
   description?: string;
 
-  // payment_received only -- the sole source the income chart sums from.
+  // payment_received/payment_removed only -- what the income chart nets
+  // together (received minus removed, per month) to stay accurate once a
+  // payment recorded in error is deleted rather than double-counting it.
   @Prop()
   amount?: number;
 

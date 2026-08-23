@@ -463,26 +463,37 @@ page's "Activity" tab (an income chart plus a timeline), which staff never edit.
 
 `AuditLogEntry` (`backend/src/audit-log/`): `customer` (ref), `type` (a fixed `AuditEventType`
 enum — `customer_created`/`customer_updated`/`invoice_created`/`invoice_updated`/
-`invoice_emailed`/`quote_created`/`quote_updated`/`quote_emailed`/`payment_received`/
-`payment_removed`/`animal_created`/`animal_updated`/`animal_removed`/`booking_created`/
-`booking_updated`/`booking_removed`/`credit_note_issued`/`credit_note_removed`), `title`, optional
-`description`, optional `amount` (only ever set on `payment_received` — the sole source the
-per-customer income chart sums from; the business-wide Reports page sums straight from the
-`Payment`/`Expense`/`CreditNote` collections instead, not from this log), and `actor` (who/what
-caused it). `AuditLogModule` is deliberately a leaf module (no dependencies on other feature
-modules) so
+`invoice_emailed`/`invoice_removed`/`quote_created`/`quote_updated`/`quote_emailed`/
+`quote_removed`/`payment_received`/`payment_removed`/`animal_created`/`animal_updated`/
+`animal_removed`/`booking_created`/`booking_updated`/`booking_removed`/`credit_note_issued`/
+`credit_note_removed`), `title`, optional `description`, optional `amount` (only ever set on
+`payment_received`/`payment_removed` — what the per-customer income chart nets together; the
+business-wide Reports page sums straight from the `Payment`/`Expense`/`CreditNote` collections
+instead, not from this log), and `actor` (who/what caused it). `AuditLogModule` is deliberately a
+leaf module (no dependencies on other feature modules) so
 `CustomersModule`/`InvoicesModule`/`QuotesModule`/`PaymentsModule`/`AnimalsModule`/`BookingsModule`/`CreditNotesModule`
 can each import it and inject
 `AuditLogService` one-directionally, the same pattern already used for `PaymentsModule` →
 `InvoicesModule`. `AuditLogService.record(...)` swallows its own errors — a failure to log an
 event never fails the action it's describing.
 
+Every entity's `remove()` now logs on successful deletion, not just `create`/`update`/`sendEmail` —
+`invoice_removed`/`quote_removed` were the last gap (added alongside the delete-guard work in
+"Deletion safeguards" above, prompted by the same report: staff couldn't tell from the Activity tab
+that an invoice/quote had been deleted at all). `InvoicesController`/`QuotesController`'s `DELETE
+:id` routes now take `@CurrentUser()` for this, matching every other mutating route on them.
+
 `GET /audit-log?customer=<id>` lists a customer's entries newest-first.
-`GET /audit-log/income?customer=<id>&months=6` aggregates `payment_received` amounts by calendar
-month (a Mongo `$group`/`$sum` over `createdAt`) and fills in zero for months with no payments, so
-the chart always shows a full run of bars — this is intentionally a simple sum of what was
-received, not a running balance: a later `payment_removed` doesn't retroactively reduce a prior
-month's total, matching "record what happened" rather than "maintain a derived running total".
+`GET /audit-log/income?customer=<id>&months=6` (`AuditLogService.incomeByMonth()`) nets
+`payment_received` against `payment_removed` amounts per calendar month (two `$group`/`$sum`
+aggregations over `createdAt`, merged), filling in zero for months with neither, so the chart
+always shows a full run of bars. This used to be a simple sum of `payment_received` alone — found
+to double-count, since a payment recorded and later deleted (the app's only correction path; there's
+no payment edit) kept counting toward income forever even after being reversed. Crediting the
+removal to its own month rather than the original receipt's month is a simplification: it holds
+as long as the correction happens in the same reporting window as the mistake, which is the
+common case, but a payment received in one month and deleted much later would show as a dip in
+the later month rather than a reduction in the original one.
 
 **Actor attribution** — every route that logs an event needs to know who's calling, which is
 straightforward for the invoices/quotes/payments controllers (all staff-only already, so a new

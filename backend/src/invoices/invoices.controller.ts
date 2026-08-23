@@ -48,8 +48,8 @@ export class InvoicesController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.invoicesService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: CurrentUserShape) {
+    return this.invoicesService.remove(id, user.name);
   }
 
   @Post(':id/send')

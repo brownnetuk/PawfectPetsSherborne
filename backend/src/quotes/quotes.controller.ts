@@ -48,8 +48,8 @@ export class QuotesController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.quotesService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: CurrentUserShape) {
+    return this.quotesService.remove(id, user.name);
   }
 
   @Post(':id/send')

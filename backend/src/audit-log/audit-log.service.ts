@@ -49,6 +49,14 @@ export class AuditLogService {
       .exec();
   }
 
+  // Nets PAYMENT_RECEIVED against PAYMENT_REMOVED per month, rather than just
+  // summing PAYMENT_RECEIVED, so a payment recorded in error and then deleted
+  // (there's no payment edit -- deleting and re-recording is the intended
+  // correction path) doesn't keep counting toward income forever. Both event
+  // types carry the same `amount`; crediting a removal to its own month
+  // rather than tracing back to the original receipt's month is a
+  // simplification that holds as long as corrections happen reasonably soon
+  // after the mistake, which is the common case.
   async incomeByMonth(
     customerId: string,
     months: number,
@@ -58,14 +66,11 @@ export class AuditLogService {
     since.setDate(1);
     since.setHours(0, 0, 0, 0);
 
-    const rows = await this.auditLogModel.aggregate<{
-      _id: string;
-      total: number;
-    }>([
+    const groupByMonth = (type: AuditEventType) => [
       {
         $match: {
           customer: new Types.ObjectId(customerId),
-          type: AuditEventType.PAYMENT_RECEIVED,
+          type,
           createdAt: { $gte: since },
         },
       },
@@ -75,14 +80,26 @@ export class AuditLogService {
           total: { $sum: '$amount' },
         },
       },
+    ];
+
+    const [receivedRows, removedRows] = await Promise.all([
+      this.auditLogModel.aggregate<{ _id: string; total: number }>(
+        groupByMonth(AuditEventType.PAYMENT_RECEIVED),
+      ),
+      this.auditLogModel.aggregate<{ _id: string; total: number }>(
+        groupByMonth(AuditEventType.PAYMENT_REMOVED),
+      ),
     ]);
 
-    const byMonth = new Map(rows.map((r) => [r._id, r.total]));
+    const receivedByMonth = new Map(receivedRows.map((r) => [r._id, r.total]));
+    const removedByMonth = new Map(removedRows.map((r) => [r._id, r.total]));
     const result: IncomeMonth[] = [];
     const cursor = new Date(since);
     for (let i = 0; i < months; i++) {
       const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
-      result.push({ month: key, total: byMonth.get(key) ?? 0 });
+      const total =
+        (receivedByMonth.get(key) ?? 0) - (removedByMonth.get(key) ?? 0);
+      result.push({ month: key, total });
       cursor.setMonth(cursor.getMonth() + 1);
     }
     return result;

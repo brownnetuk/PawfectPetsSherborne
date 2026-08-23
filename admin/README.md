@@ -113,13 +113,18 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   The **Activity** tab (`AuditLogTab` in `CustomerDetailPage.tsx`) is read-only — staff never
   write to it directly, unlike **Notes** next to it. It's fed by `AuditLogEntry`
   (`backend/README.md`'s "Audit log" section), a system-generated record of things that happened
-  on the account: field edits, invoices/quotes created/updated/emailed, payments
-  received/removed, pets added/updated/removed, and bookings created/updated/removed. Laid out as
-  two side-by-side cards (`display: flex`, 50/50), not stacked: an **Income** card
-  (`IncomeChart.tsx`, a small inline-SVG bar chart — no charting library, just a fixed viewBox with
-  bars/gridlines/axis labels sized off the data) summing payments received per calendar month, with
-  a Last 6 Months/Last 12 Months selector and a "Total Income ( Last N Months ) - £X" line below it;
-  next to it, a vertical timeline (a plain CSS rail + dot per entry, no library) listing every
+  on the account: field edits, invoices/quotes created/updated/emailed/**removed**, payments
+  received/removed, credit notes issued/removed, pets added/updated/removed, and bookings
+  created/updated/removed — every entity's delete now logs alongside its create/update, so a
+  deleted invoice/quote doesn't just silently vanish from here with no record of it having
+  happened. Laid out as two side-by-side cards (`display: flex`, 50/50), not stacked: an
+  **Income** card (`IncomeChart.tsx`, a small inline-SVG bar chart — no charting library, just a
+  fixed viewBox with bars/gridlines/axis labels sized off the data) netting payments received
+  against payments later removed, per calendar month (`GET /audit-log/income`,
+  `AuditLogService.incomeByMonth()` in `backend/README.md` — this used to just sum payments
+  received, which double-counted a payment recorded in error and then deleted), with a Last 6
+  Months/Last 12 Months selector and a "Total Income ( Last N Months ) - £X" line below it; next
+  to it, a vertical timeline (a plain CSS rail + dot per entry, no library) listing every
   audit-log entry newest-first with its date/time, title, description, and "by {actor}". Fetched
   the same eager-on-mount way the other tabs' data is (`CustomerDetailPage`'s own `refresh()`),
   plus a separate effect re-fetching just the income data when the period selector changes.
