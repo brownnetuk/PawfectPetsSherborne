@@ -90,11 +90,10 @@ export default function EmergencyVetStep({ value, onChange }: Props) {
           value={value.authorisation?.signedName ?? ''}
           onChange={(v) => setAuth({ signedName: v })}
           required
-          hint="Your typed name plus today's date acts as your signature."
         />
         <div className="field">
           <label>
-            Or sign with your mouse or finger <span className="required">*</span>
+            Sign with your mouse or finger <span className="required">*</span>
           </label>
           <SignaturePad
             value={value.authorisation?.signatureImage}

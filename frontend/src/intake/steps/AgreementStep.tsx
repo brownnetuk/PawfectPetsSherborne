@@ -83,11 +83,10 @@ export default function AgreementStep({ value, onChange }: Props) {
         value={value.signedName}
         onChange={(v) => set('signedName', v)}
         required
-        hint="Your typed name plus today's date acts as your signature."
       />
       <div className="field">
         <label>
-          Or sign with your mouse or finger <span className="required">*</span>
+          Sign with your mouse or finger <span className="required">*</span>
         </label>
         <SignaturePad value={value.signatureImage} onChange={(sig) => set('signatureImage', sig)} />
       </div>
