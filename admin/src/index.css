@@ -430,6 +430,23 @@ tbody tr:last-child td {
   min-height: 70px;
   resize: vertical;
 }
+.select-inline {
+  width: auto;
+  padding: 8px 30px 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  font-family: inherit;
+  background: white;
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.select-inline:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(232, 150, 60, 0.2);
+}
 .field-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
