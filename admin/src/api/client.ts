@@ -110,8 +110,8 @@ export function updateCustomerStatus(id: string, status: string): Promise<Custom
 }
 
 // --- animals ---
-export function listAnimals(customerId: string): Promise<Animal[]> {
-  return request(`/animals?customer=${customerId}`);
+export function listAnimals(customerId?: string): Promise<Animal[]> {
+  return request(`/animals${customerId ? `?customer=${customerId}` : ''}`);
 }
 export function createAnimal(input: Record<string, unknown>): Promise<Animal> {
   return request('/animals', { method: 'POST', body: JSON.stringify(input) });

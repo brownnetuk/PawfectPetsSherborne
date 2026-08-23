@@ -4,7 +4,7 @@ import * as api from '../api/client';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import RegistrationLinkModal from '../components/RegistrationLinkModal';
-import type { Customer } from '../types';
+import type { Animal, Customer } from '../types';
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
 
@@ -13,6 +13,7 @@ type Tab = 'active' | 'inactive';
 export default function CustomersPage() {
   const navigate = useNavigate();
   const [customers, setCustomers] = useState<Customer[] | null>(null);
+  const [animals, setAnimals] = useState<Animal[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<Tab>('active');
@@ -23,6 +24,9 @@ export default function CustomersPage() {
       .listCustomers()
       .then(setCustomers)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load customers'));
+    // Fetched purely so search can also match a pet's name -- never rendered
+    // on this page itself.
+    api.listAnimals().then(setAnimals).catch(() => setAnimals([]));
   }
 
   useEffect(refresh, []);
@@ -30,7 +34,9 @@ export default function CustomersPage() {
   const filtered = (customers ?? []).filter((c) => {
     if (tab === 'active' ? c.status === 'inactive' : c.status !== 'inactive') return false;
     const q = search.toLowerCase();
-    return c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q);
+    if (!q) return true;
+    if (c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)) return true;
+    return animals.some((a) => a.customer === c._id && a.name.toLowerCase().includes(q));
   });
 
   return (
@@ -47,7 +53,7 @@ export default function CustomersPage() {
       <div className="field" style={{ maxWidth: 320 }}>
         <input
           type="text"
-          placeholder="Search by name or email…"
+          placeholder="Search by name, email, or pet…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />

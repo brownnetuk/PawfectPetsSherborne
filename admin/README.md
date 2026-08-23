@@ -57,7 +57,13 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   There's no full customer-creation form here on purpose — the intake form is where that detail
   belongs, and duplicating it would just be two sources of truth for the same data. The backend
   rejects an email already used by another customer (case-insensitively) on this and on the public
-  intake form's own signup — the error banner just surfaces the backend's message as-is.
+  intake form's own signup — the error banner just surfaces the backend's message as-is. Search
+  matches name/email as before, or a pet's name — `refresh()` also fetches `listAnimals()` with no
+  customer filter (`GET /animals`, all-animals, staff-only — `listAnimals()`'s `customerId` param
+  became optional for this, matching the `listBookings`/`listInvoices` "omit for everything"
+  convention already used elsewhere) purely to search against; `Animal.customer` is never populated
+  by the backend, so matching a pet to its owner is a plain `a.customer === c._id` join done
+  client-side, same as the rest of this page's filtering.
   **Active**/**Inactive** tabs (`CustomersPage.tsx`) sit below the search box, splitting the same
   already-fetched list client-side (`listCustomers()` has no server-side filter to build on, same
   as the search box already did) directly on the existing `status` field — Inactive is
