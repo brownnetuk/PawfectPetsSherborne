@@ -1,8 +1,19 @@
-import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { Public } from '../auth/public.decorator';
 import { CreateFormSubmissionDto } from './dto/create-form-submission.dto';
 import { SubmitFormSubmissionDto } from './dto/submit-form-submission.dto';
+import { UpdateFormSubmissionDto } from './dto/update-form-submission.dto';
 import { FormSubmissionsService } from './form-submissions.service';
 
 @Controller('form-submissions')
@@ -25,6 +36,16 @@ export class FormSubmissionsController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.formSubmissionsService.findOne(id);
+  }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateFormSubmissionDto) {
+    return this.formSubmissionsService.update(id, dto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.formSubmissionsService.remove(id);
   }
 
   // Public: the form-fill page fetches by id (from its emailed link).

@@ -20,6 +20,7 @@ import { UpdateCustomerDto } from '../customers/dto/update-customer.dto';
 import { FormField } from '../forms/form-field.types';
 import { FormsService } from '../forms/forms.service';
 import { CreateFormSubmissionDto } from './dto/create-form-submission.dto';
+import { UpdateFormSubmissionDto } from './dto/update-form-submission.dto';
 import {
   buildAnimalPatch,
   buildCustomerPatch,
@@ -91,6 +92,37 @@ export class FormSubmissionsService {
       recipientEmail: dto.recipientEmail,
       recipientName: dto.recipientName,
     }).save();
+  }
+
+  // Staff fixing a typo'd recipient before resending, or similar -- rejected
+  // once completed since the answers (and any Customer/Animal they created)
+  // are already real, submitted data at that point, not a draft.
+  async update(
+    id: string,
+    dto: UpdateFormSubmissionDto,
+  ): Promise<FormSubmission> {
+    const submission = await this.findOne(id);
+    if (submission.status === FormSubmissionStatus.COMPLETED) {
+      throw new BadRequestException(
+        "Can't edit a submission that's already been filled in.",
+      );
+    }
+    if (dto.recipientName !== undefined)
+      submission.recipientName = dto.recipientName;
+    if (dto.recipientEmail !== undefined)
+      submission.recipientEmail = dto.recipientEmail;
+    return submission.save();
+  }
+
+  // Removes the link/record only -- never touches whatever Customer/Animal a
+  // completed submission already created (same "delete the record, not its
+  // downstream effects" shape as, e.g., AuditLogEntry never being touched by
+  // deleting the thing it logged).
+  async remove(id: string): Promise<void> {
+    const result = await this.formSubmissionModel.findByIdAndDelete(id).exec();
+    if (!result) {
+      throw new NotFoundException(`Form submission ${id} not found`);
+    }
   }
 
   findAll(customerId?: string): Promise<FormSubmission[]> {

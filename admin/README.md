@@ -173,7 +173,17 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   by field label, a repeatable group's repetitions shown as their own "Pet 1"/"Pet 2" sub-sections,
   with unmapped fields still shown (labelled "(not mapped)") since they were captured even though
   they never wrote anywhere. Signature/file-type answers render as inline images rather than raw
-  base64 text.
+  base64 text. Each row also has an `ActionsMenu`: a still-**pending** submission (not yet filled
+  in) offers **Resend** — `SendFormModal` with a new optional `existing` prop that skips straight
+  to the copy-link/send-email screen using that submission's own id, rather than generating a new
+  one (a resent link still points at the same not-yet-completed record) — and **Edit**
+  (`EditFormSubmissionModal`, both in `CustomerDetailPage.tsx`) for fixing a typo'd recipient
+  name/email before it's filled in. **Delete** is offered regardless of status, removing only the
+  `FormSubmission` record itself — a completed one's already-created Customer/Animal records are
+  untouched, same "delete the record, not its downstream effects" shape as everywhere else in this
+  app that logs an effect rather than owning it. Editing/resending a completed submission isn't
+  offered at all (`PATCH /form-submissions/:id` itself also rejects it server-side) since its
+  answers, and whatever they already created, are real submitted data at that point, not a draft.
 - **Bookings** — a global list across all customers, inline status changes, edit and delete on
   each row, and its own "New" flow with a customer picker (the customer-detail version reuses the
   same create/edit/delete calls with the customer pre-selected).

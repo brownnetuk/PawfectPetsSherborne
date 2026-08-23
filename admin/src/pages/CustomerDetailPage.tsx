@@ -1204,6 +1204,11 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
   const [forms, setForms] = useState<FormRecord[]>([]);
   const [pickedFormId, setPickedFormId] = useState('');
   const [sendingForm, setSendingForm] = useState<FormRecord | null>(null);
+  const [resending, setResending] = useState<FormSubmissionRecord | null>(null);
+  const [editing, setEditing] = useState<FormSubmissionRecord | null>(null);
+  const [deleting, setDeleting] = useState<FormSubmissionRecord | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function refresh() {
     api
@@ -1220,6 +1225,37 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
     return status === 'completed' ? 'Completed' : 'Sent — awaiting response';
   }
 
+  // Falls back to a stand-in built from the submission's own snapshot if the
+  // Form it was sent from has since been edited-away-from-this-name or
+  // deleted entirely -- SendFormModal in resend mode only reads `.name` off
+  // this (it reuses the submission's own link rather than generating a new
+  // one), so a stand-in is all it needs.
+  function formFor(submission: FormSubmissionRecord): FormRecord {
+    return (
+      forms.find((f) => f._id === submission.form) ?? {
+        _id: submission.form,
+        name: submission.formName,
+        fields: submission.formFieldsSnapshot,
+        createdAt: submission.createdAt,
+      }
+    );
+  }
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteFormSubmission(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete this submission');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
   return (
     <div className="card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
@@ -1230,7 +1266,7 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <select value={pickedFormId} onChange={(e) => setPickedFormId(e.target.value)}>
+          <select className="select-inline" value={pickedFormId} onChange={(e) => setPickedFormId(e.target.value)}>
             <option value="">Choose a form…</option>
             {forms.map((f) => (
               <option key={f._id} value={f._id}>
@@ -1258,6 +1294,7 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
               <th>Status</th>
               <th>Sent</th>
               <th>Submitted</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -1267,6 +1304,19 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
                 <td>{statusLabel(s.status)}</td>
                 <td>{new Date(s.createdAt).toLocaleDateString()}</td>
                 <td>{s.submittedAt ? new Date(s.submittedAt).toLocaleDateString() : '—'}</td>
+                <td onClick={(e) => e.stopPropagation()}>
+                  <ActionsMenu
+                    items={[
+                      ...(s.status === 'pending'
+                        ? [
+                            { label: 'Resend', onClick: () => setResending(s) },
+                            { label: 'Edit', onClick: () => setEditing(s) },
+                          ]
+                        : []),
+                      { label: 'Delete', onClick: () => setDeleting(s), danger: true, dividerBefore: s.status === 'pending' },
+                    ]}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -1285,6 +1335,99 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
           }}
         />
       )}
+      {resending && (
+        <SendFormModal
+          form={formFor(resending)}
+          customer={customer}
+          existing={resending}
+          onClose={() => {
+            setResending(null);
+            refresh();
+          }}
+        />
+      )}
+      {editing && (
+        <EditFormSubmissionModal
+          submission={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            refresh();
+          }}
+        />
+      )}
+      {deleting && (
+        <Modal title="Delete this form submission?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently removes the <strong>{deleting.formName}</strong> link sent to{' '}
+            {deleting.recipientName || deleting.recipientEmail}.
+            {deleting.status === 'completed' &&
+              " The customer/pet records it created are kept -- this only removes the submission record itself."}
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
+  );
+}
+
+function EditFormSubmissionModal({
+  submission,
+  onClose,
+  onSaved,
+}: {
+  submission: FormSubmissionRecord;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(submission.recipientName ?? '');
+  const [email, setEmail] = useState(submission.recipientEmail);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await api.updateFormSubmission(submission._id, { recipientName: name || undefined, recipientEmail: email });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save changes');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title={`Edit "${submission.formName}" link`} onClose={onClose}>
+      {error && <div className="error-banner">{error}</div>}
+      <form onSubmit={handleSubmit}>
+        <div className="field">
+          <label>Recipient name</label>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Recipient email</label>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }

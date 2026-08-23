@@ -540,6 +540,19 @@ export function listFormSubmissions(customerId?: string): Promise<FormSubmission
 export function getFormSubmission(id: string): Promise<FormSubmissionRecord> {
   return request(`/form-submissions/${id}`);
 }
+export interface UpdateFormSubmissionInput {
+  recipientName?: string;
+  recipientEmail?: string;
+}
+export function updateFormSubmission(
+  id: string,
+  input: UpdateFormSubmissionInput,
+): Promise<FormSubmissionRecord> {
+  return request(`/form-submissions/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deleteFormSubmission(id: string): Promise<void> {
+  return request(`/form-submissions/${id}`, { method: 'DELETE' });
+}
 
 // --- enquiries ---
 export function listEnquiries(): Promise<Enquiry[]> {

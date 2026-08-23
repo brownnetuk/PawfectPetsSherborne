@@ -484,9 +484,14 @@ submission), `status: pending | completed`, an optional `customer` ref (set up f
 against an existing customer, or filled in by `submit()` once one's created), `recipientEmail`/
 `recipientName`, and `answers` (keyed by field id; a group's answer is an array of per-repetition
 records). Staff routes: `POST /form-submissions` (generate a link), `GET /form-submissions?customer=`,
-`GET /form-submissions/:id`. `@Public()`: `GET /form-submissions/:id/public` (strips `mapping` from
-the returned fields — not a hard security boundary, submit still re-validates everything, just no
-reason to leak DB path names) and `POST /form-submissions/:id/submit`.
+`GET /form-submissions/:id`, `PATCH /form-submissions/:id` (recipient name/email only — a still-
+`pending` link's typo, say — rejected with a clean `BadRequestException` once `status: completed`,
+since the answers and whatever they already created are real submitted data at that point, not a
+draft), `DELETE /form-submissions/:id` (removes the record only; never touches whatever
+Customer/Animal a completed submission already created, same as the admin UI's own "Resend"/"Edit"/
+"Delete" row actions — see `admin/README.md`). `@Public()`: `GET /form-submissions/:id/public`
+(strips `mapping` from the returned fields — not a hard security boundary, submit still
+re-validates everything, just no reason to leak DB path names) and `POST /form-submissions/:id/submit`.
 
 **`FormSubmissionsService.submit()`'s validation approach is the load-bearing design decision
 here.** `main.ts`'s global `ValidationPipe` only runs at the HTTP controller boundary — it does
