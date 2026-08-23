@@ -109,8 +109,21 @@ export interface AllergyInfo {
   details?: string;
 }
 
+export interface MedicationEntry {
+  name: string;
+  illnessTreating?: string;
+  dosage?: string;
+  frequency?: string;
+  vetPrescribed: boolean;
+  administeredByPawfectPets: boolean;
+  additionalInfo?: string;
+}
+
 export interface MedicationInfo {
   onMedication: boolean;
+  medications?: MedicationEntry[];
+  // Legacy, read-only -- superseded by `medications` above, kept only so a
+  // pet recorded before this change still shows what was typed.
   details?: string;
 }
 

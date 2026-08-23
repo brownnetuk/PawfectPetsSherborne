@@ -109,7 +109,12 @@ file. Adding a pet this way should never risk their other data.
    part of the same step for dogs only, since consent belongs to that specific animal. Age
    (required, whole years) sits alongside an optional Date of birth field — kept as two separate
    fields rather than replacing one with the other, since not every customer knows an exact birth
-   date (e.g. a rescue) but everyone can give an age
+   date (e.g. a rescue) but everyone can give an age. "On medication" → Yes reveals a repeatable
+   list (`MedicationEntriesField.tsx`, shared with the admin app's own version of this UI) instead
+   of the single free-text field it used to be — each entry needs a Medication Name, with Illness
+   treating/Dosage/Frequency/Additional Info as free text and Vet Prescribed/Pawfect Pets To
+   administer as Yes/No selects; "+ Add Medication" adds another, "Remove" drops one, and there
+   must be at least one entry (with a name) before advancing
 7. Security arrangements (alarm instructions are sent to the backend, which encrypts them at rest)
 8. Client agreement — scrollable terms (see below), typed signature + drawn signature (both
    required), auto-filled date, submit

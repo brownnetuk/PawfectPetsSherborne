@@ -74,6 +74,16 @@ export interface Customer {
   };
 }
 
+export interface MedicationEntry {
+  name: string;
+  illnessTreating?: string;
+  dosage?: string;
+  frequency?: string;
+  vetPrescribed: boolean;
+  administeredByPawfectPets: boolean;
+  additionalInfo?: string;
+}
+
 export interface Animal {
   _id: string;
   customer: string;
@@ -97,7 +107,10 @@ export interface Animal {
   chasesLivestock?: TriState;
   chasesLivestockDetails?: string;
   allergies: { status: TriState; details?: string };
-  medication: { onMedication: boolean; details?: string };
+  // `details` is legacy (a single free-text field, superseded by `medications`)
+  // -- read-only, kept only so an animal recorded before this change still
+  // shows what was typed instead of going blank; never written by current code.
+  medication: { onMedication: boolean; medications?: MedicationEntry[]; details?: string };
   offLeadConsent?: { mode: LeadMode; signature?: string };
 }
 

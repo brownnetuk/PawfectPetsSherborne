@@ -26,7 +26,7 @@ function emptyPet(): PetDetails {
     chasesLivestock: '',
     chasesLivestockDetails: '',
     allergies: { status: 'no', details: '' },
-    medication: { onMedication: false, details: '' },
+    medication: { onMedication: false, medications: [] },
     offLeadConsent: undefined,
   };
 }
@@ -94,8 +94,10 @@ export default function AddPetFlow({ customerId }: { customerId: string }) {
         if (pet.chasesLivestock === 'yes' && !pet.chasesLivestockDetails)
           return 'Please provide details about chasing livestock.';
       }
-      if (pet.medication.onMedication && !pet.medication.details)
-        return 'Please provide medication details.';
+      if (pet.medication.onMedication && !pet.medication.medications?.length)
+        return 'Please add at least one medication.';
+      if (pet.medication.medications?.some((m) => !m.name))
+        return 'Please provide a name for each medication.';
       if (pet.species === 'dog' && !pet.offLeadConsent?.mode) return 'Please choose on lead or off lead.';
     }
     return null;

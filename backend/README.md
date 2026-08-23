@@ -123,6 +123,20 @@ sits alongside it as an optional exact date — not a replacement, since not eve
 precise birth date (e.g. a rescue) but everyone can give an age. Nothing derives one from the
 other; both are plain stored values, round-tripped as-is.
 
+`medication` (`onMedication: boolean` plus, when true, a required non-empty `medications` array)
+replaced what used to be a single free-text `details` field — each `MedicationEntry` is `name`
+(required), `illnessTreating`/`dosage`/`frequency`/`additionalInfo` (all optional free text), and
+`vetPrescribed`/`administeredByPawfectPets` (both required booleans, "Pawfect Pets To administer"
+in the UI). `MedicationInfoDto.medications` is validated with `@ValidateIf(o => o.onMedication)
+@ArrayMinSize(1) @ValidateNested({ each: true })`, same shape as `AllergyInfoDto`'s
+status-gated `details`. The old `details` field stays on the schema as a read-only legacy value —
+never written by current code, kept purely so an animal recorded before this change still shows
+what was typed instead of going blank (there's no migration tooling in this codebase, so existing
+documents keep their old flat shape until individually re-saved). Both admin (`NewAnimalModal`/
+`EditAnimalModal`/`ViewAnimalModal`) and the intake form (`PetDetailsStep.tsx`) render this
+identically via a small shared `MedicationEntriesField` component in each app — see their own
+READMEs.
+
 `photos` is an optional array of up to 2 base64 data URIs (`@ArrayMaxSize(2)`), same storage
 approach as `Customer.agreement`'s `signatureImage`/`BusinessInfo.logoImage` — no per-image size
 limit enforced server-side (the intake form and admin's pet forms both cap each upload

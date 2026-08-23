@@ -46,6 +46,20 @@ interface Block {
 // has to be sized to the longest label or long ones overrun into the value.
 const FIELD_LABEL_WIDTH = 170;
 
+function medicationSummary(medication: Animal['medication']): string {
+  if (!medication.onMedication) return 'No';
+  if (medication.medications && medication.medications.length > 0) {
+    return medication.medications
+      .map((m) => {
+        const parts = [m.name, m.illnessTreating, m.dosage, m.frequency].filter(Boolean).join(', ');
+        const flags = `Vet prescribed: ${m.vetPrescribed ? 'Yes' : 'No'}; Pawfect Pets to administer: ${m.administeredByPawfectPets ? 'Yes' : 'No'}`;
+        return [parts, flags, m.additionalInfo].filter(Boolean).join(' — ');
+      })
+      .join('\n');
+  }
+  return `Yes — ${medication.details ?? ''}`;
+}
+
 function fieldBlock(doc: jsPDF, label: string, value: string): Block {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
@@ -440,11 +454,7 @@ export async function buildCustomerFormPdf(
         'Allergies',
         animal.allergies.status === 'no' ? 'No' : `${animal.allergies.status} — ${animal.allergies.details ?? ''}`,
       ),
-      fieldBlock(
-        doc,
-        'On medication',
-        animal.medication.onMedication ? `Yes — ${animal.medication.details ?? ''}` : 'No',
-      ),
+      fieldBlock(doc, 'On medication', medicationSummary(animal.medication)),
     );
 
     if (animal.species === 'dog' && animal.offLeadConsent) {

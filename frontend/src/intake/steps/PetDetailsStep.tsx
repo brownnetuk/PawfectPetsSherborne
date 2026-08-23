@@ -1,4 +1,5 @@
 import { ChoiceGroup, SelectField, TextField, ToggleField } from '../fields';
+import MedicationEntriesField from '../MedicationEntriesField';
 import PhotoUpload from '../PhotoUpload';
 import SignaturePad from '../SignaturePad';
 import type { PetDetails, Species } from '../../types';
@@ -204,11 +205,9 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
         required
       />
       {value.medication.onMedication && (
-        <TextField
-          label="Medication details"
-          value={value.medication.details ?? ''}
-          onChange={(v) => set('medication', { ...value.medication, details: v })}
-          required
+        <MedicationEntriesField
+          medications={value.medication.medications ?? []}
+          onChange={(medications) => set('medication', { ...value.medication, medications })}
         />
       )}
 

@@ -105,7 +105,33 @@ export default function ViewAnimalModal({ animal, onClose }: Props) {
                 : `${animal.allergies.status} — ${animal.allergies.details || '—'}`}
             </dd>
             <dt>On medication</dt>
-            <dd>{animal.medication.onMedication ? `Yes — ${animal.medication.details || '—'}` : 'No'}</dd>
+            <dd>
+              {!animal.medication.onMedication ? (
+                'No'
+              ) : animal.medication.medications && animal.medication.medications.length > 0 ? (
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {animal.medication.medications.map((m, i) => (
+                    <li key={i} style={{ marginBottom: 6 }}>
+                      <strong>{m.name}</strong>
+                      {m.illnessTreating && ` — for ${m.illnessTreating}`}
+                      {m.dosage && `, ${m.dosage}`}
+                      {m.frequency && `, ${m.frequency}`}
+                      <br />
+                      Vet prescribed: {m.vetPrescribed ? 'Yes' : 'No'}; Pawfect Pets to administer:{' '}
+                      {m.administeredByPawfectPets ? 'Yes' : 'No'}
+                      {m.additionalInfo && (
+                        <>
+                          <br />
+                          {m.additionalInfo}
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                `Yes — ${animal.medication.details || '—'}`
+              )}
+            </dd>
           </dl>
         </div>
 

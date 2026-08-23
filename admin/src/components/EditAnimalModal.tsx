@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import * as api from '../api/client';
+import MedicationEntriesField from './MedicationEntriesField';
 import Modal from './Modal';
-import type { Animal, Sex, Species, TriState } from '../types';
+import type { Animal, MedicationEntry, Sex, Species, TriState } from '../types';
 
 interface Props {
   animal: Animal;
@@ -47,7 +48,11 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
   const [allergyStatus, setAllergyStatus] = useState<TriState>(animal.allergies.status);
   const [allergyDetails, setAllergyDetails] = useState(animal.allergies.details ?? '');
   const [onMedication, setOnMedication] = useState(animal.medication.onMedication);
-  const [medicationDetails, setMedicationDetails] = useState(animal.medication.details ?? '');
+  const [medications, setMedications] = useState<MedicationEntry[]>(animal.medication.medications ?? []);
+  // Read-only: only present for a pre-existing animal that had the old
+  // free-text field filled in before it was replaced by the list above.
+  const legacyMedicationDetails =
+    !animal.medication.medications?.length ? animal.medication.details : undefined;
 
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -85,8 +90,8 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
       setError('Vaccine expiry date is required for a vaccinated pet.');
       return;
     }
-    if (onMedication && !medicationDetails) {
-      setError('Medication details are required.');
+    if (onMedication && medications.length === 0) {
+      setError('Add at least one medication.');
       return;
     }
     if (aggressionToPeople && !aggressionToPeopleDetails) {
@@ -130,7 +135,7 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
         chasesLivestockDetails:
           species === 'dog' && chasesLivestock === 'yes' ? chasesLivestockDetails : undefined,
         allergies: { status: allergyStatus, details: allergyDetails || undefined },
-        medication: { onMedication, details: medicationDetails || undefined },
+        medication: { onMedication, medications: onMedication ? medications : undefined },
       });
       onSaved();
     } catch (err) {
@@ -353,12 +358,12 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
           <input type="checkbox" checked={onMedication} onChange={(e) => setOnMedication(e.target.checked)} />
           On medication
         </label>
-        {onMedication && (
-          <div className="field">
-            <label>Medication details</label>
-            <input type="text" value={medicationDetails} onChange={(e) => setMedicationDetails(e.target.value)} required />
+        {onMedication && legacyMedicationDetails && (
+          <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: -8, marginBottom: 10 }}>
+            Previously recorded (read-only): {legacyMedicationDetails}
           </div>
         )}
+        {onMedication && <MedicationEntriesField medications={medications} onChange={setMedications} />}
 
         {species === 'dog' && (
           <p style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>

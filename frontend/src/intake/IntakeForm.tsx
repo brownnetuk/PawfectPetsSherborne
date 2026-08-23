@@ -39,7 +39,7 @@ function emptyPet(): PetDetails {
     chasesLivestock: '',
     chasesLivestockDetails: '',
     allergies: { status: 'no', details: '' },
-    medication: { onMedication: false, details: '' },
+    medication: { onMedication: false, medications: [] },
     offLeadConsent: undefined,
   };
 }
@@ -68,7 +68,7 @@ function petFromRecord(a: AnimalRecord): PetDetails {
     chasesLivestock: a.chasesLivestock ?? '',
     chasesLivestockDetails: a.chasesLivestockDetails ?? '',
     allergies: { status: a.allergies.status, details: a.allergies.details ?? '' },
-    medication: { onMedication: a.medication.onMedication, details: a.medication.details ?? '' },
+    medication: { onMedication: a.medication.onMedication, medications: a.medication.medications ?? [] },
     // Only mode/signature -- the stored record also carries acknowledgedAt/date
     // (set server-side when consent was first given), which the update DTO
     // rejects as unexpected properties if resubmitted verbatim.
@@ -233,8 +233,10 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
         if (pet.chasesLivestock === 'yes' && !pet.chasesLivestockDetails)
           return 'Please provide details about chasing livestock.';
       }
-      if (pet.medication.onMedication && !pet.medication.details)
-        return 'Please provide medication details.';
+      if (pet.medication.onMedication && !pet.medication.medications?.length)
+        return 'Please add at least one medication.';
+      if (pet.medication.medications?.some((m) => !m.name))
+        return 'Please provide a name for each medication.';
       if (pet.species === 'dog') {
         if (!pet.offLeadConsent?.mode) return 'Please choose on lead or off lead.';
       }

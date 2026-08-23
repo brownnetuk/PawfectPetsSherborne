@@ -74,7 +74,16 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   optional **Date of birth** alongside the existing required **Age** (in whole years) — kept as two
   separate fields rather than one replacing the other, since not everyone knows an exact birth date
   (e.g. a rescue) but everyone can give an age; shown in `ViewAnimalModal` and the customer PDF
-  export too. A pet row also
+  export too. **On medication** replaces what used to be a single free-text "Medication details"
+  field with a repeatable list (`MedicationEntriesField.tsx`, shared by New/Edit pet) — each entry
+  has **Medication Name** (required), **Illness treating**/**Dosage**/**Frequency** (free text),
+  **Vet Prescribed**/**Pawfect Pets To administer** (Yes/No selects), and **Additional Info**, with
+  a "+ Add Medication" button to add more than one and a "Remove" link per entry. An animal
+  recorded before this change only has the old free-text value (`medication.details`) — Edit pet
+  shows it as a read-only "Previously recorded" hint above an empty (not auto-migrated) list, since
+  shoehorning one loose sentence into the new structured fields would likely be wrong more often
+  than it's right; `ViewAnimalModal` and the customer PDF fall back to showing that same legacy
+  text for such an animal since there's nothing else to show. A pet row also
   has a "Delete" action, matching the confirm-modal pattern the Bookings tab already uses —
   blocked with the backend's existing message if the pet is on any booking. New/Edit pet and
   "View" (`ViewAnimalModal`) all support up to 2 optional photos — a file upload (each capped at

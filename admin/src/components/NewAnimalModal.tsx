@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import * as api from '../api/client';
+import MedicationEntriesField from './MedicationEntriesField';
 import Modal from './Modal';
-import type { LeadMode, Sex, Species, TriState } from '../types';
+import type { LeadMode, MedicationEntry, Sex, Species, TriState } from '../types';
 
 interface Props {
   customerId: string;
@@ -37,7 +38,7 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
   const [allergyStatus, setAllergyStatus] = useState<TriState>('no');
   const [allergyDetails, setAllergyDetails] = useState('');
   const [onMedication, setOnMedication] = useState(false);
-  const [medicationDetails, setMedicationDetails] = useState('');
+  const [medications, setMedications] = useState<MedicationEntry[]>([]);
   const [leadMode, setLeadMode] = useState<LeadMode>('on_lead');
   const [consentSignature, setConsentSignature] = useState('');
 
@@ -65,8 +66,8 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
       setError('Vaccine expiry date is required for a vaccinated pet.');
       return;
     }
-    if (onMedication && !medicationDetails) {
-      setError('Medication details are required.');
+    if (onMedication && medications.length === 0) {
+      setError('Add at least one medication.');
       return;
     }
     if (aggressionToPeople && !aggressionToPeopleDetails) {
@@ -112,7 +113,7 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
         chasesLivestockDetails:
           species === 'dog' && chasesLivestock === 'yes' ? chasesLivestockDetails : undefined,
         allergies: { status: allergyStatus, details: allergyDetails || undefined },
-        medication: { onMedication, details: medicationDetails || undefined },
+        medication: { onMedication, medications: onMedication ? medications : undefined },
         offLeadConsent:
           species === 'dog'
             ? { mode: leadMode, signature: leadMode === 'off_lead' ? consentSignature : undefined }
@@ -330,12 +331,7 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
           <input type="checkbox" checked={onMedication} onChange={(e) => setOnMedication(e.target.checked)} />
           On medication
         </label>
-        {onMedication && (
-          <div className="field">
-            <label>Medication details</label>
-            <input type="text" value={medicationDetails} onChange={(e) => setMedicationDetails(e.target.value)} required />
-          </div>
-        )}
+        {onMedication && <MedicationEntriesField medications={medications} onChange={setMedications} />}
 
         {species === 'dog' && (
           <>

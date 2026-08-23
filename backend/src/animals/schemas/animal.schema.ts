@@ -35,10 +35,42 @@ class AllergyInfo {
 const AllergyInfoSchema = SchemaFactory.createForClass(AllergyInfo);
 
 @Schema({ _id: false })
+class MedicationEntry {
+  @Prop({ required: true })
+  name: string;
+
+  @Prop()
+  illnessTreating?: string;
+
+  @Prop()
+  dosage?: string;
+
+  @Prop()
+  frequency?: string;
+
+  @Prop({ required: true })
+  vetPrescribed: boolean;
+
+  @Prop({ required: true })
+  administeredByPawfectPets: boolean;
+
+  @Prop()
+  additionalInfo?: string;
+}
+const MedicationEntrySchema = SchemaFactory.createForClass(MedicationEntry);
+
+@Schema({ _id: false })
 class MedicationInfo {
   @Prop({ required: true })
   onMedication: boolean;
 
+  @Prop({ type: [MedicationEntrySchema], default: [] })
+  medications?: MedicationEntry[];
+
+  // Superseded by `medications` above (a single free-text field replaced by a
+  // repeatable structured list) -- kept read-only so animals recorded before
+  // this change still show what was typed, rather than silently going blank.
+  // Never written by current code.
   @Prop()
   details?: string;
 }

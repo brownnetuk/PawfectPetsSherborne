@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsDateString,
@@ -26,14 +27,44 @@ export class AllergyInfoDto {
   details?: string;
 }
 
+export class MedicationEntryDto {
+  @IsNotEmpty()
+  @IsString()
+  name: string;
+
+  @IsOptional()
+  @IsString()
+  illnessTreating?: string;
+
+  @IsOptional()
+  @IsString()
+  dosage?: string;
+
+  @IsOptional()
+  @IsString()
+  frequency?: string;
+
+  @IsBoolean()
+  vetPrescribed: boolean;
+
+  @IsBoolean()
+  administeredByPawfectPets: boolean;
+
+  @IsOptional()
+  @IsString()
+  additionalInfo?: string;
+}
+
 export class MedicationInfoDto {
   @IsBoolean()
   onMedication: boolean;
 
   @ValidateIf((o) => o.onMedication)
-  @IsNotEmpty()
-  @IsString()
-  details?: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => MedicationEntryDto)
+  medications?: MedicationEntryDto[];
 }
 
 export class OffLeadConsentDto {
