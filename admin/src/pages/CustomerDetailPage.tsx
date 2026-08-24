@@ -44,6 +44,15 @@ function statusLabel(status: string): string {
 // A partial payment doesn't change the invoice's underlying status (it stays
 // "sent" until fully covered -- see InvoicesService.applyPayment()) -- this
 // is purely a derived display badge layered alongside the real status.
+// jsPDF's `datauristring` output embeds a non-standard `;filename=...;`
+// segment between the media type and `;base64,`, which breaks Chrome's PDF
+// viewer when used as an iframe src (it renders a blank page even though the
+// same string works fine for a plain <a download> link). Strip it so stored
+// snapshots -- old and new -- render correctly.
+function toPdfIframeSrc(dataUri: string): string {
+  return dataUri.replace(/^data:application\/pdf;filename=[^;]*;base64,/, 'data:application/pdf;base64,');
+}
+
 function isPartiallyPaid(inv: Invoice): boolean {
   const paid = inv.amountPaid ?? 0;
   return inv.status === 'sent' && paid > 0 && paid < inv.total;
@@ -434,7 +443,7 @@ export default function CustomerDetailPage() {
           xl
         >
           <iframe
-            src={viewingSnapshot.attachmentData}
+            src={toPdfIframeSrc(viewingSnapshot.attachmentData)}
             title="Registration form PDF snapshot"
             style={{ width: '100%', height: '75vh', border: '1px solid var(--border)', borderRadius: 8 }}
           />
