@@ -73,11 +73,13 @@ a Mac for iOS. Nothing about how it talks to the backend is Render-specific.
 
 [`docker-compose.yml`](docker-compose.yml) (repo root) is an alternative to Render: a self-hosted
 `mongo` container plus `backend`/`admin`/`frontend`, each built from that app's own `Dockerfile`
-(`backend/Dockerfile`, `admin/Dockerfile`, `frontend/Dockerfile` — the latter two are a Vite build
-stage feeding an `nginx:1.27-alpine` stage with an SPA-rewrite `nginx.conf`, same client-side-routing
-need as Render's own rewrite rule above). Copy [`.env.example`](.env.example) to `.env` (or paste
-its contents into Portainer's stack environment variables) and fill in real values before deploying
-— see that file's comments for what each one is and, critically, why `ENCRYPTION_KEY` specifically
+(`backend/Dockerfile`, `admin/Dockerfile`, `frontend/Dockerfile` — no nginx anywhere in this setup;
+the latter two are a Vite build stage feeding a `node:22-alpine` stage running the `serve` package
+in `-s`/single mode, which gives the same SPA-fallback-to-`index.html` behaviour Render's own
+rewrite rule provides, for the same reason — client-side routes like `/customers/:id` or
+`/intake/:id` aren't real files). Copy [`.env.example`](.env.example) to `.env` (or paste its
+contents into Portainer's stack environment variables) and fill in real values before deploying —
+see that file's comments for what each one is and, critically, why `ENCRYPTION_KEY` specifically
 must be copied unchanged from the existing `backend/.env` rather than freshly generated (it would
 otherwise permanently break decryption of already-stored `alarmInstructionsEncrypted` values).
 `VITE_API_URL`/`VITE_INTAKE_URL` are Vite build-time values (see each frontend's own
@@ -85,13 +87,22 @@ otherwise permanently break decryption of already-stored `alarmInstructionsEncry
 ordinary runtime environment variables — they must be the real, publicly-reachable URLs a browser
 will load, not the in-network `backend`/`admin`/`frontend` service names.
 
+Public ingress is a `cloudflared` service in the same stack (Cloudflare Tunnel), not a reverse
+proxy — it makes an outbound-only connection to Cloudflare's edge, so nothing needs a port opened
+on the host or forwarded on the router, and TLS is handled by Cloudflare rather than anything in
+this repo. Create a tunnel in the Cloudflare Zero Trust dashboard (Networks → Tunnels →
+Create a tunnel → Cloudflared), copy its token into `CLOUDFLARE_TUNNEL_TOKEN`, then add three
+Public Hostnames on that tunnel pointing at `http://backend:3000`, `http://admin:80`, and
+`http://frontend:80` — the in-network service names from `docker-compose.yml`, reachable from
+`cloudflared` over the same Docker network. `backend`/`admin`/`frontend` also still publish to host
+ports 3000/8080/8081 for direct/LAN access (handy while debugging) — remove those `ports:` entries
+if you'd rather nothing but the tunnel could reach them at all.
+
 In Portainer: **Stacks → Add stack**, paste `docker-compose.yml`'s contents (or point it at this
-Git repo), fill in the environment variables from `.env.example`, deploy. No reverse proxy or TLS
-is bundled — `backend`/`admin`/`frontend` are exposed on host ports 3000/8080/8081 respectively;
-put your own reverse proxy (Nginx Proxy Manager, Traefik, Caddy) in front for real domains/HTTPS,
-routing to those ports. Migrating existing data: `mongodump --uri="<the Atlas URI from backend/.env>"
---archive=pawfectpets.archive --gzip`, copy the archive to wherever the new `mongo` container is
-reachable from, then `mongorestore --uri="mongodb://<user>:<password>@<host>:27017/pawfectpets?authSource=admin"
+Git repo), fill in the environment variables from `.env.example`, deploy. Migrating existing data:
+`mongodump --uri="<the Atlas URI from backend/.env>" --archive=pawfectpets.archive --gzip`, copy
+the archive to wherever the new `mongo` container is reachable from, then `mongorestore
+--uri="mongodb://<user>:<password>@<host>:27017/pawfectpets?authSource=admin"
 --archive=pawfectpets.archive --gzip`. Verify the new stack works end-to-end (including a real
 staff login and a test intake submission) before repointing DNS/`mobile`'s `API_BASE_URL` at it and
 decommissioning the Render services — keeping both running in parallel during the switch costs

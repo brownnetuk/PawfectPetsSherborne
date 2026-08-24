@@ -30,6 +30,10 @@ services:
       # This backend's own publicly-reachable URL (no trailing slash) -- see
       # backend/.env.example for what it's used for.
       PUBLIC_API_URL: ${PUBLIC_API_URL}
+    # Optional now that cloudflared (below) routes public traffic straight to
+    # this service over the internal network -- kept for direct host/LAN
+    # access (e.g. hitting http://<docker-host>:3000 while debugging).
+    # Remove if you'd rather nothing but the tunnel can reach it at all.
     ports:
       - "3000:3000"
     networks:
@@ -58,6 +62,23 @@ services:
     restart: unless-stopped
     ports:
       - "8081:80"
+    networks:
+      - pawfectpets
+
+  # Replaces a reverse proxy + manual TLS: cloudflared makes an outbound-only
+  # connection to Cloudflare's edge, so nothing here needs a port opened on
+  # the host to be reachable from the internet. Public Hostname routing
+  # (which domain maps to which internal service) is configured in the
+  # Cloudflare Zero Trust dashboard for this tunnel, not in this file --
+  # point each hostname at http://backend:3000 / http://admin:80 /
+  # http://frontend:80 there (the in-network service names above, since
+  # cloudflared reaches them over this same Docker network).
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
     networks:
       - pawfectpets
 
