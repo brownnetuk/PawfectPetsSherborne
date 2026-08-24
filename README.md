@@ -98,6 +98,11 @@ waiting for the next poll). Either way, `docker-compose.yml`'s `pull_policy: bui
 -pulled source, rather than silently reusing whatever was already built under that name — without
 it, a webhook-triggered redeploy would fire but nothing running would actually change.
 
+The webhook route (`portainer.pawfectpetssherborne.co.uk` → Portainer's `9443`) must be set to the
+**HTTPS** service type on the Cloudflare Tunnel's Public Hostname config, not HTTP — Portainer's
+`9443` is TLS-only, so an HTTP-typed route causes every request to fail with a TCP-level
+`connection reset by peer` rather than a clean HTTP error.
+
 Rolling back is the same shape in reverse: `git revert`/`git reset` the unwanted commit(s) on
 `main` and push — the next poll/webhook redeploys from that reverted state, same as any other push.
 
