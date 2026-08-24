@@ -125,6 +125,7 @@ export default function CustomerDetailPage() {
       businessInfo?.termsHtml ?? '',
       businessInfo?.emergencyVetAuthorisationText ?? '',
       businessInfo?.offLeadConsentText ?? '',
+      businessInfo?.declarationText ?? '',
     );
   }
 

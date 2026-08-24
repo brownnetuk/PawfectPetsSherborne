@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   fetchAnimalsForCustomer,
   fetchCustomer,
+  fetchDeclarationText,
   fetchOffLeadConsentText,
   fetchTerms,
   fetchVetAuthorisationText,
@@ -10,6 +11,7 @@ import {
   submitCustomer,
   updateAnimal,
 } from '../api/client';
+import Modal from '../components/Modal';
 import { buildCustomerFormPdf } from '../pdf/customerFormPdf';
 import type { AnimalRecord, IntakeState, PetDetails } from '../types';
 import ProgressBar from './ProgressBar';
@@ -98,7 +100,7 @@ function initialState(customerId: string | null): IntakeState {
     petCount: 1,
     pets: [emptyPet()],
     security: { keysProvided: false, alarmInstructions: '', furtherInformation: '' },
-    agreement: { signedName: '' },
+    agreement: { signedName: '', termsAccepted: false },
   };
 }
 
@@ -114,6 +116,7 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [showTermsWarning, setShowTermsWarning] = useState(false);
 
   useEffect(() => {
     if (!customerId) return;
@@ -257,6 +260,10 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
   }
 
   async function handleNext() {
+    if (step === agreementStepIndex && !state.agreement.termsAccepted) {
+      setShowTermsWarning(true);
+      return;
+    }
     const validationError = validateStep();
     if (validationError) {
       setError(validationError);
@@ -281,12 +288,13 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
   // the customer or blocks the thank-you screen.
   async function snapshotSubmittedForm(customerId: string) {
     try {
-      const [terms, vetText, offLeadText] = await Promise.all([
+      const [terms, vetText, offLeadText, declarationText] = await Promise.all([
         fetchTerms().catch(() => ({ html: '' })),
         fetchVetAuthorisationText().catch(() => ({ text: '' })),
         fetchOffLeadConsentText().catch(() => ({ text: '' })),
+        fetchDeclarationText().catch(() => ({ text: '' })),
       ]);
-      const doc = await buildCustomerFormPdf(state, terms.html, vetText.text, offLeadText.text);
+      const doc = await buildCustomerFormPdf(state, terms.html, vetText.text, offLeadText.text, declarationText.text);
       const attachmentData = doc.output('datauristring');
       const fullName = [state.client.firstName, state.client.surname].filter(Boolean).join(' ') || 'customer';
       const attachmentName = `${fullName}-registration-form.pdf`.replace(/[^a-z0-9.-]+/gi, '-');
@@ -426,6 +434,12 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
           </button>
         </div>
       </div>
+
+      {showTermsWarning && (
+        <Modal title="Please read the terms and conditions" onClose={() => setShowTermsWarning(false)}>
+          <p>You have not read the terms and conditions, please scroll to the bottom.</p>
+        </Modal>
+      )}
     </>
   );
 }

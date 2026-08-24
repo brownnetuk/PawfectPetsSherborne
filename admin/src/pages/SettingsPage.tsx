@@ -118,6 +118,11 @@ function BusinessInfoTab() {
   const [offLeadError, setOffLeadError] = useState<string | null>(null);
   const [offLeadSaved, setOffLeadSaved] = useState(false);
 
+  const [declarationText, setDeclarationText] = useState('');
+  const [declarationSaving, setDeclarationSaving] = useState(false);
+  const [declarationError, setDeclarationError] = useState<string | null>(null);
+  const [declarationSaved, setDeclarationSaved] = useState(false);
+
   const [trustedIps, setTrustedIps] = useState<string[]>([]);
   const [newTrustedIp, setNewTrustedIp] = useState('');
   const [myIp, setMyIp] = useState<string | null>(null);
@@ -151,6 +156,7 @@ function BusinessInfoTab() {
         setTermsDocumentDate(i.termsDocumentDate);
         setEmergencyVetAuthorisationText(i.emergencyVetAuthorisationText);
         setOffLeadConsentText(i.offLeadConsentText);
+        setDeclarationText(i.declarationText);
         setTrustedIps(i.trustedIps);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load business info'));
@@ -328,6 +334,22 @@ function BusinessInfoTab() {
       setOffLeadError(err instanceof Error ? err.message : 'Failed to save this wording');
     } finally {
       setOffLeadSaving(false);
+    }
+  }
+
+  async function handleSaveDeclaration(e: React.FormEvent) {
+    e.preventDefault();
+    setDeclarationSaving(true);
+    setDeclarationError(null);
+    setDeclarationSaved(false);
+    try {
+      await api.updateBusinessInfo({ declarationText });
+      setDeclarationSaved(true);
+      refresh();
+    } catch (err) {
+      setDeclarationError(err instanceof Error ? err.message : 'Failed to save this wording');
+    } finally {
+      setDeclarationSaving(false);
     }
   }
 
@@ -603,6 +625,34 @@ function BusinessInfoTab() {
               {offLeadSaving ? 'Saving…' : 'Save changes'}
             </button>
             {offLeadSaved && (
+              <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
+            )}
+          </div>
+        </form>
+      </div>
+
+      <div className="card">
+        <h2>Declaration</h2>
+        <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+          Shown to customers on the intake form's Client agreement step, below the terms and
+          conditions but above the typed-name and signature fields. This text is part of what the
+          signature covers, and also appears in the customer PDF export.
+        </p>
+        {declarationError && <div className="error-banner">{declarationError}</div>}
+        <form onSubmit={handleSaveDeclaration}>
+          <div className="field">
+            <label>Declaration wording</label>
+            <textarea
+              value={declarationText}
+              onChange={(e) => setDeclarationText(e.target.value)}
+              rows={4}
+            />
+          </div>
+          <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+            <button className="btn btn-primary" type="submit" disabled={declarationSaving}>
+              {declarationSaving ? 'Saving…' : 'Save changes'}
+            </button>
+            {declarationSaved && (
               <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
             )}
           </div>

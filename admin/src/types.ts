@@ -372,6 +372,7 @@ export interface BusinessInfo {
   termsDocumentDate: string;
   emergencyVetAuthorisationText: string;
   offLeadConsentText: string;
+  declarationText: string;
   bankName: string;
   sortCode: string;
   accountNumber: string;

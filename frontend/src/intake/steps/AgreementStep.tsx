@@ -4,6 +4,9 @@ import SignaturePad from '../SignaturePad';
 import { TextField } from '../fields';
 import type { AgreementData } from '../../types';
 
+const DEFAULT_DECLARATION_TEXT =
+  'I confirm that the information provided in this form is accurate and complete to the best of my knowledge, and I agree to be bound by the terms set out above.';
+
 interface Props {
   value: AgreementData;
   onChange: (value: AgreementData) => void;
@@ -29,12 +32,22 @@ export default function AgreementStep({ value, onChange }: Props) {
       .catch(() => setTermsHtml(null));
   }, []);
 
+  // Staff can edit this wording (Settings > Business Info); falls back to the
+  // text below if none has been set yet, or the fetch fails.
+  const [declarationText, setDeclarationText] = useState(DEFAULT_DECLARATION_TEXT);
+  useEffect(() => {
+    api
+      .fetchDeclarationText()
+      .then((r) => setDeclarationText(r.text || DEFAULT_DECLARATION_TEXT))
+      .catch(() => setDeclarationText(DEFAULT_DECLARATION_TEXT));
+  }, []);
+
   return (
     <div>
       <h2>Client agreement</h2>
       <p className="subtitle">Please read and sign to confirm you accept our terms.</p>
 
-      <div className="terms-box">
+      <div className="terms-box terms-box--tall">
         {termsHtml ? (
           <div dangerouslySetInnerHTML={{ __html: termsHtml }} />
         ) : (
@@ -76,6 +89,22 @@ export default function AgreementStep({ value, onChange }: Props) {
             </li>
           </ol>
         )}
+
+        <label className="terms-box-accept">
+          <input
+            type="checkbox"
+            checked={!!value.termsAccepted}
+            onChange={(e) => set('termsAccepted', e.target.checked)}
+          />
+          I have read the terms and conditions
+        </label>
+      </div>
+
+      <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
+        <h2 style={{ fontSize: '1.15rem' }}>Declaration</h2>
+        <div className="terms-box">
+          <p>{declarationText}</p>
+        </div>
       </div>
 
       <TextField

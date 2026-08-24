@@ -74,6 +74,13 @@ export class BusinessInfo extends Document {
   @Prop()
   offLeadConsentText?: string;
 
+  // Shown on the public intake form's Client agreement step, below the terms
+  // and conditions but above the typed-name/signature fields -- same
+  // staff-editable pattern as the two above. This text is part of what the
+  // signature covers, so it's also included in the customer PDF export.
+  @Prop()
+  declarationText?: string;
+
   // Shown to customers on invoices so they know where to send payment --
   // not secret (it's meant to be disclosed), so no encryption, same as the
   // rest of the business's contact details above.

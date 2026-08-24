@@ -68,6 +68,10 @@ export class UpdateBusinessInfoDto {
 
   @IsOptional()
   @IsString()
+  declarationText?: string;
+
+  @IsOptional()
+  @IsString()
   bankName?: string;
 
   @IsOptional()

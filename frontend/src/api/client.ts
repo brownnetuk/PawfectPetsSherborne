@@ -34,6 +34,10 @@ export function fetchOffLeadConsentText(): Promise<{ text: string }> {
   return request('/settings/off-lead-consent');
 }
 
+export function fetchDeclarationText(): Promise<{ text: string }> {
+  return request('/settings/declaration');
+}
+
 export function fetchAnimalsForCustomer(customerId: string): Promise<AnimalRecord[]> {
   return request(`/animals/for-customer/${customerId}`);
 }
@@ -103,7 +107,10 @@ export function submitCustomer(
         : undefined,
     },
     security: state.security,
-    agreement: state.agreement,
+    // termsAccepted is a client-side-only submit gate (see AgreementStep) --
+    // the backend's agreement sub-document only ever stores signedName/
+    // signatureImage, and rejects unknown properties.
+    agreement: { signedName: state.agreement.signedName, signatureImage: state.agreement.signatureImage },
   };
 
   return state.customerId

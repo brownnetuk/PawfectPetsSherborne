@@ -40,6 +40,10 @@ const TERMS = [
 const DEFAULT_VET_AUTHORISATION_TEXT =
   'I authorise PawfectPets Sherborne to arrange alternative veterinary care for my pet if my usual vet is unobtainable in an emergency.';
 
+// Same idea, for the Client agreement section's Declaration text.
+const DEFAULT_DECLARATION_TEXT =
+  'I confirm that the information provided in this form is accurate and complete to the best of my knowledge, and I agree to be bound by the terms set out above.';
+
 // Same idea, for Off-lead consent -- {{petName}} is substituted with the
 // actual pet's name below.
 const DEFAULT_OFF_LEAD_CONSENT_TEXT =
@@ -361,6 +365,7 @@ export async function buildCustomerFormPdf(
   termsHtml?: string,
   emergencyVetAuthorisationText?: string,
   offLeadConsentText?: string,
+  declarationText?: string,
 ): Promise<jsPDF> {
   const logo = await loadLogoDataUrl();
   const w = new PdfWriter();
@@ -510,14 +515,18 @@ export async function buildCustomerFormPdf(
   w.startNewPage();
   w.section('Terms & conditions', termsBlocks.length > 0 ? termsBlocks : [numberedListBlock(doc, TERMS)]);
 
-  const agreementBlocks: Block[] = [
+  const agreementBlocks: Block[] = [];
+  if (customer.agreement?.signedName) {
+    agreementBlocks.push(paragraphBlock(doc, declarationText || DEFAULT_DECLARATION_TEXT));
+  }
+  agreementBlocks.push(
     fieldBlock(doc, 'Signed by', customer.agreement?.signedName ?? ''),
     fieldBlock(
       doc,
       'Signed at',
       customer.agreement?.signedAt ? new Date(customer.agreement.signedAt).toLocaleString('en-GB') : '',
     ),
-  ];
+  );
   if (customer.agreement?.signatureImage) {
     agreementBlocks.push(spacerBlock(4));
     agreementBlocks.push(signatureBlock(customer.agreement.signatureImage, 'Client signature'));

@@ -93,6 +93,7 @@ export interface SecurityData {
 export interface AgreementData {
   signedName: string;
   signatureImage?: string;
+  termsAccepted?: boolean;
 }
 
 export interface ClientDetails {

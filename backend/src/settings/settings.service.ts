@@ -32,6 +32,10 @@ const DEFAULT_EMERGENCY_VET_AUTHORISATION_TEXT =
 const DEFAULT_OFF_LEAD_CONSENT_TEXT =
   'I consent to {{petName}} being exercised off the lead, and understand this is at my own risk.';
 
+// Same idea, for the Client agreement step's Declaration section.
+const DEFAULT_DECLARATION_TEXT =
+  'I confirm that the information provided in this form is accurate and complete to the best of my knowledge, and I agree to be bound by the terms set out above.';
+
 // "Sent"/"read" Activity titles for sendTriggeredEmail's tracking-pixel
 // entries -- PAYMENT_RECEIVED/INVOICE/QUOTE aren't here since those go
 // through InvoicesService/QuotesService's own send flow (already logs
@@ -76,6 +80,7 @@ export class SettingsService {
         DEFAULT_EMERGENCY_VET_AUTHORISATION_TEXT,
       offLeadConsentText:
         doc?.offLeadConsentText ?? DEFAULT_OFF_LEAD_CONSENT_TEXT,
+      declarationText: doc?.declarationText ?? DEFAULT_DECLARATION_TEXT,
       bankName: doc?.bankName ?? '',
       sortCode: doc?.sortCode ?? '',
       accountNumber: doc?.accountNumber ?? '',
@@ -121,6 +126,8 @@ export class SettingsService {
       update.emergencyVetAuthorisationText = dto.emergencyVetAuthorisationText;
     if (dto.offLeadConsentText !== undefined)
       update.offLeadConsentText = dto.offLeadConsentText;
+    if (dto.declarationText !== undefined)
+      update.declarationText = dto.declarationText;
     if (dto.bankName !== undefined) update.bankName = dto.bankName;
     if (dto.sortCode !== undefined) update.sortCode = dto.sortCode;
     if (dto.accountNumber !== undefined)
@@ -184,6 +191,17 @@ export class SettingsService {
       .exec();
     return {
       text: doc?.offLeadConsentText ?? DEFAULT_OFF_LEAD_CONSENT_TEXT,
+    };
+  }
+
+  /** Returns just the declaration text -- the public intake form's Client agreement step reads this. */
+  async getDeclarationText(): Promise<{ text: string }> {
+    const doc = await this.businessInfoModel
+      .findOne()
+      .select('declarationText')
+      .exec();
+    return {
+      text: doc?.declarationText ?? DEFAULT_DECLARATION_TEXT,
     };
   }
 
