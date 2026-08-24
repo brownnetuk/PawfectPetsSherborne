@@ -10,6 +10,7 @@ export default function RegistrationLinkModal({
   name,
   email,
   link,
+  customerId,
   trigger = 'registration',
   onEmailSent,
   onDone,
@@ -17,13 +18,18 @@ export default function RegistrationLinkModal({
   name: string;
   email: string;
   link: string;
+  // Optional since CustomersPage/EnquiriesPage's brand-new-lead flows do have
+  // a real customer id by this point, but nothing here strictly needs it --
+  // when given, it's what lets the sent email carry a tracking pixel and get
+  // an Activity entry at all (see SettingsService.sendTriggeredEmail).
+  customerId?: string;
   trigger?: 'registration' | 'update_info';
-  // Fires after a successful send only -- lets CustomerDetailPage's "Request
-  // Update" flow attach a form snapshot to the Activity log without this
-  // shared modal needing to know anything about PDFs itself. Not called by
-  // CustomersPage/EnquiriesPage's brand-new-lead flows (they don't pass it),
-  // since there's no real form data yet to snapshot at that point.
-  onEmailSent?: () => void;
+  // Fires after a successful send only, with the id of the "sent" Activity
+  // entry the backend just created (if customerId was given) -- lets
+  // CustomerDetailPage's "Request Update" flow attach a form snapshot to
+  // that same entry without this shared modal needing to know anything
+  // about PDFs itself.
+  onEmailSent?: (entryId?: string) => void;
   onDone: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -39,9 +45,9 @@ export default function RegistrationLinkModal({
     setSending(true);
     setSendResult(null);
     try {
-      await api.sendTriggeredEmail(trigger, email, name, link);
+      const { entryId } = await api.sendTriggeredEmail(trigger, email, name, link, customerId);
       setSendResult({ ok: true, message: `Email sent to ${email}.` });
-      onEmailSent?.();
+      onEmailSent?.(entryId);
     } catch (err) {
       setSendResult({ ok: false, message: err instanceof Error ? err.message : 'Failed to send email' });
     } finally {

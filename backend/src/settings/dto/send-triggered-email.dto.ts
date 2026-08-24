@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import { IsEmail, IsEnum, IsMongoId, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { EmailTrigger } from '../schemas/email-template.schema';
 
 export class SendTriggeredEmailDto {
@@ -19,4 +19,12 @@ export class SendTriggeredEmailDto {
   @IsNotEmpty()
   @IsString()
   link: string;
+
+  // Optional: when given, the email gets a tracking pixel embedded (see
+  // SettingsService.sendTriggeredEmail) and its "sent"/"read" pair shows up
+  // in this customer's Activity feed. Omitted by flows with no real
+  // customer yet to attach an Activity entry to.
+  @IsOptional()
+  @IsMongoId()
+  customerId?: string;
 }

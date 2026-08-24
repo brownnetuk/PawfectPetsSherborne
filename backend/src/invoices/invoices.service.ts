@@ -253,12 +253,21 @@ export class InvoicesService {
 
   /** First-open only -- called by the public GET /invoices/:id/pixel.gif when the sent email's tracking pixel loads. */
   async markOpened(id: string): Promise<void> {
-    await this.invoiceModel
-      .updateOne(
+    const invoice = await this.invoiceModel
+      .findOneAndUpdate(
         { _id: id, openedAt: { $exists: false } },
         { openedAt: new Date() },
       )
       .exec();
+    if (!invoice) return;
+    await this.auditLogService.record(
+      invoice.customer,
+      AuditEventType.INVOICE_READ,
+      'Invoice read',
+      `${invoice.invoiceNumber} opened`,
+      undefined,
+      'Customer',
+    );
   }
 
   /** Adds a recorded payment's amount to amountPaid, flipping status to paid once it covers the total. */

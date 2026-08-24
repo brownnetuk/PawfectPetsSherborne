@@ -20,6 +20,9 @@ export class AuditLogService {
 
   // Fire-and-forget from the caller's perspective -- logging a failure never
   // fails the underlying action, so callers don't need to try/catch this.
+  // Returns the created entry (mainly so callers that need its _id -- e.g.
+  // to embed a tracking-pixel URL pointing back at it -- can get it) or
+  // undefined if creation failed.
   async record(
     customerId: string | Types.ObjectId,
     type: AuditEventType,
@@ -28,9 +31,10 @@ export class AuditLogService {
     amount?: number,
     actor = 'System',
     attachment?: { data: string; name: string },
-  ): Promise<void> {
+    readTitle?: string,
+  ): Promise<AuditLogEntry | undefined> {
     try {
-      await this.auditLogModel.create({
+      return await this.auditLogModel.create({
         customer: customerId,
         type,
         title,
@@ -39,9 +43,45 @@ export class AuditLogService {
         actor,
         attachmentData: attachment?.data,
         attachmentName: attachment?.name,
+        readTitle,
       });
     } catch {
       // never let audit logging break the primary action it's describing
+      return undefined;
+    }
+  }
+
+  /**
+   * Called by GET /audit-log/:id/pixel.gif when a sent email's tracking
+   * pixel loads. First-open only (guarded by the openedAt filter, same
+   * pattern as InvoicesService/QuotesService's own markOpened) -- a second
+   * open of the same email doesn't spam another Activity entry. Silently
+   * does nothing for an entry with no readTitle (nothing embeds a pixel
+   * pointing at those) or one that's already been opened.
+   */
+  async markOpened(entryId: string): Promise<void> {
+    try {
+      const entry = await this.auditLogModel
+        .findOneAndUpdate(
+          { _id: entryId, openedAt: { $exists: false } },
+          { openedAt: new Date() },
+        )
+        .exec();
+      if (!entry || !entry.readTitle) return;
+      await this.record(entry.customer, AuditEventType.EMAIL_READ, entry.readTitle, undefined, undefined, 'Customer');
+    } catch {
+      // never let pixel tracking break anything
+    }
+  }
+
+  /** Attaches a file to an already-existing entry (e.g. a PDF snapshot arriving after the "sent" entry that embedded its tracking pixel was already created). */
+  async attachFile(entryId: string, data: string, name: string): Promise<void> {
+    try {
+      await this.auditLogModel
+        .updateOne({ _id: entryId }, { attachmentData: data, attachmentName: name })
+        .exec();
+    } catch {
+      // best-effort, same as record() above
     }
   }
 

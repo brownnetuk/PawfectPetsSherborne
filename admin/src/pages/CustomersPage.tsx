@@ -136,7 +136,15 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
   }
 
   if (created) {
-    return <RegistrationLinkModal name={name} email={email} link={created.link} onDone={onCreated} />;
+    return (
+      <RegistrationLinkModal
+        name={name}
+        email={email}
+        link={created.link}
+        customerId={created.id}
+        onDone={onCreated}
+      />
+    );
   }
 
   return (

@@ -334,7 +334,10 @@ export type AuditEventType =
   | 'credit_note_issued'
   | 'credit_note_removed'
   | 'form_submitted'
-  | 'registration_email_sent';
+  | 'registration_email_sent'
+  | 'email_read'
+  | 'invoice_read'
+  | 'quote_read';
 
 export interface AuditLogEntry {
   _id: string;

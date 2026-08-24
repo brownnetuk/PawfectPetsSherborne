@@ -208,11 +208,20 @@ export class QuotesService {
 
   /** First-open only -- called by the public GET /quotes/:id/pixel.gif when the sent email's tracking pixel loads. */
   async markOpened(id: string): Promise<void> {
-    await this.quoteModel
-      .updateOne(
+    const quote = await this.quoteModel
+      .findOneAndUpdate(
         { _id: id, openedAt: { $exists: false } },
         { openedAt: new Date() },
       )
       .exec();
+    if (!quote) return;
+    await this.auditLogService.record(
+      quote.customer,
+      AuditEventType.QUOTE_READ,
+      'Quote read',
+      `${quote.quoteNumber} opened`,
+      undefined,
+      'Customer',
+    );
   }
 }

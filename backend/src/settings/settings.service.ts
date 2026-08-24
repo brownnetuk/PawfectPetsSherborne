@@ -6,9 +6,11 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import * as mammoth from 'mammoth';
 import { Model } from 'mongoose';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { escapeHtml } from '../common/html.util';
-import { publicApiUrl } from '../common/tracking-pixel.util';
+import { publicApiUrl, trackingPixelHtml } from '../common/tracking-pixel.util';
 import { PreviewTermsDto } from './dto/preview-terms.dto';
 import { SendTestEmailDto } from './dto/send-test-email.dto';
 import { SendTriggeredEmailDto } from './dto/send-triggered-email.dto';
@@ -30,6 +32,17 @@ const DEFAULT_EMERGENCY_VET_AUTHORISATION_TEXT =
 const DEFAULT_OFF_LEAD_CONSENT_TEXT =
   'I consent to {{petName}} being exercised off the lead, and understand this is at my own risk.';
 
+// "Sent"/"read" Activity titles for sendTriggeredEmail's tracking-pixel
+// entries -- PAYMENT_RECEIVED/INVOICE/QUOTE aren't here since those go
+// through InvoicesService/QuotesService's own send flow (already logs
+// EMAILED, and now READ too), not this generic path.
+const TRIGGERED_EMAIL_TITLES: Partial<Record<EmailTrigger, { sent: string; read: string }>> = {
+  [EmailTrigger.REGISTRATION]: { sent: 'Registration email sent', read: 'Registration email read' },
+  [EmailTrigger.UPDATE_INFO]: { sent: 'Update request email sent', read: 'Update request email read' },
+  [EmailTrigger.ADD_PET]: { sent: 'Add pet email sent', read: 'Add pet email read' },
+  [EmailTrigger.FORM]: { sent: 'Form email sent', read: 'Form email read' },
+};
+
 @Injectable()
 export class SettingsService {
   constructor(
@@ -40,6 +53,7 @@ export class SettingsService {
     @InjectModel(EmailTemplate.name)
     private readonly emailTemplateModel: Model<EmailTemplate>,
     private readonly encryptionService: EncryptionService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async getBusinessInfo() {
@@ -415,12 +429,45 @@ export class SettingsService {
     );
   }
 
-  /** Sends a customer-facing email using the template configured for the given trigger (e.g. "here's your registration link"). */
-  async sendTriggeredEmail(dto: SendTriggeredEmailDto): Promise<void> {
-    await this.sendTemplatedEmail(dto.trigger, dto.to, {
-      name: dto.name,
-      link: dto.link,
-    });
+  /**
+   * Sends a customer-facing email using the template configured for the
+   * given trigger (e.g. "here's your registration link"). When `customerId`
+   * is given, also creates the "sent" Activity entry up front (before the
+   * email goes out) so its own _id can be embedded as a tracking-pixel URL
+   * in the email body -- the pixel firing later (GET /audit-log/:id/pixel.gif)
+   * is what turns that into the paired "read" entry. Returns the created
+   * entry's id so a caller that's about to attach a PDF snapshot (see
+   * CustomersService.logFormSnapshot) can attach it to this same entry
+   * instead of creating a second one.
+   */
+  async sendTriggeredEmail(dto: SendTriggeredEmailDto): Promise<{ entryId?: string }> {
+    let appendHtml = '';
+    let entryId: string | undefined;
+    const titles = TRIGGERED_EMAIL_TITLES[dto.trigger];
+    if (dto.customerId && titles) {
+      const entry = await this.auditLogService.record(
+        dto.customerId,
+        AuditEventType.REGISTRATION_EMAIL_SENT,
+        titles.sent,
+        undefined,
+        undefined,
+        'Staff',
+        undefined,
+        titles.read,
+      );
+      if (entry) {
+        entryId = (entry._id as { toString(): string }).toString();
+        appendHtml = trackingPixelHtml(`${publicApiUrl()}/audit-log/${entryId}/pixel.gif`);
+      }
+    }
+    await this.sendTemplatedEmail(
+      dto.trigger,
+      dto.to,
+      { name: dto.name, link: dto.link },
+      {},
+      appendHtml,
+    );
+    return { entryId };
   }
 
   /**

@@ -120,19 +120,23 @@ export default function CustomerDetailPage() {
   }
 
   // Attaches a snapshot of the registration form, as it stands right now, to
-  // a new Activity entry -- called right after successfully emailing the
+  // an Activity entry -- called right after successfully emailing the
   // customer their link, so staff can see what was actually on file (and
-  // sent) at that point, not just what the record looks like today. Best
-  // -effort: a failure here shouldn't make the email send itself look like
-  // it failed, so this never throws back to its caller.
-  async function snapshotFormToActivity(title: string) {
+  // sent) at that point, not just what the record looks like today.
+  // `entryId`, when given, is the "sent" entry SettingsService.
+  // sendTriggeredEmail already created (with its tracking pixel embedded) --
+  // the snapshot attaches there instead of creating a second entry; `title`
+  // is the fallback for when there's no entryId to attach to. Best-effort:
+  // a failure here shouldn't make the email send itself look like it
+  // failed, so this never throws back to its caller.
+  async function snapshotFormToActivity(title: string, entryId?: string) {
     if (!id || !customer) return;
     try {
       const doc = await generateFormPdfDoc();
       if (!doc) return;
       const attachmentData = doc.output('datauristring');
       const attachmentName = `${customer.name.replace(/[^a-z0-9]+/gi, '-')}-registration-form.pdf`;
-      await api.logFormSnapshot(id, title, attachmentData, attachmentName);
+      await api.logFormSnapshot(id, title, attachmentData, attachmentName, entryId);
       refresh();
     } catch {
       // Logging the snapshot is a nice-to-have on top of a send that already
@@ -146,9 +150,15 @@ export default function CustomerDetailPage() {
     setEmailResult(null);
     try {
       const isUpdate = customer.status === 'update_info';
-      await api.sendTriggeredEmail(isUpdate ? 'update_info' : 'registration', customer.email, customer.name, intakeLink);
+      const { entryId } = await api.sendTriggeredEmail(
+        isUpdate ? 'update_info' : 'registration',
+        customer.email,
+        customer.name,
+        intakeLink,
+        customer._id,
+      );
       setEmailResult({ ok: true, message: `Email sent to ${customer.email}.` });
-      await snapshotFormToActivity(isUpdate ? 'Update request email sent' : 'Registration email sent');
+      await snapshotFormToActivity(isUpdate ? 'Update request email sent' : 'Registration email sent', entryId);
     } catch (err) {
       setEmailResult({ ok: false, message: err instanceof Error ? err.message : 'Failed to send email' });
     } finally {
@@ -368,8 +378,9 @@ export default function CustomerDetailPage() {
           name={customer.name}
           email={customer.email}
           link={intakeLink}
+          customerId={customer._id}
           trigger="update_info"
-          onEmailSent={() => snapshotFormToActivity('Update request email sent')}
+          onEmailSent={(entryId) => snapshotFormToActivity('Update request email sent', entryId)}
           onDone={() => setShowRequestUpdate(false)}
         />
       )}

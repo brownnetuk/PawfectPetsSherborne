@@ -376,6 +376,15 @@ export class CustomersService {
     dto: LogFormSnapshotDto,
     actor = 'Staff',
   ): Promise<void> {
+    // entryId set means SettingsService.sendTriggeredEmail already created
+    // the "sent" entry (with its tracking pixel embedded) before the email
+    // went out -- attach to that one rather than creating a second entry
+    // for the same send. Only the completion-snapshot flow (the customer's
+    // own submission, nothing "sent" to attach to) omits it.
+    if (dto.entryId) {
+      await this.auditLogService.attachFile(dto.entryId, dto.attachmentData, dto.attachmentName);
+      return;
+    }
     await this.auditLogService.record(
       id,
       AuditEventType.REGISTRATION_EMAIL_SENT,

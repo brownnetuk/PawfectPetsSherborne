@@ -29,6 +29,9 @@ export enum AuditEventType {
   CREDIT_NOTE_REMOVED = 'credit_note_removed',
   FORM_SUBMITTED = 'form_submitted',
   REGISTRATION_EMAIL_SENT = 'registration_email_sent',
+  EMAIL_READ = 'email_read',
+  INVOICE_READ = 'invoice_read',
+  QUOTE_READ = 'quote_read',
 }
 
 @Schema({ timestamps: true })
@@ -73,6 +76,22 @@ export class AuditLogEntry extends Document {
 
   @Prop()
   attachmentName?: string;
+
+  // Tracking-pixel open state -- set the first time GET /audit-log/:id/pixel.gif
+  // is hit for this entry (see AuditLogService.markOpened). Only entries
+  // created with a `readTitle` (below) actually get a pixel embedded in their
+  // email in the first place; this stays undefined for everything else.
+  @Prop()
+  openedAt?: Date;
+
+  // The title to give the *separate* "read" entry auto-created the first
+  // time this one's tracking pixel fires (e.g. this entry is "Registration
+  // email sent", readTitle is "Registration email read") -- kept on the
+  // "sent" entry itself since that's the only place both the entry's id
+  // (embedded in the pixel URL) and the right wording are both known at
+  // once, well before anyone might open the email.
+  @Prop()
+  readTitle?: string;
 }
 
 export const AuditLogEntrySchema = SchemaFactory.createForClass(AuditLogEntry);

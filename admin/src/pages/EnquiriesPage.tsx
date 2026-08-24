@@ -189,6 +189,7 @@ export default function EnquiriesPage() {
           name={convertedCustomer.name}
           email={convertedCustomer.email}
           link={convertedCustomer.link}
+          customerId={convertedCustomer.id}
           onDone={() => setConvertedCustomer(null)}
         />
       )}

@@ -131,10 +131,11 @@ export function logFormSnapshot(
   title: string,
   attachmentData: string,
   attachmentName: string,
+  entryId?: string,
 ): Promise<void> {
   return request(`/customers/${id}/form-snapshot`, {
     method: 'POST',
-    body: JSON.stringify({ title, attachmentData, attachmentName }),
+    body: JSON.stringify({ title, attachmentData, attachmentName, entryId }),
   });
 }
 
@@ -512,10 +513,11 @@ export function sendTriggeredEmail(
   to: string,
   name: string,
   link: string,
-): Promise<void> {
+  customerId?: string,
+): Promise<{ entryId?: string }> {
   return request('/settings/email/send', {
     method: 'POST',
-    body: JSON.stringify({ trigger, to, name, link }),
+    body: JSON.stringify({ trigger, to, name, link, customerId }),
   });
 }
 export function listEmailTemplates(): Promise<EmailTemplate[]> {

@@ -34,7 +34,7 @@ export default function AddPetChoiceModal({
     setSending(true);
     setSendResult(null);
     try {
-      await api.sendTriggeredEmail('add_pet', customerEmail, customerName, link);
+      await api.sendTriggeredEmail('add_pet', customerEmail, customerName, link, customerId);
       setSendResult({ ok: true, message: `Email sent to ${customerEmail}.` });
     } catch (err) {
       setSendResult({ ok: false, message: err instanceof Error ? err.message : 'Failed to send email' });
