@@ -37,7 +37,14 @@ function newField(type: FormField['type']): FormField {
     case 'file':
       return { ...base, type: 'file', maxFiles: 2 } as FileFormField;
     case 'group':
-      return { ...base, type: 'group', repeatable: true, minRepeats: 1, fields: [] } as GroupFormField;
+      return {
+        ...base,
+        type: 'group',
+        repeatable: true,
+        minRepeats: 1,
+        createsAnimal: false,
+        fields: [],
+      } as GroupFormField;
     default:
       return { ...base, type } as FormField;
   }
@@ -372,6 +379,24 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
                 />
               </div>
             </div>
+          )}
+
+          {field.type === 'group' && (
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={field.createsAnimal ?? false}
+                onChange={(e) => onUpdate(field.id, (f) => (f.type === 'group' ? { ...f, createsAnimal: e.target.checked } : f))}
+              />
+              Each repetition creates a new pet record
+            </label>
+          )}
+
+          {field.type === 'group' && !field.createsAnimal && (
+            <p className="hint">
+              This group's answers are saved with the submission but won't create a pet record -- any "Map to pet
+              field" selections on its fields below are ignored.
+            </p>
           )}
 
           {field.type !== 'group' && (

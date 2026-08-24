@@ -192,6 +192,11 @@ export class FormSubmissionsService {
     const animalInstances: ValidateAnimalDto[] = [];
     for (const group of groupFields) {
       if (group.type !== 'group') continue;
+      // A group not explicitly flagged to create a pet just captures its
+      // repetitions as raw answer data (still saved onto the submission
+      // below) -- it's never validated against CreateAnimalDto or written to
+      // AnimalsService, since it was never meant to represent a full pet.
+      if (group.createsAnimal === false) continue;
       const repetitions =
         (answers[group.id] as Record<string, unknown>[] | undefined) ?? [];
       for (const repetitionAnswers of repetitions) {

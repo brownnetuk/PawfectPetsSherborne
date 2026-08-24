@@ -61,13 +61,21 @@ export type ChoiceFormField = FormFieldBase & {
   options: string[];
 };
 
-// Repeatable group -- nested fields map only to target: 'animal'; each
-// repetition the customer fills in creates one Animal record.
+// Repeatable group -- nested fields map only to target: 'animal'. When
+// `createsAnimal` is true, each repetition the customer fills in creates one
+// Animal record (validated against the full CreateAnimalDto -- see
+// form-submissions.service.ts). Defaults to true when absent so pre-existing
+// groups saved before this flag existed (namely the seeded "Customer
+// Intake" form's own Pet group) keep behaving exactly as before; the
+// builder explicitly writes `false` on every newly-created group instead,
+// since most ad-hoc forms just want a repeatable section of free-form
+// answers captured on the submission, not a full new pet record.
 export type GroupFormField = FormFieldBase & {
   type: 'group';
   repeatable: true;
   minRepeats: number;
   maxRepeats?: number;
+  createsAnimal?: boolean;
   fields: FormField[];
 };
 

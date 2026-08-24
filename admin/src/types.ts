@@ -521,6 +521,7 @@ export type GroupFormField = FormFieldBase & {
   repeatable: true;
   minRepeats: number;
   maxRepeats?: number;
+  createsAnimal?: boolean;
   fields: FormField[];
 };
 

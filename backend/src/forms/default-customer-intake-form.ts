@@ -285,6 +285,7 @@ export const DEFAULT_CUSTOMER_INTAKE_FORM: {
       required: false,
       repeatable: true,
       minRepeats: 1,
+      createsAnimal: true,
       fields: [
         {
           id: 'pf-species',
