@@ -429,7 +429,8 @@ function BusinessInfoTab() {
         <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
           Restrict admin dashboard logins to these IP addresses. Leave empty to allow login from
           anywhere (the default). This only applies to logging in here on the admin app — not the
-          mobile app, and not staff who are already logged in.
+          mobile app, not staff who are already logged in, and not a break-glass account (Settings
+          &gt; Staff).
         </p>
         {trustedIpsError && <div className="error-banner">{trustedIpsError}</div>}
         <form onSubmit={handleSaveTrustedIps}>
@@ -700,6 +701,22 @@ function StaffTab() {
                     <td>
                       {s.name}
                       {isSelf && <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}> (you)</span>}
+                      {s.isBreakGlass && (
+                        <span
+                          title="Bypasses the Trusted IPs restriction"
+                          style={{
+                            marginLeft: 8,
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            color: 'var(--accent-dark)',
+                            border: '1px solid var(--accent)',
+                            borderRadius: 4,
+                            padding: '1px 6px',
+                          }}
+                        >
+                          Break-glass
+                        </span>
+                      )}
                     </td>
                     <td>{s.email}</td>
                     <td>
@@ -756,6 +773,7 @@ function NewStaffModal({ onClose, onCreated }: { onClose: () => void; onCreated:
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isBreakGlass, setIsBreakGlass] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -764,7 +782,7 @@ function NewStaffModal({ onClose, onCreated }: { onClose: () => void; onCreated:
     setSubmitting(true);
     setError(null);
     try {
-      await api.registerStaff(name, email, password);
+      await api.registerStaff(name, email, password, isBreakGlass);
       onCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create staff account');
@@ -796,6 +814,21 @@ function NewStaffModal({ onClose, onCreated }: { onClose: () => void; onCreated:
           />
           <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
             At least 8 characters.
+          </div>
+        </div>
+        <div className="field">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
+            <input
+              type="checkbox"
+              checked={isBreakGlass}
+              onChange={(e) => setIsBreakGlass(e.target.checked)}
+              style={{ width: 'auto' }}
+            />
+            Break-glass account
+          </label>
+          <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+            Skips the Business Info &gt; Trusted IPs restriction — use this for one account you can
+            still log into from anywhere if the trusted IP list is ever wrong or out of date.
           </div>
         </div>
         <div className="modal-actions">

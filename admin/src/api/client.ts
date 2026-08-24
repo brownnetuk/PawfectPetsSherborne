@@ -83,8 +83,16 @@ export function login(email: string, password: string): Promise<{ accessToken: s
 export function me(): Promise<Staff> {
   return request('/auth/me');
 }
-export function registerStaff(name: string, email: string, password: string): Promise<Staff> {
-  return request('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) });
+export function registerStaff(
+  name: string,
+  email: string,
+  password: string,
+  isBreakGlass?: boolean,
+): Promise<Staff> {
+  return request('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ name, email, password, isBreakGlass }),
+  });
 }
 export function listStaff(): Promise<Staff[]> {
   return request('/auth/staff');

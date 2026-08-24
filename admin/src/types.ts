@@ -13,6 +13,7 @@ export interface Staff {
   id: string;
   name: string;
   email: string;
+  isBreakGlass: boolean;
 }
 
 export interface Customer {

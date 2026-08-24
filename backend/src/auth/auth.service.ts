@@ -40,18 +40,30 @@ export class AuthService {
       name: dto.name,
       email: dto.email.toLowerCase(),
       passwordHash,
+      isBreakGlass: dto.isBreakGlass ?? false,
     }).save();
-    return { id: staff._id, name: staff.name, email: staff.email };
+    return { id: staff._id, name: staff.name, email: staff.email, isBreakGlass: staff.isBreakGlass ?? false };
   }
 
   async login(dto: LoginDto, req: Request) {
-    // Checked before touching the staff collection at all -- an IP that isn't
-    // allowed shouldn't get to find out whether the email/password was even
-    // right. Only applies to the admin web app (see ADMIN_CLIENT_HEADER) and
-    // only when staff have actually populated Business Info > Trusted IPs;
-    // an empty list means unrestricted, so this can never lock anyone out
-    // until it's deliberately configured.
-    if (req.headers[ADMIN_CLIENT_HEADER] === ADMIN_CLIENT_VALUE) {
+    const staff = await this.staffModel.findOne({ email: dto.email.toLowerCase() }).exec();
+    if (!staff) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+    const passwordMatches = await bcrypt.compare(dto.password, staff.passwordHash);
+    if (!passwordMatches) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    // Only applies to the admin web app (see ADMIN_CLIENT_HEADER), only when
+    // staff have actually populated Business Info > Trusted IPs (an empty
+    // list means unrestricted, so this can never lock anyone out until it's
+    // deliberately configured), and never to a break-glass account -- that's
+    // the whole point of one: a way back in if the trusted-IP list is wrong
+    // or stale and everyone else is locked out. Checked after the password,
+    // not before, since knowing isBreakGlass requires already having found
+    // this specific staff record.
+    if (req.headers[ADMIN_CLIENT_HEADER] === ADMIN_CLIENT_VALUE && !staff.isBreakGlass) {
       const businessInfo = await this.businessInfoModel.findOne().select('trustedIps').exec();
       const trustedIps = businessInfo?.trustedIps ?? [];
       if (trustedIps.length > 0) {
@@ -64,15 +76,6 @@ export class AuthService {
       }
     }
 
-    const staff = await this.staffModel.findOne({ email: dto.email.toLowerCase() }).exec();
-    if (!staff) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
-    const passwordMatches = await bcrypt.compare(dto.password, staff.passwordHash);
-    if (!passwordMatches) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
-
     const payload = { sub: staff._id.toString(), email: staff.email, name: staff.name };
     return {
       accessToken: await this.jwtService.signAsync(payload),
@@ -81,8 +84,12 @@ export class AuthService {
   }
 
   async listStaff() {
-    const staff = await this.staffModel.find().select('name email createdAt').sort({ name: 1 }).exec();
-    return staff.map((s) => ({ id: s._id, name: s.name, email: s.email }));
+    const staff = await this.staffModel
+      .find()
+      .select('name email isBreakGlass createdAt')
+      .sort({ name: 1 })
+      .exec();
+    return staff.map((s) => ({ id: s._id, name: s.name, email: s.email, isBreakGlass: s.isBreakGlass ?? false }));
   }
 
   async deleteStaff(id: string) {
