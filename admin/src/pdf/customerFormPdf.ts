@@ -483,7 +483,7 @@ export async function buildCustomerFormPdf(
         blocks.push(
           paragraphBlock(
             doc,
-            (offLeadConsentText || DEFAULT_OFF_LEAD_CONSENT_TEXT).replace('{{petName}}', animal.name),
+            (offLeadConsentText || DEFAULT_OFF_LEAD_CONSENT_TEXT).replaceAll('{{petName}}', animal.name),
           ),
         );
         if (animal.offLeadConsent.signature) {

@@ -243,7 +243,7 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
           {value.offLeadConsent?.mode === 'off_lead' && (
             <>
               <p className="field-hint" style={{ marginBottom: 10 }}>
-                {offLeadConsentText.replace('{{petName}}', value.name || 'my dog')}
+                {offLeadConsentText.replaceAll('{{petName}}', value.name || 'my dog')}
               </p>
               <SignaturePad
                 value={value.offLeadConsent?.signature}
