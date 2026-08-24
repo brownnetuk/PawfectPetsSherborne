@@ -24,6 +24,12 @@ export enum LeadMode {
   OFF_LEAD = 'off_lead',
 }
 
+export enum NeuteredStatus {
+  NEUTERED = 'neutered',
+  SPAYED = 'spayed',
+  NO = 'no',
+}
+
 @Schema({ _id: false })
 class AllergyInfo {
   @Prop({ type: String, enum: TriState, required: true })
@@ -140,6 +146,13 @@ export class Animal extends Document {
 
   @Prop()
   microchipNumber?: string;
+
+  @Prop({ type: String, enum: NeuteredStatus })
+  neuteredStatus?: NeuteredStatus;
+
+  // Only meaningful when neuteredStatus is 'spayed'.
+  @Prop()
+  lastSeasonEndDate?: Date;
 
   @Prop()
   temperamentNotes?: string;

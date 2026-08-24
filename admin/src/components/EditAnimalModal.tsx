@@ -2,7 +2,7 @@ import { useState } from 'react';
 import * as api from '../api/client';
 import MedicationEntriesField from './MedicationEntriesField';
 import Modal from './Modal';
-import type { Animal, MedicationEntry, Sex, Species, TriState } from '../types';
+import type { Animal, MedicationEntry, NeuteredStatus, Sex, Species, TriState } from '../types';
 
 interface Props {
   animal: Animal;
@@ -31,6 +31,10 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [colourMarkings, setColourMarkings] = useState(animal.colourMarkings ?? '');
   const [microchipNumber, setMicrochipNumber] = useState(animal.microchipNumber ?? '');
+  const [neuteredStatus, setNeuteredStatus] = useState<NeuteredStatus>(animal.neuteredStatus ?? 'no');
+  const [lastSeasonEndDate, setLastSeasonEndDate] = useState(
+    animal.lastSeasonEndDate ? animal.lastSeasonEndDate.slice(0, 10) : '',
+  );
   const [temperamentNotes, setTemperamentNotes] = useState(animal.temperamentNotes ?? '');
   const [aggressionToPeople, setAggressionToPeople] = useState(animal.aggressionToPeople);
   const [aggressionToPeopleDetails, setAggressionToPeopleDetails] = useState(
@@ -124,6 +128,8 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
         photos,
         colourMarkings: colourMarkings || undefined,
         microchipNumber: microchipNumber || undefined,
+        neuteredStatus,
+        lastSeasonEndDate: neuteredStatus === 'spayed' ? lastSeasonEndDate || undefined : undefined,
         temperamentNotes: temperamentNotes || undefined,
         aggressionToPeople,
         aggressionToPeopleDetails: aggressionToPeople ? aggressionToPeopleDetails : undefined,
@@ -191,7 +197,28 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
             <label>Microchip number</label>
             <input type="text" value={microchipNumber} onChange={(e) => setMicrochipNumber(e.target.value)} />
           </div>
+          <div className="field">
+            <label>Is your pet Spayed/Neutered?</label>
+            <select
+              value={neuteredStatus}
+              onChange={(e) => setNeuteredStatus(e.target.value as NeuteredStatus)}
+            >
+              <option value="neutered">Neutered (Boy)</option>
+              <option value="spayed">Spayed (Girl)</option>
+              <option value="no">No</option>
+            </select>
+          </div>
         </div>
+        {neuteredStatus === 'spayed' && (
+          <div className="field">
+            <label>End date of last season?</label>
+            <input
+              type="date"
+              value={lastSeasonEndDate}
+              onChange={(e) => setLastSeasonEndDate(e.target.value)}
+            />
+          </div>
+        )}
         <div className="field">
           <label>Colour / markings</label>
           <input type="text" value={colourMarkings} onChange={(e) => setColourMarkings(e.target.value)} />

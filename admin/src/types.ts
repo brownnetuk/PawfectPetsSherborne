@@ -3,6 +3,7 @@ export type Species = 'dog' | 'cat' | 'other';
 export type Sex = 'male' | 'female';
 export type TriState = 'yes' | 'no' | 'unsure';
 export type LeadMode = 'on_lead' | 'off_lead';
+export type NeuteredStatus = 'neutered' | 'spayed' | 'no';
 export type ServiceType = 'boarding' | 'daycare' | 'grooming' | 'walking';
 export type BookingStatus = 'requested' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
 export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
@@ -99,6 +100,8 @@ export interface Animal {
   photos?: string[];
   colourMarkings?: string;
   microchipNumber?: string;
+  neuteredStatus?: NeuteredStatus;
+  lastSeasonEndDate?: string;
   temperamentNotes?: string;
   aggressionToPeople: boolean;
   aggressionToPeopleDetails?: string;

@@ -15,7 +15,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { Sex, Species, TriState, LeadMode } from '../schemas/animal.schema';
+import { Sex, Species, TriState, LeadMode, NeuteredStatus } from '../schemas/animal.schema';
 
 export class AllergyInfoDto {
   @IsEnum(TriState)
@@ -124,6 +124,15 @@ export class CreateAnimalDto {
   @IsOptional()
   @IsString()
   microchipNumber?: string;
+
+  @IsOptional()
+  @IsEnum(NeuteredStatus)
+  neuteredStatus?: NeuteredStatus;
+
+  @ValidateIf((o) => o.neuteredStatus === NeuteredStatus.SPAYED)
+  @IsOptional()
+  @IsDateString()
+  lastSeasonEndDate?: string;
 
   @IsOptional()
   @IsString()
