@@ -38,6 +38,7 @@ export default function PhotoUpload({ value, onChange }: Props) {
   return (
     <div className="field">
       <label>Photos</label>
+      <div className="field-hint">Please add up to 2 photos of your pet.</div>
       {photos.length > 0 && (
         <div className="photo-upload-grid">
           {photos.map((p, i) => (
