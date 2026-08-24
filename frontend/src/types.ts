@@ -229,6 +229,7 @@ export interface FormSubmissionPublic {
   fields: FormField[];
   status: 'pending' | 'completed';
   recipientName?: string;
+  answers?: Record<string, unknown>;
 }
 
 export interface IntakeState {

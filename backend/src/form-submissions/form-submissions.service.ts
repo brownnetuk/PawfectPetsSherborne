@@ -148,6 +148,9 @@ export class FormSubmissionsService {
       ),
       status: submission.status,
       recipientName: submission.recipientName,
+      // Only meaningful once completed -- lets a resent link show what was
+      // already submitted instead of just an "already submitted" dead end.
+      answers: submission.answers ?? {},
     };
   }
 

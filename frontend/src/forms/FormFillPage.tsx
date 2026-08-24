@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import FieldRenderer from './FieldRenderer';
 import { defaultAnswersFor, isFieldVisible } from './formDefaults';
+import ReadOnlyAnswers from './ReadOnlyAnswers';
 import RepeatableGroup from './RepeatableGroup';
 import type { FormField, FormSubmissionPublic } from '../types';
 
@@ -136,20 +137,29 @@ export default function FormFillPage({ submissionId }: { submissionId: string })
     );
   }
 
-  if (loadState === 'already-completed' || loadState === 'submitted') {
+  if (loadState === 'submitted') {
     return (
       <div className="center-message">
         <h1>Thank you{submission?.recipientName ? `, ${submission.recipientName}` : ''}!</h1>
-        <p className="subtitle">
-          {loadState === 'submitted'
-            ? "This form has been submitted. We'll be in touch if anything further is needed."
-            : 'This form has already been submitted.'}
-        </p>
+        <p className="subtitle">This form has been submitted. We'll be in touch if anything further is needed.</p>
       </div>
     );
   }
 
   if (!submission) return null;
+
+  // A resent link pointing at an already-completed submission -- rather than
+  // a dead-end message, show what was actually filled in (read-only; this
+  // never re-opens for editing/resubmission).
+  if (loadState === 'already-completed') {
+    return (
+      <div className="card">
+        <h1>{submission.formName}</h1>
+        <p className="subtitle">This form has already been submitted.</p>
+        <ReadOnlyAnswers fields={submission.fields} answers={submission.answers ?? {}} />
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="card">
