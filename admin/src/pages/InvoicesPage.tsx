@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import ActionsMenu from '../components/ActionsMenu';
 import DocumentFormModal from '../components/DocumentFormModal';
+import { MailIcon, MailOpenIcon } from '../components/icons';
 import InvoiceHtmlView from '../components/InvoiceHtmlView';
 import Modal from '../components/Modal';
 import QuoteHtmlView from '../components/QuoteHtmlView';
@@ -240,22 +241,27 @@ function InvoicesTab() {
                   <td>£{inv.total.toFixed(2)}</td>
                   <td>£{(inv.amountPaid ?? 0).toFixed(2)}</td>
                   <td>£{(inv.total - (inv.amountPaid ?? 0)).toFixed(2)}</td>
-                  <td onClick={(e) => e.stopPropagation()}>
-                    <span className={`badge badge-${inv.status}`}>
-                      <select value={inv.status} onChange={(e) => handleStatusChange(inv._id, e.target.value)}>
-                        {INVOICE_STATUSES.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
+                  <td onClick={(e) => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <span className={`badge badge-${inv.status}`}>
+                        <select value={inv.status} onChange={(e) => handleStatusChange(inv._id, e.target.value)}>
+                          {INVOICE_STATUSES.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                      </span>
+                      {inv.status !== 'draft' && (
+                        <span
+                          style={{ color: inv.openedAt ? 'var(--brand-green)' : 'var(--muted)', display: 'inline-flex' }}
+                          title={inv.openedAt ? `Opened ${new Date(inv.openedAt).toLocaleString()}` : 'Sent, not yet opened'}
+                        >
+                          {inv.openedAt ? <MailOpenIcon /> : <MailIcon />}
+                        </span>
+                      )}
                     </span>
                     {isPartiallyPaid(inv) && <span className="badge badge-partially_paid">Partially Paid</span>}
-                    {inv.openedAt && (
-                      <span className="badge badge-read" title={`Opened ${new Date(inv.openedAt).toLocaleString()}`}>
-                        Read
-                      </span>
-                    )}
                   </td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <ActionsMenu
@@ -520,21 +526,26 @@ function QuotesTab() {
                   <td>{q.quoteNumber}</td>
                   <td>{customerLabel(q.customer)}</td>
                   <td>£{q.total.toFixed(2)}</td>
-                  <td onClick={(e) => e.stopPropagation()}>
-                    <span className={`badge badge-${q.status}`}>
-                      <select value={q.status} onChange={(e) => handleStatusChange(q._id, e.target.value)}>
-                        {QUOTE_STATUSES.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
-                    </span>
-                    {q.openedAt && (
-                      <span className="badge badge-read" title={`Opened ${new Date(q.openedAt).toLocaleString()}`}>
-                        Read
+                  <td onClick={(e) => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <span className={`badge badge-${q.status}`}>
+                        <select value={q.status} onChange={(e) => handleStatusChange(q._id, e.target.value)}>
+                          {QUOTE_STATUSES.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
                       </span>
-                    )}
+                      {q.status !== 'draft' && (
+                        <span
+                          style={{ color: q.openedAt ? 'var(--brand-green)' : 'var(--muted)', display: 'inline-flex' }}
+                          title={q.openedAt ? `Opened ${new Date(q.openedAt).toLocaleString()}` : 'Sent, not yet opened'}
+                        >
+                          {q.openedAt ? <MailOpenIcon /> : <MailIcon />}
+                        </span>
+                      )}
+                    </span>
                   </td>
                   <td>{new Date(q.validUntil).toLocaleDateString()}</td>
                   <td onClick={(e) => e.stopPropagation()}>

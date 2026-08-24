@@ -370,7 +370,6 @@ tbody tr:last-child td {
 .badge-accepted { background: var(--sage-badge); color: var(--brand-green); }
 .badge-declined { background: var(--error-light); color: var(--error); }
 .badge-expired { background: #eceff2; color: var(--muted); }
-.badge-read { background: var(--info-light); color: var(--info); margin-left: 6px; }
 .badge-partially_paid { background: var(--warn-light); color: var(--warn); margin-left: 6px; }
 
 /* A badge that wraps a native <select> so a status pill stays clickable to
