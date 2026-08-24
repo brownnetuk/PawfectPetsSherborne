@@ -45,6 +45,10 @@ function fieldBlock(doc: jsPDF, label: string, value: string): Block {
   };
 }
 
+// Used for a form's "display" (free text) fields -- often the exact wording
+// of what the signer consented to, so this renders in normal ink, not muted,
+// same as customerFormPdf.ts's own paragraphBlock (e.g. the vet authorisation
+// wording that precedes its signature).
 function paragraphBlock(doc: jsPDF, text: string): Block {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9.5);
@@ -55,9 +59,51 @@ function paragraphBlock(doc: jsPDF, text: string): Block {
     draw(doc, y) {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9.5);
-      doc.setTextColor(...MUTED);
-      lines.forEach((line, i) => doc.text(line, MARGIN, y + i * 12));
       doc.setTextColor(...INK);
+      lines.forEach((line, i) => doc.text(line, MARGIN, y + i * 12));
+    },
+  };
+}
+
+// A muted aside, e.g. "None provided." for an empty repeatable group --
+// distinct from paragraphBlock, which is for real form content.
+function mutedNoteBlock(text: string): Block {
+  return {
+    height: 18,
+    draw(doc, y) {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(9.5);
+      doc.setTextColor(...MUTED);
+      doc.text(text, MARGIN, y);
+      doc.setTextColor(...INK);
+    },
+  };
+}
+
+// A repeatable group's own heading (e.g. "Medication"), one step down from a
+// section title -- mirrors customerFormPdf.ts's subheadingBlock.
+function subheadingBlock(text: string): Block {
+  return {
+    height: 20,
+    draw(doc, y) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(...ACCENT);
+      doc.text(text, MARGIN, y);
+      doc.setTextColor(...INK);
+    },
+  };
+}
+
+// One repetition's own label within a group (e.g. "Medication 1").
+function repetitionLabelBlock(text: string): Block {
+  return {
+    height: 18,
+    draw(doc, y) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(...INK);
+      doc.text(text, MARGIN, y);
     },
   };
 }
@@ -227,13 +273,34 @@ function formatAnswer(field: FormField, value: unknown): string {
   return String(value);
 }
 
-// One block per non-group, non-display field -- display fields carry no
-// answer, and groups are walked separately (each repetition becomes its own
-// section) by the caller below.
-function fieldBlocksFor(doc: jsPDF, fields: FormField[], answers: Record<string, unknown>): Block[] {
+// Walks a form's fields in their actual authored order and produces one
+// flat, ordered list of blocks -- this is a legal record of what the signer
+// was shown and agreed to, so it has to match the live form's own layout
+// exactly: free text (e.g. consent wording) included verbatim in place, and
+// a repeatable group rendered inline at the position it actually appears in,
+// not gathered into a separate pass at the end (the group's fields never
+// nest a further group, so this doesn't need to recurse into itself).
+function fieldFlowBlocks(doc: jsPDF, fields: FormField[], answers: Record<string, unknown>): Block[] {
   const blocks: Block[] = [];
   for (const field of fields) {
-    if (field.type === 'display' || field.type === 'group') continue;
+    if (field.type === 'display') {
+      blocks.push(paragraphBlock(doc, field.label));
+      continue;
+    }
+    if (field.type === 'group') {
+      blocks.push(subheadingBlock(field.label));
+      const repetitions = (answers[field.id] as Record<string, unknown>[] | undefined) ?? [];
+      if (repetitions.length === 0) {
+        blocks.push(mutedNoteBlock('None provided.'));
+      } else {
+        repetitions.forEach((rep, i) => {
+          blocks.push(repetitionLabelBlock(`${field.label} ${i + 1}`));
+          blocks.push(...fieldFlowBlocks(doc, field.fields, rep));
+          blocks.push(spacerBlock(6));
+        });
+      }
+      continue;
+    }
     const value = answers[field.id];
     if (field.type === 'signature' && typeof value === 'string' && value) {
       blocks.push(signatureBlock(value, field.label));
@@ -260,27 +327,11 @@ export async function buildFormSubmissionPdf(submission: FormSubmissionRecord): 
     : who;
   w.drawHeader(logo, subtitle);
 
-  const answers = submission.answers ?? {};
-  const topLevelFields = submission.formFieldsSnapshot.filter((f) => f.type !== 'group');
-  const groupFields = submission.formFieldsSnapshot.filter((f) => f.type === 'group');
-
-  const topLevelBlocks = fieldBlocksFor(doc, topLevelFields, answers);
-  if (topLevelBlocks.length > 0) {
-    w.section(submission.formName, topLevelBlocks);
+  const blocks = fieldFlowBlocks(doc, submission.formFieldsSnapshot, submission.answers ?? {});
+  if (submission.formDescription) {
+    blocks.unshift(paragraphBlock(doc, submission.formDescription), spacerBlock(4));
   }
-
-  for (const group of groupFields) {
-    if (group.type !== 'group') continue;
-    const repetitions = (answers[group.id] as Record<string, unknown>[] | undefined) ?? [];
-    if (repetitions.length === 0) {
-      w.section(group.label, [paragraphBlock(doc, 'None provided.')]);
-      continue;
-    }
-    repetitions.forEach((rep, i) => {
-      const blocks = fieldBlocksFor(doc, group.fields, rep);
-      w.section(`${group.label} ${i + 1}`, blocks.length > 0 ? blocks : [spacerBlock(0)]);
-    });
-  }
+  w.section(submission.formName, blocks);
 
   w.finish(`Generated ${now.toLocaleDateString('en-GB')} · PawfectPets Sherborne`);
   return w.doc;

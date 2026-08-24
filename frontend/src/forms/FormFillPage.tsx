@@ -156,6 +156,7 @@ export default function FormFillPage({ submissionId }: { submissionId: string })
       <div className="card">
         <h1>{submission.formName}</h1>
         <p className="subtitle">This form has already been submitted.</p>
+        {submission.formDescription && <p>{submission.formDescription}</p>}
         <ReadOnlyAnswers fields={submission.fields} answers={submission.answers ?? {}} />
       </div>
     );
@@ -164,6 +165,7 @@ export default function FormFillPage({ submissionId }: { submissionId: string })
   return (
     <form onSubmit={handleSubmit} className="card">
       <h1>{submission.formName}</h1>
+      {submission.formDescription && <p className="subtitle">{submission.formDescription}</p>}
       {error && <div className="error-banner">{error}</div>}
       {submission.fields.filter((field) => isFieldVisible(field, answers)).map((field) =>
         field.type === 'group' ? (

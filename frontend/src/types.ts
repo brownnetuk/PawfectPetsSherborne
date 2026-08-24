@@ -226,6 +226,7 @@ export type FormField = SimpleFormField | FileFormField | ChoiceFormField | Grou
 export interface FormSubmissionPublic {
   _id: string;
   formName: string;
+  formDescription?: string;
   fields: FormField[];
   status: 'pending' | 'completed';
   recipientName?: string;

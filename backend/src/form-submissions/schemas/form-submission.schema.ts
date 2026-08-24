@@ -20,6 +20,12 @@ export class FormSubmission extends Document {
   @Prop({ required: true })
   formName: string;
 
+  // Same snapshot reasoning as formName -- shown to the customer above the
+  // form's fields (and included in the PDF export) exactly as it read when
+  // this submission was created.
+  @Prop()
+  formDescription?: string;
+
   @Prop({ type: [MongooseSchema.Types.Mixed], default: [] })
   formFieldsSnapshot: Record<string, unknown>[];
 

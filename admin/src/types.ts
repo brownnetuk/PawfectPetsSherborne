@@ -548,6 +548,7 @@ export interface FormSubmissionRecord {
   _id: string;
   form: string;
   formName: string;
+  formDescription?: string;
   formFieldsSnapshot: FormField[];
   status: FormSubmissionStatus;
   customer?: CustomerRef | string;

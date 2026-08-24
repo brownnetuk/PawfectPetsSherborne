@@ -86,6 +86,7 @@ export class FormSubmissionsService {
     return new this.formSubmissionModel({
       form: form._id,
       formName: form.name,
+      formDescription: form.description,
       formFieldsSnapshot: form.fields,
       status: FormSubmissionStatus.PENDING,
       customer: dto.customer,
@@ -143,6 +144,7 @@ export class FormSubmissionsService {
     return {
       _id: submission._id.toString(),
       formName: submission.formName,
+      formDescription: submission.formDescription,
       fields: stripMappings(
         submission.formFieldsSnapshot as unknown as FormField[],
       ),
