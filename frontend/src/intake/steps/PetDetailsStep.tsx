@@ -131,7 +131,7 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
         ]}
         onChange={(v) => set('neuteredStatus', v)}
       />
-      {value.neuteredStatus === 'spayed' && (
+      {value.neuteredStatus === 'no' && value.sex === 'female' && (
         <TextField
           label="End date of last season?"
           type="date"

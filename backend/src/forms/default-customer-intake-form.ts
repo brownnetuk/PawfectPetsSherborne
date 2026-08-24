@@ -380,10 +380,12 @@ export const DEFAULT_CUSTOMER_INTAKE_FORM: {
           label: 'End date of last season?',
           required: false,
           mapping: { target: 'animal', path: 'lastSeasonEndDate' },
+          // Only intact (not spayed/neutered) females can have a "last
+          // season" -- a spayed dog doesn't have seasons.
           visibleWhen: {
             mode: 'all',
             conditions: [
-              { fieldId: 'pf-neuteredStatus', equals: 'spayed' },
+              { fieldId: 'pf-neuteredStatus', equals: 'no' },
               { fieldId: 'pf-sex', equals: 'female' },
             ],
           },

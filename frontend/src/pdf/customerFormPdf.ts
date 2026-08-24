@@ -77,12 +77,12 @@ function medicationSummary(medication: MedicationInfo): string {
 
 function formatNeuteredStatus(pet: PetDetails): string {
   if (pet.neuteredStatus === 'neutered') return 'Neutered (Boy)';
-  if (pet.neuteredStatus === 'spayed') {
-    return pet.lastSeasonEndDate
-      ? `Spayed (Girl) — last season ended ${new Date(pet.lastSeasonEndDate).toLocaleDateString('en-GB')}`
-      : 'Spayed (Girl)';
-  }
-  return 'No';
+  if (pet.neuteredStatus === 'spayed') return 'Spayed (Girl)';
+  // Only an intact female can have a "last season" -- a spayed dog doesn't
+  // have seasons.
+  return pet.lastSeasonEndDate
+    ? `No — last season ended ${new Date(pet.lastSeasonEndDate).toLocaleDateString('en-GB')}`
+    : 'No';
 }
 
 function fieldBlock(doc: jsPDF, label: string, value: string): Block {

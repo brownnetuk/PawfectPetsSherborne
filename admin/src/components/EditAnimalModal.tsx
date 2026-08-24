@@ -129,7 +129,8 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
         colourMarkings: colourMarkings || undefined,
         microchipNumber: microchipNumber || undefined,
         neuteredStatus,
-        lastSeasonEndDate: neuteredStatus === 'spayed' ? lastSeasonEndDate || undefined : undefined,
+        lastSeasonEndDate:
+          neuteredStatus === 'no' && sex === 'female' ? lastSeasonEndDate || undefined : undefined,
         temperamentNotes: temperamentNotes || undefined,
         aggressionToPeople,
         aggressionToPeopleDetails: aggressionToPeople ? aggressionToPeopleDetails : undefined,
@@ -209,7 +210,7 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
             </select>
           </div>
         </div>
-        {neuteredStatus === 'spayed' && (
+        {neuteredStatus === 'no' && sex === 'female' && (
           <div className="field">
             <label>End date of last season?</label>
             <input

@@ -43,13 +43,13 @@ export default function ViewAnimalModal({ animal, onClose }: Props) {
                 <dt>Spayed/Neutered</dt>
                 <dd>
                   {animal.neuteredStatus === 'neutered' && 'Neutered (Boy)'}
-                  {animal.neuteredStatus === 'spayed' &&
-                    `Spayed (Girl)${
+                  {animal.neuteredStatus === 'spayed' && 'Spayed (Girl)'}
+                  {(!animal.neuteredStatus || animal.neuteredStatus === 'no') &&
+                    `No${
                       animal.lastSeasonEndDate
                         ? ` — last season ended ${new Date(animal.lastSeasonEndDate).toLocaleDateString('en-GB')}`
                         : ''
                     }`}
-                  {(!animal.neuteredStatus || animal.neuteredStatus === 'no') && 'No'}
                 </dd>
                 <dt>Temperament notes</dt>
                 <dd>{animal.temperamentNotes || '—'}</dd>
