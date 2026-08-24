@@ -86,6 +86,8 @@ function animalPayload(pet: PetDetails) {
     photos: pet.photos ?? [],
     colourMarkings: pet.colourMarkings || undefined,
     microchipNumber: pet.microchipNumber || undefined,
+    neuteredStatus: pet.neuteredStatus || undefined,
+    lastSeasonEndDate: pet.neuteredStatus === 'spayed' ? pet.lastSeasonEndDate || undefined : undefined,
     temperamentNotes: pet.temperamentNotes || undefined,
     aggressionToPeople: pet.aggressionToPeople,
     aggressionToPeopleDetails: pet.aggressionToPeople ? pet.aggressionToPeopleDetails : undefined,

@@ -70,6 +70,8 @@ export const ANIMAL_MAPPING_TARGETS: MappingTarget[] = [
   { target: 'animal', path: 'photos', label: 'Photos', kind: 'photos' },
   { target: 'animal', path: 'colourMarkings', label: 'Colour / markings', kind: 'string' },
   { target: 'animal', path: 'microchipNumber', label: 'Microchip number', kind: 'string' },
+  { target: 'animal', path: 'neuteredStatus', label: 'Spayed / Neutered', kind: 'enum', enumValues: ['neutered', 'spayed', 'no'] },
+  { target: 'animal', path: 'lastSeasonEndDate', label: 'End date of last season', kind: 'date' },
   { target: 'animal', path: 'temperamentNotes', label: 'Temperament notes', kind: 'string' },
   { target: 'animal', path: 'aggressionToPeople', label: 'Aggression to people', kind: 'boolean' },
   { target: 'animal', path: 'aggressionToPeopleDetails', label: 'Aggression to people: details', kind: 'string' },

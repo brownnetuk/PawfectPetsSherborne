@@ -360,6 +360,21 @@ export const DEFAULT_CUSTOMER_INTAKE_FORM: {
           mapping: { target: 'animal', path: 'microchipNumber' },
         },
         {
+          id: 'pf-neuteredStatus',
+          type: 'choice',
+          label: 'Is your pet Spayed/Neutered?',
+          required: false,
+          options: ['neutered', 'spayed', 'no'],
+          mapping: { target: 'animal', path: 'neuteredStatus' },
+        },
+        {
+          id: 'pf-lastSeasonEndDate',
+          type: 'date',
+          label: 'End date of last season? (spayed females only)',
+          required: false,
+          mapping: { target: 'animal', path: 'lastSeasonEndDate' },
+        },
+        {
           id: 'pf-temperamentNotes',
           type: 'textarea',
           label: 'Temperament notes',

@@ -122,20 +122,16 @@ export default function ViewAnimalModal({ animal, onClose }: Props) {
               ) : animal.medication.medications && animal.medication.medications.length > 0 ? (
                 <ul style={{ margin: 0, paddingLeft: 18 }}>
                   {animal.medication.medications.map((m, i) => (
-                    <li key={i} style={{ marginBottom: 6 }}>
-                      <strong>{m.name}</strong>
-                      {m.illnessTreating && ` — for ${m.illnessTreating}`}
-                      {m.dosage && `, ${m.dosage}`}
-                      {m.frequency && `, ${m.frequency}`}
-                      <br />
-                      Vet prescribed: {m.vetPrescribed ? 'Yes' : 'No'}; Pawfect Pets to administer:{' '}
-                      {m.administeredByPawfectPets ? 'Yes' : 'No'}
-                      {m.additionalInfo && (
-                        <>
-                          <br />
-                          {m.additionalInfo}
-                        </>
-                      )}
+                    <li key={i} style={{ marginBottom: 10 }}>
+                      <div>
+                        <strong>{m.name}</strong>
+                        {m.illnessTreating && ` - for ${m.illnessTreating}`}
+                      </div>
+                      {m.dosage && <div>Dosage: {m.dosage}</div>}
+                      {m.frequency && <div>Frequency: {m.frequency}</div>}
+                      <div>Vet Prescribed: {m.vetPrescribed ? 'Yes' : 'No'}</div>
+                      <div>Pawfect Pets to Administer: {m.administeredByPawfectPets ? 'Yes' : 'No'}</div>
+                      {m.additionalInfo && <div>Additional Info: {m.additionalInfo}</div>}
                     </li>
                   ))}
                 </ul>

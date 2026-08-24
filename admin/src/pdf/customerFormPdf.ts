@@ -71,6 +71,16 @@ function medicationSummary(medication: Animal['medication']): string {
   return `Yes — ${medication.details ?? ''}`;
 }
 
+function formatNeuteredStatus(animal: Animal): string {
+  if (animal.neuteredStatus === 'neutered') return 'Neutered (Boy)';
+  if (animal.neuteredStatus === 'spayed') {
+    return animal.lastSeasonEndDate
+      ? `Spayed (Girl) — last season ended ${new Date(animal.lastSeasonEndDate).toLocaleDateString('en-GB')}`
+      : 'Spayed (Girl)';
+  }
+  return 'No';
+}
+
 function fieldBlock(doc: jsPDF, label: string, value: string): Block {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
@@ -438,6 +448,7 @@ export async function buildCustomerFormPdf(
       ),
       fieldBlock(doc, 'Colour / markings', animal.colourMarkings ?? ''),
       fieldBlock(doc, 'Microchip number', animal.microchipNumber ?? ''),
+      fieldBlock(doc, 'Spayed/Neutered', formatNeuteredStatus(animal)),
       fieldBlock(doc, 'Temperament notes', animal.temperamentNotes ?? ''),
       fieldBlock(
         doc,

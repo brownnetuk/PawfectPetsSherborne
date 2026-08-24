@@ -121,6 +121,25 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
         onChange={(v) => set('microchipNumber', v)}
       />
 
+      <SelectField
+        label="Is your pet Spayed/Neutered?"
+        value={value.neuteredStatus ?? ''}
+        options={[
+          { value: 'neutered' as const, label: 'Neutered (Boy)' },
+          { value: 'spayed' as const, label: 'Spayed (Girl)' },
+          { value: 'no' as const, label: 'No' },
+        ]}
+        onChange={(v) => set('neuteredStatus', v)}
+      />
+      {value.neuteredStatus === 'spayed' && (
+        <TextField
+          label="End date of last season?"
+          type="date"
+          value={value.lastSeasonEndDate ?? ''}
+          onChange={(v) => set('lastSeasonEndDate', v)}
+        />
+      )}
+
       <TextField
         label="Temperament notes"
         value={value.temperamentNotes ?? ''}

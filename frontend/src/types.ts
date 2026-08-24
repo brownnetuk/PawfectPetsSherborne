@@ -2,6 +2,7 @@ export type Species = 'dog' | 'cat' | 'other';
 export type Sex = 'male' | 'female';
 export type TriState = 'yes' | 'no' | 'unsure';
 export type LeadMode = 'on_lead' | 'off_lead';
+export type NeuteredStatus = 'neutered' | 'spayed' | 'no';
 
 export interface CustomerRecord {
   _id: string;
@@ -35,6 +36,8 @@ export interface AnimalRecord {
   photos?: string[];
   colourMarkings?: string;
   microchipNumber?: string;
+  neuteredStatus?: NeuteredStatus;
+  lastSeasonEndDate?: string;
   temperamentNotes?: string;
   aggressionToPeople: boolean;
   aggressionToPeopleDetails?: string;
@@ -149,6 +152,8 @@ export interface PetDetails {
   photos?: string[];
   colourMarkings?: string;
   microchipNumber?: string;
+  neuteredStatus?: NeuteredStatus | '';
+  lastSeasonEndDate?: string;
   temperamentNotes?: string;
   aggressionToPeople: boolean | null;
   aggressionToPeopleDetails?: string;
