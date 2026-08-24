@@ -173,8 +173,12 @@ export default function ViewAnimalModal({ animal, onClose }: Props) {
                 )}
               </dd>
             </dl>
-            {offLeadConsentText && (
-              <p style={{ marginTop: 10 }}>{offLeadConsentText.replace(/\{\{petName\}\}/g, animal.name)}</p>
+            {animal.offLeadConsent.mode === 'off_lead' ? (
+              offLeadConsentText && (
+                <p style={{ marginTop: 10 }}>{offLeadConsentText.replace(/\{\{petName\}\}/g, animal.name)}</p>
+              )
+            ) : (
+              <p style={{ marginTop: 10 }}>{`I DO NOT consent to ${animal.name} being exercised off the lead.`}</p>
             )}
             {animal.offLeadConsent.signature && (
               <img
