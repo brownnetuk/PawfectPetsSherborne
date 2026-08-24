@@ -49,8 +49,8 @@ function statusLabel(status: string): string {
 // viewer when used as an iframe src (it renders a blank page even though the
 // same string works fine for a plain <a download> link). Strip it so stored
 // snapshots -- old and new -- render correctly.
-function toPdfIframeSrc(dataUri: string): string {
-  return dataUri.replace(/^data:application\/pdf;filename=[^;]*;base64,/, 'data:application/pdf;base64,');
+function toPdfIframeSrc(dataUri: string | undefined): string | undefined {
+  return dataUri?.replace(/^data:application\/pdf;filename=[^;]*;base64,/, 'data:application/pdf;base64,');
 }
 
 function isPartiallyPaid(inv: Invoice): boolean {
