@@ -69,9 +69,33 @@ is the settled choice — remove them if they're not needed.
 `mobile` isn't deployed anywhere (no app-store builds) — it's built and run locally, or via CI on
 a Mac for iOS. Nothing about how it talks to the backend is Render-specific.
 
-Because the backend isn't containerized or tied to Render-specific features, moving host later
-(self-hosted Docker, another PaaS) is mostly a matter of re-pointing environment variables — see
-the "self-hosting" discussion in this repo's history for what that would involve.
+### Self-hosting with Docker / Portainer
+
+[`docker-compose.yml`](docker-compose.yml) (repo root) is an alternative to Render: a self-hosted
+`mongo` container plus `backend`/`admin`/`frontend`, each built from that app's own `Dockerfile`
+(`backend/Dockerfile`, `admin/Dockerfile`, `frontend/Dockerfile` — the latter two are a Vite build
+stage feeding an `nginx:1.27-alpine` stage with an SPA-rewrite `nginx.conf`, same client-side-routing
+need as Render's own rewrite rule above). Copy [`.env.example`](.env.example) to `.env` (or paste
+its contents into Portainer's stack environment variables) and fill in real values before deploying
+— see that file's comments for what each one is and, critically, why `ENCRYPTION_KEY` specifically
+must be copied unchanged from the existing `backend/.env` rather than freshly generated (it would
+otherwise permanently break decryption of already-stored `alarmInstructionsEncrypted` values).
+`VITE_API_URL`/`VITE_INTAKE_URL` are Vite build-time values (see each frontend's own
+"Build for production" section) baked into the `admin`/`frontend` images via Docker build args, not
+ordinary runtime environment variables — they must be the real, publicly-reachable URLs a browser
+will load, not the in-network `backend`/`admin`/`frontend` service names.
+
+In Portainer: **Stacks → Add stack**, paste `docker-compose.yml`'s contents (or point it at this
+Git repo), fill in the environment variables from `.env.example`, deploy. No reverse proxy or TLS
+is bundled — `backend`/`admin`/`frontend` are exposed on host ports 3000/8080/8081 respectively;
+put your own reverse proxy (Nginx Proxy Manager, Traefik, Caddy) in front for real domains/HTTPS,
+routing to those ports. Migrating existing data: `mongodump --uri="<the Atlas URI from backend/.env>"
+--archive=pawfectpets.archive --gzip`, copy the archive to wherever the new `mongo` container is
+reachable from, then `mongorestore --uri="mongodb://<user>:<password>@<host>:27017/pawfectpets?authSource=admin"
+--archive=pawfectpets.archive --gzip`. Verify the new stack works end-to-end (including a real
+staff login and a test intake submission) before repointing DNS/`mobile`'s `API_BASE_URL` at it and
+decommissioning the Render services — keeping both running in parallel during the switch costs
+nothing and makes rollback a non-event if something's missed.
 
 ## Security notes
 

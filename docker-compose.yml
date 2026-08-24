@@ -1,0 +1,68 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: pawfectpets
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - pawfectpets
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      PORT: 3000
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongo:27017/pawfectpets?authSource=admin
+      # Keep these identical to the values already in backend/.env when
+      # migrating -- ENCRYPTION_KEY especially must not change, or every
+      # already-encrypted Customer.security.alarmInstructionsEncrypted value
+      # becomes permanently undecryptable (JWT_SECRET changing is harmless,
+      # it just forces everyone to log in again).
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      # This backend's own publicly-reachable URL (no trailing slash) -- see
+      # backend/.env.example for what it's used for.
+      PUBLIC_API_URL: ${PUBLIC_API_URL}
+    ports:
+      - "3000:3000"
+    networks:
+      - pawfectpets
+
+  admin:
+    build:
+      context: ./admin
+      args:
+        # Both are baked into the JS bundle at build time -- must be the
+        # real, publicly-reachable URLs a staff member's browser can load,
+        # not the in-network service names above.
+        VITE_API_URL: ${PUBLIC_API_URL}
+        VITE_INTAKE_URL: ${PUBLIC_INTAKE_URL}
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    networks:
+      - pawfectpets
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${PUBLIC_API_URL}
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    networks:
+      - pawfectpets
+
+networks:
+  pawfectpets:
+
+volumes:
+  mongo_data:
