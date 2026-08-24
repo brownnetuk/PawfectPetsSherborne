@@ -95,6 +95,23 @@ export class CustomersController {
     return this.customersService.logFormSnapshot(id, dto, user.name);
   }
 
+  // Public: the intake wizard itself calls this right after a successful
+  // submission (fresh registration or an update_info resubmission), with a
+  // PDF snapshot it just built client-side of exactly what was submitted --
+  // same service method the staff-only route above uses, this one just
+  // authenticates differently since the public form has no staff session
+  // (actorFromRequest resolves to 'Customer' here, same as create()/update()
+  // above).
+  @Public()
+  @Post(':id/completion-snapshot')
+  logCompletionSnapshot(
+    @Param('id') id: string,
+    @Body() dto: LogFormSnapshotDto,
+    @Req() req: Request,
+  ) {
+    return this.customersService.logFormSnapshot(id, dto, actorFromRequest(req));
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.customersService.remove(id);

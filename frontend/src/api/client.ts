@@ -38,6 +38,18 @@ export function fetchAnimalsForCustomer(customerId: string): Promise<AnimalRecor
   return request(`/animals/for-customer/${customerId}`);
 }
 
+export function logCompletionSnapshot(
+  customerId: string,
+  title: string,
+  attachmentData: string,
+  attachmentName: string,
+): Promise<void> {
+  return request(`/customers/${customerId}/completion-snapshot`, {
+    method: 'POST',
+    body: JSON.stringify({ title, attachmentData, attachmentName }),
+  });
+}
+
 export function submitCustomer(
   state: IntakeState,
 ): Promise<CustomerRecord> {

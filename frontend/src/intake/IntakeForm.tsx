@@ -2,10 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   fetchAnimalsForCustomer,
   fetchCustomer,
+  fetchOffLeadConsentText,
+  fetchTerms,
+  fetchVetAuthorisationText,
+  logCompletionSnapshot,
   submitAnimal,
   submitCustomer,
   updateAnimal,
 } from '../api/client';
+import { buildCustomerFormPdf } from '../pdf/customerFormPdf';
 import type { AnimalRecord, IntakeState, PetDetails } from '../types';
 import ProgressBar from './ProgressBar';
 import WelcomeStep from './steps/WelcomeStep';
@@ -271,6 +276,26 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
     setStep((s) => Math.max(0, s - 1));
   }
 
+  // Best-effort: a snapshot failing here is a nice-to-have on top of a
+  // submission that already succeeded, so it never surfaces an error back to
+  // the customer or blocks the thank-you screen.
+  async function snapshotSubmittedForm(customerId: string) {
+    try {
+      const [terms, vetText, offLeadText] = await Promise.all([
+        fetchTerms().catch(() => ({ html: '' })),
+        fetchVetAuthorisationText().catch(() => ({ text: '' })),
+        fetchOffLeadConsentText().catch(() => ({ text: '' })),
+      ]);
+      const doc = await buildCustomerFormPdf(state, terms.html, vetText.text, offLeadText.text);
+      const attachmentData = doc.output('datauristring');
+      const fullName = [state.client.firstName, state.client.surname].filter(Boolean).join(' ') || 'customer';
+      const attachmentName = `${fullName}-registration-form.pdf`.replace(/[^a-z0-9.-]+/gi, '-');
+      await logCompletionSnapshot(customerId, 'Registration form submitted', attachmentData, attachmentName);
+    } catch {
+      // See comment above -- never let this affect the submission itself.
+    }
+  }
+
   async function handleSubmit() {
     setSubmitting(true);
     setError(null);
@@ -284,6 +309,7 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
         }
       }
       setSubmitted(true);
+      snapshotSubmittedForm(customer._id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
