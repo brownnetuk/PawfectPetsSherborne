@@ -13,11 +13,26 @@ export interface FieldMapping {
   path: string;
 }
 
+// Only ever set from a sibling 'toggle' or 'choice' field's id (enforced by
+// the builder UI, not by this type) -- `equals` is always compared as a
+// string (String(answers[fieldId]) === equals), which is why a toggle's
+// condition value is the literal string 'true'/'false' rather than a real
+// boolean. Scoped to the same level as the field it's on: a top-level
+// field can only depend on another top-level field, and a field inside a
+// repeatable group can only depend on another field in that same group
+// (never a top-level field, never a different group) -- see
+// form-submission-mapping.util.ts/FormFillPage.tsx for where this is read.
+export interface VisibilityCondition {
+  fieldId: string;
+  equals: string;
+}
+
 export interface FormFieldBase {
   id: string;
   label: string;
   required: boolean;
   mapping?: FieldMapping;
+  visibleWhen?: VisibilityCondition;
 }
 
 export type SimpleFormField = FormFieldBase & {

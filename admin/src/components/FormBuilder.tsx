@@ -71,10 +71,19 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
   }
 
   function removeFieldById(id: string) {
+    // Clears any other field's "only show if" condition that pointed at the
+    // field being removed, so it doesn't linger referencing a deleted field.
+    const clearIfDangling = (f: FormField): FormField =>
+      f.visibleWhen?.fieldId === id ? { ...f, visibleWhen: undefined } : f;
     setFields((prev) =>
       prev
         .filter((f) => f.id !== id)
-        .map((f) => (f.type === 'group' ? { ...f, fields: f.fields.filter((c) => c.id !== id) } : f)),
+        .map(clearIfDangling)
+        .map((f) =>
+          f.type === 'group'
+            ? { ...f, fields: f.fields.filter((c) => c.id !== id).map(clearIfDangling) }
+            : f,
+        ),
     );
     if (selectedId === id) setSelectedId(null);
   }
@@ -199,6 +208,7 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
             field={field}
             index={index}
             total={fields.length}
+            siblings={fields}
             parentGroupId={null}
             selectedId={selectedId}
             onSelect={setSelectedId}
@@ -228,6 +238,7 @@ interface RowProps {
   field: FormField;
   index: number;
   total: number;
+  siblings: FormField[];
   parentGroupId: string | null;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
@@ -241,7 +252,7 @@ function typeLabel(type: FormField['type']): string {
   return SIMPLE_TYPES.find((t) => t.type === type)?.label ?? (type === 'group' ? 'Repeatable group' : type);
 }
 
-function FieldRow({ field, index, total, parentGroupId, selectedId, onSelect, onUpdate, onRemove, onMove, onAddField }: RowProps) {
+function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, onSelect, onUpdate, onRemove, onMove, onAddField }: RowProps) {
   const isSelected = selectedId === field.id;
   const target: FieldTarget = parentGroupId ? 'animal' : 'customer';
 
@@ -260,6 +271,12 @@ function FieldRow({ field, index, total, parentGroupId, selectedId, onSelect, on
           )}
           {field.type !== 'group' && field.mapping && (
             <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>→ {field.mapping.path}</span>
+          )}
+          {field.visibleWhen && (
+            <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>
+              only if "{siblings.find((s) => s.id === field.visibleWhen!.fieldId)?.label || '?'}" ={' '}
+              {field.visibleWhen.equals === 'true' ? 'Yes' : field.visibleWhen.equals === 'false' ? 'No' : field.visibleWhen.equals}
+            </span>
           )}
         </div>
         <div style={{ display: 'flex', gap: 2 }}>
@@ -346,6 +363,15 @@ function FieldRow({ field, index, total, parentGroupId, selectedId, onSelect, on
           )}
 
           {field.type !== 'group' && (
+            <ConditionEditor
+              field={field}
+              siblings={siblings}
+              index={index}
+              onUpdate={(updater) => onUpdate(field.id, updater)}
+            />
+          )}
+
+          {field.type !== 'group' && (
             <MappingPicker
               target={target}
               fieldType={field.type}
@@ -367,6 +393,7 @@ function FieldRow({ field, index, total, parentGroupId, selectedId, onSelect, on
                 field={child}
                 index={childIndex}
                 total={field.fields.length}
+                siblings={field.fields}
                 parentGroupId={field.id}
                 selectedId={selectedId}
                 onSelect={onSelect}
@@ -423,6 +450,101 @@ function OptionsEditor({ options, onChange }: { options: string[]; onChange: (op
       <button type="button" className="btn-link" onClick={() => onChange([...options, `Option ${options.length + 1}`])}>
         + Add option
       </button>
+    </div>
+  );
+}
+
+// Only 'toggle'/'choice' siblings are eligible condition sources -- their
+// answer is always a single, well-known value, unlike e.g. multichoice
+// (multiple values) or text (unbounded). Restricted to siblings *before*
+// this field (by builder order) so a condition always depends on something
+// already answered, never a later field -- purely a builder-UI restriction
+// (runtime lookup in isFieldVisible() doesn't care about order at all, so
+// reordering fields afterward can't break an existing condition, it just
+// won't be re-offered as a pick here until it's moved above again).
+function ConditionEditor({
+  field,
+  siblings,
+  index,
+  onUpdate,
+}: {
+  field: FormField;
+  siblings: FormField[];
+  index: number;
+  onUpdate: (updater: (f: FormField) => FormField) => void;
+}) {
+  const eligible = siblings.filter(
+    (s, i) => i < index && s.id !== field.id && (s.type === 'toggle' || s.type === 'choice'),
+  );
+  const condition = field.visibleWhen;
+  const sourceField = condition ? siblings.find((s) => s.id === condition.fieldId) : undefined;
+
+  if (eligible.length === 0 && !condition) return null;
+
+  return (
+    <div className="field">
+      <label>Only show if</label>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select
+          value={condition?.fieldId ?? ''}
+          onChange={(e) => {
+            const fieldId = e.target.value;
+            if (!fieldId) {
+              onUpdate((f) => ({ ...f, visibleWhen: undefined }));
+              return;
+            }
+            const source = eligible.find((s) => s.id === fieldId);
+            const defaultEquals =
+              source?.type === 'toggle' ? 'true' : source?.type === 'choice' ? source.options[0] ?? '' : '';
+            onUpdate((f) => ({ ...f, visibleWhen: { fieldId, equals: defaultEquals } }));
+          }}
+        >
+          <option value="">Always show</option>
+          {eligible.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label || '(untitled field)'}
+            </option>
+          ))}
+        </select>
+        {condition && sourceField && sourceField.type === 'toggle' && (
+          <>
+            <span>equals</span>
+            <select
+              value={condition.equals}
+              onChange={(e) =>
+                onUpdate((f) =>
+                  f.visibleWhen ? { ...f, visibleWhen: { ...f.visibleWhen, equals: e.target.value } } : f,
+                )
+              }
+            >
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </>
+        )}
+        {condition && sourceField && sourceField.type === 'choice' && (
+          <>
+            <span>equals</span>
+            <select
+              value={condition.equals}
+              onChange={(e) =>
+                onUpdate((f) =>
+                  f.visibleWhen ? { ...f, visibleWhen: { ...f.visibleWhen, equals: e.target.value } } : f,
+                )
+              }
+            >
+              {sourceField.options.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
+      </div>
+      <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+        Hidden fields are never required, and their answers aren't saved.
+      </div>
     </div>
   );
 }

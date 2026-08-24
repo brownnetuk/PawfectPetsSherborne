@@ -1,4 +1,5 @@
 import FieldRenderer from './FieldRenderer';
+import { isFieldVisible } from './formDefaults';
 import type { GroupFormField } from '../types';
 
 interface Props {
@@ -40,7 +41,7 @@ export default function RepeatableGroup({ field, value, onFieldChange, onAdd, on
               </button>
             )}
           </div>
-          {field.fields.map((child) => (
+          {field.fields.filter((child) => isFieldVisible(child, repetition)).map((child) => (
             <FieldRenderer
               key={child.id}
               field={child}

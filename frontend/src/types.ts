@@ -174,11 +174,17 @@ export interface FieldMapping {
   path: string;
 }
 
+export interface VisibilityCondition {
+  fieldId: string;
+  equals: string;
+}
+
 export interface FormFieldBase {
   id: string;
   label: string;
   required: boolean;
   mapping?: FieldMapping;
+  visibleWhen?: VisibilityCondition;
 }
 
 export type SimpleFormField = FormFieldBase & {

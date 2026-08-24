@@ -5,14 +5,21 @@ import { FormField } from './form-field.types';
 // wizard (frontend/src/intake/) collects, mapped to the same Customer/Animal
 // paths that wizard's own submission (frontend/src/api/client.ts) writes to.
 //
-// Two deliberate simplifications versus the real wizard, both flagged in the
-// implementation plan: (1) no conditional visibility -- every field below is
-// always shown, regardless of species/other answers; (2) medication entries
-// aren't a fully generic nested-repeatable-within-a-repeatable-group (the
-// builder doesn't support that) -- instead this seeded form captures a single
-// medication entry via fixed-index paths (medication.medications[0].*), which
+// One deliberate simplification versus the real wizard, flagged in the
+// implementation plan: medication entries aren't a fully generic
+// nested-repeatable-within-a-repeatable-group (the builder doesn't support
+// that) -- instead this seeded form captures a single medication entry via
+// fixed-index paths (medication.medications[0].*), which
 // form-submission-mapping.util.ts's path resolver supports as a pragmatic,
 // narrowly-scoped exception rather than a general nested-repeat feature.
+//
+// Conditional visibility (visibleWhen, form-field.types.ts) *is* supported
+// now (it wasn't in the original v1 plan) -- pf-lastSeasonEndDate below is
+// the one field here that uses it, but the builder doesn't yet replicate
+// every conditional the real wizard has (e.g. species-based show/hide for
+// chasesLivestock etc.) -- those are still always shown here, same as
+// before; only questions that have no meaningful answer at all when hidden
+// (like this one) have been wired up.
 export const DEFAULT_CUSTOMER_INTAKE_FORM: {
   name: string;
   description: string;
@@ -370,9 +377,10 @@ export const DEFAULT_CUSTOMER_INTAKE_FORM: {
         {
           id: 'pf-lastSeasonEndDate',
           type: 'date',
-          label: 'End date of last season? (spayed females only)',
+          label: 'End date of last season?',
           required: false,
           mapping: { target: 'animal', path: 'lastSeasonEndDate' },
+          visibleWhen: { fieldId: 'pf-neuteredStatus', equals: 'spayed' },
         },
         {
           id: 'pf-temperamentNotes',

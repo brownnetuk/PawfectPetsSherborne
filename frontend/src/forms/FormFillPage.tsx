@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import FieldRenderer from './FieldRenderer';
-import { defaultAnswersFor } from './formDefaults';
+import { defaultAnswersFor, isFieldVisible } from './formDefaults';
 import RepeatableGroup from './RepeatableGroup';
 import type { FormField, FormSubmissionPublic } from '../types';
 
@@ -85,13 +85,17 @@ export default function FormFillPage({ submissionId }: { submissionId: string })
         }
         for (const repetition of repetitions) {
           for (const child of field.fields) {
+            if (!isFieldVisible(child, repetition)) continue;
             if (child.required && isEmpty(child, repetition[child.id])) {
               return `Please fill in "${child.label}" for each ${field.label.toLowerCase()}.`;
             }
           }
         }
-      } else if (field.required && isEmpty(field, answers[field.id])) {
-        return `Please fill in "${field.label}".`;
+      } else {
+        if (!isFieldVisible(field, answers)) continue;
+        if (field.required && isEmpty(field, answers[field.id])) {
+          return `Please fill in "${field.label}".`;
+        }
       }
     }
     return null;
@@ -151,7 +155,7 @@ export default function FormFillPage({ submissionId }: { submissionId: string })
     <form onSubmit={handleSubmit} className="card">
       <h1>{submission.formName}</h1>
       {error && <div className="error-banner">{error}</div>}
-      {submission.fields.map((field) =>
+      {submission.fields.filter((field) => isFieldVisible(field, answers)).map((field) =>
         field.type === 'group' ? (
           <RepeatableGroup
             key={field.id}

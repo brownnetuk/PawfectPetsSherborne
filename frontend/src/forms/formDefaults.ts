@@ -13,3 +13,14 @@ export function defaultAnswersFor(fields: FormField[]): Record<string, unknown> 
   }
   return defaults;
 }
+
+// `scopeAnswers` is the answers record at the same level as `field` --
+// the form's top-level answers for a top-level field, or one repetition's
+// answers for a field inside a repeatable group (never the other level,
+// since a condition can only reference a sibling at the same level -- see
+// VisibilityCondition's doc comment in types.ts). Compared as strings so a
+// toggle's real boolean answer lines up with its condition's 'true'/'false'.
+export function isFieldVisible(field: FormField, scopeAnswers: Record<string, unknown>): boolean {
+  if (!field.visibleWhen) return true;
+  return String(scopeAnswers[field.visibleWhen.fieldId]) === field.visibleWhen.equals;
+}
