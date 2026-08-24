@@ -118,6 +118,13 @@ function BusinessInfoTab() {
   const [offLeadError, setOffLeadError] = useState<string | null>(null);
   const [offLeadSaved, setOffLeadSaved] = useState(false);
 
+  const [trustedIps, setTrustedIps] = useState<string[]>([]);
+  const [newTrustedIp, setNewTrustedIp] = useState('');
+  const [myIp, setMyIp] = useState<string | null>(null);
+  const [trustedIpsSaving, setTrustedIpsSaving] = useState(false);
+  const [trustedIpsError, setTrustedIpsError] = useState<string | null>(null);
+  const [trustedIpsSaved, setTrustedIpsSaved] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -144,10 +151,41 @@ function BusinessInfoTab() {
         setTermsDocumentDate(i.termsDocumentDate);
         setEmergencyVetAuthorisationText(i.emergencyVetAuthorisationText);
         setOffLeadConsentText(i.offLeadConsentText);
+        setTrustedIps(i.trustedIps);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load business info'));
   }
   useEffect(refresh, []);
+  useEffect(() => {
+    api.getMyIp().then((r) => setMyIp(r.ip)).catch(() => {});
+  }, []);
+
+  function addTrustedIp(ip: string) {
+    const trimmed = ip.trim();
+    if (!trimmed || trustedIps.includes(trimmed)) return;
+    setTrustedIps([...trustedIps, trimmed]);
+    setNewTrustedIp('');
+  }
+
+  function removeTrustedIp(ip: string) {
+    setTrustedIps(trustedIps.filter((existing) => existing !== ip));
+  }
+
+  async function handleSaveTrustedIps(e: React.FormEvent) {
+    e.preventDefault();
+    setTrustedIpsSaving(true);
+    setTrustedIpsError(null);
+    setTrustedIpsSaved(false);
+    try {
+      await api.updateBusinessInfo({ trustedIps });
+      setTrustedIpsSaved(true);
+      refresh();
+    } catch (err) {
+      setTrustedIpsError(err instanceof Error ? err.message : 'Failed to save trusted IPs');
+    } finally {
+      setTrustedIpsSaving(false);
+    }
+  }
 
   function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -380,6 +418,73 @@ function BusinessInfoTab() {
               {saving ? 'Saving…' : 'Save changes'}
             </button>
             {saved && (
+              <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
+            )}
+          </div>
+        </form>
+      </div>
+
+      <div className="card">
+        <h2>Trusted IPs</h2>
+        <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+          Restrict admin dashboard logins to these IP addresses. Leave empty to allow login from
+          anywhere (the default). This only applies to logging in here on the admin app — not the
+          mobile app, and not staff who are already logged in.
+        </p>
+        {trustedIpsError && <div className="error-banner">{trustedIpsError}</div>}
+        <form onSubmit={handleSaveTrustedIps}>
+          {trustedIps.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+              {trustedIps.map((ip) => (
+                <div
+                  key={ip}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    padding: '6px 10px',
+                  }}
+                >
+                  <span style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}>{ip}</span>
+                  <button type="button" className="btn-link" onClick={() => removeTrustedIp(ip)}>
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="field">
+            <label>Add an IP address</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                value={newTrustedIp}
+                onChange={(e) => setNewTrustedIp(e.target.value)}
+                placeholder="e.g. 81.2.69.142"
+                style={{ maxWidth: 220 }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => addTrustedIp(newTrustedIp)}
+                disabled={!newTrustedIp.trim()}
+              >
+                Add
+              </button>
+              {myIp && !trustedIps.includes(myIp) && (
+                <button type="button" className="btn-link" onClick={() => addTrustedIp(myIp)}>
+                  Add my current IP ({myIp})
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+            <button className="btn btn-primary" type="submit" disabled={trustedIpsSaving}>
+              {trustedIpsSaving ? 'Saving…' : 'Save changes'}
+            </button>
+            {trustedIpsSaved && (
               <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
             )}
           </div>

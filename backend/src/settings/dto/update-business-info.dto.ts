@@ -124,4 +124,9 @@ export class UpdateBusinessInfoDto {
   @IsOptional()
   @IsArray()
   invoicePdfTemplate?: Record<string, unknown>[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  trustedIps?: string[];
 }

@@ -373,6 +373,7 @@ export interface BusinessInfo {
   creditNoteNumberTemplate: string;
   creditNoteNextNumber: number;
   invoicePdfTemplate: PdfTemplateElement[];
+  trustedIps: string[];
 }
 
 // --- Invoice/Quote PDF template (Settings > Invoices > PDF Template designer) ---

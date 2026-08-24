@@ -8,11 +8,13 @@ import {
   Patch,
   Post,
   Put,
+  Req,
   Res,
   StreamableFile,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { Public } from '../auth/public.decorator';
+import { getClientIp } from '../common/client-ip.util';
 import { PreviewTermsDto } from './dto/preview-terms.dto';
 import { SendTestEmailDto } from './dto/send-test-email.dto';
 import { SendTriggeredEmailDto } from './dto/send-triggered-email.dto';
@@ -38,6 +40,13 @@ export class SettingsController {
   @Patch('business')
   updateBusinessInfo(@Body() dto: UpdateBusinessInfoDto) {
     return this.settingsService.updateBusinessInfo(dto);
+  }
+
+  // Lets the Trusted IPs card (Settings > Business Info) offer "add my
+  // current IP" without staff having to go find it on some other site.
+  @Get('my-ip')
+  getMyIp(@Req() req: Request) {
+    return { ip: getClientIp(req) ?? null };
   }
 
   // Public so it's reachable as a plain <img src> URL in outgoing emails --

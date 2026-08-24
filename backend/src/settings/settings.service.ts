@@ -75,6 +75,7 @@ export class SettingsService {
         doc?.creditNoteNumberTemplate ?? 'CN-{year}-{seq}',
       creditNoteNextNumber: doc?.creditNoteNextNumber ?? 1,
       invoicePdfTemplate: doc?.invoicePdfTemplate ?? [],
+      trustedIps: doc?.trustedIps ?? [],
     };
   }
 
@@ -128,6 +129,7 @@ export class SettingsService {
       update.creditNoteNextNumber = dto.creditNoteNextNumber;
     if (dto.invoicePdfTemplate !== undefined)
       update.invoicePdfTemplate = dto.invoicePdfTemplate;
+    if (dto.trustedIps !== undefined) update.trustedIps = dto.trustedIps;
     await this.businessInfoModel
       .findOneAndUpdate({}, update, { upsert: true })
       .exec();

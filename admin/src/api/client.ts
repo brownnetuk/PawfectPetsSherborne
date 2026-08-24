@@ -50,11 +50,18 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      // Identifies this as the admin web app (as opposed to the mobile app)
+      // so the backend can restrict admin logins to Business Info > Trusted
+      // IPs without affecting mobile, which is used out in the field.
+      'X-Client-App': 'admin',
       ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
       ...options?.headers,
     },
   });
-  if (res.status === 401) {
+  // /auth/login is exempt: there's no session yet to have "expired", and the
+  // real reason (wrong password, or an IP not on the Trusted IPs list) is in
+  // the response body -- surface that instead of a misleading generic message.
+  if (res.status === 401 && path !== '/auth/login') {
     onUnauthorized?.();
     throw new Error('Session expired. Please log in again.');
   }
@@ -444,6 +451,9 @@ export function getIncomeChart(customerId: string, months: number): Promise<Inco
 // --- settings ---
 export function getBusinessInfo(): Promise<BusinessInfo> {
   return request('/settings/business');
+}
+export function getMyIp(): Promise<{ ip: string | null }> {
+  return request('/settings/my-ip');
 }
 export function updateBusinessInfo(patch: Record<string, unknown>): Promise<BusinessInfo> {
   return request('/settings/business', { method: 'PATCH', body: JSON.stringify(patch) });

@@ -124,6 +124,14 @@ export class BusinessInfo extends Document {
   // the renderer falls back to its own built-in default layout.
   @Prop({ type: [MongooseSchema.Types.Mixed], default: [] })
   invoicePdfTemplate?: Record<string, unknown>[];
+
+  // Admin-portal login allowlist (Settings > Business Info > Trusted IPs) --
+  // empty means unrestricted (the default, so this never blocks anyone until
+  // staff deliberately opt in). Only enforced for the admin web app's own
+  // login request (see AuthService.login), never for the mobile app, which is
+  // used out in the field from arbitrary IPs.
+  @Prop({ type: [String], default: [] })
+  trustedIps?: string[];
 }
 
 export const BusinessInfoSchema = SchemaFactory.createForClass(BusinessInfo);

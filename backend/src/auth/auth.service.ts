@@ -8,15 +8,25 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
+import type { Request } from 'express';
 import { Model } from 'mongoose';
+import { getClientIp } from '../common/client-ip.util';
+import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { Staff } from '../staff/schemas/staff.schema';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+
+// Sent by the admin web app on every request (admin/src/api/client.ts) -- the
+// mobile app never sends this, so it's naturally exempt from the IP check
+// below without needing its own opt-out.
+const ADMIN_CLIENT_HEADER = 'x-client-app';
+const ADMIN_CLIENT_VALUE = 'admin';
 
 @Injectable()
 export class AuthService {
   constructor(
     @InjectModel(Staff.name) private readonly staffModel: Model<Staff>,
+    @InjectModel(BusinessInfo.name) private readonly businessInfoModel: Model<BusinessInfo>,
     private readonly jwtService: JwtService,
   ) {}
 
@@ -34,7 +44,26 @@ export class AuthService {
     return { id: staff._id, name: staff.name, email: staff.email };
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, req: Request) {
+    // Checked before touching the staff collection at all -- an IP that isn't
+    // allowed shouldn't get to find out whether the email/password was even
+    // right. Only applies to the admin web app (see ADMIN_CLIENT_HEADER) and
+    // only when staff have actually populated Business Info > Trusted IPs;
+    // an empty list means unrestricted, so this can never lock anyone out
+    // until it's deliberately configured.
+    if (req.headers[ADMIN_CLIENT_HEADER] === ADMIN_CLIENT_VALUE) {
+      const businessInfo = await this.businessInfoModel.findOne().select('trustedIps').exec();
+      const trustedIps = businessInfo?.trustedIps ?? [];
+      if (trustedIps.length > 0) {
+        const clientIp = getClientIp(req);
+        if (!clientIp || !trustedIps.includes(clientIp)) {
+          throw new UnauthorizedException(
+            `Login blocked: this device's IP address${clientIp ? ` (${clientIp})` : ''} is not on the admin Trusted IPs list.`,
+          );
+        }
+      }
+    }
+
     const staff = await this.staffModel.findOne({ email: dto.email.toLowerCase() }).exec();
     if (!staff) {
       throw new UnauthorizedException('Invalid email or password');
