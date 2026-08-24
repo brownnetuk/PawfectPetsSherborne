@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
 import { Booking } from '../bookings/schemas/booking.schema';
+import { describeAnimalChanges } from './audit-diff.util';
 import { CreateAnimalDto } from './dto/create-animal.dto';
 import { PublicUpdateAnimalDto } from './dto/public-update-animal.dto';
 import { UpdateAnimalDto } from './dto/update-animal.dto';
@@ -113,11 +114,15 @@ export class AnimalsService {
       throw new NotFoundException(`Animal ${id} not found`);
     }
     const photoChange = dto.photos !== undefined ? this.describePhotoChange(before.photos, animal.photos) : undefined;
+    const fieldChanges = describeAnimalChanges(dto, before);
+    const description = [fieldChanges, photoChange ? `${animal.name} - Photos - ${photoChange}` : undefined]
+      .filter(Boolean)
+      .join('\n');
     await this.auditLogService.record(
       animal.customer,
       AuditEventType.ANIMAL_UPDATED,
       'Pet updated',
-      photoChange ? `${animal.name} updated — ${photoChange}` : `${animal.name} updated`,
+      description || `${animal.name} updated`,
       undefined,
       actor,
     );
@@ -147,11 +152,15 @@ export class AnimalsService {
     }
     const photoChange =
       dto.photos !== undefined ? this.describePhotoChange(existing.photos, animal.photos) : undefined;
+    const fieldChanges = describeAnimalChanges(dto, existing);
+    const description = [fieldChanges, photoChange ? `${animal.name} - Photos - ${photoChange}` : undefined]
+      .filter(Boolean)
+      .join('\n');
     await this.auditLogService.record(
       customerId,
       AuditEventType.ANIMAL_UPDATED,
       'Pet updated',
-      photoChange ? `${animal.name} updated — ${photoChange}` : `${animal.name} updated`,
+      description || `${animal.name} updated`,
       undefined,
       actor,
     );

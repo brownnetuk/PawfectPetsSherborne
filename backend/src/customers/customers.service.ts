@@ -325,11 +325,36 @@ export class CustomersService {
     // customer to review/update their details is, since it's what prompts
     // the customer to go make changes in the first place.
     if (status === CustomerStatus.UPDATE_INFO && before.status !== CustomerStatus.UPDATE_INFO) {
+      // Clears every stored signature so the intake wizard's own validation
+      // (which only checks a signature is *present*, not that it's fresh)
+      // actually forces a new one -- without this, IntakeForm.tsx pre-fills
+      // the signature pad from whatever's already on file (see
+      // frontend/src/intake/IntakeForm.tsx's emergencyVet/agreement
+      // pre-fill), so the customer could click straight through every
+      // signature step without drawing anything new. Off-lead consent is
+      // the same category of signed consent, so every pet's gets cleared too.
+      await this.customerModel
+        .updateOne(
+          { _id: id },
+          {
+            $unset: {
+              agreement: '',
+              'emergencyVet.authorisation.signedName': '',
+              'emergencyVet.authorisation.signatureImage': '',
+              'emergencyVet.authorisation.signedAt': '',
+            },
+            $set: { 'emergencyVet.alternativeVetAuthorised': false },
+          },
+        )
+        .exec();
+      await this.animalModel
+        .updateMany({ customer: id }, { $unset: { 'offLeadConsent.signature': '' } })
+        .exec();
       await this.auditLogService.record(
         id,
         AuditEventType.CUSTOMER_UPDATED,
         'Update requested',
-        'Staff asked the customer to review and update their details.',
+        'Staff asked the customer to review and update their details. Their agreement and vet authorisation signatures were cleared, so they’ll need to re-sign both.',
         undefined,
         actor,
       );

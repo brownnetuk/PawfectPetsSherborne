@@ -1289,7 +1289,11 @@ function AuditLogTab({
                 <div className="card" style={{ marginTop: 4, padding: '12px 14px' }}>
                   <div style={{ fontWeight: 600 }}>{e.title}</div>
                   {e.description && (
-                    <div style={{ fontSize: '0.88rem', color: 'var(--muted)', marginTop: 2 }}>{e.description}</div>
+                    <div
+                      style={{ fontSize: '0.88rem', color: 'var(--muted)', marginTop: 2, whiteSpace: 'pre-line' }}
+                    >
+                      {e.description}
+                    </div>
                   )}
                   <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>by {e.actor}</div>
                   {e.attachmentData && (
