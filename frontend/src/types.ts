@@ -179,12 +179,17 @@ export interface VisibilityCondition {
   equals: string;
 }
 
+export interface VisibilityRule {
+  mode: 'all' | 'any';
+  conditions: VisibilityCondition[];
+}
+
 export interface FormFieldBase {
   id: string;
   label: string;
   required: boolean;
   mapping?: FieldMapping;
-  visibleWhen?: VisibilityCondition;
+  visibleWhen?: VisibilityRule;
 }
 
 export type SimpleFormField = FormFieldBase & {

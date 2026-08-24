@@ -7,6 +7,7 @@ import type {
   FormField,
   FormRecord,
   GroupFormField,
+  VisibilityRule,
 } from '../types';
 import { mappingTargetsFor } from '../utils/formFieldCatalog';
 import { PencilIcon, PlusIcon, TrashIcon } from './icons';
@@ -71,10 +72,15 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
   }
 
   function removeFieldById(id: string) {
-    // Clears any other field's "only show if" condition that pointed at the
-    // field being removed, so it doesn't linger referencing a deleted field.
-    const clearIfDangling = (f: FormField): FormField =>
-      f.visibleWhen?.fieldId === id ? { ...f, visibleWhen: undefined } : f;
+    // Drops any condition (in any other field's "only show if" rule) that
+    // pointed at the field being removed, so nothing lingers referencing a
+    // deleted field. Clears the whole rule if that was its last condition.
+    const clearIfDangling = (f: FormField): FormField => {
+      if (!f.visibleWhen) return f;
+      const conditions = f.visibleWhen.conditions.filter((c) => c.fieldId !== id);
+      if (conditions.length === f.visibleWhen.conditions.length) return f;
+      return { ...f, visibleWhen: conditions.length ? { ...f.visibleWhen, conditions } : undefined };
+    };
     setFields((prev) =>
       prev
         .filter((f) => f.id !== id)
@@ -272,10 +278,16 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
           {field.type !== 'group' && field.mapping && (
             <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>→ {field.mapping.path}</span>
           )}
-          {field.visibleWhen && (
+          {field.visibleWhen && field.visibleWhen.conditions.length > 0 && (
             <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>
-              only if "{siblings.find((s) => s.id === field.visibleWhen!.fieldId)?.label || '?'}" ={' '}
-              {field.visibleWhen.equals === 'true' ? 'Yes' : field.visibleWhen.equals === 'false' ? 'No' : field.visibleWhen.equals}
+              only if{' '}
+              {field.visibleWhen.conditions
+                .map((c) => {
+                  const label = siblings.find((s) => s.id === c.fieldId)?.label || '?';
+                  const val = c.equals === 'true' ? 'Yes' : c.equals === 'false' ? 'No' : c.equals;
+                  return `"${label}" = ${val}`;
+                })
+                .join(field.visibleWhen.mode === 'any' ? ' OR ' : ' AND ')}
             </span>
           )}
         </div>
@@ -462,6 +474,10 @@ function OptionsEditor({ options, onChange }: { options: string[]; onChange: (op
 // (runtime lookup in isFieldVisible() doesn't care about order at all, so
 // reordering fields afterward can't break an existing condition, it just
 // won't be re-offered as a pick here until it's moved above again).
+//
+// Multiple conditions combine with AND ('all') or OR ('any') -- e.g. "Is
+// your dog spayed/neutered = spayed" AND "Sex = female" both having to
+// match before "Date of last season" shows.
 function ConditionEditor({
   field,
   siblings,
@@ -476,72 +492,109 @@ function ConditionEditor({
   const eligible = siblings.filter(
     (s, i) => i < index && s.id !== field.id && (s.type === 'toggle' || s.type === 'choice'),
   );
-  const condition = field.visibleWhen;
-  const sourceField = condition ? siblings.find((s) => s.id === condition.fieldId) : undefined;
+  const rule = field.visibleWhen;
+  const conditions = rule?.conditions ?? [];
 
-  if (eligible.length === 0 && !condition) return null;
+  if (eligible.length === 0 && conditions.length === 0) return null;
+
+  function setRule(next: VisibilityRule | undefined) {
+    onUpdate((f) => ({ ...f, visibleWhen: next }));
+  }
+
+  function defaultEqualsFor(source: FormField | undefined): string {
+    if (source?.type === 'toggle') return 'true';
+    if (source?.type === 'choice') return source.options[0] ?? '';
+    return '';
+  }
+
+  function addCondition() {
+    const source = eligible.find((s) => !conditions.some((c) => c.fieldId === s.id)) ?? eligible[0];
+    if (!source) return;
+    setRule({
+      mode: rule?.mode ?? 'all',
+      conditions: [...conditions, { fieldId: source.id, equals: defaultEqualsFor(source) }],
+    });
+  }
+
+  function updateCondition(i: number, patch: { fieldId?: string; equals?: string }) {
+    setRule({
+      mode: rule?.mode ?? 'all',
+      conditions: conditions.map((c, ci) => (ci === i ? { ...c, ...patch } : c)),
+    });
+  }
+
+  function removeCondition(i: number) {
+    const next = conditions.filter((_, ci) => ci !== i);
+    setRule(next.length ? { mode: rule?.mode ?? 'all', conditions: next } : undefined);
+  }
 
   return (
     <div className="field">
       <label>Only show if</label>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <select
-          value={condition?.fieldId ?? ''}
-          onChange={(e) => {
-            const fieldId = e.target.value;
-            if (!fieldId) {
-              onUpdate((f) => ({ ...f, visibleWhen: undefined }));
-              return;
-            }
-            const source = eligible.find((s) => s.id === fieldId);
-            const defaultEquals =
-              source?.type === 'toggle' ? 'true' : source?.type === 'choice' ? source.options[0] ?? '' : '';
-            onUpdate((f) => ({ ...f, visibleWhen: { fieldId, equals: defaultEquals } }));
-          }}
-        >
-          <option value="">Always show</option>
-          {eligible.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.label || '(untitled field)'}
-            </option>
-          ))}
-        </select>
-        {condition && sourceField && sourceField.type === 'toggle' && (
-          <>
-            <span>equals</span>
+      {conditions.length === 0 && (
+        <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: 6 }}>
+          Always shown.
+        </div>
+      )}
+      {conditions.map((condition, i) => {
+        const sourceField = siblings.find((s) => s.id === condition.fieldId);
+        return (
+          <div key={i} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
+            {i > 0 && (
+              <select
+                value={rule?.mode ?? 'all'}
+                onChange={(e) => setRule({ mode: e.target.value as 'all' | 'any', conditions })}
+                style={{ width: 72 }}
+              >
+                <option value="all">AND</option>
+                <option value="any">OR</option>
+              </select>
+            )}
             <select
-              value={condition.equals}
-              onChange={(e) =>
-                onUpdate((f) =>
-                  f.visibleWhen ? { ...f, visibleWhen: { ...f.visibleWhen, equals: e.target.value } } : f,
-                )
-              }
+              value={condition.fieldId}
+              onChange={(e) => {
+                const source = eligible.find((s) => s.id === e.target.value);
+                updateCondition(i, { fieldId: e.target.value, equals: defaultEqualsFor(source) });
+              }}
             >
-              <option value="true">Yes</option>
-              <option value="false">No</option>
-            </select>
-          </>
-        )}
-        {condition && sourceField && sourceField.type === 'choice' && (
-          <>
-            <span>equals</span>
-            <select
-              value={condition.equals}
-              onChange={(e) =>
-                onUpdate((f) =>
-                  f.visibleWhen ? { ...f, visibleWhen: { ...f.visibleWhen, equals: e.target.value } } : f,
-                )
-              }
-            >
-              {sourceField.options.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
+              {eligible.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label || '(untitled field)'}
                 </option>
               ))}
             </select>
-          </>
-        )}
-      </div>
+            <span>equals</span>
+            {sourceField?.type === 'toggle' && (
+              <select value={condition.equals} onChange={(e) => updateCondition(i, { equals: e.target.value })}>
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            )}
+            {sourceField?.type === 'choice' && (
+              <select value={condition.equals} onChange={(e) => updateCondition(i, { equals: e.target.value })}>
+                {sourceField.options.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button
+              type="button"
+              className="icon-btn icon-btn-danger"
+              title="Remove condition"
+              onClick={() => removeCondition(i)}
+            >
+              <TrashIcon />
+            </button>
+          </div>
+        );
+      })}
+      {eligible.length > 0 && (
+        <button type="button" className="btn-link" onClick={addCondition}>
+          + Add condition
+        </button>
+      )}
       <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
         Hidden fields are never required, and their answers aren't saved.
       </div>

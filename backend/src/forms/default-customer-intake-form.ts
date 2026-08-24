@@ -380,7 +380,13 @@ export const DEFAULT_CUSTOMER_INTAKE_FORM: {
           label: 'End date of last season?',
           required: false,
           mapping: { target: 'animal', path: 'lastSeasonEndDate' },
-          visibleWhen: { fieldId: 'pf-neuteredStatus', equals: 'spayed' },
+          visibleWhen: {
+            mode: 'all',
+            conditions: [
+              { fieldId: 'pf-neuteredStatus', equals: 'spayed' },
+              { fieldId: 'pf-sex', equals: 'female' },
+            ],
+          },
         },
         {
           id: 'pf-temperamentNotes',

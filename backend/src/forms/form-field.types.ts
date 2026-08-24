@@ -13,18 +13,30 @@ export interface FieldMapping {
   path: string;
 }
 
-// Only ever set from a sibling 'toggle' or 'choice' field's id (enforced by
-// the builder UI, not by this type) -- `equals` is always compared as a
-// string (String(answers[fieldId]) === equals), which is why a toggle's
-// condition value is the literal string 'true'/'false' rather than a real
-// boolean. Scoped to the same level as the field it's on: a top-level
-// field can only depend on another top-level field, and a field inside a
-// repeatable group can only depend on another field in that same group
-// (never a top-level field, never a different group) -- see
-// form-submission-mapping.util.ts/FormFillPage.tsx for where this is read.
+// `fieldId` only ever points at a sibling 'toggle' or 'choice' field
+// (enforced by the builder UI, not by this type) -- `equals` is always
+// compared as a string (String(answers[fieldId]) === equals), which is why
+// a toggle's condition value is the literal string 'true'/'false' rather
+// than a real boolean. Scoped to the same level as the field it's on: a
+// top-level field can only depend on another top-level field, and a field
+// inside a repeatable group can only depend on another field in that same
+// group (never a top-level field, never a different group) -- see
+// isFieldVisible (frontend/src/forms/formDefaults.ts) for where this is read.
 export interface VisibilityCondition {
   fieldId: string;
   equals: string;
+}
+
+// A field is visible when its conditions are satisfied per `mode`: 'all'
+// (every condition must match -- AND) or 'any' (at least one must match --
+// OR). `mode` is meaningless with a single condition but always present so
+// the shape is uniform. An empty `conditions` array behaves the same as no
+// visibleWhen at all (always visible) -- FormBuilder.tsx clears visibleWhen
+// entirely rather than ever leaving one with zero conditions, but readers
+// (isFieldVisible) treat both the same defensively.
+export interface VisibilityRule {
+  mode: 'all' | 'any';
+  conditions: VisibilityCondition[];
 }
 
 export interface FormFieldBase {
@@ -32,7 +44,7 @@ export interface FormFieldBase {
   label: string;
   required: boolean;
   mapping?: FieldMapping;
-  visibleWhen?: VisibilityCondition;
+  visibleWhen?: VisibilityRule;
 }
 
 export type SimpleFormField = FormFieldBase & {

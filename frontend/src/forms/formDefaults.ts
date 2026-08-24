@@ -18,9 +18,15 @@ export function defaultAnswersFor(fields: FormField[]): Record<string, unknown> 
 // the form's top-level answers for a top-level field, or one repetition's
 // answers for a field inside a repeatable group (never the other level,
 // since a condition can only reference a sibling at the same level -- see
-// VisibilityCondition's doc comment in types.ts). Compared as strings so a
-// toggle's real boolean answer lines up with its condition's 'true'/'false'.
+// VisibilityRule's doc comment in types.ts). Each condition is compared as
+// a string so a toggle's real boolean answer lines up with its condition's
+// 'true'/'false'; `mode` combines multiple conditions with AND ('all') or
+// OR ('any').
 export function isFieldVisible(field: FormField, scopeAnswers: Record<string, unknown>): boolean {
-  if (!field.visibleWhen) return true;
-  return String(scopeAnswers[field.visibleWhen.fieldId]) === field.visibleWhen.equals;
+  const rule = field.visibleWhen;
+  if (!rule || rule.conditions.length === 0) return true;
+  const results = rule.conditions.map(
+    (c) => String(scopeAnswers[c.fieldId]) === c.equals,
+  );
+  return rule.mode === 'any' ? results.some(Boolean) : results.every(Boolean);
 }
