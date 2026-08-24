@@ -126,6 +126,17 @@ export function updateCustomer(id: string, patch: Record<string, unknown>): Prom
 export function updateCustomerStatus(id: string, status: string): Promise<Customer> {
   return request(`/customers/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
 }
+export function logFormSnapshot(
+  id: string,
+  title: string,
+  attachmentData: string,
+  attachmentName: string,
+): Promise<void> {
+  return request(`/customers/${id}/form-snapshot`, {
+    method: 'POST',
+    body: JSON.stringify({ title, attachmentData, attachmentName }),
+  });
+}
 
 // --- animals ---
 export function listAnimals(customerId?: string): Promise<Animal[]> {

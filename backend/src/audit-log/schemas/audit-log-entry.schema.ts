@@ -28,6 +28,7 @@ export enum AuditEventType {
   CREDIT_NOTE_ISSUED = 'credit_note_issued',
   CREDIT_NOTE_REMOVED = 'credit_note_removed',
   FORM_SUBMITTED = 'form_submitted',
+  REGISTRATION_EMAIL_SENT = 'registration_email_sent',
 }
 
 @Schema({ timestamps: true })
@@ -60,6 +61,18 @@ export class AuditLogEntry extends Document {
   // something eventually does, e.g. a future scheduled job).
   @Prop({ required: true, default: 'System' })
   actor: string;
+
+  // registration_email_sent only -- a PDF snapshot of the registration form
+  // as it stood at send time, so staff can see exactly what was on file (and
+  // what was sent to the customer) at each point, not just what it looks
+  // like now. Base64 data: URI, same storage approach as everywhere else in
+  // this codebase that keeps a file in Mongo rather than separate blob
+  // storage (Customer.agreement.signatureImage, BusinessInfo.termsDocx).
+  @Prop()
+  attachmentData?: string;
+
+  @Prop()
+  attachmentName?: string;
 }
 
 export const AuditLogEntrySchema = SchemaFactory.createForClass(AuditLogEntry);

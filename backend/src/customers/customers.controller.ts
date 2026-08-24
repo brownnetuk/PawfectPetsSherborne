@@ -16,6 +16,7 @@ import { Public } from '../auth/public.decorator';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { CreateLeadDto } from './dto/create-lead.dto';
+import { LogFormSnapshotDto } from './dto/log-form-snapshot.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { UpdateCustomerStatusDto } from './dto/update-customer-status.dto';
 
@@ -79,6 +80,19 @@ export class CustomersController {
     @CurrentUser() user: CurrentUserShape,
   ) {
     return this.customersService.updateStatus(id, dto.status, user.name);
+  }
+
+  // Staff-only: called right after the admin app successfully sends the
+  // registration/update email, with a PDF snapshot it already built
+  // client-side (same one "View" generates) -- see CustomersService.
+  // logFormSnapshot for why.
+  @Post(':id/form-snapshot')
+  logFormSnapshot(
+    @Param('id') id: string,
+    @Body() dto: LogFormSnapshotDto,
+    @CurrentUser() user: CurrentUserShape,
+  ) {
+    return this.customersService.logFormSnapshot(id, dto, user.name);
   }
 
   @Delete(':id')

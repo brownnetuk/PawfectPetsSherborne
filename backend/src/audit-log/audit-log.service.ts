@@ -27,6 +27,7 @@ export class AuditLogService {
     description?: string,
     amount?: number,
     actor = 'System',
+    attachment?: { data: string; name: string },
   ): Promise<void> {
     try {
       await this.auditLogModel.create({
@@ -36,6 +37,8 @@ export class AuditLogService {
         description,
         amount,
         actor,
+        attachmentData: attachment?.data,
+        attachmentName: attachment?.name,
       });
     } catch {
       // never let audit logging break the primary action it's describing

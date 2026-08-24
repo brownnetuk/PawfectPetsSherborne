@@ -11,12 +11,19 @@ export default function RegistrationLinkModal({
   email,
   link,
   trigger = 'registration',
+  onEmailSent,
   onDone,
 }: {
   name: string;
   email: string;
   link: string;
   trigger?: 'registration' | 'update_info';
+  // Fires after a successful send only -- lets CustomerDetailPage's "Request
+  // Update" flow attach a form snapshot to the Activity log without this
+  // shared modal needing to know anything about PDFs itself. Not called by
+  // CustomersPage/EnquiriesPage's brand-new-lead flows (they don't pass it),
+  // since there's no real form data yet to snapshot at that point.
+  onEmailSent?: () => void;
   onDone: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -34,6 +41,7 @@ export default function RegistrationLinkModal({
     try {
       await api.sendTriggeredEmail(trigger, email, name, link);
       setSendResult({ ok: true, message: `Email sent to ${email}.` });
+      onEmailSent?.();
     } catch (err) {
       setSendResult({ ok: false, message: err instanceof Error ? err.message : 'Failed to send email' });
     } finally {

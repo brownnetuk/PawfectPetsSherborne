@@ -25,6 +25,7 @@ import {
 } from './dto/create-customer.dto';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { LogFormSnapshotDto } from './dto/log-form-snapshot.dto';
 import { Customer, CustomerStatus } from './schemas/customer.schema';
 
 @Injectable()
@@ -334,6 +335,31 @@ export class CustomersService {
       );
     }
     return customer;
+  }
+
+  // Called by the admin app right after it successfully emails the customer
+  // their registration/update link -- a PDF snapshot of the form as it stood
+  // at that moment (built client-side, same as the "View" action), so the
+  // Activity tab keeps a record of what was actually sent, not just what the
+  // record looks like now. Doesn't verify a customer exists first (unlike
+  // most methods here) since this is purely additive logging, not a write to
+  // the customer record itself -- a failed lookup would just mean the log
+  // entry references a since-deleted customer, no worse than any other
+  // fire-and-forget AuditLogService.record() call already tolerates.
+  async logFormSnapshot(
+    id: string,
+    dto: LogFormSnapshotDto,
+    actor = 'Staff',
+  ): Promise<void> {
+    await this.auditLogService.record(
+      id,
+      AuditEventType.REGISTRATION_EMAIL_SENT,
+      dto.title,
+      undefined,
+      undefined,
+      actor,
+      { data: dto.attachmentData, name: dto.attachmentName },
+    );
   }
 
   async remove(id: string): Promise<void> {

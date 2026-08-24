@@ -332,7 +332,9 @@ export type AuditEventType =
   | 'booking_updated'
   | 'booking_removed'
   | 'credit_note_issued'
-  | 'credit_note_removed';
+  | 'credit_note_removed'
+  | 'form_submitted'
+  | 'registration_email_sent';
 
 export interface AuditLogEntry {
   _id: string;
@@ -343,6 +345,8 @@ export interface AuditLogEntry {
   amount?: number;
   actor: string;
   createdAt: string;
+  attachmentData?: string;
+  attachmentName?: string;
 }
 
 export interface IncomeMonth {

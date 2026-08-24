@@ -101,14 +101,53 @@ export default function CustomerDetailPage() {
 
   const intakeLink = `${INTAKE_URL}/intake/${customer._id}`;
 
+  // Shared by "View" and the post-send snapshot logging below -- same PDF,
+  // just a different destination for the result (an object URL to display
+  // vs. a base64 data URI to store).
+  async function generateFormPdfDoc() {
+    if (!id || !customer) return null;
+    const alarm = await api.getAlarmInstructions(id).catch(() => null);
+    const businessInfo = await api.getBusinessInfo().catch(() => null);
+    return buildCustomerFormPdf(
+      customer,
+      animals,
+      alarm,
+      businessInfo?.termsHtml ?? '',
+      businessInfo?.emergencyVetAuthorisationText ?? '',
+      businessInfo?.offLeadConsentText ?? '',
+    );
+  }
+
+  // Attaches a snapshot of the registration form, as it stands right now, to
+  // a new Activity entry -- called right after successfully emailing the
+  // customer their link, so staff can see what was actually on file (and
+  // sent) at that point, not just what the record looks like today. Best
+  // -effort: a failure here shouldn't make the email send itself look like
+  // it failed, so this never throws back to its caller.
+  async function snapshotFormToActivity(title: string) {
+    if (!id || !customer) return;
+    try {
+      const doc = await generateFormPdfDoc();
+      if (!doc) return;
+      const attachmentData = doc.output('datauristring');
+      const attachmentName = `${customer.name.replace(/[^a-z0-9]+/gi, '-')}-registration-form.pdf`;
+      await api.logFormSnapshot(id, title, attachmentData, attachmentName);
+      refresh();
+    } catch {
+      // Logging the snapshot is a nice-to-have on top of a send that already
+      // succeeded -- never surface this as if the email itself failed.
+    }
+  }
+
   async function sendLinkEmail() {
     if (!customer) return;
     setSendingEmail(true);
     setEmailResult(null);
     try {
-      const trigger = customer.status === 'update_info' ? 'update_info' : 'registration';
-      await api.sendTriggeredEmail(trigger, customer.email, customer.name, intakeLink);
+      const isUpdate = customer.status === 'update_info';
+      await api.sendTriggeredEmail(isUpdate ? 'update_info' : 'registration', customer.email, customer.name, intakeLink);
       setEmailResult({ ok: true, message: `Email sent to ${customer.email}.` });
+      await snapshotFormToActivity(isUpdate ? 'Update request email sent' : 'Registration email sent');
     } catch (err) {
       setEmailResult({ ok: false, message: err instanceof Error ? err.message : 'Failed to send email' });
     } finally {
@@ -142,16 +181,8 @@ export default function CustomerDetailPage() {
     setPdfLoading(true);
     setPdfError(null);
     try {
-      const alarm = await api.getAlarmInstructions(id).catch(() => null);
-      const businessInfo = await api.getBusinessInfo().catch(() => null);
-      const doc = await buildCustomerFormPdf(
-        customer,
-        animals,
-        alarm,
-        businessInfo?.termsHtml ?? '',
-        businessInfo?.emergencyVetAuthorisationText ?? '',
-        businessInfo?.offLeadConsentText ?? '',
-      );
+      const doc = await generateFormPdfDoc();
+      if (!doc) return;
       const url = URL.createObjectURL(doc.output('blob'));
       setPdfUrl(url);
     } catch (err) {
@@ -336,6 +367,7 @@ export default function CustomerDetailPage() {
           email={customer.email}
           link={intakeLink}
           trigger="update_info"
+          onEmailSent={() => snapshotFormToActivity('Update request email sent')}
           onDone={() => setShowRequestUpdate(false)}
         />
       )}
@@ -1230,6 +1262,16 @@ function AuditLogTab({
                     <div style={{ fontSize: '0.88rem', color: 'var(--muted)', marginTop: 2 }}>{e.description}</div>
                   )}
                   <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>by {e.actor}</div>
+                  {e.attachmentData && (
+                    <a
+                      href={e.attachmentData}
+                      download={e.attachmentName || 'registration-form.pdf'}
+                      className="btn-link"
+                      style={{ fontSize: '0.8rem', marginTop: 4, display: 'inline-block' }}
+                    >
+                      Download PDF
+                    </a>
+                  )}
                 </div>
               </div>
             ))}
