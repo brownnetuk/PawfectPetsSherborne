@@ -79,7 +79,12 @@ export function submitCustomer(
     // ValidationPipe's forbidNonWhitelisted, spreading them back in a PATCH
     // would 400 instead of silently being ignored.
     emergencyContact: {
-      sameAsClient: state.emergencyContact.sameAsClient,
+      // Always false -- the intake wizard no longer offers a "same as
+      // client" shortcut, so the fields below are always genuinely typed
+      // in by the customer, even for a returning customer resuming from a
+      // record that used the old shortcut (EmergencyContactStep always
+      // shows and requires these fields now regardless of this flag).
+      sameAsClient: false,
       firstName: state.emergencyContact.firstName || undefined,
       surname: state.emergencyContact.surname || undefined,
       address1: state.emergencyContact.address1 || undefined,

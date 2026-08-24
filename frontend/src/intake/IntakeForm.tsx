@@ -136,8 +136,13 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
             phoneNumber: customer.phoneNumber ?? '',
             email: customer.email,
           },
+          // sameAsClient forced false regardless of what the existing record
+          // has -- the wizard no longer offers that shortcut, so the fields
+          // below are always shown and required, and this flag would
+          // otherwise stay stale (e.g. still true from before this change,
+          // with blank fields underneath).
           emergencyContact: customer.emergencyContact
-            ? { ...customer.emergencyContact }
+            ? { ...customer.emergencyContact, sameAsClient: false }
             : s.emergencyContact,
           emergencyVet: customer.emergencyVet ? { ...customer.emergencyVet } : s.emergencyVet,
           security: customer.security
@@ -214,11 +219,9 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
     }
     if (step === 2) {
       const e = state.emergencyContact;
-      if (!e.sameAsClient) {
-        if (!e.firstName || !e.address1 || !e.town || !e.postcode)
-          return 'Emergency contact name and address are required.';
-        if (!e.phoneNumber) return 'Emergency contact phone number is required.';
-      }
+      if (!e.firstName || !e.address1 || !e.town || !e.postcode)
+        return 'Emergency contact name and address are required.';
+      if (!e.phoneNumber) return 'Emergency contact phone number is required.';
     }
     if (step === 3) {
       const v = state.emergencyVet;
