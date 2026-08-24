@@ -390,24 +390,47 @@ function OverviewTab({
       {customer.emergencyVet && (
         <div className="card">
           <div className="section-title">Emergency vet</div>
-          <dl className="kv-grid">
-            <dt>Practice</dt>
-            <dd>{customer.emergencyVet.practiceName}</dd>
-            <dt>Address</dt>
-            <dd>{customer.emergencyVet.address}</dd>
-            <dt>Telephone</dt>
-            <dd>{customer.emergencyVet.telephone}</dd>
-            <dt>Alt. care authorisation</dt>
-            <dd>
-              {customer.emergencyVet.authorisation?.signedName
-                ? `Signed by ${customer.emergencyVet.authorisation.signedName}${
-                    customer.emergencyVet.authorisation.signedAt
-                      ? ` on ${new Date(customer.emergencyVet.authorisation.signedAt).toLocaleDateString('en-GB')}`
-                      : ''
-                  }`
-                : 'Not yet signed'}
-            </dd>
-          </dl>
+          <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <dl className="kv-grid" style={{ flex: 1, minWidth: 220 }}>
+              <dt>Practice</dt>
+              <dd>{customer.emergencyVet.practiceName}</dd>
+              <dt>Address</dt>
+              <dd>{customer.emergencyVet.address}</dd>
+              <dt>Telephone</dt>
+              <dd>{customer.emergencyVet.telephone}</dd>
+              <dt>Alt. care authorisation</dt>
+              <dd>
+                {customer.emergencyVet.authorisation?.signedName
+                  ? `Signed by ${customer.emergencyVet.authorisation.signedName}${
+                      customer.emergencyVet.authorisation.signedAt
+                        ? ` on ${new Date(customer.emergencyVet.authorisation.signedAt).toLocaleDateString('en-GB')}`
+                        : ''
+                    }`
+                  : 'Not yet signed'}
+              </dd>
+            </dl>
+            {customer.emergencyVet.authorisation?.signatureImage && (
+              <div
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  padding: 8,
+                  width: 220,
+                  height: 90,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <img
+                  src={customer.emergencyVet.authorisation.signatureImage}
+                  alt="Alt. care authorisation signature"
+                  style={{ maxWidth: '100%', maxHeight: '100%' }}
+                />
+              </div>
+            )}
+          </div>
         </div>
       )}
 
