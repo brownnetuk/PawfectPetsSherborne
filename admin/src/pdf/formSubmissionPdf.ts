@@ -270,6 +270,10 @@ function formatAnswer(field: FormField, value: unknown): string {
   if (value === undefined || value === null || value === '') return '';
   if (field.type === 'toggle') return value ? 'Yes' : 'No';
   if (field.type === 'multichoice' && Array.isArray(value)) return (value as string[]).join(', ');
+  if (field.type === 'date' && typeof value === 'string') {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleDateString('en-GB');
+  }
   return String(value);
 }
 

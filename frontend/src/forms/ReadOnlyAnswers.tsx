@@ -6,6 +6,10 @@ function formatAnswer(field: FormField, value: unknown): string {
   if (field.type === 'multichoice' && Array.isArray(value)) {
     return (value as string[]).join(', ') || '—';
   }
+  if (field.type === 'date' && typeof value === 'string') {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleDateString('en-GB');
+  }
   return String(value);
 }
 
