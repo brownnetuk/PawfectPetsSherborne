@@ -504,6 +504,12 @@ export type SimpleFormField = FormFieldBase & {
   type: 'text' | 'textarea' | 'number' | 'date' | 'toggle' | 'signature';
 };
 
+// Read-only, non-interactive block of staff-authored text -- `label` holds
+// the displayed text itself. Never mapped, never required.
+export type DisplayFormField = FormFieldBase & {
+  type: 'display';
+};
+
 export type FileFormField = FormFieldBase & {
   type: 'file';
   maxFiles?: number;
@@ -525,7 +531,7 @@ export type GroupFormField = FormFieldBase & {
   fields: FormField[];
 };
 
-export type FormField = SimpleFormField | FileFormField | ChoiceFormField | GroupFormField;
+export type FormField = SimpleFormField | FileFormField | ChoiceFormField | GroupFormField | DisplayFormField;
 
 export interface FormRecord {
   _id: string;

@@ -51,6 +51,13 @@ export type SimpleFormField = FormFieldBase & {
   type: 'text' | 'textarea' | 'number' | 'date' | 'toggle' | 'signature';
 };
 
+// Read-only, non-interactive block of staff-authored text (instructions,
+// context, etc.) -- `label` holds the displayed text itself. Never mapped,
+// never required, never contributes an answer.
+export type DisplayFormField = FormFieldBase & {
+  type: 'display';
+};
+
 export type FileFormField = FormFieldBase & {
   type: 'file';
   maxFiles?: number;
@@ -80,4 +87,4 @@ export type GroupFormField = FormFieldBase & {
 };
 
 export type FormField =
-  SimpleFormField | FileFormField | ChoiceFormField | GroupFormField;
+  SimpleFormField | FileFormField | ChoiceFormField | GroupFormField | DisplayFormField;

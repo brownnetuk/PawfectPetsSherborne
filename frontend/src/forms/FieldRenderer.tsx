@@ -14,6 +14,8 @@ interface Props {
 // field inside one repetition of a "group" (Pet, etc.).
 export default function FieldRenderer({ field, value, onChange }: Props) {
   switch (field.type) {
+    case 'display':
+      return <p style={{ whiteSpace: 'pre-wrap' }}>{field.label}</p>;
     case 'text':
       return (
         <TextField label={field.label} value={(value as string) ?? ''} onChange={onChange} required={field.required} />

@@ -31,6 +31,7 @@ function FieldAnswers({ fields, answers }: { fields: FormField[]; answers: Recor
   return (
     <dl className="kv-grid">
       {fields.map((field) => {
+        if (field.type === 'display') return null;
         if (field.type === 'group') {
           const repetitions = (answers[field.id] as Record<string, unknown>[] | undefined) ?? [];
           return (

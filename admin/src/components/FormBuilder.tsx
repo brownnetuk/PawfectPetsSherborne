@@ -10,6 +10,7 @@ import type {
   VisibilityRule,
 } from '../types';
 import { mappingTargetsFor } from '../utils/formFieldCatalog';
+import FormPreviewModal from './FormPreviewModal';
 import { PencilIcon, PlusIcon, TrashIcon } from './icons';
 
 const SIMPLE_TYPES: { type: FormField['type']; label: string }[] = [
@@ -22,6 +23,7 @@ const SIMPLE_TYPES: { type: FormField['type']; label: string }[] = [
   { type: 'multichoice', label: 'Multiple choice' },
   { type: 'file', label: 'File / photo' },
   { type: 'signature', label: 'Signature' },
+  { type: 'display', label: 'Free text' },
 ];
 
 function genId(prefix: string): string {
@@ -36,6 +38,8 @@ function newField(type: FormField['type']): FormField {
       return { ...base, type, options: ['Option 1', 'Option 2'] } as ChoiceFormField;
     case 'file':
       return { ...base, type: 'file', maxFiles: 2 } as FileFormField;
+    case 'display':
+      return { ...base, type: 'display', label: 'Enter your text here…' } as FormField;
     case 'group':
       return {
         ...base,
@@ -65,6 +69,7 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   function updateFieldById(id: string, updater: (f: FormField) => FormField) {
     setFields((prev) =>
@@ -180,6 +185,9 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
           <button className="btn btn-secondary btn-sm" onClick={onClose} disabled={saving}>
             Back to list
           </button>
+          <button className="btn btn-secondary btn-sm" onClick={() => setShowPreview(true)} disabled={fields.length === 0}>
+            Preview
+          </button>
           <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : 'Save form'}
           </button>
@@ -243,6 +251,10 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
           <PlusIcon /> Repeatable group (e.g. pets)
         </button>
       </div>
+
+      {showPreview && (
+        <FormPreviewModal name={name} description={description} fields={fields} onClose={() => setShowPreview(false)} />
+      )}
     </div>
   );
 }
@@ -273,7 +285,11 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
     <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <strong>{field.label || '(untitled field)'}</strong>
+          <strong>
+            {field.type === 'display'
+              ? (field.label || '(empty text)').slice(0, 60) + (field.label.length > 60 ? '…' : '')
+              : field.label || '(untitled field)'}
+          </strong>
           <span className="badge" style={{ background: 'var(--sage-badge)', color: 'var(--brand-green)' }}>
             {typeLabel(field.type)}
           </span>
@@ -317,14 +333,22 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
       {isSelected && (
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
           <div className="field">
-            <label>Label</label>
-            <input
-              type="text"
-              value={field.label}
-              onChange={(e) => onUpdate(field.id, (f) => ({ ...f, label: e.target.value }))}
-            />
+            <label>{field.type === 'display' ? 'Text' : 'Label'}</label>
+            {field.type === 'display' ? (
+              <textarea
+                rows={3}
+                value={field.label}
+                onChange={(e) => onUpdate(field.id, (f) => ({ ...f, label: e.target.value }))}
+              />
+            ) : (
+              <input
+                type="text"
+                value={field.label}
+                onChange={(e) => onUpdate(field.id, (f) => ({ ...f, label: e.target.value }))}
+              />
+            )}
           </div>
-          {field.type !== 'group' && (
+          {field.type !== 'group' && field.type !== 'display' && (
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
               <input
                 type="checkbox"
@@ -408,7 +432,7 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
             />
           )}
 
-          {field.type !== 'group' && (
+          {field.type !== 'group' && field.type !== 'display' && (
             <MappingPicker
               target={target}
               fieldType={field.type}
