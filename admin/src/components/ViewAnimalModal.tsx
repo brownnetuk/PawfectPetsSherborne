@@ -1,6 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import * as api from '../api/client';
 import Modal from './Modal';
 import type { Animal } from '../types';
+
+// Same fallback as the public intake app's own copy (frontend/src/intake/steps/PetDetailsStep.tsx) --
+// used only until Settings > Business Info's live wording loads (or if that fetch fails).
+const DEFAULT_OFF_LEAD_CONSENT_TEXT =
+  'I consent to {{petName}} being exercised off the lead, and understand this is at my own risk.';
 
 interface Props {
   animal: Animal;
@@ -11,6 +17,18 @@ export default function ViewAnimalModal({ animal, onClose }: Props) {
   const isCat = animal.species === 'cat';
   const isDog = animal.species === 'dog';
   const [zoomedPhoto, setZoomedPhoto] = useState<string | null>(null);
+
+  // The current wording, not a point-in-time snapshot -- same convention the
+  // customer PDF export already follows for this same text (no snapshot of
+  // consent wording exists anywhere on the Animal record to show instead).
+  const [offLeadConsentText, setOffLeadConsentText] = useState(DEFAULT_OFF_LEAD_CONSENT_TEXT);
+  useEffect(() => {
+    if (!isDog) return;
+    api
+      .getBusinessInfo()
+      .then((info) => setOffLeadConsentText(info.offLeadConsentText || DEFAULT_OFF_LEAD_CONSENT_TEXT))
+      .catch(() => {});
+  }, [isDog]);
 
   return (
     <>
@@ -147,8 +165,17 @@ export default function ViewAnimalModal({ animal, onClose }: Props) {
             <div className="section-title">Off-lead consent</div>
             <dl className="kv-grid">
               <dt>Lead</dt>
-              <dd>{animal.offLeadConsent.mode === 'off_lead' ? 'Off lead' : 'On lead'}</dd>
+              <dd>
+                {animal.offLeadConsent.mode === 'off_lead' ? (
+                  <strong>Off lead</strong>
+                ) : (
+                  <strong style={{ color: 'var(--error)' }}>On lead</strong>
+                )}
+              </dd>
             </dl>
+            {offLeadConsentText && (
+              <p style={{ marginTop: 10 }}>{offLeadConsentText.replace(/\{\{petName\}\}/g, animal.name)}</p>
+            )}
             {animal.offLeadConsent.signature && (
               <img
                 src={animal.offLeadConsent.signature}
