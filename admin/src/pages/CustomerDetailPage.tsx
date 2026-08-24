@@ -1290,7 +1290,7 @@ function AuditLogTab({
           <div style={{ position: 'relative', paddingLeft: 20, maxHeight: 572, overflowY: 'auto' }}>
             <div style={{ position: 'absolute', left: 4, top: 6, bottom: 6, width: 2, background: 'var(--border)' }} />
             {entries.map((e) => (
-              <div key={e._id} style={{ position: 'relative', paddingBottom: 20 }}>
+              <div key={e._id} style={{ position: 'relative', paddingBottom: 14 }}>
                 <div
                   style={{
                     position: 'absolute',
@@ -1306,8 +1306,10 @@ function AuditLogTab({
                 />
                 <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
                   {new Date(e.createdAt).toLocaleDateString()} {new Date(e.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {' · by '}
+                  {e.actor}
                 </div>
-                <div className="card" style={{ marginTop: 4, padding: '12px 14px' }}>
+                <div className="card" style={{ marginTop: 3, padding: '8px 12px' }}>
                   <div style={{ fontWeight: 600 }}>{e.title}</div>
                   {e.description && (
                     <div
@@ -1316,7 +1318,6 @@ function AuditLogTab({
                       {e.description}
                     </div>
                   )}
-                  <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>by {e.actor}</div>
                   {e.attachmentData && (
                     <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
                       <button
