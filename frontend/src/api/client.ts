@@ -53,13 +53,42 @@ export function submitCustomer(
     postcode: state.client.postcode,
     phoneNumber: state.client.phoneNumber,
     email: state.client.email,
+    // Only the fields CreateCustomerDto/UpdateCustomerDto actually accept --
+    // when this is a returning customer (state.emergencyContact/emergencyVet
+    // pre-filled wholesale from GET /customers/:id, see IntakeForm.tsx), the
+    // fetched objects also carry server-computed fields the DTOs don't
+    // whitelist (emergencyContact.name/address, emergencyVet.address/
+    // alternativeVetAuthorised, emergencyVet.authorisation.signedAt) -- the
+    // backend recomputes all of those itself, but with the global
+    // ValidationPipe's forbidNonWhitelisted, spreading them back in a PATCH
+    // would 400 instead of silently being ignored.
     emergencyContact: {
-      ...state.emergencyContact,
+      sameAsClient: state.emergencyContact.sameAsClient,
+      firstName: state.emergencyContact.firstName || undefined,
+      surname: state.emergencyContact.surname || undefined,
+      address1: state.emergencyContact.address1 || undefined,
+      address2: state.emergencyContact.address2 || undefined,
+      town: state.emergencyContact.town || undefined,
+      county: state.emergencyContact.county || undefined,
+      postcode: state.emergencyContact.postcode || undefined,
+      phoneNumber: state.emergencyContact.phoneNumber || undefined,
       email: state.emergencyContact.email || undefined,
     },
     emergencyVet: {
-      ...state.emergencyVet,
+      practiceName: state.emergencyVet.practiceName,
+      address1: state.emergencyVet.address1,
+      address2: state.emergencyVet.address2 || undefined,
+      town: state.emergencyVet.town,
+      county: state.emergencyVet.county || undefined,
+      postcode: state.emergencyVet.postcode,
+      telephone: state.emergencyVet.telephone,
       email: state.emergencyVet.email || undefined,
+      authorisation: state.emergencyVet.authorisation
+        ? {
+            signedName: state.emergencyVet.authorisation.signedName,
+            signatureImage: state.emergencyVet.authorisation.signatureImage,
+          }
+        : undefined,
     },
     security: state.security,
     agreement: state.agreement,

@@ -265,14 +265,32 @@ export class CustomersService {
     }
 
     if (dto.agreement?.signedName) {
-      await this.auditLogService.record(
-        id,
-        AuditEventType.CUSTOMER_UPDATED,
-        'Registration form completed',
-        undefined,
-        undefined,
-        actor,
-      );
+      // The wizard re-signs the agreement on every completion, not just a
+      // brand-new lead's first one -- an already-active customer going
+      // through it again (the "Request Update" flow) hits this same branch.
+      // Only a genuinely first-time completion (starting from a bare,
+      // staff-created lead) gets the generic message; anything else shows
+      // what actually changed, same as an ordinary edit would.
+      if (before.status === CustomerStatus.PENDING) {
+        await this.auditLogService.record(
+          id,
+          AuditEventType.CUSTOMER_UPDATED,
+          'Registration form completed',
+          undefined,
+          undefined,
+          actor,
+        );
+      } else {
+        const changes = describeCustomerChanges(dto, before);
+        await this.auditLogService.record(
+          id,
+          AuditEventType.CUSTOMER_UPDATED,
+          'Customer details updated',
+          changes ?? 'Form resubmitted — no changes to customer details',
+          undefined,
+          actor,
+        );
+      }
     } else {
       const changes = describeCustomerChanges(dto, before);
       if (changes) {
@@ -290,12 +308,30 @@ export class CustomersService {
     return customer;
   }
 
-  async updateStatus(id: string, status: CustomerStatus): Promise<Customer> {
+  async updateStatus(id: string, status: CustomerStatus, actor = 'Staff'): Promise<Customer> {
+    const before = await this.customerModel.findById(id).exec();
+    if (!before) {
+      throw new NotFoundException(`Customer ${id} not found`);
+    }
     const customer = await this.customerModel
       .findByIdAndUpdate(id, { status }, { new: true })
       .exec();
     if (!customer) {
       throw new NotFoundException(`Customer ${id} not found`);
+    }
+    // Specifically the "Request Update" action (CustomerDetailPage) landing
+    // here -- not every status change is audit-worthy, but staff asking a
+    // customer to review/update their details is, since it's what prompts
+    // the customer to go make changes in the first place.
+    if (status === CustomerStatus.UPDATE_INFO && before.status !== CustomerStatus.UPDATE_INFO) {
+      await this.auditLogService.record(
+        id,
+        AuditEventType.CUSTOMER_UPDATED,
+        'Update requested',
+        'Staff asked the customer to review and update their details.',
+        undefined,
+        actor,
+      );
     }
     return customer;
   }

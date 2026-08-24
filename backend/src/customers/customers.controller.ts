@@ -10,6 +10,8 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { actorFromRequest } from '../auth/actor.util';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { Public } from '../auth/public.decorator';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -71,8 +73,12 @@ export class CustomersController {
   // Staff-only (deliberately not @Public()): the public intake form's own PATCH
   // above only ever sets status via the completeness check, never directly.
   @Patch(':id/status')
-  updateStatus(@Param('id') id: string, @Body() dto: UpdateCustomerStatusDto) {
-    return this.customersService.updateStatus(id, dto.status);
+  updateStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateCustomerStatusDto,
+    @CurrentUser() user: CurrentUserShape,
+  ) {
+    return this.customersService.updateStatus(id, dto.status, user.name);
   }
 
   @Delete(':id')

@@ -12,6 +12,7 @@ import IncomeChart from '../components/IncomeChart';
 import Modal from '../components/Modal';
 import AddPetChoiceModal from '../components/AddPetChoiceModal';
 import NewAnimalModal from '../components/NewAnimalModal';
+import RegistrationLinkModal from '../components/RegistrationLinkModal';
 import SendFormModal from '../components/SendFormModal';
 import ViewAnimalModal from '../components/ViewAnimalModal';
 import ViewFormSubmissionModal from '../components/ViewFormSubmissionModal';
@@ -74,6 +75,8 @@ export default function CustomerDetailPage() {
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailResult, setEmailResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [showRequestUpdate, setShowRequestUpdate] = useState(false);
+  const [requestingUpdate, setRequestingUpdate] = useState(false);
 
   function refresh() {
     if (!id) return;
@@ -171,6 +174,23 @@ export default function CustomerDetailPage() {
     refresh();
   }
 
+  // Moves the customer to "Update Info" (logged server-side -- see
+  // CustomersService.updateStatus) and then shows the same send/copy-link
+  // screen used for a fresh registration, just worded for a returning
+  // customer. The intake form itself already pre-fills from what's on file
+  // when opened via this same link, so there's nothing extra to pass here.
+  async function handleRequestUpdate() {
+    if (!id) return;
+    setRequestingUpdate(true);
+    try {
+      await api.updateCustomerStatus(id, 'update_info');
+      refresh();
+      setShowRequestUpdate(true);
+    } finally {
+      setRequestingUpdate(false);
+    }
+  }
+
   return (
     <div>
       <div className="page-header">
@@ -202,6 +222,19 @@ export default function CustomerDetailPage() {
                 : []),
               { label: pdfLoading ? 'Preparing…' : 'View', onClick: handleViewPdf, disabled: pdfLoading },
               { label: 'Edit', onClick: () => setShowEdit(true) },
+              // Not offered for 'pending' (nothing on file yet to update -- "Send
+              // email" above covers that first-time link) or 'update_info' (an
+              // update's already been requested; "Send email" above resends the
+              // same link without a redundant second way to do the same thing).
+              ...(customer.status === 'active' || customer.status === 'inactive'
+                ? [
+                    {
+                      label: requestingUpdate ? 'Requesting…' : 'Request Update',
+                      onClick: handleRequestUpdate,
+                      disabled: requestingUpdate,
+                    },
+                  ]
+                : []),
               {
                 label: 'Delete',
                 onClick: () => {
@@ -295,6 +328,16 @@ export default function CustomerDetailPage() {
             </button>
           </div>
         </Modal>
+      )}
+
+      {showRequestUpdate && (
+        <RegistrationLinkModal
+          name={customer.name}
+          email={customer.email}
+          link={intakeLink}
+          trigger="update_info"
+          onDone={() => setShowRequestUpdate(false)}
+        />
       )}
 
       {showEdit && (

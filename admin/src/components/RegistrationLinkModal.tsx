@@ -2,18 +2,21 @@ import { useState } from 'react';
 import * as api from '../api/client';
 import Modal from './Modal';
 
-// Shared by CustomersPage's "New customer" flow and EnquiriesPage's
-// "Convert to Customer" flow -- both end up with a fresh customer record and
-// a registration link to get to the customer, so they share this screen.
+// Shared by CustomersPage's "New customer" flow, EnquiriesPage's "Convert to
+// Customer" flow, and CustomerDetailPage's "Request Update" action -- all end
+// up with a customer record and an intake link to send/copy, just with
+// different wording and email trigger depending on which one it is.
 export default function RegistrationLinkModal({
   name,
   email,
   link,
+  trigger = 'registration',
   onDone,
 }: {
   name: string;
   email: string;
   link: string;
+  trigger?: 'registration' | 'update_info';
   onDone: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -29,7 +32,7 @@ export default function RegistrationLinkModal({
     setSending(true);
     setSendResult(null);
     try {
-      await api.sendTriggeredEmail('registration', email, name, link);
+      await api.sendTriggeredEmail(trigger, email, name, link);
       setSendResult({ ok: true, message: `Email sent to ${email}.` });
     } catch (err) {
       setSendResult({ ok: false, message: err instanceof Error ? err.message : 'Failed to send email' });
@@ -39,9 +42,11 @@ export default function RegistrationLinkModal({
   }
 
   return (
-    <Modal title="Send registration link" onClose={onDone}>
+    <Modal title={trigger === 'update_info' ? 'Request an update' : 'Send registration link'} onClose={onDone}>
       <p style={{ color: 'var(--muted)' }}>
-        {name}'s record is ready. Send them this link to complete their registration.
+        {trigger === 'update_info'
+          ? `Send ${name} this link so they can review and update their details -- it'll already have everything on file pre-filled in.`
+          : `${name}'s record is ready. Send them this link to complete their registration.`}
       </p>
       <div className="link-copy-box">{link}</div>
       {sendResult && (
