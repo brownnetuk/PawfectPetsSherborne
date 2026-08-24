@@ -77,6 +77,7 @@ export default function CustomerDetailPage() {
   const [emailResult, setEmailResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [showRequestUpdate, setShowRequestUpdate] = useState(false);
   const [requestingUpdate, setRequestingUpdate] = useState(false);
+  const [viewingSnapshot, setViewingSnapshot] = useState<AuditLogEntry | null>(null);
 
   function refresh() {
     if (!id) return;
@@ -338,6 +339,7 @@ export default function CustomerDetailPage() {
           incomeMonths={incomeMonths}
           incomePeriod={incomePeriod}
           onPeriodChange={setIncomePeriod}
+          onViewAttachment={setViewingSnapshot}
         />
       )}
       {tab === 'forms' && <FormSubmissionsTab customer={customer} />}
@@ -410,6 +412,32 @@ export default function CustomerDetailPage() {
                 Download
               </a>
             )}
+          </div>
+        </Modal>
+      )}
+
+      {viewingSnapshot && (
+        <Modal
+          title={`${customer.name} — Registration form (${new Date(viewingSnapshot.createdAt).toLocaleDateString('en-GB')} snapshot)`}
+          onClose={() => setViewingSnapshot(null)}
+          xl
+        >
+          <iframe
+            src={viewingSnapshot.attachmentData}
+            title="Registration form PDF snapshot"
+            style={{ width: '100%', height: '75vh', border: '1px solid var(--border)', borderRadius: 8 }}
+          />
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setViewingSnapshot(null)}>
+              Close
+            </button>
+            <a
+              href={viewingSnapshot.attachmentData}
+              download={viewingSnapshot.attachmentName || 'registration-form.pdf'}
+              className="btn btn-primary"
+            >
+              Download
+            </a>
           </div>
         </Modal>
       )}
@@ -1221,11 +1249,13 @@ function AuditLogTab({
   incomeMonths,
   incomePeriod,
   onPeriodChange,
+  onViewAttachment,
 }: {
   entries: AuditLogEntry[];
   incomeMonths: IncomeMonth[];
   incomePeriod: number;
   onPeriodChange: (months: number) => void;
+  onViewAttachment: (entry: AuditLogEntry) => void;
 }) {
   const totalIncome = incomeMonths.reduce((sum, m) => sum + m.total, 0);
 
@@ -1263,14 +1293,24 @@ function AuditLogTab({
                   )}
                   <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>by {e.actor}</div>
                   {e.attachmentData && (
-                    <a
-                      href={e.attachmentData}
-                      download={e.attachmentName || 'registration-form.pdf'}
-                      className="btn-link"
-                      style={{ fontSize: '0.8rem', marginTop: 4, display: 'inline-block' }}
-                    >
-                      Download PDF
-                    </a>
+                    <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+                      <button
+                        type="button"
+                        className="btn-link"
+                        style={{ fontSize: '0.8rem' }}
+                        onClick={() => onViewAttachment(e)}
+                      >
+                        View
+                      </button>
+                      <a
+                        href={e.attachmentData}
+                        download={e.attachmentName || 'registration-form.pdf'}
+                        className="btn-link"
+                        style={{ fontSize: '0.8rem' }}
+                      >
+                        Download PDF
+                      </a>
+                    </div>
                   )}
                 </div>
               </div>
