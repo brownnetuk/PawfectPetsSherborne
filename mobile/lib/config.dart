@@ -3,5 +3,5 @@
 // Defaults to the deployed backend so the app works out of the box.
 const String apiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'https://pawfectpets-backend.onrender.com',
+  defaultValue: 'https://api.pawfectpetssherborne.co.uk',
 );

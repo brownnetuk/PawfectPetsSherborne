@@ -55,33 +55,17 @@ Each app's own README has a "Build for production" section with the exact comman
 
 ## Deployment
 
-**Render** ([`render.yaml`](render.yaml)) is live and is where the app actually runs: a single
-Blueprint provisions `pawfectpets-backend` (Node web service, `pawfectpets-backend.onrender.com`),
-`pawfectpets-frontend` and `pawfectpets-admin` (static sites with an SPA rewrite so client-side
-routes work). Note the free plan spins the backend down after inactivity — the first request after
-a quiet period takes 30-50s. `mobile`'s default `API_BASE_URL` (see `mobile/lib/config.dart`)
-points at this same backend, so it works against real data without any extra setup.
-
-`frontend` and `admin` are also linked to Vercel projects (`pawfect-pets-sherborne/frontend` and
-`pawfect-pets-sherborne/admin`) from an earlier exploration of that route, left as-is since Render
-is the settled choice — remove them if they're not needed.
-
-`mobile` isn't deployed anywhere (no app-store builds) — it's built and run locally, or via CI on
-a Mac for iOS. Nothing about how it talks to the backend is Render-specific.
-
-### Self-hosting with Docker / Portainer
-
-[`docker-compose.yml`](docker-compose.yml) (repo root) is an alternative to Render: a self-hosted
+**Self-hosted via Docker/Portainer + Cloudflare Tunnel** is where the app actually runs now
+(migrated from Render — see "Retired: Render" below for that history).
+[`docker-compose.yml`](docker-compose.yml) (repo root) defines the whole stack: a self-hosted
 `mongo` container plus `backend`/`admin`/`frontend`, each built from that app's own `Dockerfile`
 (`backend/Dockerfile`, `admin/Dockerfile`, `frontend/Dockerfile` — no nginx anywhere in this setup;
 the latter two are a Vite build stage feeding a `node:22-alpine` stage running the `serve` package
-in `-s`/single mode, which gives the same SPA-fallback-to-`index.html` behaviour Render's own
-rewrite rule provides, for the same reason — client-side routes like `/customers/:id` or
-`/intake/:id` aren't real files). Copy [`.env.example`](.env.example) to `.env` (or paste its
-contents into Portainer's stack environment variables) and fill in real values before deploying —
-see that file's comments for what each one is and, critically, why `ENCRYPTION_KEY` specifically
-must be copied unchanged from the existing `backend/.env` rather than freshly generated (it would
-otherwise permanently break decryption of already-stored `alarmInstructionsEncrypted` values).
+in `-s`/single mode, which gives the same SPA-fallback-to-`index.html` behaviour a rewrite rule
+would, for the same reason — client-side routes like `/customers/:id` or `/intake/:id` aren't real
+files). `.env.example` documents every stack-level variable — notably why `ENCRYPTION_KEY`
+specifically must stay whatever it already was, never freshly generated (it would otherwise
+permanently break decryption of already-stored `alarmInstructionsEncrypted` values).
 `VITE_API_URL`/`VITE_INTAKE_URL` are Vite build-time values (see each frontend's own
 "Build for production" section) baked into the `admin`/`frontend` images via Docker build args, not
 ordinary runtime environment variables — they must be the real, publicly-reachable URLs a browser
@@ -90,13 +74,43 @@ will load, not the in-network `backend`/`admin`/`frontend` service names.
 Public ingress is a `cloudflared` service in the same stack (Cloudflare Tunnel), not a reverse
 proxy — it makes an outbound-only connection to Cloudflare's edge, so nothing needs a port opened
 on the host or forwarded on the router, and TLS is handled by Cloudflare rather than anything in
-this repo. Create a tunnel in the Cloudflare Zero Trust dashboard (Networks → Tunnels →
-Create a tunnel → Cloudflared), copy its token into `CLOUDFLARE_TUNNEL_TOKEN`, then add three
-Public Hostnames on that tunnel pointing at `http://backend:3000`, `http://admin:80`, and
-`http://frontend:80` — the in-network service names from `docker-compose.yml`, reachable from
-`cloudflared` over the same Docker network. `backend`/`admin`/`frontend` also still publish to host
-ports 3000/8080/8081 for direct/LAN access (handy while debugging) — remove those `ports:` entries
-if you'd rather nothing but the tunnel could reach them at all.
+this repo. Routing (which public hostname maps to which internal service) is configured as Public
+Hostnames on the tunnel in the Cloudflare Zero Trust dashboard, not in this file.
+`backend`/`admin`/`frontend` also still publish to host ports 3000/8080/8081 for direct/LAN access
+(handy while debugging) — remove those `ports:` entries if you'd rather nothing but the tunnel
+could reach them at all.
+
+`mobile`'s default `API_BASE_URL` (see `mobile/lib/config.dart`) points at this same backend, so it
+works against real data without any extra setup. `mobile` itself isn't deployed anywhere (no
+app-store builds) — it's built and run locally, or via CI on a Mac for iOS.
+
+### Keeping it updated
+
+Portainer's stack is built from this Git repository (Business Edition's "GitOps updates"), not a
+one-off copy-paste — so a push to `main` can redeploy automatically rather than needing someone to
+click **Pull and redeploy** in Portainer by hand every time. Two ways to trigger it, both configured
+on the stack itself in Portainer (Stacks → this stack → Edit → **GitOps updates**): **polling** (Portainer
+checks the repo on an interval and redeploys if it changed) or a **webhook** (Portainer exposes a
+unique URL; add it as a GitHub webhook — repo **Settings → Webhooks → Add webhook**, content type
+`application/json`, "Just the push event" — so a push triggers an immediate redeploy instead of
+waiting for the next poll). Either way, `docker-compose.yml`'s `pull_policy: build` on
+`backend`/`admin`/`frontend` is what makes a redeploy actually *rebuild* those images from the newly
+-pulled source, rather than silently reusing whatever was already built under that name — without
+it, a webhook-triggered redeploy would fire but nothing running would actually change.
+
+Rolling back is the same shape in reverse: `git revert`/`git reset` the unwanted commit(s) on
+`main` and push — the next poll/webhook redeploys from that reverted state, same as any other push.
+
+### Retired: Render
+
+Previously deployed on Render ([`render.yaml`](render.yaml), still in the repo for reference): a
+Blueprint provisioning `pawfectpets-backend` (Node web service), `pawfectpets-frontend` and
+`pawfectpets-admin` (static sites with an SPA rewrite). `frontend`/`admin` were also linked to
+Vercel projects (`pawfect-pets-sherborne/frontend`/`admin`) from an earlier exploration of that
+route. Both are retired now that the self-hosted stack above is live and verified against a real
+data migration from the old Atlas database — remove the Render services and Vercel projects once
+you're confident nothing still depends on them (e.g. an old bookmark hitting
+`pawfectpets-backend.onrender.com`).
 
 In Portainer: **Stacks → Add stack**, paste `docker-compose.yml`'s contents (or point it at this
 Git repo), fill in the environment variables from `.env.example`, deploy. Migrating existing data:

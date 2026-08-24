@@ -14,6 +14,12 @@ services:
   backend:
     build:
       context: ./backend
+    # Without this, a redeploy (e.g. via Portainer's GitOps webhook -- see
+    # README.md's "Keeping it updated" section) would silently keep running
+    # whatever image already exists under this name instead of rebuilding
+    # from the newly-pulled source, so a git push wouldn't actually change
+    # anything running.
+    pull_policy: build
     restart: unless-stopped
     depends_on:
       - mongo
@@ -48,6 +54,7 @@ services:
         # not the in-network service names above.
         VITE_API_URL: ${PUBLIC_API_URL}
         VITE_INTAKE_URL: ${PUBLIC_INTAKE_URL}
+    pull_policy: build
     restart: unless-stopped
     ports:
       - "8080:80"
@@ -59,6 +66,7 @@ services:
       context: ./frontend
       args:
         VITE_API_URL: ${PUBLIC_API_URL}
+    pull_policy: build
     restart: unless-stopped
     ports:
       - "8081:80"
