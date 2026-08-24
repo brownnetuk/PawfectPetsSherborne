@@ -22,6 +22,7 @@ import EmergencyVetStep from './steps/EmergencyVetStep';
 import PetCountStep from './steps/PetCountStep';
 import PetDetailsStep from './steps/PetDetailsStep';
 import SecurityStep from './steps/SecurityStep';
+import FurtherInfoStep from './steps/FurtherInfoStep';
 import AgreementStep from './steps/AgreementStep';
 import ThankYouStep from './steps/ThankYouStep';
 
@@ -166,7 +167,8 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
   const countStepIndex = 4 + existingCount;
   const additionalCount = state.petCount;
   const securityStepIndex = countStepIndex + additionalCount + 1;
-  const agreementStepIndex = securityStepIndex + 1;
+  const furtherInfoStepIndex = securityStepIndex + 1;
+  const agreementStepIndex = furtherInfoStepIndex + 1;
   const totalSteps = agreementStepIndex + 1;
 
   function petIndexForStep(s: number): number | null {
@@ -199,9 +201,10 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
       return `Pet ${petIndex + 1} of ${total}`;
     }
     if (step === securityStepIndex) return 'Security';
+    if (step === furtherInfoStepIndex) return 'Additional information';
     if (step === agreementStepIndex) return 'Agreement';
     return '';
-  }, [step, countStepIndex, existingCount, additionalCount, securityStepIndex, agreementStepIndex]);
+  }, [step, countStepIndex, existingCount, additionalCount, securityStepIndex, furtherInfoStepIndex, agreementStepIndex]);
 
   function validateStep(): string | null {
     if (step === 1) {
@@ -406,6 +409,12 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
             value={state.security}
             onChange={(security) => setState((s) => ({ ...s, security }))}
             resuming={!!customerId}
+          />
+        )}
+        {step === furtherInfoStepIndex && (
+          <FurtherInfoStep
+            value={state.security}
+            onChange={(security) => setState((s) => ({ ...s, security }))}
           />
         )}
         {step === agreementStepIndex && (

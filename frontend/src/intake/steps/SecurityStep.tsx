@@ -33,12 +33,6 @@ export default function SecurityStep({ value, onChange, resuming }: Props) {
             : 'Stored encrypted — only accessible to authorised staff when needed.'
         }
       />
-      <TextField
-        label="Any further information"
-        value={value.furtherInformation ?? ''}
-        onChange={(v) => set('furtherInformation', v)}
-        multiline
-      />
     </div>
   );
 }
