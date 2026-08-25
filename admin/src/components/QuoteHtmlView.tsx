@@ -172,7 +172,9 @@ export default function QuoteHtmlView({ quote, businessInfo }: Props) {
 
       <div style={{ marginTop: 36, fontSize: '0.88rem' }}>
         <div style={{ fontWeight: 700 }}>Notes</div>
-        <div style={{ color: 'var(--muted)', marginTop: 5 }}>Thanks for your business.</div>
+        <div style={{ color: 'var(--muted)', marginTop: 5, whiteSpace: 'pre-line' }}>
+          {businessInfo.quoteNotesMessage || 'Thanks for your business.'}
+        </div>
       </div>
 
       {(businessInfo.bankName || businessInfo.sortCode || businessInfo.accountNumber) && (

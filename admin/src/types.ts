@@ -384,6 +384,8 @@ export interface BusinessInfo {
   bankName: string;
   sortCode: string;
   accountNumber: string;
+  invoiceNotesMessage: string;
+  quoteNotesMessage: string;
   invoiceNumberTemplate: string;
   invoiceNextNumber: number;
   quoteNumberTemplate: string;

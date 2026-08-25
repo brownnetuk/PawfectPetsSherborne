@@ -99,6 +99,17 @@ export class BusinessInfo extends Document {
   @Prop()
   accountNumber?: string;
 
+  // Shown in the "Notes" section of the on-screen invoice/quote preview
+  // (InvoiceHtmlView.tsx/QuoteHtmlView.tsx) -- separate per document type
+  // since staff often want different wording (e.g. payment terms on an
+  // invoice vs a call-to-action on a quote). Falls back to a sensible
+  // default in getBusinessInfo() below.
+  @Prop()
+  invoiceNotesMessage?: string;
+
+  @Prop()
+  quoteNotesMessage?: string;
+
   // Numbering for generated invoices/quotes -- {year} and {seq} are
   // substituted by formatDocumentNumber (backend/src/common/document-number.util.ts);
   // *NextNumber is the number the *next* created document will use, and is

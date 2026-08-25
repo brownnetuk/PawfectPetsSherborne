@@ -30,7 +30,7 @@ const TAB_LABELS: Record<Tab, string> = {
   staff: 'Staff',
   email: 'Email',
   templates: 'Email Templates',
-  invoices: 'Invoices',
+  invoices: 'Invoice/Quotes',
   forms: 'Forms',
   financial: 'Finance',
 };
@@ -1749,6 +1749,77 @@ function InvoicesSettingsTab() {
       <PdfTemplateDesigner />
       <InvoiceTermsCard />
       <BankDetailsCard />
+      <NotesMessageCard kind="invoice" />
+      <NotesMessageCard kind="quote" />
+    </div>
+  );
+}
+
+// The message shown in the "Notes" section of the on-screen invoice/quote
+// preview (InvoiceHtmlView.tsx/QuoteHtmlView.tsx) -- a separate card per
+// document type since staff often want different wording (e.g. payment
+// terms on an invoice vs a call-to-action on a quote), same reasoning as
+// BankDetailsCard just above being invoice/quote-shared instead.
+function NotesMessageCard({ kind }: { kind: 'invoice' | 'quote' }) {
+  const field = kind === 'invoice' ? 'invoiceNotesMessage' : 'quoteNotesMessage';
+  const [message, setMessage] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api
+      .getBusinessInfo()
+      .then((info) => {
+        setMessage(info[field]);
+        setLoaded(true);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : `Failed to load the ${kind} message`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [field]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      await api.updateBusinessInfo({ [field]: message });
+      setSaved(true);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : `Failed to save the ${kind} message`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>{kind === 'invoice' ? 'Invoice Message' : 'Quote Message'}</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        Shown under "Notes" on the {kind} preview.
+      </p>
+      {error && <div className="error-banner">{error}</div>}
+      {saveError && <div className="error-banner">{saveError}</div>}
+      {!loaded ? (
+        <div className="empty-state">Loading…</div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div className="field">
+            <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} />
+          </div>
+          <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+            <button className="btn btn-primary" type="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save changes'}
+            </button>
+            {saved && (
+              <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
+            )}
+          </div>
+        </form>
+      )}
     </div>
   );
 }

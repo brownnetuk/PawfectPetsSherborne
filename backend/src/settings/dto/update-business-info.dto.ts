@@ -90,6 +90,14 @@ export class UpdateBusinessInfoDto {
 
   @IsOptional()
   @IsString()
+  invoiceNotesMessage?: string;
+
+  @IsOptional()
+  @IsString()
+  quoteNotesMessage?: string;
+
+  @IsOptional()
+  @IsString()
   invoiceNumberTemplate?: string;
 
   @IsOptional()

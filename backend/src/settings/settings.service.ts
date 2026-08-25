@@ -39,6 +39,11 @@ const DEFAULT_DECLARATION_TEXT =
 // Default deposit percentage until staff configure their own in Settings > Deposit.
 const DEFAULT_DEPOSIT_PERCENTAGE = 20;
 
+// Shown in the "Notes" section of the on-screen invoice/quote preview until
+// staff configure their own in Settings > Invoice/Quotes.
+const DEFAULT_INVOICE_NOTES_MESSAGE = 'Thanks for your business.';
+const DEFAULT_QUOTE_NOTES_MESSAGE = 'Thanks for your business.';
+
 // "Sent"/"read" Activity titles for sendTriggeredEmail's tracking-pixel
 // entries -- PAYMENT_RECEIVED/INVOICE/QUOTE aren't here since those go
 // through InvoicesService/QuotesService's own send flow (already logs
@@ -88,6 +93,8 @@ export class SettingsService {
       bankName: doc?.bankName ?? '',
       sortCode: doc?.sortCode ?? '',
       accountNumber: doc?.accountNumber ?? '',
+      invoiceNotesMessage: doc?.invoiceNotesMessage ?? DEFAULT_INVOICE_NOTES_MESSAGE,
+      quoteNotesMessage: doc?.quoteNotesMessage ?? DEFAULT_QUOTE_NOTES_MESSAGE,
       invoiceNumberTemplate: doc?.invoiceNumberTemplate ?? 'INV-{year}-{seq}',
       invoiceNextNumber: doc?.invoiceNextNumber ?? 1,
       quoteNumberTemplate: doc?.quoteNumberTemplate ?? 'QUO-{year}-{seq}',
@@ -138,6 +145,10 @@ export class SettingsService {
     if (dto.sortCode !== undefined) update.sortCode = dto.sortCode;
     if (dto.accountNumber !== undefined)
       update.accountNumber = dto.accountNumber;
+    if (dto.invoiceNotesMessage !== undefined)
+      update.invoiceNotesMessage = dto.invoiceNotesMessage;
+    if (dto.quoteNotesMessage !== undefined)
+      update.quoteNotesMessage = dto.quoteNotesMessage;
     if (dto.invoiceNumberTemplate !== undefined)
       update.invoiceNumberTemplate = dto.invoiceNumberTemplate;
     if (dto.invoiceNextNumber !== undefined)
