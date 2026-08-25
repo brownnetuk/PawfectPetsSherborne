@@ -23,3 +23,15 @@ export function trackingPixelHtml(pixelUrl: string): string {
 export function publicApiUrl(): string {
   return process.env.PUBLIC_API_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
 }
+
+// Same reasoning as publicApiUrl() above, but for the public customer-facing
+// `frontend` ("intake") app -- needed to build links embedded in email
+// content, e.g. {{invoice_link}}/{{quote_link}}, that point at a page on
+// that app rather than an API route. Reuses PUBLIC_INTAKE_URL, the same env
+// var name docker-compose.yml/render.yaml already use for this app's public
+// URL (currently only wired to the admin build's VITE_INTAKE_URL -- this
+// backend needs it added to its own env too). Falls back to the frontend's
+// local dev port; must be set to the real deployed frontend URL in production.
+export function publicFrontendUrl(): string {
+  return process.env.PUBLIC_INTAKE_URL ?? 'http://localhost:5173';
+}

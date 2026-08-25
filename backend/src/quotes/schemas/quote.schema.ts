@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { Booking } from '../../bookings/schemas/booking.schema';
 import { Customer } from '../../customers/schemas/customer.schema';
+import { Invoice } from '../../invoices/schemas/invoice.schema';
 
 export enum QuoteStatus {
   DRAFT = 'draft',
@@ -83,6 +84,14 @@ export class Quote extends Document {
   // tracking-pixel mechanism, GET /quotes/:id/pixel.gif.
   @Prop()
   openedAt?: Date;
+
+  // Set once this quote is accepted (via the public quote page) and
+  // converted into a real Invoice -- QuotesService.acceptAndConvert() checks
+  // this first so re-accepting an already-accepted quote (e.g. a page
+  // refresh, or two tabs) reuses the existing invoice instead of creating a
+  // duplicate.
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Invoice.name })
+  invoice?: Types.ObjectId;
 }
 
 export const QuoteSchema = SchemaFactory.createForClass(Quote);

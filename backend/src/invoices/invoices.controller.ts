@@ -62,6 +62,16 @@ export class InvoicesController {
     return this.invoicesService.requestDeposit(id, user.name);
   }
 
+  // Public: the customer's own invoice page (see {{invoice_link}}) -- same
+  // shape as the staff findOne() above, just reachable with no JWT. The
+  // invoice's own id is effectively its access token here, same as the
+  // public form-submission/intake routes elsewhere in this app.
+  @Public()
+  @Get(':id/public')
+  findOnePublic(@Param('id') id: string) {
+    return this.invoicesService.findOne(id);
+  }
+
   // Public: this is fetched by the recipient's mail client, not the admin app --
   // it never carries a staff JWT. Ignores an invalid/already-deleted id rather
   // than erroring, since a 404 image just renders as broken in the email either

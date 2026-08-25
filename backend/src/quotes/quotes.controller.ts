@@ -57,6 +57,27 @@ export class QuotesController {
     return this.quotesService.sendEmail(id, user.name);
   }
 
+  // Public: the customer's own quote page (see {{quote_link}}), with the
+  // Accept/Reject actions below -- same access-token-by-id shape as
+  // InvoicesController.findOnePublic().
+  @Public()
+  @Get(':id/public')
+  findOnePublic(@Param('id') id: string) {
+    return this.quotesService.findOne(id);
+  }
+
+  @Public()
+  @Post(':id/accept')
+  accept(@Param('id') id: string) {
+    return this.quotesService.acceptAndConvert(id);
+  }
+
+  @Public()
+  @Post(':id/reject')
+  reject(@Param('id') id: string) {
+    return this.quotesService.reject(id);
+  }
+
   // See InvoicesController.pixel() -- same public tracking-pixel pattern.
   @Public()
   @Get(':id/pixel.gif')

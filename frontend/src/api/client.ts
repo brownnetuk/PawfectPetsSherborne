@@ -1,4 +1,13 @@
-import type { AnimalRecord, CustomerRecord, FormSubmissionPublic, IntakeState, PetDetails } from '../types';
+import type {
+  AnimalRecord,
+  CustomerRecord,
+  FormSubmissionPublic,
+  IntakeState,
+  InvoiceRecord,
+  PetDetails,
+  PublicBusinessInfo,
+  QuoteRecord,
+} from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
@@ -185,4 +194,26 @@ export function submitFormSubmission(id: string, answers: Record<string, unknown
     method: 'POST',
     body: JSON.stringify({ answers }),
   });
+}
+
+// --- Public invoice/quote view (`/invoices/:id`, `/quotes/:id`) ---
+
+export function fetchBusinessInfoPublic(): Promise<PublicBusinessInfo> {
+  return request('/settings/business/public');
+}
+
+export function fetchInvoicePublic(id: string): Promise<InvoiceRecord> {
+  return request(`/invoices/${id}/public`);
+}
+
+export function fetchQuotePublic(id: string): Promise<QuoteRecord> {
+  return request(`/quotes/${id}/public`);
+}
+
+export function acceptQuote(id: string): Promise<{ invoice: InvoiceRecord }> {
+  return request(`/quotes/${id}/accept`, { method: 'POST' });
+}
+
+export function rejectQuote(id: string): Promise<QuoteRecord> {
+  return request(`/quotes/${id}/reject`, { method: 'POST' });
 }

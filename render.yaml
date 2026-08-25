@@ -16,6 +16,8 @@ services:
         sync: false
       - key: PUBLIC_API_URL
         sync: false
+      - key: PUBLIC_INTAKE_URL
+        sync: false
 
   - type: web
     name: pawfectpets-frontend

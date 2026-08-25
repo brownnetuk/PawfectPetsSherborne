@@ -17,7 +17,11 @@ import {
   formatDocumentNumber,
   nextSequenceNumber,
 } from '../common/document-number.util';
-import { publicApiUrl, trackingPixelHtml } from '../common/tracking-pixel.util';
+import {
+  publicApiUrl,
+  publicFrontendUrl,
+  trackingPixelHtml,
+} from '../common/tracking-pixel.util';
 import { CreditNote } from '../credit-notes/schemas/credit-note.schema';
 import { Payment } from '../payments/schemas/payment.schema';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
@@ -247,6 +251,7 @@ export class InvoicesService {
         payment_terms: invoice.paymentTerms,
         subtotal: invoice.subtotal.toFixed(2),
         total: invoice.total.toFixed(2),
+        invoice_link: `${publicFrontendUrl()}/invoices/${id}`,
         bank_name: business?.bankName,
         sort_code: business?.sortCode,
         account_number: business?.accountNumber,
@@ -334,6 +339,7 @@ export class InvoicesService {
         deposit_percentage: String(depositPercentage),
         deposit_amount: depositAmount.toFixed(2),
         remaining_balance: remainingBalance.toFixed(2),
+        invoice_link: `${publicFrontendUrl()}/invoices/${id}`,
         bank_name: business.bankName,
         sort_code: business.sortCode,
         account_number: business.accountNumber,

@@ -254,3 +254,135 @@ export interface IntakeState {
   security: SecurityData;
   agreement: AgreementData;
 }
+
+// --- Public invoice/quote view (`/invoices/:id`, `/quotes/:id`) --
+// mirrors the equivalent types in admin/src/types.ts, kept in sync by hand
+// since these two frontends don't share a package.
+
+export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'declined' | 'expired';
+
+export interface DocCustomerRef {
+  _id: string;
+  name: string;
+  email: string;
+  address?: string;
+  phoneNumber?: string;
+}
+
+export interface DocLineItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  discountPercent?: number;
+}
+
+export interface InvoiceRecord {
+  _id: string;
+  customer: DocCustomerRef | string;
+  invoiceNumber: string;
+  lineItems: DocLineItem[];
+  subtotal: number;
+  total: number;
+  status: InvoiceStatus;
+  issueDate: string;
+  dueDate: string;
+  paymentTerms?: string;
+  subject?: string;
+  paidAt?: string;
+  amountPaid?: number;
+}
+
+export interface QuoteRecord {
+  _id: string;
+  customer?: DocCustomerRef | string;
+  manualCustomerName?: string;
+  manualCustomerEmail?: string;
+  quoteNumber: string;
+  lineItems: DocLineItem[];
+  subtotal: number;
+  total: number;
+  status: QuoteStatus;
+  issueDate: string;
+  validUntil: string;
+  paymentTerms?: string;
+  subject?: string;
+}
+
+export interface PublicBusinessInfo {
+  name: string;
+  address: string;
+  town: string;
+  postcode: string;
+  telephone: string;
+  email: string;
+  website: string;
+  logoImage: string;
+  bankName: string;
+  sortCode: string;
+  accountNumber: string;
+  invoiceNotesMessage: string;
+  quoteNotesMessage: string;
+  invoicePdfTemplate: PdfTemplateElement[];
+}
+
+// --- Invoice/Quote PDF template (staff-designed in Settings > Invoices >
+// PDF Template) -- same shape as admin/src/types.ts, needed here purely to
+// render the same layout when a customer downloads their invoice/quote PDF
+// from the public page.
+
+export type PdfVisibility = 'always' | 'paid' | 'unpaid';
+
+interface PdfElementBase {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  visibleWhen?: PdfVisibility;
+  groupId?: string;
+}
+
+export interface PdfTextElement extends PdfElementBase {
+  type: 'text';
+  content: string;
+  fontSize: number;
+  fontWeight: 'normal' | 'bold';
+  color: string;
+  align: 'left' | 'center' | 'right';
+  rotation?: number;
+}
+
+export interface PdfImageElement extends PdfElementBase {
+  type: 'image';
+  src: 'logo';
+}
+
+export interface PdfLineElement extends PdfElementBase {
+  type: 'line';
+  strokeColor: string;
+  lineWidth: number;
+}
+
+export interface PdfRectElement extends PdfElementBase {
+  type: 'rect';
+  fillColor?: string;
+  strokeColor?: string;
+}
+
+export interface PdfQrElement extends PdfElementBase {
+  type: 'qrcode';
+  content: string;
+}
+
+export interface PdfItemTableElement extends PdfElementBase {
+  type: 'itemTable';
+}
+
+export type PdfTemplateElement =
+  | PdfTextElement
+  | PdfImageElement
+  | PdfLineElement
+  | PdfRectElement
+  | PdfQrElement
+  | PdfItemTableElement;

@@ -38,6 +38,17 @@ export class SettingsController {
     return this.settingsService.getBusinessInfo();
   }
 
+  // Public: the customer-facing public invoice/quote pages (see
+  // {{invoice_link}}/{{quote_link}}) need this to render the business's
+  // name/address/logo/bank details -- exactly the same fields already sent
+  // out in every invoice/quote/deposit-request email, just fetched by that
+  // page instead of interpolated server-side.
+  @Public()
+  @Get('business/public')
+  getBusinessInfoPublic() {
+    return this.settingsService.getBusinessInfo();
+  }
+
   @Patch('business')
   updateBusinessInfo(@Body() dto: UpdateBusinessInfoDto) {
     return this.settingsService.updateBusinessInfo(dto);

@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { Customer, CustomerSchema } from '../customers/schemas/customer.schema';
+import { InvoiceTerm, InvoiceTermSchema } from '../invoice-terms/schemas/invoice-term.schema';
+import { InvoicesModule } from '../invoices/invoices.module';
 import {
   BusinessInfo,
   BusinessInfoSchema,
@@ -21,9 +23,17 @@ import { Quote, QuoteSchema } from './schemas/quote.schema';
       // accepted, without importing CustomersModule -- which already imports
       // QuotesModule (for its own delete-guard checks) and would circularize.
       { name: Customer.name, schema: CustomerSchema },
+      // Read-only, so acceptAndConvert() can look up the default term's
+      // due-date rule without importing InvoiceTermsModule (which exports
+      // nothing today) just for that.
+      { name: InvoiceTerm.name, schema: InvoiceTermSchema },
     ]),
     SettingsModule,
     AuditLogModule,
+    // For InvoicesService -- a quote accepted on its public page is turned
+    // into a real Invoice (see QuotesService.acceptAndConvert()). Safe
+    // direction: InvoicesModule doesn't import QuotesModule.
+    InvoicesModule,
   ],
   controllers: [QuotesController],
   providers: [QuotesService],

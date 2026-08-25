@@ -9,6 +9,7 @@ import {
   nextSequenceNumber,
 } from '../common/document-number.util';
 import { formatUkDate } from '../common/invoice-email.util';
+import { publicFrontendUrl } from '../common/tracking-pixel.util';
 import { ExpensesService } from '../expenses/expenses.service';
 import { InvoicesService } from '../invoices/invoices.service';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
@@ -112,6 +113,7 @@ export class PaymentsService {
             total: invoice.total.toFixed(2),
             balance_due: balanceDue > 0 ? balanceDue.toFixed(2) : undefined,
             payment_method: dto.paymentMethod,
+            invoice_link: `${publicFrontendUrl()}/invoices/${dto.invoice}`,
           },
         );
       } catch {

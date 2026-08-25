@@ -1379,6 +1379,7 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
     { key: 'invoice_date', hint: 'the issue date' },
     { key: 'due_date', hint: 'the due date' },
     PAYMENT_TERMS_PLACEHOLDER,
+    { key: 'invoice_link', hint: 'link to view this invoice online and download it as a PDF' },
     ...BANK_PLACEHOLDERS,
     ...BUSINESS_PLACEHOLDERS,
   ],
@@ -1393,6 +1394,7 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
     { key: 'quote_date', hint: 'the issue date' },
     { key: 'valid_until', hint: 'the valid-until date' },
     PAYMENT_TERMS_PLACEHOLDER,
+    { key: 'quote_link', hint: 'link to view this quote online, download it as a PDF, and accept or reject it' },
     ...BANK_PLACEHOLDERS,
     ...BUSINESS_PLACEHOLDERS,
   ],
@@ -1409,6 +1411,7 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
       key: 'balance_due',
       hint: "remaining balance on the invoice (no £ sign) -- only present if not fully paid; wrap in {{#if balance_due}}...{{/if}}",
     },
+    { key: 'invoice_link', hint: 'link to view this invoice online and download it as a PDF' },
     ...BUSINESS_PLACEHOLDERS,
   ],
   form: [
@@ -1427,6 +1430,7 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
     { key: 'deposit_percentage', hint: 'the configured deposit percentage (no % sign)' },
     { key: 'deposit_amount', hint: 'the calculated deposit amount (no £ sign)' },
     { key: 'remaining_balance', hint: 'the invoice total minus the deposit amount (no £ sign)' },
+    { key: 'invoice_link', hint: 'link to view this invoice online and download it as a PDF' },
     ...BANK_PLACEHOLDERS,
     ...BUSINESS_PLACEHOLDERS,
   ],
@@ -1718,10 +1722,21 @@ function TemplatePreviewModal({
               deposit_percentage: '20',
               deposit_amount: (sampleSubtotal() * 0.2).toFixed(2),
               remaining_balance: (sampleSubtotal() * 0.8).toFixed(2),
+              invoice_link: `${INTAKE_URL}/invoices/sample-id`,
             }
           : isQuote
-            ? { quote_number: 'QUO-2026-00001', quote_date: '21/08/2026', valid_until: '28/08/2026' }
-            : { invoice_number: 'INV-2026-00001', invoice_date: '21/08/2026', due_date: '28/08/2026' }),
+            ? {
+                quote_number: 'QUO-2026-00001',
+                quote_date: '21/08/2026',
+                valid_until: '28/08/2026',
+                quote_link: `${INTAKE_URL}/quotes/sample-id`,
+              }
+            : {
+                invoice_number: 'INV-2026-00001',
+                invoice_date: '21/08/2026',
+                due_date: '28/08/2026',
+                invoice_link: `${INTAKE_URL}/invoices/sample-id`,
+              }),
       }
     : isPaymentReceived
       ? {
@@ -1735,6 +1750,7 @@ function TemplatePreviewModal({
           due_date: '28/08/2026',
           total: '75.00',
           balance_due: '50.00',
+          invoice_link: `${INTAKE_URL}/invoices/sample-id`,
         }
       : {
           ...businessVars,

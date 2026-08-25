@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -15,8 +16,15 @@ import {
   formatDocumentNumber,
   nextSequenceNumber,
 } from '../common/document-number.util';
-import { publicApiUrl, trackingPixelHtml } from '../common/tracking-pixel.util';
+import {
+  publicApiUrl,
+  publicFrontendUrl,
+  trackingPixelHtml,
+} from '../common/tracking-pixel.util';
 import { Customer, CustomerStatus } from '../customers/schemas/customer.schema';
+import { InvoiceTerm } from '../invoice-terms/schemas/invoice-term.schema';
+import { Invoice } from '../invoices/schemas/invoice.schema';
+import { InvoicesService } from '../invoices/invoices.service';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
@@ -31,8 +39,10 @@ export class QuotesService {
     @InjectModel(BusinessInfo.name)
     private readonly businessInfoModel: Model<BusinessInfo>,
     @InjectModel(Customer.name) private readonly customerModel: Model<Customer>,
+    @InjectModel(InvoiceTerm.name) private readonly invoiceTermModel: Model<InvoiceTerm>,
     private readonly settingsService: SettingsService,
     private readonly auditLogService: AuditLogService,
+    private readonly invoicesService: InvoicesService,
   ) {}
 
   private calculateTotals(
@@ -237,6 +247,7 @@ export class QuotesService {
         payment_terms: quote.paymentTerms,
         subtotal: quote.subtotal.toFixed(2),
         total: quote.total.toFixed(2),
+        quote_link: `${publicFrontendUrl()}/quotes/${id}`,
         bank_name: business?.bankName,
         sort_code: business?.sortCode,
         account_number: business?.accountNumber,
@@ -277,5 +288,103 @@ export class QuotesService {
       undefined,
       'Customer',
     );
+  }
+
+  // Mirrors DocumentFormModal.tsx's calculateDueDate() (admin frontend) --
+  // there's no term picker on the public quote page, so this uses whichever
+  // term staff have marked as default the same way the "New Invoice" form
+  // pre-selects it, falling back to a plain 14 days if none is set.
+  private async computeDefaultDueDate(issueDate: Date): Promise<string> {
+    const defaultTerm = await this.invoiceTermModel.findOne({ isDefault: true }).exec();
+    if (defaultTerm?.endOfMonth) {
+      const lastDay = new Date(issueDate.getFullYear(), issueDate.getMonth() + 1, 0);
+      const dow = lastDay.getDay(); // 0 = Sunday, 6 = Saturday
+      if (dow === 0) lastDay.setDate(lastDay.getDate() - 2);
+      else if (dow === 6) lastDay.setDate(lastDay.getDate() - 1);
+      return lastDay.toISOString().slice(0, 10);
+    }
+    const days = defaultTerm?.plusDays ?? 14;
+    const due = new Date(issueDate);
+    due.setDate(due.getDate() + days);
+    return due.toISOString().slice(0, 10);
+  }
+
+  /**
+   * Called from the public quote page's "Accept" button. Marks the quote
+   * accepted (resolving/creating a real Customer first if it was still a
+   * manual-customer quote -- see resolveOrCreateCustomer(), reused via
+   * update()), converts it into a real Invoice with the same line items, and
+   * immediately requests a deposit on that new invoice using Settings >
+   * Deposit's configured percentage. Idempotent: re-accepting an
+   * already-converted quote (e.g. a page refresh) returns the existing
+   * invoice instead of creating a second one, and doesn't re-send the
+   * deposit request.
+   */
+  async acceptAndConvert(
+    id: string,
+  ): Promise<{ invoice: Invoice; depositAmount?: number; depositPercentage?: number }> {
+    const quote = await this.findOne(id);
+    if (quote.status === QuoteStatus.DECLINED) {
+      throw new ConflictException('This quote has already been declined.');
+    }
+    if (quote.status === QuoteStatus.EXPIRED) {
+      throw new ConflictException('This quote has expired.');
+    }
+    if (quote.status === QuoteStatus.ACCEPTED && quote.invoice) {
+      const existingInvoice = await this.invoicesService.findOne(quote.invoice.toString());
+      return { invoice: existingInvoice };
+    }
+    const updated = await this.update(id, { status: QuoteStatus.ACCEPTED }, 'Customer');
+    const customer = updated.customer as unknown as { _id?: unknown } | undefined;
+    if (!customer?._id) {
+      throw new BadRequestException('Could not resolve a customer for this quote.');
+    }
+    const issueDate = new Date();
+    const dueDate = await this.computeDefaultDueDate(issueDate);
+    const invoice = await this.invoicesService.create(
+      {
+        customer: (customer._id as { toString(): string }).toString(),
+        booking: updated.booking ? (updated.booking as unknown as { toString(): string }).toString() : undefined,
+        lineItems: updated.lineItems.map((li) => ({
+          description: li.description,
+          quantity: li.quantity,
+          unitPrice: li.unitPrice,
+          discountPercent: li.discountPercent,
+        })),
+        issueDate: issueDate.toISOString().slice(0, 10),
+        dueDate,
+        paymentTerms: updated.paymentTerms,
+        subject: updated.subject,
+      },
+      'Customer',
+    );
+    await this.quoteModel.updateOne({ _id: id }, { invoice: invoice._id }).exec();
+    // The quote-to-invoice conversion above is what actually matters to the
+    // customer clicking "Accept" -- if the deposit-request email fails to
+    // send (e.g. a misconfigured mail provider), that shouldn't make the
+    // public accept action itself appear to fail, since the invoice was
+    // already created successfully.
+    try {
+      const { depositAmount, depositPercentage } = await this.invoicesService.requestDeposit(
+        (invoice._id as { toString(): string }).toString(),
+        'Customer',
+      );
+      return { invoice, depositAmount, depositPercentage };
+    } catch (err) {
+      console.error(`Failed to send deposit request email after accepting quote ${id}:`, err);
+      return { invoice };
+    }
+  }
+
+  /** Called from the public quote page's "Reject" button. */
+  async reject(id: string): Promise<Quote> {
+    const quote = await this.findOne(id);
+    if (quote.status === QuoteStatus.ACCEPTED) {
+      throw new ConflictException('This quote has already been accepted.');
+    }
+    if (quote.status === QuoteStatus.DECLINED) {
+      return quote;
+    }
+    return this.update(id, { status: QuoteStatus.DECLINED }, 'Customer');
   }
 }
