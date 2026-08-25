@@ -251,6 +251,20 @@ h2 {
   border: 1px solid var(--border);
 }
 
+.btn-danger {
+  background: var(--error);
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #a53125;
+}
+
+.btn-danger:disabled {
+  background: #e0a99f;
+  cursor: not-allowed;
+}
+
 .btn-link {
   background: none;
   border: none;

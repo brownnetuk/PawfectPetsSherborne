@@ -362,7 +362,7 @@ export default function DocumentView({ kind, id }: Props) {
                   <button type="button" className="btn btn-secondary" onClick={() => setConfirming(null)} disabled={actionBusy}>
                     Cancel
                   </button>
-                  <button type="button" className="btn btn-primary" onClick={handleReject} disabled={actionBusy}>
+                  <button type="button" className="btn btn-danger" onClick={handleReject} disabled={actionBusy}>
                     {actionBusy ? 'Declining…' : 'Yes, Decline Quote'}
                   </button>
                 </div>
@@ -372,7 +372,7 @@ export default function DocumentView({ kind, id }: Props) {
                 <button type="button" className="btn btn-primary" onClick={() => setConfirming('accept')}>
                   Accept Quote
                 </button>
-                <button type="button" className="btn btn-secondary" onClick={() => setConfirming('reject')}>
+                <button type="button" className="btn btn-danger" onClick={() => setConfirming('reject')}>
                   Reject Quote
                 </button>
               </div>
