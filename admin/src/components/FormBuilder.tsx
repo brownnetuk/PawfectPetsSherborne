@@ -24,6 +24,8 @@ const SIMPLE_TYPES: { type: FormField['type']; label: string }[] = [
   { type: 'file', label: 'File / photo' },
   { type: 'signature', label: 'Signature' },
   { type: 'display', label: 'Free text' },
+  { type: 'today', label: "Today's date" },
+  { type: 'datetime', label: 'Date & time' },
 ];
 
 function genId(prefix: string): string {
@@ -40,6 +42,10 @@ function newField(type: FormField['type']): FormField {
       return { ...base, type: 'file', maxFiles: 2 } as FileFormField;
     case 'display':
       return { ...base, type: 'display', label: 'Enter your text here…' } as FormField;
+    case 'today':
+      return { ...base, type: 'today', label: 'Date' } as FormField;
+    case 'datetime':
+      return { ...base, type: 'datetime', label: 'Date & time' } as FormField;
     case 'group':
       return {
         ...base,
@@ -348,7 +354,7 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
               />
             )}
           </div>
-          {field.type !== 'group' && field.type !== 'display' && (
+          {field.type !== 'group' && field.type !== 'display' && field.type !== 'today' && field.type !== 'datetime' && (
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
               <input
                 type="checkbox"
@@ -357,6 +363,12 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
               />
               Required
             </label>
+          )}
+          {(field.type === 'today' || field.type === 'datetime') && (
+            <p className="hint">
+              Filled in automatically with {field.type === 'today' ? "today's date" : 'the date and time'} when the
+              form is opened -- not editable by whoever fills the form in.
+            </p>
           )}
 
           {(field.type === 'choice' || field.type === 'multichoice') && (
@@ -432,7 +444,7 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
             />
           )}
 
-          {field.type !== 'group' && field.type !== 'display' && (
+          {field.type !== 'group' && field.type !== 'display' && field.type !== 'today' && field.type !== 'datetime' && (
             <MappingPicker
               target={target}
               fieldType={field.type}

@@ -20,8 +20,11 @@ function isVisible(rule: VisibilityRule | undefined, scopeAnswers: Record<string
 
 function defaultAnswersFor(fields: FormField[]): Record<string, unknown> {
   const defaults: Record<string, unknown> = {};
+  const now = new Date();
   for (const field of fields) {
     if (field.type === 'toggle') defaults[field.id] = false;
+    if (field.type === 'today') defaults[field.id] = now.toISOString().slice(0, 10);
+    if (field.type === 'datetime') defaults[field.id] = now.toISOString();
   }
   return defaults;
 }
@@ -181,6 +184,20 @@ function PreviewField({
         <div className="field">
           {label}
           <input type="date" value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />
+        </div>
+      );
+    case 'today':
+      return (
+        <div className="field">
+          {label}
+          <input type="text" value={value ? new Date(value as string).toLocaleDateString('en-GB') : ''} disabled />
+        </div>
+      );
+    case 'datetime':
+      return (
+        <div className="field">
+          {label}
+          <input type="text" value={value ? new Date(value as string).toLocaleString('en-GB') : ''} disabled />
         </div>
       );
     case 'toggle':

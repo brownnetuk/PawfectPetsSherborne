@@ -6,10 +6,17 @@ import type { FormField } from '../types';
 // as missing entirely, even though the switch visibly shows "off". Same bug
 // shape as the one fixed earlier for the real intake wizard's own Vaccinated
 // toggle (frontend/src/intake/types.ts's PetDetails.vaccinated).
+// today/datetime fields are stamped once here, at the moment the form (or,
+// for a field inside a repeatable group, that repetition) is opened/added --
+// not updated again later, and not editable, so the answer can't drift while
+// someone's still filling the rest of the form in.
 export function defaultAnswersFor(fields: FormField[]): Record<string, unknown> {
   const defaults: Record<string, unknown> = {};
+  const now = new Date();
   for (const field of fields) {
     if (field.type === 'toggle') defaults[field.id] = false;
+    if (field.type === 'today') defaults[field.id] = now.toISOString().slice(0, 10);
+    if (field.type === 'datetime') defaults[field.id] = now.toISOString();
   }
   return defaults;
 }

@@ -16,6 +16,28 @@ export default function FieldRenderer({ field, value, onChange }: Props) {
   switch (field.type) {
     case 'display':
       return <p style={{ whiteSpace: 'pre-wrap' }}>{field.label}</p>;
+    case 'today':
+      return (
+        <div className="field">
+          <label>{field.label}</label>
+          <input
+            type="text"
+            value={value ? new Date(value as string).toLocaleDateString('en-GB') : ''}
+            disabled
+          />
+        </div>
+      );
+    case 'datetime':
+      return (
+        <div className="field">
+          <label>{field.label}</label>
+          <input
+            type="text"
+            value={value ? new Date(value as string).toLocaleString('en-GB') : ''}
+            disabled
+          />
+        </div>
+      );
     case 'text':
       return (
         <TextField label={field.label} value={(value as string) ?? ''} onChange={onChange} required={field.required} />

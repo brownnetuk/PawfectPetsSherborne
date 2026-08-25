@@ -6,9 +6,13 @@ function formatAnswer(field: FormField, value: unknown): string {
   if (field.type === 'multichoice' && Array.isArray(value)) {
     return (value as string[]).join(', ') || '—';
   }
-  if (field.type === 'date' && typeof value === 'string') {
+  if ((field.type === 'date' || field.type === 'today') && typeof value === 'string') {
     const parsed = new Date(value);
     if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleDateString('en-GB');
+  }
+  if (field.type === 'datetime' && typeof value === 'string') {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleString('en-GB');
   }
   return String(value);
 }

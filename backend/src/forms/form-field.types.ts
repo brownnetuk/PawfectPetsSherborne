@@ -51,6 +51,15 @@ export type SimpleFormField = FormFieldBase & {
   type: 'text' | 'textarea' | 'number' | 'date' | 'toggle' | 'signature';
 };
 
+// Auto-filled, non-editable -- the answer is the date (or date+time) at the
+// moment the customer opens the form, set client-side once when it loads
+// (never later, so it can't drift while they're still filling it in) rather
+// than typed in. Never required (there's nothing for the customer to leave
+// blank).
+export type AutoDateFormField = FormFieldBase & {
+  type: 'today' | 'datetime';
+};
+
 // Read-only, non-interactive block of staff-authored text (instructions,
 // context, etc.) -- `label` holds the displayed text itself. Never mapped,
 // never required, never contributes an answer.
@@ -87,4 +96,4 @@ export type GroupFormField = FormFieldBase & {
 };
 
 export type FormField =
-  SimpleFormField | FileFormField | ChoiceFormField | GroupFormField | DisplayFormField;
+  SimpleFormField | FileFormField | ChoiceFormField | GroupFormField | DisplayFormField | AutoDateFormField;

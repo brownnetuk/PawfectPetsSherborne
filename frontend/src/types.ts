@@ -203,6 +203,12 @@ export type DisplayFormField = FormFieldBase & {
   type: 'display';
 };
 
+// Auto-filled, non-editable -- the answer is the date (or date+time) at the
+// moment the customer opens the form.
+export type AutoDateFormField = FormFieldBase & {
+  type: 'today' | 'datetime';
+};
+
 export type FileFormField = FormFieldBase & {
   type: 'file';
   maxFiles?: number;
@@ -221,7 +227,8 @@ export type GroupFormField = FormFieldBase & {
   fields: FormField[];
 };
 
-export type FormField = SimpleFormField | FileFormField | ChoiceFormField | GroupFormField | DisplayFormField;
+export type FormField =
+  SimpleFormField | FileFormField | ChoiceFormField | GroupFormField | DisplayFormField | AutoDateFormField;
 
 export interface FormSubmissionPublic {
   _id: string;
