@@ -31,6 +31,8 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [colourMarkings, setColourMarkings] = useState(animal.colourMarkings ?? '');
   const [microchipNumber, setMicrochipNumber] = useState(animal.microchipNumber ?? '');
+  const [insured, setInsured] = useState(animal.insured ?? false);
+  const [insurer, setInsurer] = useState(animal.insurer ?? '');
   const [neuteredStatus, setNeuteredStatus] = useState<NeuteredStatus>(animal.neuteredStatus ?? 'no');
   const [lastSeasonEndDate, setLastSeasonEndDate] = useState(
     animal.lastSeasonEndDate ? animal.lastSeasonEndDate.slice(0, 10) : '',
@@ -98,6 +100,10 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
       setError('Add at least one medication.');
       return;
     }
+    if (insured && !insurer) {
+      setError('Please give the insurer for an insured pet.');
+      return;
+    }
     if (aggressionToPeople && !aggressionToPeopleDetails) {
       setError('Please give details about aggression to people.');
       return;
@@ -128,6 +134,8 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
         photos,
         colourMarkings: colourMarkings || undefined,
         microchipNumber: microchipNumber || undefined,
+        insured,
+        insurer: insured ? insurer : undefined,
         neuteredStatus,
         lastSeasonEndDate:
           neuteredStatus === 'no' && sex === 'female' ? lastSeasonEndDate || undefined : undefined,
@@ -209,6 +217,21 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
               <option value="no">No</option>
             </select>
           </div>
+        </div>
+        <div className="field-row">
+          <div className="field">
+            <label>Is your pet insured?</label>
+            <select value={insured ? 'yes' : 'no'} onChange={(e) => setInsured(e.target.value === 'yes')}>
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
+          </div>
+          {insured && (
+            <div className="field">
+              <label>Insurer</label>
+              <input type="text" value={insurer} onChange={(e) => setInsurer(e.target.value)} required />
+            </div>
+          )}
         </div>
         {neuteredStatus === 'no' && sex === 'female' && (
           <div className="field">

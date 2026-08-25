@@ -100,6 +100,8 @@ export interface Animal {
   photos?: string[];
   colourMarkings?: string;
   microchipNumber?: string;
+  insured?: boolean;
+  insurer?: string;
   neuteredStatus?: NeuteredStatus;
   lastSeasonEndDate?: string;
   temperamentNotes?: string;

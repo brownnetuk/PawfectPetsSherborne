@@ -36,6 +36,8 @@ export interface AnimalRecord {
   photos?: string[];
   colourMarkings?: string;
   microchipNumber?: string;
+  insured?: boolean;
+  insurer?: string;
   neuteredStatus?: NeuteredStatus;
   lastSeasonEndDate?: string;
   temperamentNotes?: string;
@@ -153,6 +155,8 @@ export interface PetDetails {
   photos?: string[];
   colourMarkings?: string;
   microchipNumber?: string;
+  insured: boolean | null;
+  insurer?: string;
   neuteredStatus?: NeuteredStatus | '';
   lastSeasonEndDate?: string;
   temperamentNotes?: string;

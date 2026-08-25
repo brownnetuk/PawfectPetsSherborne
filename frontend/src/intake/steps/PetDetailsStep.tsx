@@ -122,6 +122,21 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
       />
 
       <SelectField
+        label="Is your pet insured?"
+        value={value.insured === null ? '' : value.insured ? 'yes' : 'no'}
+        options={YES_NO_OPTIONS}
+        onChange={(v) => set('insured', v === 'yes')}
+      />
+      {value.insured && (
+        <TextField
+          label="Insurer"
+          value={value.insurer ?? ''}
+          onChange={(v) => set('insurer', v)}
+          required
+        />
+      )}
+
+      <SelectField
         label="Is your pet Spayed/Neutered?"
         value={value.neuteredStatus ?? ''}
         options={[

@@ -126,6 +126,15 @@ export class CreateAnimalDto {
   microchipNumber?: string;
 
   @IsOptional()
+  @IsBoolean()
+  insured?: boolean;
+
+  @ValidateIf((o) => o.insured)
+  @IsNotEmpty()
+  @IsString()
+  insurer?: string;
+
+  @IsOptional()
   @IsEnum(NeuteredStatus)
   neuteredStatus?: NeuteredStatus;
 

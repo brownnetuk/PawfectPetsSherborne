@@ -19,6 +19,8 @@ function emptyPet(): PetDetails {
     photos: [],
     colourMarkings: '',
     microchipNumber: '',
+    insured: null,
+    insurer: '',
     neuteredStatus: '',
     lastSeasonEndDate: '',
     temperamentNotes: '',

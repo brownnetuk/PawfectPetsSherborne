@@ -58,6 +58,8 @@ export default function ViewAnimalModal({ animal, onClose }: Props) {
                 <dd>{animal.colourMarkings || '—'}</dd>
                 <dt>Microchip number</dt>
                 <dd>{animal.microchipNumber || '—'}</dd>
+                <dt>Insured</dt>
+                <dd>{animal.insured ? `Yes — ${animal.insurer || '—'}` : 'No'}</dd>
                 <dt>Spayed/Neutered</dt>
                 <dd>
                   {animal.neuteredStatus === 'neutered' && 'Neutered (Boy)'}

@@ -453,6 +453,7 @@ export async function buildCustomerFormPdf(
       ),
       fieldBlock(doc, 'Colour / markings', animal.colourMarkings ?? ''),
       fieldBlock(doc, 'Microchip number', animal.microchipNumber ?? ''),
+      fieldBlock(doc, 'Insured', animal.insured ? `Yes — ${animal.insurer ?? ''}` : 'No'),
       fieldBlock(doc, 'Spayed/Neutered', formatNeuteredStatus(animal)),
       fieldBlock(doc, 'Temperament notes', animal.temperamentNotes ?? ''),
       fieldBlock(

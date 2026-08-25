@@ -139,6 +139,8 @@ function animalPayload(pet: PetDetails) {
     photos: pet.photos ?? [],
     colourMarkings: pet.colourMarkings || undefined,
     microchipNumber: pet.microchipNumber || undefined,
+    insured: pet.insured,
+    insurer: pet.insured ? pet.insurer : undefined,
     neuteredStatus: pet.neuteredStatus || undefined,
     lastSeasonEndDate:
       pet.neuteredStatus === 'no' && pet.sex === 'female' ? pet.lastSeasonEndDate || undefined : undefined,

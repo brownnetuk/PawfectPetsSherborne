@@ -147,6 +147,13 @@ export class Animal extends Document {
   @Prop()
   microchipNumber?: string;
 
+  @Prop()
+  insured?: boolean;
+
+  // Only meaningful when insured is true.
+  @Prop()
+  insurer?: string;
+
   @Prop({ type: String, enum: NeuteredStatus })
   neuteredStatus?: NeuteredStatus;
 
