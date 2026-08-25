@@ -490,8 +490,8 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
         <div className="card">
           <div className="section-title">Customer</div>
           <div className="field">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label>Customer</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+              <label style={{ margin: 0 }}>Customer</label>
               {kind === 'quote' && !manualCustomer && (
                 <button
                   type="button"
