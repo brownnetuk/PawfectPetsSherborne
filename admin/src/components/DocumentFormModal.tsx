@@ -297,11 +297,13 @@ interface Props {
   existing: Invoice | Quote | null;
   /** Pre-selects a customer (e.g. opened from that customer's own detail page) -- still editable. */
   presetCustomerId?: string;
+  /** Quote-only: pre-fills the manual-customer name/email (e.g. opened from an enquiry) -- still editable. */
+  presetManualCustomer?: ManualCustomer;
   onClose: () => void;
   onSaved: () => void;
 }
 
-export default function DocumentFormModal({ kind, existing, presetCustomerId, onClose, onSaved }: Props) {
+export default function DocumentFormModal({ kind, existing, presetCustomerId, presetManualCustomer, onClose, onSaved }: Props) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [terms, setTerms] = useState<InvoiceTerm[]>([]);
@@ -334,7 +336,8 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
   // editing a quote that hasn't been accepted yet (still has no real
   // customer, so customerId(existing.customer) is empty).
   const [manualCustomer, setManualCustomer] = useState<ManualCustomer | null>(() => {
-    if (kind !== 'quote' || !existing) return null;
+    if (kind !== 'quote') return null;
+    if (!existing) return presetManualCustomer ?? null;
     const q = existing as Quote;
     if (!customerId(existing.customer) && q.manualCustomerName && q.manualCustomerEmail) {
       return { name: q.manualCustomerName, email: q.manualCustomerEmail };

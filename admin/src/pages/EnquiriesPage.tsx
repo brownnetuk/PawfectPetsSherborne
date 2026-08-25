@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
+import DocumentFormModal from '../components/DocumentFormModal';
 import Modal from '../components/Modal';
 import RegistrationLinkModal from '../components/RegistrationLinkModal';
 import { TrashIcon } from '../components/icons';
@@ -27,6 +28,7 @@ export default function EnquiriesPage() {
   const [deleting, setDeleting] = useState(false);
   const [converting, setConverting] = useState(false);
   const [convertError, setConvertError] = useState<string | null>(null);
+  const [quotingEnquiry, setQuotingEnquiry] = useState<Enquiry | null>(null);
   const [convertedCustomer, setConvertedCustomer] = useState<{
     id: string;
     name: string;
@@ -177,11 +179,30 @@ export default function EnquiriesPage() {
             <button className="btn btn-secondary" onClick={() => setViewingEnquiry(null)}>
               Close
             </button>
+            <button
+              className="btn btn-success"
+              onClick={() => {
+                setQuotingEnquiry(viewingEnquiry);
+                setViewingEnquiry(null);
+              }}
+            >
+              Create Quote
+            </button>
             <button className="btn btn-primary" onClick={handleConvertEnquiry} disabled={converting}>
               {converting ? 'Converting…' : 'Convert to Customer'}
             </button>
           </div>
         </Modal>
+      )}
+
+      {quotingEnquiry && (
+        <DocumentFormModal
+          kind="quote"
+          existing={null}
+          presetManualCustomer={{ name: quotingEnquiry.name, email: quotingEnquiry.email ?? '' }}
+          onClose={() => setQuotingEnquiry(null)}
+          onSaved={() => setQuotingEnquiry(null)}
+        />
       )}
 
       {convertedCustomer && (
