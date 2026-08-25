@@ -7,7 +7,10 @@ import { Document } from 'mongoose';
 // different: they're sent via POST /invoices/:id/send and /quotes/:id/send
 // (SettingsService.sendTemplatedEmail), not /settings/email/send, and their
 // template body is edited as raw HTML rather than plain text -- see
-// interpolateBody in settings.service.ts.
+// interpolateBody in settings.service.ts. DEPOSIT_REQUEST is sent via
+// POST /invoices/:id/request-deposit (InvoicesService.requestDeposit) --
+// same plain-text template style as REGISTRATION/UPDATE_INFO/etc., just a
+// different dedicated endpoint like INVOICE/QUOTE.
 export enum EmailTrigger {
   REGISTRATION = 'registration',
   UPDATE_INFO = 'update_info',
@@ -16,6 +19,7 @@ export enum EmailTrigger {
   QUOTE = 'quote',
   PAYMENT_RECEIVED = 'payment_received',
   FORM = 'form',
+  DEPOSIT_REQUEST = 'deposit_request',
 }
 
 // One document per trigger (enforced via the unique index below) -- avoids

@@ -81,6 +81,12 @@ export class BusinessInfo extends Document {
   @Prop()
   declarationText?: string;
 
+  // The percentage of an invoice's total used by InvoicesService.requestDeposit()
+  // to calculate the deposit amount when staff use the "Request Deposit" invoice
+  // action. Falls back to a sensible default in getBusinessInfo() below.
+  @Prop()
+  depositPercentage?: number;
+
   // Shown to customers on invoices so they know where to send payment --
   // not secret (it's meant to be disclosed), so no encryption, same as the
   // rest of the business's contact details above.

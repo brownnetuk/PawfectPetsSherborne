@@ -36,6 +36,9 @@ const DEFAULT_OFF_LEAD_CONSENT_TEXT =
 const DEFAULT_DECLARATION_TEXT =
   'I confirm that the information provided in this form is accurate and complete to the best of my knowledge, and I agree to be bound by the terms set out above.';
 
+// Default deposit percentage until staff configure their own in Settings > Deposit.
+const DEFAULT_DEPOSIT_PERCENTAGE = 20;
+
 // "Sent"/"read" Activity titles for sendTriggeredEmail's tracking-pixel
 // entries -- PAYMENT_RECEIVED/INVOICE/QUOTE aren't here since those go
 // through InvoicesService/QuotesService's own send flow (already logs
@@ -81,6 +84,7 @@ export class SettingsService {
       offLeadConsentText:
         doc?.offLeadConsentText ?? DEFAULT_OFF_LEAD_CONSENT_TEXT,
       declarationText: doc?.declarationText ?? DEFAULT_DECLARATION_TEXT,
+      depositPercentage: doc?.depositPercentage ?? DEFAULT_DEPOSIT_PERCENTAGE,
       bankName: doc?.bankName ?? '',
       sortCode: doc?.sortCode ?? '',
       accountNumber: doc?.accountNumber ?? '',
@@ -128,6 +132,8 @@ export class SettingsService {
       update.offLeadConsentText = dto.offLeadConsentText;
     if (dto.declarationText !== undefined)
       update.declarationText = dto.declarationText;
+    if (dto.depositPercentage !== undefined)
+      update.depositPercentage = dto.depositPercentage;
     if (dto.bankName !== undefined) update.bankName = dto.bankName;
     if (dto.sortCode !== undefined) update.sortCode = dto.sortCode;
     if (dto.accountNumber !== undefined)

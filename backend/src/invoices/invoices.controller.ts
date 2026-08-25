@@ -57,6 +57,11 @@ export class InvoicesController {
     return this.invoicesService.sendEmail(id, user.name);
   }
 
+  @Post(':id/request-deposit')
+  requestDeposit(@Param('id') id: string, @CurrentUser() user: CurrentUserShape) {
+    return this.invoicesService.requestDeposit(id, user.name);
+  }
+
   // Public: this is fetched by the recipient's mail client, not the admin app --
   // it never carries a staff JWT. Ignores an invalid/already-deleted id rather
   // than erroring, since a 404 image just renders as broken in the email either

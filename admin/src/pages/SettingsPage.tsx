@@ -123,6 +123,11 @@ function BusinessInfoTab() {
   const [declarationError, setDeclarationError] = useState<string | null>(null);
   const [declarationSaved, setDeclarationSaved] = useState(false);
 
+  const [depositPercentage, setDepositPercentage] = useState(20);
+  const [depositSaving, setDepositSaving] = useState(false);
+  const [depositError, setDepositError] = useState<string | null>(null);
+  const [depositSaved, setDepositSaved] = useState(false);
+
   const [trustedIps, setTrustedIps] = useState<string[]>([]);
   const [newTrustedIp, setNewTrustedIp] = useState('');
   const [myIp, setMyIp] = useState<string | null>(null);
@@ -157,6 +162,7 @@ function BusinessInfoTab() {
         setEmergencyVetAuthorisationText(i.emergencyVetAuthorisationText);
         setOffLeadConsentText(i.offLeadConsentText);
         setDeclarationText(i.declarationText);
+        setDepositPercentage(i.depositPercentage);
         setTrustedIps(i.trustedIps);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load business info'));
@@ -350,6 +356,22 @@ function BusinessInfoTab() {
       setDeclarationError(err instanceof Error ? err.message : 'Failed to save this wording');
     } finally {
       setDeclarationSaving(false);
+    }
+  }
+
+  async function handleSaveDeposit(e: React.FormEvent) {
+    e.preventDefault();
+    setDepositSaving(true);
+    setDepositError(null);
+    setDepositSaved(false);
+    try {
+      await api.updateBusinessInfo({ depositPercentage });
+      setDepositSaved(true);
+      refresh();
+    } catch (err) {
+      setDepositError(err instanceof Error ? err.message : 'Failed to save the deposit percentage');
+    } finally {
+      setDepositSaving(false);
     }
   }
 
@@ -653,6 +675,36 @@ function BusinessInfoTab() {
               {declarationSaving ? 'Saving…' : 'Save changes'}
             </button>
             {declarationSaved && (
+              <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
+            )}
+          </div>
+        </form>
+      </div>
+
+      <div className="card">
+        <h2>Deposit</h2>
+        <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+          The percentage of an invoice's total used to calculate the amount when staff use the
+          "Request Deposit" action on an invoice.
+        </p>
+        {depositError && <div className="error-banner">{depositError}</div>}
+        <form onSubmit={handleSaveDeposit}>
+          <div className="field" style={{ maxWidth: 160 }}>
+            <label>Deposit percentage</label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={1}
+              value={depositPercentage}
+              onChange={(e) => setDepositPercentage(Number(e.target.value))}
+            />
+          </div>
+          <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+            <button className="btn btn-primary" type="submit" disabled={depositSaving}>
+              {depositSaving ? 'Saving…' : 'Save changes'}
+            </button>
+            {depositSaved && (
               <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
             )}
           </div>
@@ -1122,10 +1174,15 @@ export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: 
     label: 'Forms',
     description: 'Sent from Settings > Forms (or a customer\'s "Forms" tab) when staff choose "Send email" for a form link.',
   },
+  {
+    value: 'deposit_request',
+    label: 'Request Deposit',
+    description: 'Sent from Invoices & Quotes when staff choose "Request Deposit" on an invoice.',
+  },
 ];
 
 // invoice/quote templates are edited as raw HTML (RichTextEditor) and sent
-// through as-is aside from placeholder substitution; the other three are
+// through as-is aside from placeholder substitution; the rest are
 // staff-authored plain text (escaped, newlines become <br>) -- kept in sync
 // by hand with EmailTrigger.INVOICE/QUOTE in settings.service.ts.
 function isHtmlBodyTrigger(trigger: EmailTrigger): boolean {
@@ -1337,6 +1394,15 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
   form: [
     { key: 'name', hint: "the recipient's name" },
     { key: 'link', hint: 'the link being sent' },
+    ...BUSINESS_PLACEHOLDERS,
+  ],
+  deposit_request: [
+    { key: 'customer_name', hint: "the customer's name" },
+    { key: 'invoice_number', hint: 'the invoice number' },
+    { key: 'invoice_total', hint: "the invoice's total amount (no £ sign)" },
+    { key: 'due_date', hint: 'the invoice due date' },
+    { key: 'deposit_percentage', hint: 'the configured deposit percentage (no % sign)' },
+    { key: 'deposit_amount', hint: 'the calculated deposit amount (no £ sign)' },
     ...BUSINESS_PLACEHOLDERS,
   ],
 };

@@ -7,6 +7,7 @@ import InvoiceHtmlView from '../components/InvoiceHtmlView';
 import Modal from '../components/Modal';
 import QuoteHtmlView from '../components/QuoteHtmlView';
 import RecordPaymentModal from '../components/RecordPaymentModal';
+import RequestDepositModal from '../components/RequestDepositModal';
 import SendPreviewModal, { customerLabel } from '../components/SendPreviewModal';
 import { buildInvoicePdf } from '../pdf/invoicePdf';
 import type { BusinessInfo, Invoice, InvoiceStatus, Quote, QuoteStatus } from '../types';
@@ -60,6 +61,7 @@ function InvoicesTab() {
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [sendPreview, setSendPreview] = useState<Invoice | null>(null);
   const [recordingPayment, setRecordingPayment] = useState<Invoice | null>(null);
+  const [requestingDeposit, setRequestingDeposit] = useState<Invoice | null>(null);
   const [viewing, setViewing] = useState<Invoice | null>(null);
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -180,6 +182,7 @@ function InvoicesTab() {
                               disabled: sendingId === inv._id,
                             },
                             { label: 'Payments', onClick: () => setRecordingPayment(inv) },
+                            { label: 'Request Deposit', onClick: () => setRequestingDeposit(inv) },
                             { label: 'Delete', onClick: () => setDeleting(inv), danger: true, dividerBefore: true },
                           ]}
                         />
@@ -274,6 +277,7 @@ function InvoicesTab() {
                           disabled: sendingId === inv._id,
                         },
                         { label: 'Payments', onClick: () => setRecordingPayment(inv) },
+                        { label: 'Request Deposit', onClick: () => setRequestingDeposit(inv) },
                         { label: 'Delete', onClick: () => setDeleting(inv), danger: true, dividerBefore: true },
                       ]}
                     />
@@ -324,6 +328,17 @@ function InvoicesTab() {
           onClose={() => setRecordingPayment(null)}
           onSaved={() => {
             setRecordingPayment(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {requestingDeposit && (
+        <RequestDepositModal
+          invoice={requestingDeposit}
+          onClose={() => setRequestingDeposit(null)}
+          onSent={() => {
+            setRequestingDeposit(null);
             refresh();
           }}
         />

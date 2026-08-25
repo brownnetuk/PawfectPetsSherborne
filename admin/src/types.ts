@@ -337,7 +337,8 @@ export type AuditEventType =
   | 'registration_email_sent'
   | 'email_read'
   | 'invoice_read'
-  | 'quote_read';
+  | 'quote_read'
+  | 'deposit_requested';
 
 export interface AuditLogEntry {
   _id: string;
@@ -373,6 +374,7 @@ export interface BusinessInfo {
   emergencyVetAuthorisationText: string;
   offLeadConsentText: string;
   declarationText: string;
+  depositPercentage: number;
   bankName: string;
   sortCode: string;
   accountNumber: string;
@@ -463,7 +465,8 @@ export type EmailTrigger =
   | 'invoice'
   | 'quote'
   | 'payment_received'
-  | 'form';
+  | 'form'
+  | 'deposit_request';
 
 export interface EmailTemplate {
   trigger: EmailTrigger;

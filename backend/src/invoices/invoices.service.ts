@@ -251,6 +251,69 @@ export class InvoicesService {
     return invoice;
   }
 
+  /**
+   * Emails a deposit request for this invoice, using Settings > Deposit's
+   * configured percentage of the invoice total. Same pattern as
+   * SettingsService.sendTriggeredEmail -- the "sent" entry embeds a tracking
+   * pixel, and a paired "read" entry is created the first time it fires --
+   * just against this invoice's own customer/amount rather than a generic
+   * trigger.
+   */
+  async requestDeposit(
+    id: string,
+    actor = 'Staff',
+  ): Promise<{ depositAmount: number; depositPercentage: number }> {
+    const invoice = await this.findOne(id);
+    const customer = invoice.customer as unknown as {
+      _id?: unknown;
+      name?: string;
+      email?: string;
+    };
+    if (!customer?.email) {
+      throw new BadRequestException(
+        'This customer has no email address on file.',
+      );
+    }
+    const business = await this.settingsService.getBusinessInfo();
+    const depositPercentage = business.depositPercentage;
+    // Round via cents, not a plain decimal multiply, to avoid floating-point
+    // drift landing a penny off (e.g. 33.33333...).
+    const depositAmount = Math.round(invoice.total * depositPercentage) / 100;
+
+    const entry = await this.auditLogService.record(
+      customer._id as string,
+      AuditEventType.DEPOSIT_REQUESTED,
+      'Deposit requested',
+      `£${depositAmount.toFixed(2)} (${depositPercentage}%) requested for ${invoice.invoiceNumber}`,
+      undefined,
+      actor,
+      undefined,
+      'Deposit request read',
+    );
+    const appendHtml = entry
+      ? trackingPixelHtml(
+          `${publicApiUrl()}/audit-log/${(entry._id as { toString(): string }).toString()}/pixel.gif`,
+        )
+      : '';
+
+    await this.settingsService.sendTemplatedEmail(
+      EmailTrigger.DEPOSIT_REQUEST,
+      customer.email,
+      {
+        customer_name: customer.name,
+        invoice_number: invoice.invoiceNumber,
+        invoice_total: invoice.total.toFixed(2),
+        due_date: formatUkDate(invoice.dueDate),
+        deposit_percentage: String(depositPercentage),
+        deposit_amount: depositAmount.toFixed(2),
+      },
+      {},
+      appendHtml,
+    );
+
+    return { depositAmount, depositPercentage };
+  }
+
   /** First-open only -- called by the public GET /invoices/:id/pixel.gif when the sent email's tracking pixel loads. */
   async markOpened(id: string): Promise<void> {
     const invoice = await this.invoiceModel

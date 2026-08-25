@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsArray, IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 
 // All plain @IsString() (no @IsEmail() on `email`) so every field, including
 // email, can genuinely be cleared by saving it blank -- unlike
@@ -69,6 +69,12 @@ export class UpdateBusinessInfoDto {
   @IsOptional()
   @IsString()
   declarationText?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  depositPercentage?: number;
 
   @IsOptional()
   @IsString()
