@@ -187,8 +187,14 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, { value: string; onChang
     }
 
     // Toolbar buttons are mousedown-prevented so clicking one doesn't steal
-    // focus/collapse the editor's text selection before the command runs.
+    // focus/collapse the editor's text selection before the command runs --
+    // but NOT for the select/color-input controls in the toolbar, since
+    // calling preventDefault() on a <select>'s mousedown blocks Chromium
+    // from ever opening its native options list (the picker just silently
+    // does nothing), and likewise breaks the color input's native swatch.
     function preventBlur(e: React.MouseEvent) {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'SELECT' || tag === 'INPUT' || tag === 'OPTION') return;
       e.preventDefault();
     }
 
