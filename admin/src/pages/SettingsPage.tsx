@@ -1340,6 +1340,18 @@ const BANK_PLACEHOLDERS = [
   { key: 'account_number', hint: 'account number' },
 ];
 
+// Address/phone are on the Customer record itself -- available (with no
+// extra fetch) for every trigger that's sending to a real customer about a
+// specific invoice/quote/payment, but not for the plain "here's your link"
+// triggers (registration/update_info/add_pet/form), where the recipient is
+// either not a full customer record yet or already knows their own details.
+const CUSTOMER_CONTACT_PLACEHOLDERS = [
+  { key: 'customer_address', hint: "the customer's address" },
+  { key: 'customer_phone', hint: "the customer's phone number" },
+];
+
+const PAYMENT_TERMS_PLACEHOLDER = { key: 'payment_terms', hint: 'the payment terms selected on the document' };
+
 const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]> = {
   registration: [
     { key: 'name', hint: "the customer's name" },
@@ -1358,6 +1370,7 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
   ],
   invoice: [
     { key: 'customer_name', hint: "the customer's name" },
+    ...CUSTOMER_CONTACT_PLACEHOLDERS,
     { key: 'subject', hint: "the invoice's Subject field -- wrap in {{#if subject}}...{{/if}} since it's optional" },
     { key: 'items_table', hint: 'an auto-generated table of the line items' },
     { key: 'subtotal', hint: 'the subtotal amount (no £ sign)' },
@@ -1365,11 +1378,13 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
     { key: 'invoice_number', hint: 'the invoice number' },
     { key: 'invoice_date', hint: 'the issue date' },
     { key: 'due_date', hint: 'the due date' },
+    PAYMENT_TERMS_PLACEHOLDER,
     ...BANK_PLACEHOLDERS,
     ...BUSINESS_PLACEHOLDERS,
   ],
   quote: [
     { key: 'customer_name', hint: "the customer's name" },
+    ...CUSTOMER_CONTACT_PLACEHOLDERS,
     { key: 'subject', hint: "the quote's Subject field -- wrap in {{#if subject}}...{{/if}} since it's optional" },
     { key: 'items_table', hint: 'an auto-generated table of the line items' },
     { key: 'subtotal', hint: 'the subtotal amount (no £ sign)' },
@@ -1377,14 +1392,18 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
     { key: 'quote_number', hint: 'the quote number' },
     { key: 'quote_date', hint: 'the issue date' },
     { key: 'valid_until', hint: 'the valid-until date' },
+    PAYMENT_TERMS_PLACEHOLDER,
     ...BANK_PLACEHOLDERS,
     ...BUSINESS_PLACEHOLDERS,
   ],
   payment_received: [
     { key: 'customer_name', hint: "the customer's name" },
+    ...CUSTOMER_CONTACT_PLACEHOLDERS,
     { key: 'invoice_number', hint: 'the invoice this payment was applied to' },
     { key: 'amount', hint: 'this payment\'s amount (no £ sign)' },
     { key: 'payment_date', hint: 'the date recorded against the payment' },
+    { key: 'payment_method', hint: 'how the payment was made (e.g. card, bank transfer) -- if recorded' },
+    { key: 'due_date', hint: "the invoice's due date" },
     { key: 'total', hint: "the invoice's total amount (no £ sign)" },
     {
       key: 'balance_due',
@@ -1395,15 +1414,19 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
   form: [
     { key: 'name', hint: "the recipient's name" },
     { key: 'link', hint: 'the link being sent' },
+    { key: 'form_name', hint: 'the specific form\'s name -- only present when sent for one particular form' },
     ...BUSINESS_PLACEHOLDERS,
   ],
   deposit_request: [
     { key: 'customer_name', hint: "the customer's name" },
+    ...CUSTOMER_CONTACT_PLACEHOLDERS,
     { key: 'invoice_number', hint: 'the invoice number' },
     { key: 'invoice_total', hint: "the invoice's total amount (no £ sign)" },
     { key: 'due_date', hint: 'the invoice due date' },
+    PAYMENT_TERMS_PLACEHOLDER,
     { key: 'deposit_percentage', hint: 'the configured deposit percentage (no % sign)' },
     { key: 'deposit_amount', hint: 'the calculated deposit amount (no £ sign)' },
+    { key: 'remaining_balance', hint: 'the invoice total minus the deposit amount (no £ sign)' },
     ...BANK_PLACEHOLDERS,
     ...BUSINESS_PLACEHOLDERS,
   ],
@@ -1674,13 +1697,16 @@ function TemplatePreviewModal({
   const isDepositRequest = trigger === 'deposit_request';
   const isPaymentReceived = trigger === 'payment_received';
   const isDocumentTrigger = isQuote || isDepositRequest || trigger === 'invoice';
+  const sampleContactVars = { customer_address: '1 Example Street, Sherborne, DT9 3AB', customer_phone: '07700 900123' };
   const vars: Record<string, string | undefined> = isDocumentTrigger
     ? {
         ...businessVars,
+        ...sampleContactVars,
         customer_name: 'Jane Smith',
         subject: 'August boarding',
         subtotal: sampleSubtotal().toFixed(2),
         total: sampleSubtotal().toFixed(2),
+        payment_terms: 'End of the Month',
         bank_name: businessInfo.bankName,
         sort_code: businessInfo.sortCode,
         account_number: businessInfo.accountNumber,
@@ -1691,6 +1717,7 @@ function TemplatePreviewModal({
               due_date: '28/08/2026',
               deposit_percentage: '20',
               deposit_amount: (sampleSubtotal() * 0.2).toFixed(2),
+              remaining_balance: (sampleSubtotal() * 0.8).toFixed(2),
             }
           : isQuote
             ? { quote_number: 'QUO-2026-00001', quote_date: '21/08/2026', valid_until: '28/08/2026' }
@@ -1699,10 +1726,13 @@ function TemplatePreviewModal({
     : isPaymentReceived
       ? {
           ...businessVars,
+          ...sampleContactVars,
           customer_name: 'Jane Smith',
           invoice_number: 'INV-2026-00001',
           amount: '25.00',
           payment_date: '21/08/2026',
+          payment_method: 'card',
+          due_date: '28/08/2026',
           total: '75.00',
           balance_due: '50.00',
         }
@@ -1710,6 +1740,7 @@ function TemplatePreviewModal({
           ...businessVars,
           name: 'Jane Smith',
           link: `${INTAKE_URL}/intake/sample-id`,
+          form_name: trigger === 'form' ? 'Medication Authentication' : undefined,
         };
   const logoTag = businessInfo.logoImage
     ? `<img src="${businessInfo.logoImage}" alt="${escapeHtml(businessInfo.name)}" style="max-height:60px;max-width:220px;display:block;" />`

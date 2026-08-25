@@ -223,6 +223,8 @@ export class InvoicesService {
       _id?: unknown;
       name?: string;
       email?: string;
+      address?: string;
+      phoneNumber?: string;
     };
     if (!customer?.email) {
       throw new BadRequestException(
@@ -236,10 +238,13 @@ export class InvoicesService {
       customer.email,
       {
         customer_name: customer.name,
+        customer_address: customer.address,
+        customer_phone: customer.phoneNumber,
         subject: invoice.subject,
         invoice_number: invoice.invoiceNumber,
         invoice_date: formatUkDate(invoice.issueDate),
         due_date: formatUkDate(invoice.dueDate),
+        payment_terms: invoice.paymentTerms,
         subtotal: invoice.subtotal.toFixed(2),
         total: invoice.total.toFixed(2),
         bank_name: business?.bankName,
@@ -283,6 +288,8 @@ export class InvoicesService {
       _id?: unknown;
       name?: string;
       email?: string;
+      address?: string;
+      phoneNumber?: string;
     };
     if (!customer?.email) {
       throw new BadRequestException(
@@ -294,6 +301,7 @@ export class InvoicesService {
     // Round via cents, not a plain decimal multiply, to avoid floating-point
     // drift landing a penny off (e.g. 33.33333...).
     const depositAmount = Math.round(invoice.total * depositPercentage) / 100;
+    const remainingBalance = invoice.total - depositAmount;
 
     const entry = await this.auditLogService.record(
       customer._id as string,
@@ -317,11 +325,15 @@ export class InvoicesService {
       customer.email,
       {
         customer_name: customer.name,
+        customer_address: customer.address,
+        customer_phone: customer.phoneNumber,
         invoice_number: invoice.invoiceNumber,
         invoice_total: invoice.total.toFixed(2),
         due_date: formatUkDate(invoice.dueDate),
+        payment_terms: invoice.paymentTerms,
         deposit_percentage: String(depositPercentage),
         deposit_amount: depositAmount.toFixed(2),
+        remaining_balance: remainingBalance.toFixed(2),
         bank_name: business.bankName,
         sort_code: business.sortCode,
         account_number: business.accountNumber,

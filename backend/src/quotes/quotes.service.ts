@@ -212,7 +212,7 @@ export class QuotesService {
   async sendEmail(id: string, actor = 'Staff'): Promise<Quote> {
     const quote = await this.findOne(id);
     const customer = quote.customer as unknown as
-      | { _id?: unknown; name?: string; email?: string }
+      | { _id?: unknown; name?: string; email?: string; address?: string; phoneNumber?: string }
       | undefined;
     const recipientEmail = customer?.email ?? quote.manualCustomerEmail;
     const recipientName = customer?.name ?? quote.manualCustomerName;
@@ -228,10 +228,13 @@ export class QuotesService {
       recipientEmail,
       {
         customer_name: recipientName,
+        customer_address: customer?.address,
+        customer_phone: customer?.phoneNumber,
         subject: quote.subject,
         quote_number: quote.quoteNumber,
         quote_date: formatUkDate(quote.issueDate),
         valid_until: formatUkDate(quote.validUntil),
+        payment_terms: quote.paymentTerms,
         subtotal: quote.subtotal.toFixed(2),
         total: quote.total.toFixed(2),
         bank_name: business?.bankName,

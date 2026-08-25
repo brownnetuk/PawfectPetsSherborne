@@ -92,6 +92,8 @@ export class PaymentsService {
     const customer = invoice.customer as unknown as {
       name?: string;
       email?: string;
+      address?: string;
+      phoneNumber?: string;
     };
     if (customer?.email) {
       const balanceDue = invoice.total - (invoice.amountPaid ?? 0);
@@ -101,11 +103,15 @@ export class PaymentsService {
           customer.email,
           {
             customer_name: customer.name,
+            customer_address: customer.address,
+            customer_phone: customer.phoneNumber,
             invoice_number: invoice.invoiceNumber,
             amount: dto.amount.toFixed(2),
             payment_date: formatUkDate(dto.date),
+            due_date: formatUkDate(invoice.dueDate),
             total: invoice.total.toFixed(2),
             balance_due: balanceDue > 0 ? balanceDue.toFixed(2) : undefined,
+            payment_method: dto.paymentMethod,
           },
         );
       } catch {

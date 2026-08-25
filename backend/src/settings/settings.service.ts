@@ -505,7 +505,7 @@ export class SettingsService {
     await this.sendTemplatedEmail(
       dto.trigger,
       dto.to,
-      { name: dto.name, link: dto.link },
+      { name: dto.name, link: dto.link, form_name: dto.formName },
       {},
       appendHtml,
     );
