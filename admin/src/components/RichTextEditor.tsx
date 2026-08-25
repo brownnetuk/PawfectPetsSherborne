@@ -91,9 +91,16 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, { value: string; onChang
     // Clicking below the last rendered block lands directly on the
     // contentEditable container (there's no child element that far down) --
     // without this, that click does nothing, which looks like the editor
-    // won't let you click "into the white space at the end".
+    // won't let you click "into the white space at the end". But a drag-
+    // selection's mouseup can *also* land on the container itself (e.g.
+    // releasing in the gap between two lines rather than exactly on a
+    // character) -- collapsing to the end in that case would wipe out the
+    // selection the instant it's made, so this only fires when there's no
+    // real selection to preserve.
     function handleContainerClick(e: React.MouseEvent<HTMLDivElement>) {
-      if (e.target === ref.current) focusAtEnd();
+      if (e.target !== ref.current) return;
+      if (!window.getSelection()?.isCollapsed) return;
+      focusAtEnd();
     }
 
     useImperativeHandle(forwardedRef, () => ({
