@@ -32,8 +32,21 @@ const LineItemSchema = SchemaFactory.createForClass(LineItem);
 // no meaning; "valid until" does.
 @Schema({ timestamps: true })
 export class Quote extends Document {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Customer.name, required: true, index: true })
-  customer: Types.ObjectId;
+  // Optional -- absent for a quote raised against a "Manual Customer"
+  // (manualCustomerName/manualCustomerEmail below) that isn't a real Customer
+  // record yet. QuotesService.update() resolves or creates a real Customer
+  // and fills this in the moment the quote is marked accepted.
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Customer.name, index: true })
+  customer?: Types.ObjectId;
+
+  // Set instead of `customer` for a manual/placeholder customer -- kept
+  // afterward even once `customer` is filled in on acceptance, as a record
+  // of what staff originally typed in.
+  @Prop()
+  manualCustomerName?: string;
+
+  @Prop()
+  manualCustomerEmail?: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Booking.name })
   booking?: Types.ObjectId;

@@ -485,7 +485,14 @@ function QuotesTab() {
                     >
                       <td style={{ padding: '10px 12px' }}>
                         <div style={{ fontWeight: 600 }}>{q.quoteNumber}</div>
-                        <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{customerLabel(q.customer)}</div>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>
+                          {customerLabel(q.customer, q.manualCustomerName)}
+                          {!q.customer && q.manualCustomerName && (
+                            <span className="badge badge-partially_paid" style={{ marginLeft: 6 }}>
+                              Manual
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                         <span className={`badge badge-${q.status}`}>{q.status}</span>
@@ -553,7 +560,14 @@ function QuotesTab() {
               {quotes.map((q) => (
                 <tr key={q._id} onClick={() => handleViewPdf(q)} style={{ cursor: 'pointer' }}>
                   <td>{q.quoteNumber}</td>
-                  <td>{customerLabel(q.customer)}</td>
+                  <td>
+                    {customerLabel(q.customer, q.manualCustomerName)}
+                    {!q.customer && q.manualCustomerName && (
+                      <span className="badge badge-partially_paid" style={{ marginLeft: 6 }}>
+                        Manual
+                      </span>
+                    )}
+                  </td>
                   <td>£{q.total.toFixed(2)}</td>
                   <td onClick={(e) => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>

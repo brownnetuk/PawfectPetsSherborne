@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import ManualCustomerModal from './ManualCustomerModal';
+import type { ManualCustomer } from './ManualCustomerModal';
 import Modal from './Modal';
 import SendPreviewModal from './SendPreviewModal';
 import { ChevronDownIcon } from './icons';
@@ -328,6 +329,18 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
   // action already uses.
   const [pendingSend, setPendingSend] = useState<Invoice | Quote | null>(null);
   const [showManualCustomer, setShowManualCustomer] = useState(false);
+  // Quote-only: a placeholder name/email stored directly on the quote
+  // instead of a real customer -- see ManualCustomerModal. Restored here when
+  // editing a quote that hasn't been accepted yet (still has no real
+  // customer, so customerId(existing.customer) is empty).
+  const [manualCustomer, setManualCustomer] = useState<ManualCustomer | null>(() => {
+    if (kind !== 'quote' || !existing) return null;
+    const q = existing as Quote;
+    if (!customerId(existing.customer) && q.manualCustomerName && q.manualCustomerEmail) {
+      return { name: q.manualCustomerName, email: q.manualCustomerEmail };
+    }
+    return null;
+  });
 
   useEffect(() => {
     api.listCustomers().then(setCustomers).catch(() => {});
@@ -372,9 +385,9 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
     if (computed) setDateValue(computed);
   }
 
-  function handleManualCustomerCreated(customer: Customer) {
-    setCustomers((prev) => [customer, ...prev]);
-    setCustId(customer._id);
+  function handleManualCustomerSet(customer: ManualCustomer) {
+    setManualCustomer(customer);
+    setCustId('');
     setShowManualCustomer(false);
   }
 
@@ -383,8 +396,8 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!custId) {
-      setError('Choose a customer.');
+    if (!custId && !manualCustomer) {
+      setError(kind === 'quote' ? 'Choose a customer or add a manual customer.' : 'Choose a customer.');
       return;
     }
     // Both footer buttons are real type="submit" buttons (so the browser's
@@ -410,7 +423,9 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
         saved = existing ? await api.updateInvoice(existing._id, payload) : await api.createInvoice(payload);
       } else {
         const payload = {
-          customer: custId,
+          ...(manualCustomer
+            ? { manualCustomerName: manualCustomer.name, manualCustomerEmail: manualCustomer.email }
+            : { customer: custId }),
           lineItems,
           issueDate,
           validUntil: dateValue,
@@ -466,37 +481,63 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
   const dateLabel = isInvoice ? 'Due date' : 'Valid until';
 
   return (
-    <Modal
-      title={title}
-      onClose={onClose}
-      xl
-      headerActions={
-        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowManualCustomer(true)}>
-          Manual Customer
-        </button>
-      }
-    >
+    <Modal title={title} onClose={onClose} xl>
       {error && <div className="error-banner">{error}</div>}
       {showManualCustomer && (
-        <ManualCustomerModal onClose={() => setShowManualCustomer(false)} onCreated={handleManualCustomerCreated} />
+        <ManualCustomerModal onClose={() => setShowManualCustomer(false)} onSet={handleManualCustomerSet} />
       )}
       <form onSubmit={handleSubmit}>
         <div className="card">
           <div className="section-title">Customer</div>
           <div className="field">
-            <label>Customer</label>
-            <select value={custId} onChange={(e) => setCustId(e.target.value)} required>
-              <option value="" disabled>
-                Select a customer…
-              </option>
-              {customers.map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.name}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label>Customer</label>
+              {kind === 'quote' && !manualCustomer && (
+                <button
+                  type="button"
+                  className="btn btn-success btn-sm"
+                  onClick={() => setShowManualCustomer(true)}
+                >
+                  Manual Customer
+                </button>
+              )}
+            </div>
+            {manualCustomer ? (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 600 }}>{manualCustomer.name}</div>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{manualCustomer.email}</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginTop: 2 }}>
+                    Manual customer -- a real record is created once this quote is accepted.
+                  </div>
+                </div>
+                <button type="button" className="btn-link" onClick={() => setManualCustomer(null)}>
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <select value={custId} onChange={(e) => setCustId(e.target.value)} required>
+                <option value="" disabled>
+                  Select a customer…
                 </option>
-              ))}
-            </select>
+                {customers.map((c) => (
+                  <option key={c._id} value={c._id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
-          {selectedCustomer && (
+          {selectedCustomer && !manualCustomer && (
             <dl className="kv-grid">
               <dt>Address</dt>
               <dd>{selectedCustomer.address || '—'}</dd>

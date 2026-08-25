@@ -27,7 +27,9 @@ interface Props {
 export default function QuoteHtmlView({ quote, businessInfo }: Props) {
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const customer = typeof quote.customer === 'string' ? null : quote.customer;
-  const customerName = customer?.name ?? (typeof quote.customer === 'string' ? quote.customer : '(deleted customer)');
+  const customerName =
+    customer?.name ??
+    (typeof quote.customer === 'string' ? quote.customer : quote.manualCustomerName ?? '(deleted customer)');
 
   useEffect(() => {
     let cancelled = false;
@@ -102,7 +104,7 @@ export default function QuoteHtmlView({ quote, businessInfo }: Props) {
           <div style={{ marginTop: 8, fontSize: '0.95rem' }}>
             <div style={{ fontWeight: 600 }}>{customerName}</div>
             <div style={{ color: 'var(--muted)', whiteSpace: 'pre-line', marginTop: 3, lineHeight: 1.6 }}>
-              {customer?.address}
+              {customer?.address ?? (!customer ? quote.manualCustomerEmail : undefined)}
             </div>
           </div>
         </div>

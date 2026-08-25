@@ -282,7 +282,12 @@ export interface ExpenseCategoryTotal {
 
 export interface Quote {
   _id: string;
-  customer: CustomerRef | string;
+  // Absent for a quote raised against a "Manual Customer" placeholder that
+  // isn't a real Customer record yet (see manualCustomerName/Email below) --
+  // filled in automatically once the quote is marked accepted.
+  customer?: CustomerRef | string;
+  manualCustomerName?: string;
+  manualCustomerEmail?: string;
   booking?: string;
   quoteNumber: string;
   lineItems: LineItem[];

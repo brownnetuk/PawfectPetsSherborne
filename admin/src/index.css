@@ -240,6 +240,14 @@ h1, h2, h3 {
   border-color: #d3ddc8;
 }
 
+.btn-success {
+  background: var(--brand-green);
+  color: white;
+}
+.btn-success:hover:not(:disabled) {
+  background: var(--brand-green-soft);
+}
+
 .btn-danger {
   background: white;
   color: var(--error);

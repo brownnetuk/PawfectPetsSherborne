@@ -3,6 +3,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsDateString,
+  IsEmail,
   IsMongoId,
   IsNotEmpty,
   IsNumber,
@@ -37,8 +38,20 @@ export class LineItemDto {
 }
 
 export class CreateQuoteDto {
+  // Exactly one of `customer` or manualCustomerName+manualCustomerEmail is
+  // required -- enforced in QuotesService.create() (a "one of" constraint
+  // isn't easily declarative with class-validator).
+  @IsOptional()
   @IsMongoId()
-  customer: string;
+  customer?: string;
+
+  @IsOptional()
+  @IsString()
+  manualCustomerName?: string;
+
+  @IsOptional()
+  @IsEmail()
+  manualCustomerEmail?: string;
 
   @IsOptional()
   @IsMongoId()

@@ -100,9 +100,11 @@ export function buildPdfVars(
     invoiceDate: formatUkDateFromIso(record.issueDate),
     dueDate: formatUkDateFromIso(inv?.dueDate ?? quote?.validUntil),
     terms: record.paymentTerms ?? '',
-    customerName: customer?.name ?? (typeof record.customer === 'string' ? record.customer : '(deleted customer)'),
+    customerName:
+      customer?.name ??
+      (typeof record.customer === 'string' ? record.customer : quote?.manualCustomerName ?? '(deleted customer)'),
     customerAddress: customer?.address ?? '',
-    customerEmail: customer?.email ?? '',
+    customerEmail: customer?.email ?? quote?.manualCustomerEmail ?? '',
     customerPhone: customer?.phoneNumber ?? '',
     subtotal: money(record.subtotal),
     total: money(record.total),

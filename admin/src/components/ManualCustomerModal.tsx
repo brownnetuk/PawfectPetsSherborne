@@ -1,40 +1,34 @@
 import { useState } from 'react';
-import * as api from '../api/client';
 import Modal from './Modal';
-import type { Customer } from '../types';
+
+export interface ManualCustomer {
+  name: string;
+  email: string;
+}
 
 interface Props {
   onClose: () => void;
-  onCreated: (customer: Customer) => void;
+  onSet: (customer: ManualCustomer) => void;
 }
 
-// Quickly creates a minimal customer record (name + email only, same
-// createLead() used by the registration-link flow) so staff can raise an
-// invoice/quote for a one-off customer without leaving this form to go
-// create a full customer record first.
-export default function ManualCustomerModal({ onClose, onCreated }: Props) {
+// Purely a local placeholder -- name/email typed here are stored directly on
+// the quote (Quote.manualCustomerName/Email), not turned into a real
+// Customer record. QuotesService only creates (or reuses, by matching email)
+// a real Customer the moment the quote is marked accepted.
+export default function ManualCustomerModal({ onClose, onSet }: Props) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    try {
-      const customer = await api.createLead(name, email);
-      onCreated(customer);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create customer');
-    } finally {
-      setSubmitting(false);
-    }
+    onSet({ name: name.trim(), email: email.trim() });
   }
 
   return (
     <Modal title="Manual Customer" onClose={onClose}>
-      {error && <div className="error-banner">{error}</div>}
+      <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: -6 }}>
+        A placeholder for this quote only -- no customer record is created unless the quote is accepted.
+      </p>
       <form onSubmit={handleSubmit}>
         <div className="field">
           <label>Customer Name</label>
@@ -45,11 +39,11 @@ export default function ManualCustomerModal({ onClose, onCreated }: Props) {
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </div>
         <div className="modal-actions">
-          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={submitting}>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? 'Creating…' : 'Create Customer'}
+          <button type="submit" className="btn btn-success">
+            Use This Customer
           </button>
         </div>
       </form>

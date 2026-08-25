@@ -6,9 +6,17 @@ import type { BusinessInfo, Invoice, Quote } from '../types';
 
 // Populate returns null for a dangling reference (the customer was deleted
 // after this invoice/quote was created) -- the type doesn't say so, but the
-// real data can, so this guards against it rather than crash.
-export function customerLabel(customer: Invoice['customer'] | Quote['customer']): string {
-  if (!customer) return '(deleted customer)';
+// real data can, so this guards against it rather than crash. A quote with
+// no customer at all but a manualCustomerName is a "Manual Customer"
+// placeholder (see Quote.manualCustomerName), not a deleted one -- returned
+// plain (no annotation) since this also feeds real outgoing email content;
+// callers that want to visually flag "still just a placeholder" (e.g. the
+// quotes list) add their own badge alongside it.
+export function customerLabel(
+  customer: Invoice['customer'] | Quote['customer'],
+  manualCustomerName?: string,
+): string {
+  if (!customer) return manualCustomerName ?? '(deleted customer)';
   return typeof customer === 'string' ? customer : customer.name;
 }
 
@@ -50,6 +58,7 @@ export default function SendPreviewModal({ kind, doc, onClose, onConfirm }: Prop
   const isInvoice = kind === 'invoice';
   const number = isInvoice ? (doc as Invoice).invoiceNumber : (doc as Quote).quoteNumber;
   const dueDate = isInvoice ? (doc as Invoice).dueDate : (doc as Quote).validUntil;
+  const manualCustomerName = isInvoice ? undefined : (doc as Quote).manualCustomerName;
 
   let renderedSubject = '';
   let renderedBody = '';
@@ -62,7 +71,7 @@ export default function SendPreviewModal({ kind, doc, onClose, onConfirm }: Prop
       businessTelephone: businessInfo.telephone,
       businessEmail: businessInfo.email,
       businessWebsite: businessInfo.website,
-      customer_name: customerLabel(doc.customer),
+      customer_name: customerLabel(doc.customer, manualCustomerName),
       subject: doc.subject,
       subtotal: doc.subtotal.toFixed(2),
       total: doc.total.toFixed(2),
@@ -108,7 +117,7 @@ export default function SendPreviewModal({ kind, doc, onClose, onConfirm }: Prop
       {template && businessInfo && (
         <>
           <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: -6 }}>
-            This is exactly what will be emailed to {customerLabel(doc.customer)}.
+            This is exactly what will be emailed to {customerLabel(doc.customer, manualCustomerName)}.
           </p>
           <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
             <div style={{ background: 'var(--sage)', padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>

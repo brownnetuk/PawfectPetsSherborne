@@ -216,7 +216,11 @@ export function listQuotes(customerId?: string): Promise<Quote[]> {
   return request(`/quotes${customerId ? `?customer=${customerId}` : ''}`);
 }
 export interface CreateQuoteInput {
-  customer: string;
+  // Exactly one of `customer` or manualCustomerName+manualCustomerEmail --
+  // see Quote.manualCustomerName in types.ts.
+  customer?: string;
+  manualCustomerName?: string;
+  manualCustomerEmail?: string;
   booking?: string;
   lineItems: LineItem[];
   issueDate: string;
