@@ -514,10 +514,11 @@ export function sendTriggeredEmail(
   name: string,
   link: string,
   customerId?: string,
+  formName?: string,
 ): Promise<{ entryId?: string }> {
   return request('/settings/email/send', {
     method: 'POST',
-    body: JSON.stringify({ trigger, to, name, link, customerId }),
+    body: JSON.stringify({ trigger, to, name, link, customerId, formName }),
   });
 }
 export function listEmailTemplates(): Promise<EmailTemplate[]> {

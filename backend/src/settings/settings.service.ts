@@ -461,7 +461,14 @@ export class SettingsService {
   async sendTriggeredEmail(dto: SendTriggeredEmailDto): Promise<{ entryId?: string }> {
     let appendHtml = '';
     let entryId: string | undefined;
-    const titles = TRIGGERED_EMAIL_TITLES[dto.trigger];
+    // A form send names the specific form (e.g. "Medication Authentication
+    // form email sent") instead of the generic title -- there's no fixed
+    // "the" form the way there's one registration flow, so the generic
+    // title alone wouldn't say which of possibly several forms was sent.
+    const titles =
+      dto.trigger === EmailTrigger.FORM && dto.formName
+        ? { sent: `${dto.formName} form email sent`, read: `${dto.formName} form email read` }
+        : TRIGGERED_EMAIL_TITLES[dto.trigger];
     if (dto.customerId && titles) {
       const entry = await this.auditLogService.record(
         dto.customerId,

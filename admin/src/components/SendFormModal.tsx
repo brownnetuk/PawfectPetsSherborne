@@ -73,7 +73,7 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
     setSending(true);
     setSendResult(null);
     try {
-      await api.sendTriggeredEmail('form', email, name || email, link, customerId || undefined);
+      await api.sendTriggeredEmail('form', email, name || email, link, customerId || undefined, form.name);
       setSendResult({ ok: true, message: `Email sent to ${email}.` });
     } catch (err) {
       setSendResult({ ok: false, message: err instanceof Error ? err.message : 'Failed to send email' });

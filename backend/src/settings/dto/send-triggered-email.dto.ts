@@ -27,4 +27,12 @@ export class SendTriggeredEmailDto {
   @IsOptional()
   @IsMongoId()
   customerId?: string;
+
+  // trigger: 'form' only -- the specific form's name (e.g. "Medication
+  // Authentication"), so the Activity entry reads "<name> form email
+  // sent"/"read" instead of the generic "Form email sent"/"read" that gives
+  // no clue which of possibly several forms was actually sent.
+  @IsOptional()
+  @IsString()
+  formName?: string;
 }
