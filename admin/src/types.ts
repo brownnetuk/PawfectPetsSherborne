@@ -343,6 +343,7 @@ export type AuditEventType =
 export interface AuditLogEntry {
   _id: string;
   customer: string;
+  invoice?: string;
   type: AuditEventType;
   title: string;
   description?: string;

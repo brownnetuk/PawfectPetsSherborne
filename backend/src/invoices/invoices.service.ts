@@ -89,6 +89,9 @@ export class InvoicesService {
       `${invoiceNumber} created`,
       undefined,
       actor,
+      undefined,
+      undefined,
+      created._id,
     );
     return created;
   }
@@ -162,6 +165,9 @@ export class InvoicesService {
         `${invoice.invoiceNumber} status changed to ${dto.status}`,
         undefined,
         actor,
+        undefined,
+        undefined,
+        id,
       );
     } else {
       await this.auditLogService.record(
@@ -171,6 +177,9 @@ export class InvoicesService {
         `${invoice.invoiceNumber} updated`,
         undefined,
         actor,
+        undefined,
+        undefined,
+        id,
       );
     }
     return invoice;
@@ -201,6 +210,9 @@ export class InvoicesService {
       `${result.invoiceNumber} removed`,
       undefined,
       actor,
+      undefined,
+      undefined,
+      result._id,
     );
   }
 
@@ -244,6 +256,9 @@ export class InvoicesService {
       `${invoice.invoiceNumber} emailed to ${customer.email}`,
       undefined,
       actor,
+      undefined,
+      undefined,
+      id,
     );
     if (invoice.status === InvoiceStatus.DRAFT) {
       return this.update(id, { status: InvoiceStatus.SENT }, actor);
@@ -289,6 +304,7 @@ export class InvoicesService {
       actor,
       undefined,
       'Deposit request read',
+      id,
     );
     const appendHtml = entry
       ? trackingPixelHtml(
@@ -330,6 +346,9 @@ export class InvoicesService {
       `${invoice.invoiceNumber} opened`,
       undefined,
       'Customer',
+      undefined,
+      undefined,
+      invoice._id,
     );
   }
 

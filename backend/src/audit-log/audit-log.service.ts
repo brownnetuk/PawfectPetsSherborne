@@ -32,6 +32,7 @@ export class AuditLogService {
     actor = 'System',
     attachment?: { data: string; name: string },
     readTitle?: string,
+    invoiceId?: string | Types.ObjectId,
   ): Promise<AuditLogEntry | undefined> {
     try {
       return await this.auditLogModel.create({
@@ -44,6 +45,7 @@ export class AuditLogService {
         attachmentData: attachment?.data,
         attachmentName: attachment?.name,
         readTitle,
+        invoice: invoiceId,
       });
     } catch {
       // never let audit logging break the primary action it's describing
@@ -88,6 +90,13 @@ export class AuditLogService {
   findForCustomer(customerId: string): Promise<AuditLogEntry[]> {
     return this.auditLogModel
       .find({ customer: customerId })
+      .sort({ createdAt: -1 })
+      .exec();
+  }
+
+  findForInvoice(invoiceId: string): Promise<AuditLogEntry[]> {
+    return this.auditLogModel
+      .find({ invoice: invoiceId })
       .sort({ createdAt: -1 })
       .exec();
   }

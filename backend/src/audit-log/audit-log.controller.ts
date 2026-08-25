@@ -17,9 +17,12 @@ export class AuditLogController {
   constructor(private readonly auditLogService: AuditLogService) {}
 
   @Get()
-  findForCustomer(@Query('customer') customer?: string) {
+  find(@Query('customer') customer?: string, @Query('invoice') invoice?: string) {
+    if (invoice) {
+      return this.auditLogService.findForInvoice(invoice);
+    }
     if (!customer) {
-      throw new BadRequestException('customer query parameter is required');
+      throw new BadRequestException('customer or invoice query parameter is required');
     }
     return this.auditLogService.findForCustomer(customer);
   }

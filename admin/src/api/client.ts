@@ -467,6 +467,9 @@ export function deleteActivity(id: string): Promise<void> {
 export function listAuditLog(customerId: string): Promise<AuditLogEntry[]> {
   return request(`/audit-log?customer=${customerId}`);
 }
+export function listAuditLogForInvoice(invoiceId: string): Promise<AuditLogEntry[]> {
+  return request(`/audit-log?invoice=${invoiceId}`);
+}
 export function getIncomeChart(customerId: string, months: number): Promise<IncomeMonth[]> {
   return request(`/audit-log/income?customer=${customerId}&months=${months}`);
 }

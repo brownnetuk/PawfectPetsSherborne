@@ -3,6 +3,7 @@ import * as api from '../api/client';
 import ActionsMenu from '../components/ActionsMenu';
 import DocumentFormModal from '../components/DocumentFormModal';
 import { MailIcon, MailOpenIcon } from '../components/icons';
+import InvoiceActivityPanel from '../components/InvoiceActivityPanel';
 import InvoiceHtmlView from '../components/InvoiceHtmlView';
 import Modal from '../components/Modal';
 import QuoteHtmlView from '../components/QuoteHtmlView';
@@ -67,9 +68,11 @@ function InvoicesTab() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [activityVersion, setActivityVersion] = useState(0);
 
   function refresh() {
     api.listInvoices().then(setInvoices).catch((err) => setError(err.message));
+    setActivityVersion((v) => v + 1);
   }
   useEffect(refresh, []);
 
@@ -143,7 +146,8 @@ function InvoicesTab() {
       </div>
       {error && <div className="error-banner">{error}</div>}
 
-      <div className="card" style={{ padding: 0 }}>
+      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+        <div className="card" style={{ padding: 0, flex: 1, minWidth: 0 }}>
         {!invoices || invoices.length === 0 ? (
           <div className="empty-state">{invoices === null ? 'Loading…' : 'No invoices yet.'}</div>
         ) : viewing ? (
@@ -286,6 +290,12 @@ function InvoicesTab() {
               ))}
             </tbody>
           </table>
+        )}
+        </div>
+        {viewing && (
+          <div style={{ width: 380, flexShrink: 0 }}>
+            <InvoiceActivityPanel key={viewing._id} invoiceId={viewing._id} refreshToken={activityVersion} />
+          </div>
         )}
       </div>
 

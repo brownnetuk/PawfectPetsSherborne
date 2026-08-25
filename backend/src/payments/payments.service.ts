@@ -82,6 +82,9 @@ export class PaymentsService {
       `£${dto.amount.toFixed(2)} received and applied to ${invoice.invoiceNumber}`,
       dto.amount,
       actor,
+      undefined,
+      undefined,
+      dto.invoice,
     );
     // Best-effort "Thank You" email -- a missing template/customer email/Graph
     // failure must never undo an already-recorded payment, so this is never
@@ -154,6 +157,9 @@ export class PaymentsService {
         `£${payment.amount.toFixed(2)} payment removed from ${invoice.invoiceNumber}`,
         payment.amount,
         actor,
+        undefined,
+        undefined,
+        invoiceId,
       );
     }
   }

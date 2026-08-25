@@ -46,6 +46,9 @@ export class CreditNotesService {
       `${creditNoteNumber} — £${dto.amount.toFixed(2)} — ${dto.reason}`,
       dto.amount,
       actor,
+      undefined,
+      undefined,
+      dto.invoice,
     );
     return saved;
   }
@@ -80,6 +83,9 @@ export class CreditNotesService {
       `${creditNote.creditNoteNumber} — £${creditNote.amount.toFixed(2)} removed`,
       creditNote.amount,
       actor,
+      undefined,
+      undefined,
+      creditNote.invoice,
     );
   }
 }

@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { Customer } from '../../customers/schemas/customer.schema';
+import { Invoice } from '../../invoices/schemas/invoice.schema';
 
 // Deliberately a separate model from CrmActivity (backend/src/crm/) -- that's
 // a manually-authored note/call/email/task log (surfaced in the admin app as
@@ -44,6 +45,12 @@ export class AuditLogEntry extends Document {
     index: true,
   })
   customer: Types.ObjectId;
+
+  // Set only for invoice-related event types (invoice/payment/credit-note/
+  // deposit) so the invoice detail view's Activity panel can filter to just
+  // this invoice, rather than every event for the customer.
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Invoice.name, index: true })
+  invoice?: Types.ObjectId;
 
   @Prop({ required: true, enum: AuditEventType })
   type: AuditEventType;
