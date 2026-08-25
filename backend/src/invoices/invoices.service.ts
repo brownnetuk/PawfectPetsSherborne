@@ -348,6 +348,14 @@ export class InvoicesService {
       appendHtml,
     );
 
+    // Same DRAFT -> SENT transition sendEmail() already does after a
+    // successful send -- a deposit request is itself the first time this
+    // invoice reaches the customer for a freshly-accepted quote, so it
+    // shouldn't sit at "draft" once the email is on its way.
+    if (invoice.status === InvoiceStatus.DRAFT) {
+      await this.update(id, { status: InvoiceStatus.SENT }, actor);
+    }
+
     return { depositAmount, depositPercentage };
   }
 
