@@ -1330,9 +1330,8 @@ const BUSINESS_PLACEHOLDERS = [
   { key: 'businessWebsite', hint: 'business website' },
 ];
 
-// Settings > Invoices > Bank Details -- invoice/quote-only, same as the
-// document number/date placeholders, since paying-in details have no
-// meaning for the other three (non-payment) triggers.
+// Settings > Invoices > Bank Details -- only meaningful for the triggers
+// that ask a customer to pay something (invoice, quote, deposit_request).
 const BANK_PLACEHOLDERS = [
   { key: 'bank_name', hint: 'bank name (Settings > Invoices > Bank Details)' },
   { key: 'sort_code', hint: 'sort code' },
@@ -1403,6 +1402,7 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
     { key: 'due_date', hint: 'the invoice due date' },
     { key: 'deposit_percentage', hint: 'the configured deposit percentage (no % sign)' },
     { key: 'deposit_amount', hint: 'the calculated deposit amount (no £ sign)' },
+    ...BANK_PLACEHOLDERS,
     ...BUSINESS_PLACEHOLDERS,
   ],
 };
