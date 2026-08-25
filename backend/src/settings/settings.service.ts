@@ -565,12 +565,22 @@ export class SettingsService {
       trigger === EmailTrigger.QUOTE ||
       trigger === EmailTrigger.DEPOSIT_REQUEST;
     const subject = interpolateSubject(template.subject, allVars);
+    const renderedBody = interpolateBody(template.body, allVars, allRawVars, htmlBody);
+    // Most mail clients render HTML email at whatever width their reading
+    // pane happens to be -- without a capped, centered wrapper it stretches
+    // edge-to-edge (fine for a plain-text trigger's body, which is short
+    // lines anyway, but an HTML-body trigger's staff-authored markup has no
+    // width constraint of its own unless they happened to add one). The
+    // invoice/quote starter template already wraps itself the same way;
+    // this just guarantees it for every htmlBody trigger, including ones
+    // staff wrote from scratch (e.g. deposit_request has no starter).
     // appendHtml (currently just the tracking pixel) isn't a placeholder --
     // it's always added regardless of what the staff-authored template does
-    // or doesn't reference, so it can't be silently lost by editing the body.
-    const body =
-      interpolateBody(template.body, allVars, allRawVars, htmlBody) +
-      appendHtml;
+    // or doesn't reference, so it can't be silently lost by editing the body,
+    // and stays outside the width cap since it's a 1x1 invisible image.
+    const body = htmlBody
+      ? `<div style="max-width:600px;margin:0 auto;">${renderedBody}</div>${appendHtml}`
+      : renderedBody + appendHtml;
 
     const settings = await this.getSendableSettings();
     const token = await this.getAccessToken(

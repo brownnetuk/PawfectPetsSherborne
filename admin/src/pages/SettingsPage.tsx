@@ -1712,7 +1712,10 @@ function TemplatePreviewModal({
     ? { logo: logoTag, items_table: buildItemsTableHtml(SAMPLE_LINE_ITEMS) }
     : { logo: logoTag };
   const renderedSubject = interpolateSubject(subject, vars);
-  const renderedBody = interpolateBody(body, vars, rawVars, htmlBody);
+  // Wrapped the same way SettingsService.sendTemplatedEmail wraps every
+  // htmlBody trigger's body before actually sending it.
+  const interpolated = interpolateBody(body, vars, rawVars, htmlBody);
+  const renderedBody = htmlBody ? `<div style="max-width:600px;margin:0 auto;">${interpolated}</div>` : interpolated;
 
   return (
     <Modal title="Preview email" onClose={onClose} wide>

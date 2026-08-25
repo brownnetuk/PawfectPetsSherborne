@@ -95,7 +95,10 @@ export default function SendPreviewModal({ kind, doc, onClose, onConfirm }: Prop
       : '';
     const rawVars = { logo: logoTag, items_table: buildItemsTableHtml(doc.lineItems) };
     renderedSubject = interpolateSubject(template.subject, vars);
-    renderedBody = interpolateBody(template.body, vars, rawVars, true);
+    // Wrapped the same way SettingsService.sendTemplatedEmail wraps every
+    // htmlBody trigger's body before sending, so this preview -- captioned
+    // "exactly what will be emailed" -- actually matches.
+    renderedBody = `<div style="max-width:600px;margin:0 auto;">${interpolateBody(template.body, vars, rawVars, true)}</div>`;
   }
 
   return (
