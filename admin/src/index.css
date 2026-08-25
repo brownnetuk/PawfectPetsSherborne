@@ -184,6 +184,10 @@ h1, h2, h3 {
   width: 100%;
 }
 
+.content-wide {
+  max-width: none;
+}
+
 .page-header {
   display: flex;
   justify-content: space-between;

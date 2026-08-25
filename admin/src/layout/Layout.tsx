@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import logo from '../assets/logo.png';
 import {
@@ -24,6 +24,12 @@ function initials(name: string | undefined): string {
 export default function Layout() {
   const { staff, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  // The invoice detail view lays out three columns side by side (list,
+  // document preview, activity log) and needs the full window width to
+  // avoid squeezing the preview -- every other page is fine at the
+  // standard reading-width cap.
+  const isWide = location.pathname.startsWith('/invoices');
 
   function handleLogout() {
     logout();
@@ -79,7 +85,7 @@ export default function Layout() {
             Log out
           </button>
         </div>
-        <div className="content">
+        <div className={isWide ? 'content content-wide' : 'content'}>
           <Outlet />
         </div>
       </div>
