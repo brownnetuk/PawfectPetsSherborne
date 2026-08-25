@@ -9,7 +9,6 @@ import BookingsPage from './pages/BookingsPage';
 import FinancialPage from './pages/FinancialPage';
 import ReportsPage from './pages/ReportsPage';
 import InvoicesPage from './pages/InvoicesPage';
-import ActivityPage from './pages/ActivityPage';
 import SettingsPage from './pages/SettingsPage';
 
 function ProtectedLayout() {
@@ -32,7 +31,6 @@ export default function App() {
         <Route path="/invoices" element={<InvoicesPage />} />
         <Route path="/financial" element={<FinancialPage />} />
         <Route path="/reports" element={<ReportsPage />} />
-        <Route path="/activity" element={<ActivityPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

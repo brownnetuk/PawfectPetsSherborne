@@ -2,7 +2,6 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import logo from '../assets/logo.png';
 import {
-  ActivityIcon,
   BookingsIcon,
   CustomersIcon,
   EnquiriesIcon,
@@ -64,10 +63,6 @@ export default function Layout() {
           <NavLink to="/reports" className={({ isActive }) => (isActive ? 'active' : '')}>
             <ReportsIcon />
             Reports
-          </NavLink>
-          <NavLink to="/activity" className={({ isActive }) => (isActive ? 'active' : '')}>
-            <ActivityIcon />
-            Notes
           </NavLink>
           <NavLink to="/settings" className={({ isActive }) => (isActive ? 'active' : '')}>
             <SettingsIcon />
