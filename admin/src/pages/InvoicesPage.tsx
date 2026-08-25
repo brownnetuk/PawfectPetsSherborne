@@ -152,49 +152,53 @@ function InvoicesTab() {
           <div className="empty-state">{invoices === null ? 'Loading…' : 'No invoices yet.'}</div>
         ) : viewing ? (
           <div style={{ display: 'flex', alignItems: 'stretch' }}>
-            <div style={{ width: 420, flexShrink: 0, borderRight: '1px solid var(--border)' }}>
-              <table>
-                <tbody>
-                  {invoices.map((inv) => (
-                    <tr
-                      key={inv._id}
-                      onClick={() => inv._id !== viewing._id && handleViewPdf(inv)}
-                      style={{
-                        cursor: 'pointer',
-                        background: inv._id === viewing._id ? 'var(--sage)' : undefined,
-                      }}
-                    >
-                      <td style={{ padding: '10px 12px' }}>
-                        <div style={{ fontWeight: 600 }}>{inv.invoiceNumber}</div>
-                        <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{customerLabel(inv.customer)}</div>
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        <span className={`badge badge-${inv.status}`}>{inv.status}</span>
-                        {isPartiallyPaid(inv) && <span className="badge badge-partially_paid">Partially Paid</span>}
-                        <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
-                          £{(inv.total - (inv.amountPaid ?? 0)).toFixed(2)}
-                        </div>
-                      </td>
-                      <td onClick={(e) => e.stopPropagation()} style={{ padding: '10px 8px 10px 0' }}>
-                        <ActionsMenu
-                          items={[
-                            { label: 'View', onClick: () => handleViewPdf(inv) },
-                            { label: 'Edit', onClick: () => setEditing(inv) },
-                            {
-                              label: sendingId === inv._id ? 'Sending…' : 'Send',
-                              onClick: () => setSendPreview(inv),
-                              disabled: sendingId === inv._id,
-                            },
-                            { label: 'Payments', onClick: () => setRecordingPayment(inv) },
-                            { label: 'Request Deposit', onClick: () => setRequestingDeposit(inv) },
-                            { label: 'Delete', onClick: () => setDeleting(inv), danger: true, dividerBefore: true },
-                          ]}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ width: 260, flexShrink: 0, borderRight: '1px solid var(--border)' }}>
+              {invoices.map((inv) => (
+                <div
+                  key={inv._id}
+                  onClick={() => inv._id !== viewing._id && handleViewPdf(inv)}
+                  style={{
+                    cursor: 'pointer',
+                    padding: '10px 12px',
+                    borderBottom: '1px solid var(--border)',
+                    background: inv._id === viewing._id ? 'var(--sage)' : undefined,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 600 }}>{inv.invoiceNumber}</div>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{customerLabel(inv.customer)}</div>
+                    </div>
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <ActionsMenu
+                        items={[
+                          { label: 'View', onClick: () => handleViewPdf(inv) },
+                          { label: 'Edit', onClick: () => setEditing(inv) },
+                          {
+                            label: sendingId === inv._id ? 'Sending…' : 'Send',
+                            onClick: () => setSendPreview(inv),
+                            disabled: sendingId === inv._id,
+                          },
+                          { label: 'Payments', onClick: () => setRecordingPayment(inv) },
+                          { label: 'Request Deposit', onClick: () => setRequestingDeposit(inv) },
+                          { label: 'Delete', onClick: () => setDeleting(inv), danger: true, dividerBefore: true },
+                        ]}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                    <span className={`badge badge-${inv.status}`}>{inv.status}</span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+                      £{(inv.total - (inv.amountPaid ?? 0)).toFixed(2)}
+                    </span>
+                  </div>
+                  {isPartiallyPaid(inv) && (
+                    <span className="badge badge-partially_paid" style={{ marginTop: 4 }}>
+                      Partially Paid
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
 
             <div style={{ flex: 1, minWidth: 0, padding: '20px 24px', maxHeight: '85vh', overflowY: 'auto' }}>
@@ -293,7 +297,7 @@ function InvoicesTab() {
         )}
         </div>
         {viewing && (
-          <div style={{ width: 380, flexShrink: 0 }}>
+          <div style={{ width: 480, flexShrink: 0 }}>
             <InvoiceActivityPanel key={viewing._id} invoiceId={viewing._id} refreshToken={activityVersion} />
           </div>
         )}
