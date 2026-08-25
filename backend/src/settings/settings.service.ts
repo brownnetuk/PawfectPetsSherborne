@@ -554,16 +554,13 @@ export class SettingsService {
       : '';
     const allRawVars = { logo: logoTag, ...rawVars };
 
-    // invoice/quote/deposit_request templates are edited as raw HTML in the
-    // admin (a rich-text editor, not a plain textarea) -- their body is sent
-    // through as-is aside from placeholder substitution. Every other
-    // trigger's body is staff-authored plain text, so it's escaped and
-    // newlines become <br> the same way it always has. Kept in sync by hand
-    // with isHtmlBodyTrigger() in SettingsPage.tsx.
-    const htmlBody =
-      trigger === EmailTrigger.INVOICE ||
-      trigger === EmailTrigger.QUOTE ||
-      trigger === EmailTrigger.DEPOSIT_REQUEST;
+    // Every trigger's template is edited as raw HTML in the admin (a
+    // rich-text editor, not a plain textarea -- see isHtmlBodyTrigger() in
+    // SettingsPage.tsx, kept in sync by hand with this) so the same
+    // formatting toolbar (bold/italic/underline/font/colour/box/etc.) is
+    // available everywhere, not just on invoice/quote/deposit_request. Its
+    // body is sent through as-is aside from placeholder substitution.
+    const htmlBody = true;
     const subject = interpolateSubject(template.subject, allVars);
     const renderedBody = interpolateBody(template.body, allVars, allRawVars, htmlBody);
     // Most mail clients render HTML email at whatever width their reading

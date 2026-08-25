@@ -1181,13 +1181,14 @@ export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: 
   },
 ];
 
-// invoice/quote/deposit_request templates are edited as raw HTML
-// (RichTextEditor) and sent through as-is aside from placeholder
-// substitution; the rest are staff-authored plain text (escaped, newlines
-// become <br>) -- kept in sync by hand with the equivalent check in
-// settings.service.ts.
-function isHtmlBodyTrigger(trigger: EmailTrigger): boolean {
-  return trigger === 'invoice' || trigger === 'quote' || trigger === 'deposit_request';
+// Every trigger is edited as raw HTML (RichTextEditor) and sent through as-is
+// aside from placeholder substitution, so the same formatting toolbar (bold/
+// italic/underline/font/colour/box/line/button/etc.) is available everywhere,
+// not just on invoice/quote/deposit_request. Kept as a named predicate (all
+// its call sites read more clearly with it) rather than deleted outright, and
+// kept in sync by hand with the equivalent flag in settings.service.ts.
+function isHtmlBodyTrigger(_trigger: EmailTrigger): boolean {
+  return true;
 }
 
 function EmailTemplatesTab() {
@@ -1664,11 +1665,16 @@ function TemplatePreviewModal({
     businessEmail: businessInfo.email,
     businessWebsite: businessInfo.website,
   };
+  // Every trigger is now rendered as real HTML (see isHtmlBodyTrigger) --
+  // this only chooses which *sample vars* fit the trigger's own actual
+  // placeholders, since that's still trigger-specific regardless of the
+  // htmlBody/plain-text distinction that used to gate this.
   const htmlBody = isHtmlBodyTrigger(trigger);
   const isQuote = trigger === 'quote';
   const isDepositRequest = trigger === 'deposit_request';
   const isPaymentReceived = trigger === 'payment_received';
-  const vars: Record<string, string | undefined> = htmlBody
+  const isDocumentTrigger = isQuote || isDepositRequest || trigger === 'invoice';
+  const vars: Record<string, string | undefined> = isDocumentTrigger
     ? {
         ...businessVars,
         customer_name: 'Jane Smith',
@@ -1708,7 +1714,7 @@ function TemplatePreviewModal({
   const logoTag = businessInfo.logoImage
     ? `<img src="${businessInfo.logoImage}" alt="${escapeHtml(businessInfo.name)}" style="max-height:60px;max-width:220px;display:block;" />`
     : '';
-  const rawVars: Record<string, string> = htmlBody
+  const rawVars: Record<string, string> = isDocumentTrigger
     ? { logo: logoTag, items_table: buildItemsTableHtml(SAMPLE_LINE_ITEMS) }
     : { logo: logoTag };
   const renderedSubject = interpolateSubject(subject, vars);
