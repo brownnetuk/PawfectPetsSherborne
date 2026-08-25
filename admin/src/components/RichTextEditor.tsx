@@ -7,6 +7,20 @@ const BLOCKS = [
   { value: 'h3', label: 'Heading 3' },
 ];
 
+// Web-safe only -- these are the handful of fonts that render as requested
+// (rather than silently falling back) across the mail clients this app's
+// emails actually get opened in.
+const FONTS = [
+  { value: 'Arial, Helvetica, sans-serif', label: 'Arial' },
+  { value: "'Georgia', serif", label: 'Georgia' },
+  { value: "'Times New Roman', Times, serif", label: 'Times New Roman' },
+  { value: "'Courier New', Courier, monospace", label: 'Courier New' },
+  { value: 'Verdana, Geneva, sans-serif', label: 'Verdana' },
+  { value: 'Tahoma, Geneva, sans-serif', label: 'Tahoma' },
+];
+
+const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 40];
+
 export interface RichTextEditorHandle {
   /** Inserts text at the current cursor position (falls back to the end if nothing's focused/selected). */
   insertText: (text: string) => void;
@@ -120,6 +134,58 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, { value: string; onChang
       );
     }
 
+    // execCommand has no direct "set this px font-size" command -- only the
+    // legacy 1-7 scale, which old <font size> tags represent poorly in email
+    // clients. The standard workaround: apply a throwaway legacy size (7,
+    // chosen because it's unlikely to already be in use), then swap every
+    // <font size="7"> it just created for a <span style="font-size:...">.
+    // Same trick for font family below, via <font face="__rte-face-marker">.
+    function applyFontSize(px: string) {
+      ref.current?.focus();
+      document.execCommand('fontSize', false, '7');
+      ref.current?.querySelectorAll('font[size="7"]').forEach((el) => {
+        const span = document.createElement('span');
+        span.style.fontSize = `${px}px`;
+        span.innerHTML = el.innerHTML;
+        el.replaceWith(span);
+      });
+      handleInput();
+    }
+
+    function applyFontFamily(family: string) {
+      ref.current?.focus();
+      document.execCommand('fontName', false, '__rte-face-marker');
+      ref.current?.querySelectorAll('font[face="__rte-face-marker"]').forEach((el) => {
+        const span = document.createElement('span');
+        span.style.fontFamily = family;
+        span.innerHTML = el.innerHTML;
+        el.replaceWith(span);
+      });
+      handleInput();
+    }
+
+    function insertLine() {
+      exec('insertHTML', '<hr style="border:none;border-top:1px solid #d1d5db;margin:16px 0;" />');
+    }
+
+    function insertBox() {
+      exec(
+        'insertHTML',
+        '<div style="border:1px solid #e5e7eb;border-radius:8px;background:#f8fafc;padding:16px 20px;margin:12px 0;">Box text</div><p><br></p>',
+      );
+    }
+
+    function insertButton() {
+      const label = window.prompt('Button text', 'Click here');
+      if (!label) return;
+      const url = window.prompt('Button link URL', 'https://');
+      if (!url) return;
+      exec(
+        'insertHTML',
+        `<a href="${url}" target="_blank" rel="noopener" style="display:inline-block;background:#0f3a5f;color:#ffffff;padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:700;">${label}</a>&nbsp;`,
+      );
+    }
+
     // Toolbar buttons are mousedown-prevented so clicking one doesn't steal
     // focus/collapse the editor's text selection before the command runs.
     function preventBlur(e: React.MouseEvent) {
@@ -147,6 +213,47 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, { value: string; onChang
                   </option>
                 ))}
               </select>
+              <select
+                defaultValue=""
+                title="Font"
+                onChange={(e) => {
+                  if (e.target.value) applyFontFamily(e.target.value);
+                  e.target.value = '';
+                }}
+              >
+                <option value="" disabled>
+                  Font
+                </option>
+                {FONTS.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                defaultValue=""
+                title="Font size"
+                onChange={(e) => {
+                  if (e.target.value) applyFontSize(e.target.value);
+                  e.target.value = '';
+                }}
+              >
+                <option value="" disabled>
+                  Size
+                </option>
+                {FONT_SIZES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}px
+                  </option>
+                ))}
+              </select>
+              <input
+                type="color"
+                title="Text colour"
+                className="rte-color-swatch"
+                defaultValue="#1f3b2c"
+                onChange={(e) => exec('foreColor', e.target.value)}
+              />
               <button type="button" onClick={() => exec('bold')} title="Bold">
                 <b>B</b>
               </button>
@@ -174,8 +281,17 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, { value: string; onChang
               <button type="button" onClick={insertLink} title="Insert link">
                 Link
               </button>
+              <button type="button" onClick={insertButton} title="Insert a button linking somewhere">
+                Button
+              </button>
               <button type="button" onClick={insertTable} title="Insert table">
                 Table
+              </button>
+              <button type="button" onClick={insertBox} title="Insert a bordered box">
+                Box
+              </button>
+              <button type="button" onClick={insertLine} title="Insert a horizontal line">
+                Line
               </button>
             </>
           )}

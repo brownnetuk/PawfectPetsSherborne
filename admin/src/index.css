@@ -892,6 +892,15 @@ table input:focus {
   background: var(--sage-badge) !important;
   border-color: var(--brand-green) !important;
 }
+.rte-color-swatch {
+  width: 28px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
 .rte-content {
   min-height: 220px;
   max-height: 420px;

@@ -543,13 +543,16 @@ export class SettingsService {
       : '';
     const allRawVars = { logo: logoTag, ...rawVars };
 
-    // invoice/quote templates are edited as raw HTML in the admin (a rich-text
-    // editor, not a plain textarea) -- their body is sent through as-is aside
-    // from placeholder substitution. Every other trigger's body is staff-authored
-    // plain text, so it's escaped and newlines become <br> the same way it
-    // always has.
+    // invoice/quote/deposit_request templates are edited as raw HTML in the
+    // admin (a rich-text editor, not a plain textarea) -- their body is sent
+    // through as-is aside from placeholder substitution. Every other
+    // trigger's body is staff-authored plain text, so it's escaped and
+    // newlines become <br> the same way it always has. Kept in sync by hand
+    // with isHtmlBodyTrigger() in SettingsPage.tsx.
     const htmlBody =
-      trigger === EmailTrigger.INVOICE || trigger === EmailTrigger.QUOTE;
+      trigger === EmailTrigger.INVOICE ||
+      trigger === EmailTrigger.QUOTE ||
+      trigger === EmailTrigger.DEPOSIT_REQUEST;
     const subject = interpolateSubject(template.subject, allVars);
     // appendHtml (currently just the tracking pixel) isn't a placeholder --
     // it's always added regardless of what the staff-authored template does

@@ -1181,12 +1181,13 @@ export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: 
   },
 ];
 
-// invoice/quote templates are edited as raw HTML (RichTextEditor) and sent
-// through as-is aside from placeholder substitution; the rest are
-// staff-authored plain text (escaped, newlines become <br>) -- kept in sync
-// by hand with EmailTrigger.INVOICE/QUOTE in settings.service.ts.
+// invoice/quote/deposit_request templates are edited as raw HTML
+// (RichTextEditor) and sent through as-is aside from placeholder
+// substitution; the rest are staff-authored plain text (escaped, newlines
+// become <br>) -- kept in sync by hand with the equivalent check in
+// settings.service.ts.
 function isHtmlBodyTrigger(trigger: EmailTrigger): boolean {
-  return trigger === 'invoice' || trigger === 'quote';
+  return trigger === 'invoice' || trigger === 'quote' || trigger === 'deposit_request';
 }
 
 function EmailTemplatesTab() {
@@ -1483,7 +1484,18 @@ function EditTemplateModal({
   const [subject, setSubject] = useState(
     template?.subject ?? (isHtmlBodyTrigger(trigger) ? `Your ${trigger} from {{businessName}}` : ''),
   );
-  const [body, setBody] = useState(template?.body ?? starterBody(trigger));
+  const [body, setBody] = useState(() => {
+    if (!template?.body) return starterBody(trigger);
+    // A template saved back when this trigger was still plain-text (e.g.
+    // deposit_request before it gained a rich-text editor) has literal "\n"
+    // line breaks, not markup -- dropped straight into contentEditable's
+    // innerHTML those collapse into one run-on line. Only plain-text-looking
+    // bodies (no tags) get converted; anything already HTML is left as-is.
+    if (isHtmlBodyTrigger(trigger) && !/<[a-z][\s\S]*>/i.test(template.body)) {
+      return template.body.replace(/\n/g, '<br>');
+    }
+    return template.body;
+  });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
@@ -1654,6 +1666,7 @@ function TemplatePreviewModal({
   };
   const htmlBody = isHtmlBodyTrigger(trigger);
   const isQuote = trigger === 'quote';
+  const isDepositRequest = trigger === 'deposit_request';
   const isPaymentReceived = trigger === 'payment_received';
   const vars: Record<string, string | undefined> = htmlBody
     ? {
@@ -1665,9 +1678,17 @@ function TemplatePreviewModal({
         bank_name: businessInfo.bankName,
         sort_code: businessInfo.sortCode,
         account_number: businessInfo.accountNumber,
-        ...(isQuote
-          ? { quote_number: 'QUO-2026-00001', quote_date: '21/08/2026', valid_until: '28/08/2026' }
-          : { invoice_number: 'INV-2026-00001', invoice_date: '21/08/2026', due_date: '28/08/2026' }),
+        ...(isDepositRequest
+          ? {
+              invoice_number: 'INV-2026-00001',
+              invoice_total: sampleSubtotal().toFixed(2),
+              due_date: '28/08/2026',
+              deposit_percentage: '20',
+              deposit_amount: (sampleSubtotal() * 0.2).toFixed(2),
+            }
+          : isQuote
+            ? { quote_number: 'QUO-2026-00001', quote_date: '21/08/2026', valid_until: '28/08/2026' }
+            : { invoice_number: 'INV-2026-00001', invoice_date: '21/08/2026', due_date: '28/08/2026' }),
       }
     : isPaymentReceived
       ? {
