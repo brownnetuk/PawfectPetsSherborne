@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
+import ManualCustomerModal from './ManualCustomerModal';
 import Modal from './Modal';
 import SendPreviewModal from './SendPreviewModal';
 import { ChevronDownIcon } from './icons';
@@ -326,6 +327,7 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
   // closing outright, same review-before-send flow the standalone Send
   // action already uses.
   const [pendingSend, setPendingSend] = useState<Invoice | Quote | null>(null);
+  const [showManualCustomer, setShowManualCustomer] = useState(false);
 
   useEffect(() => {
     api.listCustomers().then(setCustomers).catch(() => {});
@@ -368,6 +370,12 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
     setIssueDate(value);
     const computed = calculateDueDate(value, terms.find((t) => t._id === termId));
     if (computed) setDateValue(computed);
+  }
+
+  function handleManualCustomerCreated(customer: Customer) {
+    setCustomers((prev) => [customer, ...prev]);
+    setCustId(customer._id);
+    setShowManualCustomer(false);
   }
 
   const selectedCustomer = customers.find((c) => c._id === custId);
@@ -458,8 +466,20 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, on
   const dateLabel = isInvoice ? 'Due date' : 'Valid until';
 
   return (
-    <Modal title={title} onClose={onClose} xl>
+    <Modal
+      title={title}
+      onClose={onClose}
+      xl
+      headerActions={
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowManualCustomer(true)}>
+          Manual Customer
+        </button>
+      }
+    >
       {error && <div className="error-banner">{error}</div>}
+      {showManualCustomer && (
+        <ManualCustomerModal onClose={() => setShowManualCustomer(false)} onCreated={handleManualCustomerCreated} />
+      )}
       <form onSubmit={handleSubmit}>
         <div className="card">
           <div className="section-title">Customer</div>
