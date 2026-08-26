@@ -19,6 +19,7 @@ class RecordPaymentSheet extends StatefulWidget {
 
 class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
   final _amountController = TextEditingController();
+  final _chargesController = TextEditingController();
   DateTime _date = DateTime.now();
   BankAccountRef? _account;
   PaymentMethod? _paymentMethod;
@@ -40,6 +41,7 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
   @override
   void dispose() {
     _amountController.dispose();
+    _chargesController.dispose();
     super.dispose();
   }
 
@@ -71,6 +73,7 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
             amount: amount,
             accountId: _account!.id,
             paymentMethod: _paymentMethod?.name,
+            charges: double.tryParse(_chargesController.text.trim()),
           );
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
@@ -118,11 +121,32 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
             children: [
               Text('Record payment', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 16),
-              TextField(
-                controller: _amountController,
-                decoration: const InputDecoration(labelText: 'Amount', prefixText: '£'),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _amountController,
+                      decoration: const InputDecoration(labelText: 'Amount', prefixText: '£'),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                      onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _chargesController,
+                      decoration: const InputDecoration(
+                        labelText: 'Charges',
+                        prefixText: '£',
+                        hintText: 'Optional',
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                      onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               InkWell(

@@ -8,7 +8,6 @@ import '../models/invoice.dart';
 import '../widgets/hold_to_delete_dialog.dart';
 import '../widgets/status_badge.dart';
 import 'create_invoice_screen.dart';
-import 'edit_invoice_screen.dart';
 import 'home_shell.dart';
 import 'invoice_detail_screen.dart';
 import 'record_payment_sheet.dart';
@@ -105,7 +104,13 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
 
   Future<void> _editInvoice(Invoice inv) async {
     final updated = await Navigator.of(context).push<Invoice>(
-      MaterialPageRoute(builder: (_) => EditInvoiceScreen(invoice: inv)),
+      MaterialPageRoute(
+        builder: (_) => CreateInvoiceScreen(
+          customerId: inv.customer.id,
+          customerName: inv.customer.name,
+          invoice: inv,
+        ),
+      ),
     );
     if (updated != null) _refresh();
   }

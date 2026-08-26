@@ -89,7 +89,7 @@ void main() {
     // Open the product dropdown and choose "Dog walking".
     await tester.tap(find.byType(DropdownButtonFormField<Product>));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Dog walking — £20.00').last);
+    await tester.tap(find.text('Dog walking').last);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Create invoice'));

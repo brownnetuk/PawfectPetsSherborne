@@ -17,17 +17,22 @@ class _FormData {
   _FormData(this.products, this.terms, this.customer, this.pets);
 }
 
-/// Form for raising a new draft invoice against a customer. Line items are
+/// Form for raising or editing an invoice against a customer. Line items are
 /// chosen from the product catalogue and payment terms from the admin app's
-/// library; the server assigns the invoice number and computes the totals.
+/// library. When [invoice] is set the form edits that invoice (PATCH); else it
+/// creates a new one (POST) and the server assigns the number and totals.
 class CreateInvoiceScreen extends StatefulWidget {
   final String customerId;
   final String customerName;
+  final Invoice? invoice;
   const CreateInvoiceScreen({
     super.key,
     required this.customerId,
     required this.customerName,
+    this.invoice,
   });
+
+  bool get isEditing => invoice != null;
 
   @override
   State<CreateInvoiceScreen> createState() => _CreateInvoiceScreenState();
@@ -36,6 +41,9 @@ class CreateInvoiceScreen extends StatefulWidget {
 class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   final _subjectController = TextEditingController();
   final List<_LineItemEntry> _items = [_LineItemEntry()];
+  // Synthetic products for existing line items whose product isn't in the
+  // catalogue any more, so the dropdown can still show/select them when editing.
+  final List<Product> _extraProducts = [];
   DateTime _issueDate = DateTime.now();
   DateTime _dueDate = DateTime.now().add(const Duration(days: 14));
   bool _submitting = false;
@@ -54,22 +62,72 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       final pets = await repo.listAnimals(widget.customerId);
       return _FormData(products, terms, customer, pets);
     }();
-    // Pre-select the default term (and set the due date from it) once loaded.
-    _dataFuture.then((data) {
+    _dataFuture.then((data) async {
       if (!mounted) return;
-      InvoiceTerm? def;
-      for (final t in data.terms) {
-        if (t.isDefault) {
-          def = t;
+      _terms = data.terms;
+      if (widget.isEditing) {
+        // Fetch the full invoice for authoritative line items, then pre-fill.
+        final inv = await repo.getInvoice(widget.invoice!.id);
+        if (!mounted) return;
+        setState(() => _prefillFromInvoice(inv, data.products));
+      } else {
+        InvoiceTerm? def;
+        for (final t in data.terms) {
+          if (t.isDefault) {
+            def = t;
+            break;
+          }
+        }
+        setState(() {
+          _selectedTerm = def;
+          if (def != null) _applyTermDueDate(def);
+        });
+      }
+    }).catchError((_) {});
+  }
+
+  void _prefillFromInvoice(Invoice inv, List<Product> catalogue) {
+    _subjectController.text = inv.subject ?? '';
+    _issueDate = inv.issueDate;
+    _dueDate = inv.dueDate;
+
+    // Payment terms: match by text, else keep the stored text as a synthetic term.
+    InvoiceTerm? term;
+    for (final t in _terms) {
+      if (t.text == inv.paymentTerms) {
+        term = t;
+        break;
+      }
+    }
+    if (term == null && (inv.paymentTerms ?? '').isNotEmpty) {
+      term = InvoiceTerm(id: '', text: inv.paymentTerms!);
+      _terms = [..._terms, term];
+    }
+    _selectedTerm = term;
+
+    // Line items: match each to a catalogue product by name, else synthesise one.
+    for (final e in _items) {
+      e.dispose();
+    }
+    _items.clear();
+    for (final li in inv.lineItems) {
+      Product? product;
+      for (final p in catalogue) {
+        if (p.name == li.description) {
+          product = p;
           break;
         }
       }
-      setState(() {
-        _terms = data.terms;
-        _selectedTerm = def;
-        if (def != null) _applyTermDueDate(def);
-      });
-    }).catchError((_) {});
+      if (product == null) {
+        product = Product(id: '', productCode: '', name: li.description, price: li.unitPrice);
+        _extraProducts.add(product);
+      }
+      _items.add(_LineItemEntry()
+        ..product = product
+        ..quantity.text = _trimNum(li.quantity)
+        ..discount.text = li.discountPercent > 0 ? _trimNum(li.discountPercent) : '');
+    }
+    if (_items.isEmpty) _items.add(_LineItemEntry());
   }
 
   @override
@@ -85,10 +143,23 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 
   void _addItem() => setState(() => _items.add(_LineItemEntry()));
 
-  void _removeItem(int index) {
-    setState(() {
-      _items.removeAt(index).dispose();
-    });
+  Future<void> _confirmRemoveItem(int index) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Remove line item?'),
+        content: const Text('This removes the selected line from the invoice.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) setState(() => _items.removeAt(index).dispose());
   }
 
   /// Sets the due date from a term's plusDays / endOfMonth, relative to the
@@ -136,25 +207,37 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
       return;
     }
+    final repo = context.read<Repository>();
     setState(() => _submitting = true);
     try {
       final lineItems = _items.where((i) => i.isValid).map((i) => i.toLineItem()).toList();
-      final invoice = await context.read<Repository>().createInvoice(
-            customerId: widget.customerId,
-            lineItems: lineItems,
-            issueDate: _issueDate,
-            dueDate: _dueDate,
-            subject: _subjectController.text.trim(),
-            paymentTerms: _selectedTerm?.text ?? '',
-          );
+      final Invoice invoice;
+      if (widget.isEditing) {
+        invoice = await repo.updateInvoice(widget.invoice!.id, {
+          'lineItems': lineItems.map((i) => i.toJson()).toList(),
+          'issueDate': _issueDate.toIso8601String(),
+          'dueDate': _dueDate.toIso8601String(),
+          'subject': _subjectController.text.trim(),
+          'paymentTerms': _selectedTerm?.text ?? '',
+        });
+      } else {
+        invoice = await repo.createInvoice(
+          customerId: widget.customerId,
+          lineItems: lineItems,
+          issueDate: _issueDate,
+          dueDate: _dueDate,
+          subject: _subjectController.text.trim(),
+          paymentTerms: _selectedTerm?.text ?? '',
+        );
+      }
       if (!mounted) return;
       Navigator.of(context).pop(invoice);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Invoice ${invoice.invoiceNumber} created')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Invoice ${invoice.invoiceNumber} ${widget.isEditing ? 'updated' : 'created'}'),
+      ));
     } catch (e) {
       if (mounted) {
-        final message = e is ApiException ? e.message : 'Failed to create invoice';
+        final message = e is ApiException ? e.message : 'Failed to save invoice';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       }
     } finally {
@@ -165,7 +248,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('New invoice')),
+      appBar: AppBar(title: Text(widget.isEditing ? 'Edit invoice' : 'New invoice')),
       body: FutureBuilder<_FormData>(
         future: _dataFuture,
         builder: (context, snapshot) {
@@ -179,7 +262,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             return Center(child: Text(message, textAlign: TextAlign.center));
           }
           final data = snapshot.data!;
-          if (data.products.isEmpty) {
+          if (data.products.isEmpty && _extraProducts.isEmpty) {
             return const Center(
               child: Padding(
                 padding: EdgeInsets.all(24),
@@ -198,8 +281,10 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 
   Widget _buildForm(BuildContext context, _FormData data) {
     final address = data.customer.address;
+    final products = [...data.products, ..._extraProducts];
     return ListView(
       padding: const EdgeInsets.all(20),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
         // Customer: name, address, then pets one per line.
         Text(widget.customerName, style: Theme.of(context).textTheme.titleLarge),
@@ -236,9 +321,9 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
               (entry) => _LineItemEditor(
                 key: ObjectKey(entry.value),
                 entry: entry.value,
-                products: data.products,
+                products: products,
                 onChanged: () => setState(() {}),
-                onRemove: _items.length > 1 ? () => _removeItem(entry.key) : null,
+                onRemove: _items.length > 1 ? () => _confirmRemoveItem(entry.key) : null,
               ),
             ),
         Align(
@@ -291,7 +376,9 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
           width: double.infinity,
           child: ElevatedButton(
             onPressed: _submitting ? null : _submit,
-            child: Text(_submitting ? 'Creating…' : 'Create invoice'),
+            child: Text(_submitting
+                ? 'Saving…'
+                : (widget.isEditing ? 'Save changes' : 'Create invoice')),
           ),
         ),
       ],
@@ -371,6 +458,8 @@ class _LineItemEditor extends StatelessWidget {
   });
 
   static const _dense = InputDecoration(isDense: true);
+  static void _dismissKeyboard(PointerDownEvent _) =>
+      FocusManager.instance.primaryFocus?.unfocus();
 
   @override
   Widget build(BuildContext context) {
@@ -390,7 +479,7 @@ class _LineItemEditor extends StatelessWidget {
               items: products
                   .map((p) => DropdownMenuItem(
                         value: p,
-                        child: Text('${p.name} — ${_formatMoney(p.price)}', overflow: TextOverflow.ellipsis),
+                        child: Text(p.name, overflow: TextOverflow.ellipsis),
                       ))
                   .toList(),
               onChanged: (p) {
@@ -408,6 +497,7 @@ class _LineItemEditor extends StatelessWidget {
                     decoration: _dense.copyWith(labelText: 'Qty'),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                    onTapOutside: _dismissKeyboard,
                     onChanged: (_) => onChanged(),
                   ),
                 ),
@@ -426,6 +516,7 @@ class _LineItemEditor extends StatelessWidget {
                     decoration: _dense.copyWith(labelText: 'Disc %'),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                    onTapOutside: _dismissKeyboard,
                     onChanged: (_) => onChanged(),
                   ),
                 ),
@@ -455,6 +546,9 @@ class _LineItemEditor extends StatelessWidget {
 }
 
 String _formatMoney(double value) => '£${value.toStringAsFixed(2)}';
+
+/// Drops a trailing ".0" so whole numbers read "2" not "2.0".
+String _trimNum(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
 
 String _formatDate(DateTime date) =>
     '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
