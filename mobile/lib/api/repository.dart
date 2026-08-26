@@ -55,6 +55,13 @@ class Repository {
           .map((e) => Animal.fromJson(e))
           .toList();
 
+  /// Partial update of a pet (only the given fields are changed).
+  Future<Animal> updateAnimal(String id, Map<String, dynamic> patch) async =>
+      Animal.fromJson(await _client.patch('/animals/$id', patch));
+
+  /// Deletes a pet. The server rejects this (409) if it's on any booking.
+  Future<void> deleteAnimal(String id) => _client.delete('/animals/$id');
+
   // --- bookings ---
   Future<List<Booking>> listBookings({String? customerId}) async => (await _client.getList(
         '/bookings',

@@ -201,9 +201,12 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                         title: Text(a.name),
                         subtitle: Text('${a.breed} (${a.species}), ${a.sex}, age ${a.age}'),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => AnimalDetailScreen(animal: a)),
-                        ),
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => AnimalDetailScreen(animal: a)),
+                          );
+                          if (mounted) setState(_load); // reflect edits/deletes
+                        },
                       ),
                     )),
               const SizedBox(height: 12),

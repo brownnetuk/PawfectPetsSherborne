@@ -2,21 +2,86 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../api/api_client.dart';
+import '../api/repository.dart';
 import '../models/animal.dart';
+import 'edit_animal_screen.dart';
 
-/// Read-only view of everything on file for a single pet, reached by tapping
-/// a pet on the customer detail screen.
-class AnimalDetailScreen extends StatelessWidget {
+/// Read-only view of everything on file for a single pet, reached by tapping a
+/// pet on the customer detail screen. The overflow menu edits or deletes it.
+class AnimalDetailScreen extends StatefulWidget {
   final Animal animal;
   const AnimalDetailScreen({super.key, required this.animal});
 
+  @override
+  State<AnimalDetailScreen> createState() => _AnimalDetailScreenState();
+}
+
+class _AnimalDetailScreenState extends State<AnimalDetailScreen> {
   static final _dateFmt = DateFormat('d MMM yyyy');
+  late Animal _animal = widget.animal;
+
+  Future<void> _edit() async {
+    final updated = await Navigator.of(context).push<Animal>(
+      MaterialPageRoute(builder: (_) => EditAnimalScreen(animal: _animal)),
+    );
+    if (updated != null && mounted) setState(() => _animal = updated);
+  }
+
+  Future<void> _delete() async {
+    final repo = context.read<Repository>();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete pet?'),
+        content: Text('This permanently deletes ${_animal.name}. This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await repo.deleteAnimal(_animal.id);
+      if (mounted) Navigator.of(context).pop(true); // back to customer detail, which reloads
+    } catch (e) {
+      if (mounted) {
+        final message = e is ApiException ? e.message : 'Failed to delete pet';
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message), duration: const Duration(seconds: 5)));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final animal = _animal;
     final photos = animal.photos.map(_decodeDataUri).whereType<Uint8List>().toList();
     return Scaffold(
-      appBar: AppBar(title: Text(animal.name.isEmpty ? 'Pet' : animal.name)),
+      appBar: AppBar(
+        title: Text(animal.name.isEmpty ? 'Pet' : animal.name),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (v) => v == 'edit' ? _edit() : _delete(),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'edit',
+                child: ListTile(leading: Icon(Icons.edit_outlined), title: Text('Edit')),
+              ),
+              PopupMenuItem(
+                value: 'delete',
+                child: ListTile(leading: Icon(Icons.delete_outline), title: Text('Delete')),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
