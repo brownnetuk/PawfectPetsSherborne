@@ -12,6 +12,7 @@ export default function RegistrationLinkModal({
   link,
   customerId,
   trigger = 'registration',
+  autoSent = false,
   onEmailSent,
   onDone,
 }: {
@@ -24,6 +25,12 @@ export default function RegistrationLinkModal({
   // an Activity entry at all (see SettingsService.sendTriggeredEmail).
   customerId?: string;
   trigger?: 'registration' | 'update_info';
+  // True when the caller's backend call (CustomersService.createLead()) has
+  // already fired this registration email itself, best-effort, before this
+  // modal ever renders -- shows an upfront confirmation and relabels the
+  // button "Resend" rather than "Send", so staff don't read a fresh "Send
+  // email" click as the first (and now duplicate) send.
+  autoSent?: boolean;
   // Fires after a successful send only, with the id of the "sent" Activity
   // entry the backend just created (if customerId was given) -- lets
   // CustomerDetailPage's "Request Update" flow attach a form snapshot to
@@ -60,8 +67,23 @@ export default function RegistrationLinkModal({
       <p style={{ color: 'var(--muted)' }}>
         {trigger === 'update_info'
           ? `Send ${name} this link so they can review and update their details -- it'll already have everything on file pre-filled in.`
-          : `${name}'s record is ready. Send them this link to complete their registration.`}
+          : `${name}'s record is ready.`}
       </p>
+      {autoSent && !sendResult && (
+        <div
+          style={{
+            background: 'var(--sage-badge)',
+            color: 'var(--brand-green)',
+            padding: '10px 14px',
+            borderRadius: 8,
+            marginBottom: 14,
+            fontSize: '0.85rem',
+            fontWeight: 500,
+          }}
+        >
+          We've emailed {name} their registration link automatically.
+        </div>
+      )}
       <div className="link-copy-box">{link}</div>
       {sendResult && (
         <div
@@ -88,7 +110,7 @@ export default function RegistrationLinkModal({
           {copied ? 'Copied!' : 'Copy link'}
         </button>
         <button className="btn btn-secondary" onClick={sendEmail} disabled={sending}>
-          {sending ? 'Sending…' : 'Send email'}
+          {sending ? 'Sending…' : autoSent ? 'Resend email' : 'Send email'}
         </button>
         <button className="btn btn-primary" onClick={onDone}>
           Done

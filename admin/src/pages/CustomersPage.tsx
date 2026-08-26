@@ -142,6 +142,7 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
         email={email}
         link={created.link}
         customerId={created.id}
+        autoSent
         onDone={onCreated}
       />
     );

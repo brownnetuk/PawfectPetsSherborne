@@ -11,10 +11,12 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
 import { Booking } from '../bookings/schemas/booking.schema';
 import { describeBlockers } from '../common/delete-guard.util';
+import { publicFrontendUrl } from '../common/tracking-pixel.util';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { CrmActivity } from '../crm/schemas/crm-activity.schema';
 import { Invoice } from '../invoices/schemas/invoice.schema';
 import { Quote } from '../quotes/schemas/quote.schema';
+import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
 import { describeCustomerChanges } from './audit-diff.util';
 import { formatAddress, formatFullName } from './customer-format.util';
@@ -159,15 +161,35 @@ export class CustomersService {
     return created;
   }
 
-  /** Staff pre-create a minimal record; the public intake form link points at its id. */
+  /**
+   * Staff pre-create a minimal record; the public intake form link points at
+   * its id. Fires the customer their registration/intake email straight
+   * away -- same content the admin's "Send email" button sends, just no
+   * longer requiring staff to remember to click it. Best-effort: a failed
+   * send (e.g. mail provider misconfigured) shouldn't block creating the
+   * lead itself, and the registration-link modal every caller shows right
+   * after this still has its own "Send email" for a manual resend if
+   * needed.
+   */
   async createLead(dto: CreateLeadDto): Promise<Customer> {
     await this.assertEmailNotTaken(dto.email);
-    const created = new this.customerModel({
+    const created = await new this.customerModel({
       name: dto.name,
       email: dto.email,
       status: CustomerStatus.PENDING,
-    });
-    return created.save();
+    }).save();
+    try {
+      await this.settingsService.sendTriggeredEmail({
+        trigger: EmailTrigger.REGISTRATION,
+        to: dto.email,
+        name: dto.name,
+        link: `${publicFrontendUrl()}/intake/${(created._id as { toString(): string }).toString()}`,
+        customerId: (created._id as { toString(): string }).toString(),
+      });
+    } catch (err) {
+      console.error(`Failed to send registration email for new lead ${created._id}:`, err);
+    }
+    return created;
   }
 
   findAll(): Promise<Customer[]> {

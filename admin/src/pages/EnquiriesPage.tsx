@@ -211,6 +211,7 @@ export default function EnquiriesPage() {
           email={convertedCustomer.email}
           link={convertedCustomer.link}
           customerId={convertedCustomer.id}
+          autoSent
           onDone={() => setConvertedCustomer(null)}
         />
       )}
