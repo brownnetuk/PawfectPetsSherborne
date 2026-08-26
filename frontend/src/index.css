@@ -441,3 +441,63 @@ h2 {
     grid-template-columns: 1fr;
   }
 }
+
+/* Public invoice/quote page (DocumentView) -- scales the "printed document"
+   look down for a phone screen rather than letting its desktop padding/table
+   force horizontal scrolling of the whole page. */
+.doc-card {
+  padding: 44px 52px;
+}
+
+.doc-table-wrap {
+  overflow-x: auto;
+}
+
+.doc-items-mobile {
+  display: none;
+}
+
+.doc-summary {
+  width: 280px;
+  max-width: 100%;
+}
+
+.doc-actions-row {
+  display: flex;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .doc-card {
+    padding: 22px 16px;
+  }
+
+  .doc-table-desktop {
+    display: none;
+  }
+
+  .doc-items-mobile {
+    display: block;
+  }
+
+  .doc-actions-row {
+    flex-direction: column;
+  }
+
+  .doc-actions-row .btn {
+    width: 100%;
+  }
+}
+
+.doc-item-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.doc-item-card:last-child {
+  border-bottom: none;
+}

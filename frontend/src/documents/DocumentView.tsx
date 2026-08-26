@@ -159,12 +159,12 @@ export default function DocumentView({ kind, id }: Props) {
       )}
 
       <div
+        className="doc-card"
         style={{
           background: 'white',
           border: '1px solid var(--border)',
           borderRadius: 10,
           boxShadow: '0 1px 3px rgba(16, 24, 32, 0.06)',
-          padding: '44px 52px',
           position: 'relative',
           overflow: 'hidden',
         }}
@@ -249,34 +249,58 @@ export default function DocumentView({ kind, id }: Props) {
           </div>
         </div>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 32, fontSize: '0.9rem' }}>
-          <thead>
-            <tr style={{ background: 'var(--ink)', color: 'white' }}>
-              <th style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 600 }}>#</th>
-              <th style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 600 }}>Item &amp; Description</th>
-              <th style={{ padding: '11px 14px', textAlign: 'right', fontWeight: 600 }}>Qty</th>
-              <th style={{ padding: '11px 14px', textAlign: 'right', fontWeight: 600 }}>Unit Price</th>
-              <th style={{ padding: '11px 14px', textAlign: 'right', fontWeight: 600 }}>Line Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {record.lineItems.map((item, i) => {
-              const lineTotal = item.quantity * item.unitPrice * (1 - (item.discountPercent ?? 0) / 100);
-              return (
-                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '11px 14px' }}>{i + 1}</td>
-                  <td style={{ padding: '11px 14px' }}>{item.description}</td>
-                  <td style={{ padding: '11px 14px', textAlign: 'right' }}>{item.quantity.toFixed(2)}</td>
-                  <td style={{ padding: '11px 14px', textAlign: 'right' }}>£{money(item.unitPrice)}</td>
-                  <td style={{ padding: '11px 14px', textAlign: 'right' }}>£{money(lineTotal)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="doc-table-wrap doc-table-desktop">
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 32, fontSize: '0.9rem' }}>
+            <thead>
+              <tr style={{ background: 'var(--ink)', color: 'white' }}>
+                <th style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 600 }}>#</th>
+                <th style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 600 }}>Item &amp; Description</th>
+                <th style={{ padding: '11px 14px', textAlign: 'right', fontWeight: 600 }}>Qty</th>
+                <th style={{ padding: '11px 14px', textAlign: 'right', fontWeight: 600 }}>Unit Price</th>
+                <th style={{ padding: '11px 14px', textAlign: 'right', fontWeight: 600 }}>Line Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {record.lineItems.map((item, i) => {
+                const lineTotal = item.quantity * item.unitPrice * (1 - (item.discountPercent ?? 0) / 100);
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '11px 14px' }}>{i + 1}</td>
+                    <td style={{ padding: '11px 14px' }}>{item.description}</td>
+                    <td style={{ padding: '11px 14px', textAlign: 'right' }}>{item.quantity.toFixed(2)}</td>
+                    <td style={{ padding: '11px 14px', textAlign: 'right' }}>£{money(item.unitPrice)}</td>
+                    <td style={{ padding: '11px 14px', textAlign: 'right' }}>£{money(lineTotal)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Same line items, laid out as stacked cards instead of a 5-column
+            table -- swapped in via CSS (.doc-items-mobile) below 640px,
+            where a table that width would either overflow or squash Qty/
+            Unit Price/Line Total into unreadable slivers. */}
+        <div className="doc-items-mobile" style={{ marginTop: 24, fontSize: '0.88rem' }}>
+          {record.lineItems.map((item, i) => {
+            const lineTotal = item.quantity * item.unitPrice * (1 - (item.discountPercent ?? 0) / 100);
+            return (
+              <div className="doc-item-card" key={i}>
+                <div>
+                  <div style={{ fontWeight: 600 }}>{item.description}</div>
+                  <div style={{ color: 'var(--muted)', marginTop: 3 }}>
+                    {item.quantity.toFixed(2)} × £{money(item.unitPrice)}
+                    {item.discountPercent ? ` (−${item.discountPercent}%)` : ''}
+                  </div>
+                </div>
+                <div style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>£{money(lineTotal)}</div>
+              </div>
+            );
+          })}
+        </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
-          <div style={{ width: 280, fontSize: '0.9rem' }}>
+          <div className="doc-summary" style={{ fontSize: '0.9rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0' }}>
               <span>Sub Total</span>
               <span>£{money(record.subtotal)}</span>
@@ -346,7 +370,7 @@ export default function DocumentView({ kind, id }: Props) {
                 <p style={{ marginTop: 0 }}>
                   Accepting will raise an invoice for this quote and email you a deposit request straight away. Are you sure?
                 </p>
-                <div style={{ display: 'flex', gap: 12 }}>
+                <div className="doc-actions-row">
                   <button type="button" className="btn btn-secondary" onClick={() => setConfirming(null)} disabled={actionBusy}>
                     Cancel
                   </button>
@@ -358,7 +382,7 @@ export default function DocumentView({ kind, id }: Props) {
             ) : confirming === 'reject' ? (
               <>
                 <p style={{ marginTop: 0 }}>Are you sure you want to decline this quote?</p>
-                <div style={{ display: 'flex', gap: 12 }}>
+                <div className="doc-actions-row">
                   <button type="button" className="btn btn-secondary" onClick={() => setConfirming(null)} disabled={actionBusy}>
                     Cancel
                   </button>
@@ -368,7 +392,7 @@ export default function DocumentView({ kind, id }: Props) {
                 </div>
               </>
             ) : (
-              <div style={{ display: 'flex', gap: 12 }}>
+              <div className="doc-actions-row">
                 <button type="button" className="btn btn-primary" onClick={() => setConfirming('accept')}>
                   Accept Quote
                 </button>
