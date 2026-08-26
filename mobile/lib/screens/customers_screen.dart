@@ -17,6 +17,7 @@ class CustomersScreen extends StatefulWidget {
 
 class _CustomersScreenState extends State<CustomersScreen> {
   late Future<(List<Customer>, Map<String, List<String>>)> _future;
+  final _searchController = TextEditingController();
   String _search = '';
   bool _activeOnly = true;
 
@@ -24,6 +25,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _load() {
@@ -99,10 +106,25 @@ class _CustomersScreenState extends State<CustomersScreen> {
             child: Column(
               children: [
                 TextField(
-                  decoration: const InputDecoration(
+                  controller: _searchController,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                  onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                  decoration: InputDecoration(
                     hintText: 'Search by name, email or pet…',
-                    prefixIcon: Icon(Icons.search),
+                    prefixIcon: const Icon(Icons.search),
                     isDense: true,
+                    suffixIcon: _search.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close),
+                            tooltip: 'Clear',
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _search = '');
+                              FocusScope.of(context).unfocus();
+                            },
+                          ),
                   ),
                   onChanged: (v) => setState(() => _search = v.toLowerCase()),
                 ),
@@ -161,6 +183,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
             }
             return ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               itemCount: customers.length,
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, i) {

@@ -59,6 +59,11 @@
 	<array>
 		<string>tel</string>
 	</array>
+	<!-- Capturing/scanning receipts to attach to expenses. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Take a photo or scan a receipt to attach to an expense.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Attach a receipt image from your photo library to an expense.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

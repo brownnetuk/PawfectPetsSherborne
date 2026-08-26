@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
@@ -31,9 +32,12 @@ class _EditAnimalScreenState extends State<EditAnimalScreen> {
   late String _species = widget.animal.species;
   late String _sex = widget.animal.sex.isEmpty ? 'female' : widget.animal.sex;
   late bool _vaccinated = widget.animal.vaccinated;
+  late DateTime? _vaccineExpiry = widget.animal.vaccineExpiryDate;
   late String? _neutered = widget.animal.neuteredStatus;
   late bool _insured = widget.animal.insured ?? false;
   bool _saving = false;
+
+  static final _dateFmt = DateFormat('d MMM yyyy');
 
   @override
   void dispose() {
@@ -55,6 +59,10 @@ class _EditAnimalScreenState extends State<EditAnimalScreen> {
       _snack('Enter a valid age.');
       return;
     }
+    if (_vaccinated && _vaccineExpiry == null) {
+      _snack('Set the vaccination expiry date.');
+      return;
+    }
     final patch = <String, dynamic>{
       'name': name,
       'species': _species,
@@ -62,6 +70,8 @@ class _EditAnimalScreenState extends State<EditAnimalScreen> {
       'sex': _sex,
       'age': age,
       'vaccinated': _vaccinated,
+      if (_vaccinated && _vaccineExpiry != null)
+        'vaccineExpiryDate': _vaccineExpiry!.toIso8601String(),
       'colourMarkings': _colour.text.trim(),
       'microchipNumber': _microchip.text.trim(),
       'temperamentNotes': _temperament.text.trim(),
@@ -78,6 +88,17 @@ class _EditAnimalScreenState extends State<EditAnimalScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _pickExpiry() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _vaccineExpiry ?? now,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 10),
+    );
+    if (picked != null) setState(() => _vaccineExpiry = picked);
   }
 
   void _snack(String m) {
@@ -163,6 +184,19 @@ class _EditAnimalScreenState extends State<EditAnimalScreen> {
             value: _vaccinated,
             onChanged: (v) => setState(() => _vaccinated = v),
           ),
+          if (_vaccinated) ...[
+            const SizedBox(height: 4),
+            InkWell(
+              onTap: _pickExpiry,
+              child: InputDecorator(
+                decoration: const InputDecoration(labelText: 'Vaccination expiry'),
+                child: Text(
+                  _vaccineExpiry == null ? 'Set date' : _dateFmt.format(_vaccineExpiry!),
+                  style: TextStyle(color: _vaccineExpiry == null ? Colors.grey.shade600 : null),
+                ),
+              ),
+            ),
+          ],
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Insured'),

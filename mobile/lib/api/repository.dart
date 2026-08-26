@@ -206,6 +206,7 @@ class Repository {
     required double amount,
     String? payee,
     String? accountId,
+    String? receipt,
   }) async =>
       Expense.fromJson(await _client.post('/expenses', {
         'date': date.toIso8601String(),
@@ -214,6 +215,7 @@ class Repository {
         'amount': amount,
         if (payee != null && payee.isNotEmpty) 'payee': payee,
         if (accountId != null) 'account': accountId,
+        if (receipt != null && receipt.isNotEmpty) 'receipt': receipt,
       }));
 
   Future<CrmActivity> createActivity({

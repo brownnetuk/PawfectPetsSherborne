@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
@@ -123,6 +127,7 @@ class _CreateExpenseSheetState extends State<_CreateExpenseSheet> {
   ExpenseCategory? _category;
   Vendor? _payee;
   BankAccountRef? _account;
+  String? _receipt; // base64 data URI of the attached receipt image
   bool _submitting = false;
   late Future<(List<ExpenseCategory>, List<Vendor>, List<BankAccountRef>)> _lookups;
 
@@ -155,6 +160,38 @@ class _CreateExpenseSheetState extends State<_CreateExpenseSheet> {
     if (picked != null) setState(() => _date = picked);
   }
 
+  void _setReceiptFromBytes(List<int> bytes) {
+    setState(() => _receipt = 'data:image/jpeg;base64,${base64Encode(bytes)}');
+  }
+
+  Future<void> _scanReceipt() async {
+    try {
+      final paths = await CunningDocumentScanner.getPictures();
+      if (paths != null && paths.isNotEmpty) {
+        _setReceiptFromBytes(await File(paths.first).readAsBytes());
+      }
+    } catch (e) {
+      _snack('Could not scan the document.');
+    }
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final file = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 70,
+        maxWidth: 1600,
+      );
+      if (file != null) _setReceiptFromBytes(await file.readAsBytes());
+    } catch (e) {
+      _snack('Could not attach the image.');
+    }
+  }
+
+  void _snack(String m) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
+
   Future<void> _submit() async {
     final amount = double.tryParse(_amountController.text.trim());
     if (_category == null) {
@@ -178,6 +215,7 @@ class _CreateExpenseSheetState extends State<_CreateExpenseSheet> {
             amount: amount,
             payee: _payee?.name,
             accountId: _account?.id,
+            receipt: _receipt,
           );
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
@@ -219,7 +257,8 @@ class _CreateExpenseSheetState extends State<_CreateExpenseSheet> {
               ),
             );
           }
-          return Column(
+          return SingleChildScrollView(
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -277,6 +316,53 @@ class _CreateExpenseSheetState extends State<_CreateExpenseSheet> {
                 ],
                 onChanged: (a) => setState(() => _account = a),
               ),
+              const SizedBox(height: 16),
+              Text('Receipt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+              const SizedBox(height: 8),
+              if (_receipt != null)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.memory(
+                        base64Decode(_receipt!.split(',').last),
+                        width: 72,
+                        height: 72,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      onPressed: () => setState(() => _receipt = null),
+                      icon: const Icon(Icons.close, size: 18),
+                      label: const Text('Remove'),
+                      style: TextButton.styleFrom(foregroundColor: Colors.red.shade400),
+                    ),
+                  ],
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _scanReceipt,
+                      icon: const Icon(Icons.document_scanner_outlined, size: 18),
+                      label: const Text('Scan'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _pickImage(ImageSource.camera),
+                      icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                      label: const Text('Camera'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _pickImage(ImageSource.gallery),
+                      icon: const Icon(Icons.photo_library_outlined, size: 18),
+                      label: const Text('Library'),
+                    ),
+                  ],
+                ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -286,6 +372,7 @@ class _CreateExpenseSheetState extends State<_CreateExpenseSheet> {
                 ),
               ),
             ],
+          ),
           );
         },
       ),
