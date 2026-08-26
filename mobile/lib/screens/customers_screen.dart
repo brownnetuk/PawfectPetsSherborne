@@ -80,8 +80,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
     final created = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: const _NewCustomerSheet(),
       ),
     );
@@ -272,7 +272,7 @@ class _NewCustomerSheetState extends State<_NewCustomerSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         mainAxisSize: MainAxisSize.min,

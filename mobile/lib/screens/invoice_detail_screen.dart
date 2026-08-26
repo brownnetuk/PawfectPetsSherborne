@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/invoice.dart';
+import '../widgets/zoomable_pdf.dart';
 import 'record_payment_sheet.dart';
 
 /// Shows a single invoice rendered as a PDF, with a bottom action bar
@@ -173,7 +173,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     if (_invoice == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    return _ZoomablePdf(
+    return ZoomablePdf(
       // Re-fetch/re-render when the invoice changes (e.g. after a payment/send).
       key: ValueKey('${_invoice!.status}-${_invoice!.amountPaid}'),
       load: () => context.read<Repository>().getInvoicePdf(widget.invoiceId),
@@ -186,73 +186,6 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
         onRecordPayment: _recordPayment,
         onRequestDeposit: _requestDeposit,
       );
-}
-
-/// Renders a PDF's pages to images and shows them in an [InteractiveViewer],
-/// so the invoice can be pinch-zoomed and panned. Rasterised at a high DPI so
-/// it stays sharp when zoomed in.
-class _ZoomablePdf extends StatefulWidget {
-  final Future<Uint8List> Function() load;
-  const _ZoomablePdf({super.key, required this.load});
-
-  @override
-  State<_ZoomablePdf> createState() => _ZoomablePdfState();
-}
-
-class _ZoomablePdfState extends State<_ZoomablePdf> {
-  late final Future<List<Uint8List>> _pages = _render();
-
-  Future<List<Uint8List>> _render() async {
-    final bytes = await widget.load();
-    final pages = <Uint8List>[];
-    await for (final page in Printing.raster(bytes, dpi: 300)) {
-      pages.add(await page.toPng());
-    }
-    return pages;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<Uint8List>>(
-      future: _pages,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          final message = snapshot.error is ApiException
-              ? (snapshot.error as ApiException).message
-              : 'Failed to load invoice PDF';
-          return Center(child: Text(message, textAlign: TextAlign.center));
-        }
-        final pages = snapshot.data ?? [];
-        if (pages.isEmpty) return const Center(child: Text('No pages to show'));
-        return Container(
-          color: Colors.grey.shade300,
-          child: LayoutBuilder(
-            builder: (context, constraints) => InteractiveViewer(
-              constrained: false,
-              minScale: 1,
-              maxScale: 6,
-              child: SizedBox(
-                width: constraints.maxWidth,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final png in pages)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Image.memory(png, width: constraints.maxWidth, fit: BoxFit.fitWidth),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
 }
 
 /// The invoice detail screen's bottom action bar. The primary action gets a

@@ -92,7 +92,7 @@ void main() {
     await tester.tap(find.text('Dog walking').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Create invoice'));
+    await tester.tap(find.text('Create Draft'));
     await tester.pumpAndSettle();
 
     expect(repo.createCalls, 1);
@@ -109,7 +109,7 @@ void main() {
     final repo = _FakeRepository(products);
     await pumpScreen(tester, repo);
 
-    await tester.tap(find.text('Create invoice'));
+    await tester.tap(find.text('Create Draft'));
     await tester.pumpAndSettle();
 
     expect(repo.createCalls, 0);
@@ -121,6 +121,6 @@ void main() {
     await pumpScreen(tester, repo);
 
     expect(find.textContaining('No products have been set up'), findsOneWidget);
-    expect(find.text('Create invoice'), findsNothing);
+    expect(find.text('Create Draft'), findsNothing);
   });
 }

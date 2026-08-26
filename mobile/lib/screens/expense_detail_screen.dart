@@ -107,9 +107,6 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(e.description, style: Theme.of(context).textTheme.headlineSmall),
-                      if (e.category.isNotEmpty)
-                        Text(e.category.toUpperCase(),
-                            style: TextStyle(color: Colors.grey.shade600, fontSize: 12, letterSpacing: 0.5)),
                       const SizedBox(height: 12),
                       Text(_money.format(e.amount),
                           style: Theme.of(context)
@@ -127,6 +124,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
             const Divider(),
             _row(Icons.account_balance_outlined, 'Paid from', e.accountName ?? '—'),
             _row(Icons.storefront_outlined, 'Payee', (e.payee ?? '').isEmpty ? '—' : e.payee!),
+            _row(Icons.category_outlined, 'Category', e.category.isEmpty ? '—' : e.category),
           ],
         ),
         bottomNavigationBar: SafeArea(

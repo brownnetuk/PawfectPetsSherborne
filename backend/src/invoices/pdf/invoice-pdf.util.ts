@@ -72,10 +72,13 @@ export interface PdfLineItem {
   unitPrice: number;
   discountPercent?: number;
 }
+export type PdfKind = 'invoice' | 'quote';
 export interface PdfInvoice {
-  invoiceNumber: string;
+  invoiceNumber?: string;
+  quoteNumber?: string;
   issueDate: string;
-  dueDate: string;
+  dueDate?: string;
+  validUntil?: string;
   paymentTerms?: string;
   subject?: string;
   status: string;
@@ -84,7 +87,10 @@ export interface PdfInvoice {
   amountPaid?: number;
   customer:
     | string
-    | { name?: string; address?: string; email?: string; phoneNumber?: string };
+    | { name?: string; address?: string; email?: string; phoneNumber?: string }
+    | null;
+  manualCustomerName?: string;
+  manualCustomerEmail?: string;
   lineItems: PdfLineItem[];
 }
 export interface PdfBusinessInfo {
@@ -99,6 +105,7 @@ export interface PdfBusinessInfo {
   sortCode?: string;
   accountNumber?: string;
   invoiceNotesMessage?: string;
+  quoteNotesMessage?: string;
   invoicePdfTemplate?: unknown[];
 }
 
@@ -121,28 +128,32 @@ function money(n: number): string {
 function buildPdfVars(
   record: PdfInvoice,
   businessInfo: PdfBusinessInfo,
+  kind: PdfKind,
 ): Record<string, string> {
   const amountPaid = record.amountPaid ?? 0;
   const balanceDue = record.total - amountPaid;
   const customer =
     record.customer && typeof record.customer !== 'string' ? record.customer : null;
   return {
-    invoiceNumber: record.invoiceNumber ?? '',
+    invoiceNumber: (kind === 'invoice' ? record.invoiceNumber : record.quoteNumber) ?? '',
     invoiceDate: formatUkDateFromIso(record.issueDate),
-    dueDate: formatUkDateFromIso(record.dueDate),
+    dueDate: formatUkDateFromIso(kind === 'invoice' ? record.dueDate : record.validUntil),
     terms: record.paymentTerms ?? '',
     customerName:
       customer?.name ??
+      record.manualCustomerName ??
       (typeof record.customer === 'string' ? record.customer : '(deleted customer)'),
     customerAddress: customer?.address ?? '',
-    customerEmail: customer?.email ?? '',
+    customerEmail: customer?.email ?? record.manualCustomerEmail ?? '',
     customerPhone: customer?.phoneNumber ?? '',
     subtotal: money(record.subtotal),
     total: money(record.total),
     amountPaid: money(amountPaid),
     balanceDue: money(balanceDue),
     subject: record.subject ?? '',
-    notes: businessInfo.invoiceNotesMessage || 'Thanks for your business.',
+    notes:
+      (kind === 'invoice' ? businessInfo.invoiceNotesMessage : businessInfo.quoteNotesMessage) ||
+      'Thanks for your business.',
     businessName: businessInfo.name ?? '',
     businessAddress: businessInfo.address ?? '',
     businessTown: businessInfo.town ?? '',
@@ -674,20 +685,22 @@ function resolveLayout(
 }
 
 /**
- * Renders an invoice to a PDF Buffer, using the staff-designed template
- * (BusinessInfo.invoicePdfTemplate) if saved, else DEFAULT_INVOICE_TEMPLATE.
- * Layout/pagination behaviour matches admin/src/pdf/invoicePdf.ts.
+ * Renders an invoice or quote to a PDF Buffer, using the staff-designed
+ * template (BusinessInfo.invoicePdfTemplate) if saved, else
+ * DEFAULT_INVOICE_TEMPLATE. Quotes reuse the same template as the web app does
+ * (buildInvoicePdf(quote, 'quote', info)), just with quote vars/notes.
  */
 export async function buildInvoicePdfBuffer(
   record: PdfInvoice,
   businessInfo: PdfBusinessInfo,
+  kind: PdfKind = 'invoice',
 ): Promise<Buffer> {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const template = businessInfo.invoicePdfTemplate?.length
     ? (businessInfo.invoicePdfTemplate as unknown as PdfTemplateElement[])
     : DEFAULT_INVOICE_TEMPLATE;
-  const vars = buildPdfVars(record, businessInfo);
-  const isPaid = record.status === 'paid';
+  const vars = buildPdfVars(record, businessInfo, kind);
+  const isPaid = kind === 'invoice' && record.status === 'paid';
   const visibleElements = template.filter((el) => isVisible(el, isPaid));
 
   const logo = INVOICE_LOGO_DATA_URL;

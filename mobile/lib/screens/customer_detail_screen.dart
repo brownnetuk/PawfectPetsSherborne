@@ -9,6 +9,7 @@ import '../state/auth_provider.dart';
 import '../widgets/status_badge.dart';
 import 'animal_detail_screen.dart';
 import 'create_invoice_screen.dart';
+import 'customer_activity_screen.dart';
 
 class CustomerDetailScreen extends StatefulWidget {
   final String customerId;
@@ -228,6 +229,19 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 ),
                 icon: const Icon(Icons.receipt_long_outlined),
                 label: const Text('Create invoice'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CustomerActivityScreen(
+                      customerId: customer.id,
+                      customerName: customer.name,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.history),
+                label: const Text('Activity'),
               ),
             ],
           );

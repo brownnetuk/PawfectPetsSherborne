@@ -1,11 +1,13 @@
-import '../models/animal.dart';
-import '../models/booking.dart';
 import 'dart:typed_data';
+import '../models/animal.dart';
+import '../models/audit_log_entry.dart';
+import '../models/booking.dart';
 import '../models/crm_activity.dart';
 import '../models/customer.dart';
 import '../models/expense.dart';
 import '../models/invoice.dart';
 import '../models/product.dart';
+import '../models/quote.dart';
 import '../models/staff.dart';
 import 'api_client.dart';
 
@@ -43,6 +45,13 @@ class Repository {
 
   Future<Customer> updateCustomerStatus(String id, String status) async =>
       Customer.fromJson(await _client.patch('/customers/$id/status', {'status': status}));
+
+  /// System activity trail for a customer (invoices, quotes, payments, emails
+  /// sent/read, deposits, etc.), newest first from the backend.
+  Future<List<AuditLogEntry>> listCustomerActivity(String customerId) async =>
+      (await _client.getList('/audit-log', query: {'customer': customerId}))
+          .map((e) => AuditLogEntry.fromJson(e))
+          .toList();
 
   Future<String?> getAlarmInstructions(String id) async {
     final json = await _client.get('/customers/$id/alarm-instructions');
@@ -113,6 +122,43 @@ class Repository {
 
   Future<Invoice> getInvoice(String id) async =>
       Invoice.fromJson(await _client.get('/invoices/$id'));
+
+  // --- quotes ---
+  Future<List<Quote>> listQuotes({String? customerId}) async => (await _client.getList(
+        '/quotes',
+        query: customerId != null ? {'customer': customerId} : null,
+      ))
+          .map((e) => Quote.fromJson(e))
+          .toList();
+
+  Future<Quote> getQuote(String id) async => Quote.fromJson(await _client.get('/quotes/$id'));
+
+  Future<Uint8List> getQuotePdf(String id) async => _client.getBytes('/quotes/$id/pdf');
+
+  Future<Quote> createQuote({
+    required String customerId,
+    required List<InvoiceLineItem> lineItems,
+    required DateTime issueDate,
+    required DateTime validUntil,
+    String? subject,
+    String? paymentTerms,
+  }) async =>
+      Quote.fromJson(await _client.post('/quotes', {
+        'customer': customerId,
+        'lineItems': lineItems.map((e) => e.toJson()).toList(),
+        'issueDate': issueDate.toIso8601String(),
+        'validUntil': validUntil.toIso8601String(),
+        if (subject != null && subject.isNotEmpty) 'subject': subject,
+        if (paymentTerms != null && paymentTerms.isNotEmpty) 'paymentTerms': paymentTerms,
+      }));
+
+  Future<Quote> updateQuote(String id, Map<String, dynamic> patch) async =>
+      Quote.fromJson(await _client.patch('/quotes/$id', patch));
+
+  Future<void> deleteQuote(String id) => _client.delete('/quotes/$id');
+
+  Future<Quote> sendQuoteEmail(String id) async =>
+      Quote.fromJson(await _client.post('/quotes/$id/send', {}));
 
   /// The admin app's reusable payment-terms library.
   Future<List<InvoiceTerm>> listInvoiceTerms() async =>

@@ -7,8 +7,8 @@ import '../models/animal.dart';
 import '../models/customer.dart';
 import '../models/invoice.dart';
 import '../models/product.dart';
+import '../models/quote.dart';
 
-/// Everything the form needs, loaded up front.
 class _FormData {
   final List<Product> products;
   final List<InvoiceTerm> terms;
@@ -17,35 +17,31 @@ class _FormData {
   _FormData(this.products, this.terms, this.customer, this.pets);
 }
 
-/// Form for raising or editing an invoice against a customer. Line items are
-/// chosen from the product catalogue and payment terms from the admin app's
-/// library. When [invoice] is set the form edits that invoice (PATCH); else it
-/// creates a new one (POST) and the server assigns the number and totals.
-class CreateInvoiceScreen extends StatefulWidget {
+/// Create or edit a quote against a customer. Mirrors CreateInvoiceScreen but
+/// with a "valid until" date instead of a due date and quote endpoints.
+class CreateQuoteScreen extends StatefulWidget {
   final String customerId;
   final String customerName;
-  final Invoice? invoice;
-  const CreateInvoiceScreen({
+  final Quote? quote;
+  const CreateQuoteScreen({
     super.key,
     required this.customerId,
     required this.customerName,
-    this.invoice,
+    this.quote,
   });
 
-  bool get isEditing => invoice != null;
+  bool get isEditing => quote != null;
 
   @override
-  State<CreateInvoiceScreen> createState() => _CreateInvoiceScreenState();
+  State<CreateQuoteScreen> createState() => _CreateQuoteScreenState();
 }
 
-class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
+class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
   final _subjectController = TextEditingController();
   final List<_LineItemEntry> _items = [_LineItemEntry()];
-  // Synthetic products for existing line items whose product isn't in the
-  // catalogue any more, so the dropdown can still show/select them when editing.
   final List<Product> _extraProducts = [];
   DateTime _issueDate = DateTime.now();
-  DateTime _dueDate = DateTime.now().add(const Duration(days: 14));
+  DateTime _validUntil = DateTime.now().add(const Duration(days: 30));
   bool _submitting = false;
   late Future<_FormData> _dataFuture;
   List<InvoiceTerm> _terms = [];
@@ -66,10 +62,9 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       if (!mounted) return;
       _terms = data.terms;
       if (widget.isEditing) {
-        // Fetch the full invoice for authoritative line items, then pre-fill.
-        final inv = await repo.getInvoice(widget.invoice!.id);
+        final q = await repo.getQuote(widget.quote!.id);
         if (!mounted) return;
-        setState(() => _prefillFromInvoice(inv, data.products));
+        setState(() => _prefillFromQuote(q, data.products));
       } else {
         InvoiceTerm? def;
         for (final t in data.terms) {
@@ -80,37 +75,33 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         }
         setState(() {
           _selectedTerm = def;
-          if (def != null) _applyTermDueDate(def);
+          if (def != null) _applyTermValidUntil(def);
         });
       }
     }).catchError((_) {});
   }
 
-  void _prefillFromInvoice(Invoice inv, List<Product> catalogue) {
-    _subjectController.text = inv.subject ?? '';
-    _issueDate = inv.issueDate;
-    _dueDate = inv.dueDate;
-
-    // Payment terms: match by text, else keep the stored text as a synthetic term.
+  void _prefillFromQuote(Quote q, List<Product> catalogue) {
+    _subjectController.text = q.subject ?? '';
+    _issueDate = q.issueDate;
+    _validUntil = q.validUntil;
     InvoiceTerm? term;
     for (final t in _terms) {
-      if (t.text == inv.paymentTerms) {
+      if (t.text == q.paymentTerms) {
         term = t;
         break;
       }
     }
-    if (term == null && (inv.paymentTerms ?? '').isNotEmpty) {
-      term = InvoiceTerm(id: '', text: inv.paymentTerms!);
+    if (term == null && (q.paymentTerms ?? '').isNotEmpty) {
+      term = InvoiceTerm(id: '', text: q.paymentTerms!);
       _terms = [..._terms, term];
     }
     _selectedTerm = term;
-
-    // Line items: match each to a catalogue product by name, else synthesise one.
     for (final e in _items) {
       e.dispose();
     }
     _items.clear();
-    for (final li in inv.lineItems) {
+    for (final li in q.lineItems) {
       Product? product;
       for (final p in catalogue) {
         if (p.name == li.description) {
@@ -148,7 +139,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Remove line item?'),
-        content: const Text('This removes the selected line from the invoice.'),
+        content: const Text('This removes the selected line from the quote.'),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
           FilledButton(
@@ -162,20 +153,18 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     if (ok == true) setState(() => _items.removeAt(index).dispose());
   }
 
-  /// Sets the due date from a term's plusDays / endOfMonth, relative to the
-  /// current issue date — mirrors the admin app.
-  void _applyTermDueDate(InvoiceTerm t) {
+  void _applyTermValidUntil(InvoiceTerm t) {
     if (t.endOfMonth) {
-      _dueDate = DateTime(_issueDate.year, _issueDate.month + 1, 0);
+      _validUntil = DateTime(_issueDate.year, _issueDate.month + 1, 0);
     } else if (t.plusDays != null) {
-      _dueDate = _issueDate.add(Duration(days: t.plusDays!));
+      _validUntil = _issueDate.add(Duration(days: t.plusDays!));
     }
   }
 
   Future<void> _pickDate({required bool isIssue}) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: isIssue ? _issueDate : _dueDate,
+      initialDate: isIssue ? _issueDate : _validUntil,
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
@@ -183,9 +172,9 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       setState(() {
         if (isIssue) {
           _issueDate = picked;
-          if (_selectedTerm != null) _applyTermDueDate(_selectedTerm!);
+          if (_selectedTerm != null) _applyTermValidUntil(_selectedTerm!);
         } else {
-          _dueDate = picked;
+          _validUntil = picked;
         }
       });
     }
@@ -195,13 +184,13 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     if (_items.where((i) => i.isValid).isEmpty) {
       return 'Add at least one line item with a product and quantity.';
     }
-    if (_dueDate.isBefore(_issueDate)) {
-      return 'The due date cannot be before the issue date.';
+    if (_validUntil.isBefore(_issueDate)) {
+      return 'The valid-until date cannot be before the issue date.';
     }
     return null;
   }
 
-  Future<void> _submit({bool send = false}) async {
+  Future<void> _submit() async {
     final error = _validate();
     if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
@@ -211,35 +200,33 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     setState(() => _submitting = true);
     try {
       final lineItems = _items.where((i) => i.isValid).map((i) => i.toLineItem()).toList();
-      final Invoice invoice;
+      final Quote quote;
       if (widget.isEditing) {
-        invoice = await repo.updateInvoice(widget.invoice!.id, {
+        quote = await repo.updateQuote(widget.quote!.id, {
           'lineItems': lineItems.map((i) => i.toJson()).toList(),
           'issueDate': _issueDate.toIso8601String(),
-          'dueDate': _dueDate.toIso8601String(),
+          'validUntil': _validUntil.toIso8601String(),
           'subject': _subjectController.text.trim(),
           'paymentTerms': _selectedTerm?.text ?? '',
         });
       } else {
-        invoice = await repo.createInvoice(
+        quote = await repo.createQuote(
           customerId: widget.customerId,
           lineItems: lineItems,
           issueDate: _issueDate,
-          dueDate: _dueDate,
+          validUntil: _validUntil,
           subject: _subjectController.text.trim(),
           paymentTerms: _selectedTerm?.text ?? '',
         );
-        if (send) await repo.sendInvoiceEmail(invoice.id);
       }
       if (!mounted) return;
-      Navigator.of(context).pop(invoice);
-      final verb = widget.isEditing ? 'updated' : (send ? 'created & sent' : 'created');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Invoice ${invoice.invoiceNumber} $verb')),
-      );
+      Navigator.of(context).pop(quote);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Quote ${quote.quoteNumber} ${widget.isEditing ? 'updated' : 'created'}'),
+      ));
     } catch (e) {
       if (mounted) {
-        final message = e is ApiException ? e.message : 'Failed to save invoice';
+        final message = e is ApiException ? e.message : 'Failed to save quote';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       }
     } finally {
@@ -250,7 +237,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.isEditing ? 'Edit invoice' : 'New invoice')),
+      appBar: AppBar(title: Text(widget.isEditing ? 'Edit quote' : 'New quote')),
       body: FutureBuilder<_FormData>(
         future: _dataFuture,
         builder: (context, snapshot) {
@@ -269,7 +256,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: Text(
-                  'No products have been set up yet. Add products in the admin app before raising an invoice.',
+                  'No products have been set up yet. Add products in the admin app before raising a quote.',
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -288,7 +275,6 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       padding: const EdgeInsets.all(20),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
-        // Customer: name, address, then pets one per line.
         Text(widget.customerName, style: Theme.of(context).textTheme.titleLarge),
         if (address != null && address.trim().isNotEmpty)
           Padding(
@@ -301,23 +287,16 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
           for (final p in data.pets) Text('• ${p.name} (${p.breed})'),
         ],
         const SizedBox(height: 16),
-
         TextField(
           controller: _subjectController,
           maxLines: 1,
-          decoration: const InputDecoration(
-            labelText: 'Subject',
-            hintText: 'Optional',
-            isDense: true,
-          ),
+          decoration: const InputDecoration(labelText: 'Subject', hintText: 'Optional', isDense: true),
         ),
         const SizedBox(height: 16),
-
         _sectionTitle('Dates'),
         _dateRow('Issue date', _issueDate, () => _pickDate(isIssue: true)),
-        _dateRow('Due date', _dueDate, () => _pickDate(isIssue: false)),
+        _dateRow('Valid until', _validUntil, () => _pickDate(isIssue: false)),
         const SizedBox(height: 16),
-
         _sectionTitle('Line items'),
         ..._items.asMap().entries.map(
               (entry) => _LineItemEditor(
@@ -337,13 +316,10 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
           ),
         ),
         const SizedBox(height: 12),
-
         _sectionTitle('Payment terms'),
         if (_terms.isEmpty)
-          Text(
-            'No payment terms set up. Add them in the admin app.',
-            style: TextStyle(color: Colors.grey.shade600),
-          )
+          Text('No payment terms set up. Add them in the admin app.',
+              style: TextStyle(color: Colors.grey.shade600))
         else
           DropdownButtonFormField<InvoiceTerm>(
             initialValue: _selectedTerm,
@@ -351,55 +327,30 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             decoration: const InputDecoration(labelText: 'Payment terms', isDense: true),
             hint: const Text('Choose payment terms'),
             items: _terms
-                .map((t) => DropdownMenuItem(
-                      value: t,
-                      child: Text(t.text, overflow: TextOverflow.ellipsis),
-                    ))
+                .map((t) => DropdownMenuItem(value: t, child: Text(t.text, overflow: TextOverflow.ellipsis)))
                 .toList(),
             onChanged: (t) => setState(() {
               _selectedTerm = t;
-              if (t != null) _applyTermDueDate(t);
+              if (t != null) _applyTermValidUntil(t);
             }),
           ),
         const SizedBox(height: 24),
-
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text('Total', style: Theme.of(context).textTheme.titleMedium),
-            Text(
-              _formatMoney(_total),
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
+            Text(_formatMoney(_total),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
           ],
         ),
         const SizedBox(height: 20),
-        if (widget.isEditing)
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _submitting ? null : _submit,
-              child: Text(_submitting ? 'Saving…' : 'Save changes'),
-            ),
-          )
-        else
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _submitting ? null : () => _submit(),
-                  child: Text(_submitting ? 'Saving…' : 'Create Draft'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _submitting ? null : () => _submit(send: true),
-                  child: Text(_submitting ? 'Saving…' : 'Create & Send'),
-                ),
-              ),
-            ],
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _submitting ? null : _submit,
+            child: Text(_submitting ? 'Saving…' : (widget.isEditing ? 'Save changes' : 'Create quote')),
           ),
+        ),
       ],
     );
   }
@@ -424,18 +375,11 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         padding: const EdgeInsets.only(top: 8, bottom: 8),
         child: Text(
           title.toUpperCase(),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-            color: Colors.grey.shade600,
-          ),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: Colors.grey.shade600),
         ),
       );
 }
 
-/// Backs one line item: a product chosen from the catalogue plus an editable
-/// quantity and discount. Description and unit price come from the product.
 class _LineItemEntry {
   Product? product;
   final quantity = TextEditingController(text: '1');
@@ -496,10 +440,7 @@ class _LineItemEditor extends StatelessWidget {
               decoration: const InputDecoration(labelText: 'Product', isDense: true),
               hint: const Text('Choose a product'),
               items: products
-                  .map((p) => DropdownMenuItem(
-                        value: p,
-                        child: Text(p.name, overflow: TextOverflow.ellipsis),
-                      ))
+                  .map((p) => DropdownMenuItem(value: p, child: Text(p.name, overflow: TextOverflow.ellipsis)))
                   .toList(),
               onChanged: (p) {
                 entry.product = p;
@@ -566,7 +507,6 @@ class _LineItemEditor extends StatelessWidget {
 
 String _formatMoney(double value) => '£${value.toStringAsFixed(2)}';
 
-/// Drops a trailing ".0" so whole numbers read "2" not "2.0".
 String _trimNum(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
 
 String _formatDate(DateTime date) =>

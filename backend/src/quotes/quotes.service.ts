@@ -28,6 +28,11 @@ import { InvoicesService } from '../invoices/invoices.service';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
+import {
+  buildInvoicePdfBuffer,
+  PdfBusinessInfo,
+  PdfInvoice,
+} from '../invoices/pdf/invoice-pdf.util';
 import { CreateQuoteDto } from './dto/create-quote.dto';
 import { UpdateQuoteDto } from './dto/update-quote.dto';
 import { Quote, QuoteStatus } from './schemas/quote.schema';
@@ -147,6 +152,16 @@ export class QuotesService {
       throw new NotFoundException(`Quote ${id} not found`);
     }
     return quote;
+  }
+
+  // Renders the quote as a PDF using the same template renderer as invoices
+  // (kind 'quote'), so the mobile app can download an identical document.
+  async renderPdf(id: string): Promise<Buffer> {
+    const quote = await this.findOne(id);
+    const business = await this.settingsService.getBusinessInfo();
+    const record = JSON.parse(JSON.stringify(quote)) as PdfInvoice;
+    const businessInfo = JSON.parse(JSON.stringify(business)) as PdfBusinessInfo;
+    return buildInvoicePdfBuffer(record, businessInfo, 'quote');
   }
 
   async update(
