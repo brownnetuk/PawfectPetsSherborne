@@ -1,1 +1,3 @@
 #include "Generated.xcconfig"
+DEVELOPMENT_TEAM = N5BLHW2ZJY
+CODE_SIGN_STYLE = Automatic

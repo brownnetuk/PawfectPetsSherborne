@@ -6,6 +6,7 @@ import '../models/animal.dart';
 import '../models/customer.dart';
 import '../state/auth_provider.dart';
 import '../widgets/status_badge.dart';
+import 'animal_detail_screen.dart';
 import 'create_invoice_screen.dart';
 
 class CustomerDetailScreen extends StatefulWidget {
@@ -128,9 +129,19 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
               if (animals.isEmpty)
                 const Text('No pets registered yet.')
               else
-                ...animals.map((a) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text('${a.name} — ${a.breed} (${a.species}), ${a.sex}, age ${a.age}'),
+                ...animals.map((a) => Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: Icon(
+                          a.species == 'cat' ? Icons.pets : Icons.pets_outlined,
+                        ),
+                        title: Text(a.name),
+                        subtitle: Text('${a.breed} (${a.species}), ${a.sex}, age ${a.age}'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => AnimalDetailScreen(animal: a)),
+                        ),
+                      ),
                     )),
               const SizedBox(height: 12),
               OutlinedButton.icon(

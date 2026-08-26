@@ -152,38 +152,74 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     );
   }
 
-  Widget _buildActions() {
-    final enabled = _invoice != null && !_busy;
+  Widget _buildActions() => InvoiceActionBar(
+        enabled: _invoice != null && !_busy,
+        onSendEmail: _sendEmail,
+        onRecordPayment: _recordPayment,
+        onRequestDeposit: _requestDeposit,
+      );
+}
+
+/// The invoice detail screen's bottom action bar. The primary action gets a
+/// full-width row and the two email actions share the row below -- three
+/// across is too cramped for these labels at phone widths.
+class InvoiceActionBar extends StatelessWidget {
+  final bool enabled;
+  final VoidCallback onSendEmail;
+  final VoidCallback onRecordPayment;
+  final VoidCallback onRequestDeposit;
+
+  const InvoiceActionBar({
+    super.key,
+    required this.enabled,
+    required this.onSendEmail,
+    required this.onRecordPayment,
+    required this.onRequestDeposit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final outlinedStyle = OutlinedButton.styleFrom(
+      minimumSize: const Size(0, 46),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    );
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: enabled ? _sendEmail : null,
-                icon: const Icon(Icons.email_outlined, size: 18),
-                label: const Text('Send Email'),
-              ),
+      minimum: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: enabled ? onRecordPayment : null,
+              style: ElevatedButton.styleFrom(minimumSize: const Size(0, 48)),
+              icon: const Icon(Icons.payments_outlined, size: 20),
+              label: const Text('Record Payment'),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: enabled ? _recordPayment : null,
-                icon: const Icon(Icons.payments_outlined, size: 18),
-                label: const Text('Record Payment'),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: enabled ? onSendEmail : null,
+                  style: outlinedStyle,
+                  icon: const Icon(Icons.email_outlined, size: 18),
+                  label: const Text('Send Email'),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: enabled ? _requestDeposit : null,
-                icon: const Icon(Icons.request_quote_outlined, size: 18),
-                label: const Text('Request Deposit'),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: enabled ? onRequestDeposit : null,
+                  style: outlinedStyle,
+                  icon: const Icon(Icons.request_quote_outlined, size: 18),
+                  label: const Text('Request Deposit'),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }
