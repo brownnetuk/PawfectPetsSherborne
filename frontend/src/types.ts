@@ -331,7 +331,7 @@ export interface PublicBusinessInfo {
 // render the same layout when a customer downloads their invoice/quote PDF
 // from the public page.
 
-export type PdfVisibility = 'always' | 'paid' | 'unpaid';
+export type PdfVisibility = 'always' | 'paid' | 'unpaid' | 'invoice-only' | 'quote-only';
 
 interface PdfElementBase {
   id: string;

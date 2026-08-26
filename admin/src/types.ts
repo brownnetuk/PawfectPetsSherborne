@@ -402,7 +402,7 @@ export interface BusinessInfo {
 
 // --- Invoice/Quote PDF template (Settings > Invoices > PDF Template designer) ---
 
-export type PdfVisibility = 'always' | 'paid' | 'unpaid';
+export type PdfVisibility = 'always' | 'paid' | 'unpaid' | 'invoice-only' | 'quote-only';
 
 interface PdfElementBase {
   id: string;

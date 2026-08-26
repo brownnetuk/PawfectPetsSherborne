@@ -77,6 +77,16 @@ export function buildPdfVars(
     invoiceDate: formatUkDateFromIso(record.issueDate),
     dueDate: formatUkDateFromIso(inv?.dueDate ?? quote?.validUntil),
     terms: record.paymentTerms ?? '',
+    // Kind-aware labels -- the template's static text elements reference
+    // these instead of hardcoding "Invoice" wording, since the same
+    // template (default or staff-customized) renders both invoices and
+    // quotes. See DocumentView.tsx's own HTML rendering for the same
+    // invoice/quote wording split this mirrors.
+    docTypeLabel: isInvoice ? 'Invoice' : 'Quote',
+    docNumberLabel: isInvoice ? 'Invoice#' : 'Quote#',
+    docToLabel: isInvoice ? 'Invoice To:' : 'Quote To:',
+    docDateLabel: isInvoice ? 'Invoice Date :' : 'Quote Date :',
+    dueDateLabel: isInvoice ? 'Due Date :' : 'Valid Until :',
     customerName:
       customer?.name ??
       (typeof record.customer === 'string' ? record.customer : quote?.manualCustomerName ?? '(deleted customer)'),
@@ -107,8 +117,10 @@ function substitute(content: string, vars: Record<string, string>): string {
   return content.replace(/\{\{(\w+)\}\}/g, (m, key: string) => vars[key] ?? m);
 }
 
-function isVisible(el: PdfTemplateElement, isPaid: boolean): boolean {
+function isVisible(el: PdfTemplateElement, isPaid: boolean, kind: 'invoice' | 'quote'): boolean {
   if (!el.visibleWhen || el.visibleWhen === 'always') return true;
+  if (el.visibleWhen === 'invoice-only') return kind === 'invoice';
+  if (el.visibleWhen === 'quote-only') return kind === 'quote';
   return el.visibleWhen === 'paid' ? isPaid : !isPaid;
 }
 
@@ -301,7 +313,7 @@ export const DEFAULT_INVOICE_TEMPLATE: PdfTemplateElement[] = [
     y: 40,
     width: 205,
     height: 30,
-    content: 'Invoice',
+    content: '{{docTypeLabel}}',
     fontSize: 24,
     fontWeight: 'bold',
     color: '#232c26',
@@ -314,7 +326,7 @@ export const DEFAULT_INVOICE_TEMPLATE: PdfTemplateElement[] = [
     y: 72,
     width: 205,
     height: 16,
-    content: 'Invoice# {{invoiceNumber}}',
+    content: '{{docNumberLabel}} {{invoiceNumber}}',
     fontSize: 9.5,
     fontWeight: 'normal',
     color: '#232c26',
@@ -332,6 +344,7 @@ export const DEFAULT_INVOICE_TEMPLATE: PdfTemplateElement[] = [
     fontWeight: 'bold',
     color: '#232c26',
     align: 'right',
+    visibleWhen: 'invoice-only',
   },
   {
     id: 'paid-stamp',
@@ -365,7 +378,7 @@ export const DEFAULT_INVOICE_TEMPLATE: PdfTemplateElement[] = [
     y: 156,
     width: 250,
     height: 14,
-    content: 'Invoice To:',
+    content: '{{docToLabel}}',
     fontSize: 8.5,
     fontWeight: 'bold',
     color: '#6f7d72',
@@ -391,7 +404,7 @@ export const DEFAULT_INVOICE_TEMPLATE: PdfTemplateElement[] = [
     y: 156,
     width: 205,
     height: 14,
-    content: 'Invoice Date :   {{invoiceDate}}',
+    content: '{{docDateLabel}}   {{invoiceDate}}',
     fontSize: 9,
     fontWeight: 'normal',
     color: '#232c26',
@@ -417,7 +430,7 @@ export const DEFAULT_INVOICE_TEMPLATE: PdfTemplateElement[] = [
     y: 188,
     width: 205,
     height: 14,
-    content: 'Due Date :   {{dueDate}}',
+    content: '{{dueDateLabel}}   {{dueDate}}',
     fontSize: 9,
     fontWeight: 'normal',
     color: '#232c26',
@@ -462,8 +475,18 @@ export const DEFAULT_INVOICE_TEMPLATE: PdfTemplateElement[] = [
     fontWeight: 'normal',
     color: '#c85a4a',
     align: 'right',
+    visibleWhen: 'invoice-only',
   },
-  { id: 'summary-box', type: 'rect', x: 340, y: 440, width: 215, height: 26, fillColor: '#f3f6ee' },
+  {
+    id: 'summary-box',
+    type: 'rect',
+    x: 340,
+    y: 440,
+    width: 215,
+    height: 26,
+    fillColor: '#f3f6ee',
+    visibleWhen: 'invoice-only',
+  },
   {
     id: 'summary-balance',
     type: 'text',
@@ -476,6 +499,7 @@ export const DEFAULT_INVOICE_TEMPLATE: PdfTemplateElement[] = [
     fontWeight: 'bold',
     color: '#232c26',
     align: 'right',
+    visibleWhen: 'invoice-only',
   },
   {
     id: 'notes-label',
@@ -618,7 +642,7 @@ export async function buildInvoicePdf(
     : DEFAULT_INVOICE_TEMPLATE;
   const vars = buildPdfVars(record, kind, businessInfo);
   const isPaid = kind === 'invoice' && record.status === 'paid';
-  const visibleElements = template.filter((el) => isVisible(el, isPaid));
+  const visibleElements = template.filter((el) => isVisible(el, isPaid, kind));
 
   const logo = await loadLogoDataUrl();
   const qrElements = visibleElements.filter((el): el is Extract<PdfTemplateElement, { type: 'qrcode' }> => el.type === 'qrcode');

@@ -643,6 +643,8 @@ function PropertyPanel({
           <option value="always">Always</option>
           <option value="paid">Only when paid (invoices)</option>
           <option value="unpaid">Only when unpaid (invoices)</option>
+          <option value="invoice-only">Only on invoices, never quotes</option>
+          <option value="quote-only">Only on quotes, never invoices</option>
         </select>
       </div>
 
