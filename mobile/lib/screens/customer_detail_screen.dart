@@ -21,6 +21,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
   late Future<(Customer, List<Animal>)> _future;
   String? _alarmInstructions;
   bool _revealing = false;
+  String? _statusOverride;
+  bool _updatingStatus = false;
 
   @override
   void initState() {
@@ -36,6 +38,55 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
       return (customer, animals);
     }();
   }
+
+  Future<void> _changeStatus(String customerId, String current) async {
+    final repo = context.read<Repository>();
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Change status', style: TextStyle(fontWeight: FontWeight.w600)),
+              ),
+            ),
+            for (final s in customerStatuses)
+              ListTile(
+                leading: StatusBadge(status: s),
+                title: Text(_statusLabel(s)),
+                trailing: s == current ? const Icon(Icons.check) : null,
+                onTap: () => Navigator.of(context).pop(s),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null || selected == current) return;
+    setState(() => _updatingStatus = true);
+    try {
+      await repo.updateCustomerStatus(customerId, selected);
+      if (mounted) setState(() => _statusOverride = selected);
+    } catch (e) {
+      if (mounted) {
+        final message = e is ApiException ? e.message : 'Failed to update status';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
+    } finally {
+      if (mounted) setState(() => _updatingStatus = false);
+    }
+  }
+
+  String _statusLabel(String s) => switch (s) {
+        'pending' => 'Pending',
+        'active' => 'Active',
+        'inactive' => 'Inactive',
+        'update_info' => 'Needs info update',
+        _ => s,
+      };
 
   Future<void> _reveal() async {
     setState(() => _revealing = true);
@@ -76,7 +127,19 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                   Expanded(
                     child: Text(customer.name, style: Theme.of(context).textTheme.titleLarge),
                   ),
-                  StatusBadge(status: customer.status),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(999),
+                    onTap: _updatingStatus
+                        ? null
+                        : () => _changeStatus(customer.id, _statusOverride ?? customer.status),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        StatusBadge(status: _statusOverride ?? customer.status),
+                        Icon(Icons.arrow_drop_down, size: 20, color: Colors.grey.shade600),
+                      ],
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 20),

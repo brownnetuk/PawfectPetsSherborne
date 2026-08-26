@@ -31,6 +31,19 @@ class Repository {
   Future<Customer> getCustomer(String id) async =>
       Customer.fromJson(await _client.get('/customers/$id'));
 
+  /// Creates a minimal "lead" customer (name + email, status pending) — the
+  /// same quick-add the admin app uses; full details come later via the
+  /// intake form.
+  Future<Customer> createLead({required String name, required String email}) async =>
+      Customer.fromJson(await _client.post('/customers/leads', {'name': name, 'email': email}));
+
+  /// Permanently deletes a customer. The server rejects this (409) if they
+  /// still have pets/bookings/invoices/quotes/activity on file.
+  Future<void> deleteCustomer(String id) => _client.delete('/customers/$id');
+
+  Future<Customer> updateCustomerStatus(String id, String status) async =>
+      Customer.fromJson(await _client.patch('/customers/$id/status', {'status': status}));
+
   Future<String?> getAlarmInstructions(String id) async {
     final json = await _client.get('/customers/$id/alarm-instructions');
     return json['instructions'] as String?;

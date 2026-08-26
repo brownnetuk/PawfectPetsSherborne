@@ -1,3 +1,5 @@
+const customerStatuses = ['pending', 'active', 'inactive', 'update_info'];
+
 class EmergencyContact {
   final bool sameAsClient;
   final String? name;

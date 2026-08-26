@@ -75,6 +75,11 @@ class ApiClient {
         (json) => json as Map<String, dynamic>,
       );
 
+  Future<void> delete(String path) => _handle<void>(
+        () => http.delete(_uri(path), headers: _headers),
+        (_) {},
+      );
+
   /// Fetches raw bytes (e.g. a PDF) rather than JSON, applying the same auth
   /// header, timeout, and 401/error handling as [_handle].
   Future<Uint8List> getBytes(String path, {Map<String, String>? query}) async {

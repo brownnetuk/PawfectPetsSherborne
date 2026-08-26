@@ -121,10 +121,43 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     }
   }
 
+  Future<void> _share() async {
+    final repo = context.read<Repository>();
+    try {
+      final bytes = await repo.getInvoicePdf(widget.invoiceId);
+      await Printing.sharePdf(bytes: bytes, filename: '${_invoice?.invoiceNumber ?? 'invoice'}.pdf');
+    } catch (e) {
+      _snack(e is ApiException ? e.message : 'Failed to share invoice');
+    }
+  }
+
+  Future<void> _print() async {
+    final repo = context.read<Repository>();
+    try {
+      await Printing.layoutPdf(onLayout: (_) => repo.getInvoicePdf(widget.invoiceId));
+    } catch (e) {
+      _snack(e is ApiException ? e.message : 'Failed to print invoice');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_invoice?.invoiceNumber ?? 'Invoice')),
+      appBar: AppBar(
+        title: Text(_invoice?.invoiceNumber ?? 'Invoice'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.ios_share),
+            tooltip: 'Share',
+            onPressed: _invoice == null ? null : _share,
+          ),
+          IconButton(
+            icon: const Icon(Icons.print_outlined),
+            tooltip: 'Print',
+            onPressed: _invoice == null ? null : _print,
+          ),
+        ],
+      ),
       body: _buildBody(),
       bottomNavigationBar: _buildActions(),
     );
@@ -140,15 +173,10 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     if (_invoice == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    return PdfPreview(
-      // Re-fetch when the invoice changes (e.g. after a payment/send) so the
-      // server-rendered PDF reflects the new status/balance.
+    return _ZoomablePdf(
+      // Re-fetch/re-render when the invoice changes (e.g. after a payment/send).
       key: ValueKey('${_invoice!.status}-${_invoice!.amountPaid}'),
-      build: (_) => context.read<Repository>().getInvoicePdf(widget.invoiceId),
-      canChangePageFormat: false,
-      canChangeOrientation: false,
-      canDebug: false,
-      pdfFileName: '${_invoice!.invoiceNumber}.pdf',
+      load: () => context.read<Repository>().getInvoicePdf(widget.invoiceId),
     );
   }
 
@@ -158,6 +186,73 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
         onRecordPayment: _recordPayment,
         onRequestDeposit: _requestDeposit,
       );
+}
+
+/// Renders a PDF's pages to images and shows them in an [InteractiveViewer],
+/// so the invoice can be pinch-zoomed and panned. Rasterised at a high DPI so
+/// it stays sharp when zoomed in.
+class _ZoomablePdf extends StatefulWidget {
+  final Future<Uint8List> Function() load;
+  const _ZoomablePdf({super.key, required this.load});
+
+  @override
+  State<_ZoomablePdf> createState() => _ZoomablePdfState();
+}
+
+class _ZoomablePdfState extends State<_ZoomablePdf> {
+  late final Future<List<Uint8List>> _pages = _render();
+
+  Future<List<Uint8List>> _render() async {
+    final bytes = await widget.load();
+    final pages = <Uint8List>[];
+    await for (final page in Printing.raster(bytes, dpi: 300)) {
+      pages.add(await page.toPng());
+    }
+    return pages;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Uint8List>>(
+      future: _pages,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          final message = snapshot.error is ApiException
+              ? (snapshot.error as ApiException).message
+              : 'Failed to load invoice PDF';
+          return Center(child: Text(message, textAlign: TextAlign.center));
+        }
+        final pages = snapshot.data ?? [];
+        if (pages.isEmpty) return const Center(child: Text('No pages to show'));
+        return Container(
+          color: Colors.grey.shade300,
+          child: LayoutBuilder(
+            builder: (context, constraints) => InteractiveViewer(
+              constrained: false,
+              minScale: 1,
+              maxScale: 6,
+              child: SizedBox(
+                width: constraints.maxWidth,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final png in pages)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Image.memory(png, width: constraints.maxWidth, fit: BoxFit.fitWidth),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 /// The invoice detail screen's bottom action bar. The primary action gets a
