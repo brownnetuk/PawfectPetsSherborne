@@ -429,7 +429,7 @@ export async function buildCustomerFormPdf(
 
   w.section('Security arrangements', [
     fieldBlock(doc, 'Keys provided', customer.security ? yesNo(customer.security.keysProvided) : '—'),
-    fieldBlock(doc, 'Alarm instructions', alarmInstructions || '(none provided)'),
+    fieldBlock(doc, 'Alarm/KeySafe Code', alarmInstructions || '(none provided)'),
     fieldBlock(doc, 'Further information', customer.security?.furtherInformation ?? ''),
   ]);
 

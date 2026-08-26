@@ -59,7 +59,7 @@ export function describeCustomerChanges(
 
   const security = patch.security as Record<string, unknown> | undefined;
   if (security?.alarmInstructions) {
-    lines.push('Security: alarm instructions - updated');
+    lines.push('Security: Alarm/KeySafe Code - updated');
   }
 
   return lines.length > 0 ? lines.join('\n') : null;

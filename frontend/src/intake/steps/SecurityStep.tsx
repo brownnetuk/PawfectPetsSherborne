@@ -23,7 +23,7 @@ export default function SecurityStep({ value, onChange, resuming }: Props) {
         onChange={(v) => set('keysProvided', v)}
       />
       <TextField
-        label="Alarm instructions"
+        label="Alarm/KeySafe Code"
         value={value.alarmInstructions ?? ''}
         onChange={(v) => set('alarmInstructions', v)}
         multiline

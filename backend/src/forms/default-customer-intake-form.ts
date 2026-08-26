@@ -251,7 +251,7 @@ export const DEFAULT_CUSTOMER_INTAKE_FORM: {
     {
       id: 'cf-sec-alarm',
       type: 'textarea',
-      label: 'Alarm instructions',
+      label: 'Alarm/KeySafe Code',
       required: false,
       mapping: { target: 'customer', path: 'security.alarmInstructions' },
     },

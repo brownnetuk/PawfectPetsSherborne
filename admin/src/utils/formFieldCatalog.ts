@@ -52,7 +52,7 @@ export const CUSTOMER_MAPPING_TARGETS: MappingTarget[] = [
   { target: 'customer', path: 'emergencyVet.authorisation.signedName', label: 'Vet authorisation: typed name', kind: 'string' },
   { target: 'customer', path: 'emergencyVet.authorisation.signatureImage', label: 'Vet authorisation: signature', kind: 'signature' },
   { target: 'customer', path: 'security.keysProvided', label: 'Security: keys provided', kind: 'boolean' },
-  { target: 'customer', path: 'security.alarmInstructions', label: 'Security: alarm instructions', kind: 'string' },
+  { target: 'customer', path: 'security.alarmInstructions', label: 'Security: Alarm/KeySafe Code', kind: 'string' },
   { target: 'customer', path: 'security.furtherInformation', label: 'Security: further information', kind: 'string' },
   { target: 'customer', path: 'agreement.signedName', label: 'Agreement: typed name', kind: 'string' },
   { target: 'customer', path: 'agreement.signatureImage', label: 'Agreement: signature', kind: 'signature' },

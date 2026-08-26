@@ -265,7 +265,7 @@ export default function EditCustomerModal({ customer, onClose, onSaved }: Props)
           Keys provided
         </label>
         <div className="field">
-          <label>Alarm instructions</label>
+          <label>Alarm/KeySafe Code</label>
           <input
             type="text"
             value={alarmInstructions}

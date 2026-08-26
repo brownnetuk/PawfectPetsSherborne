@@ -564,7 +564,7 @@ function OverviewTab({
           <dl className="kv-grid">
             <dt>Keys provided</dt>
             <dd>{customer.security.keysProvided ? 'Yes' : 'No'}</dd>
-            <dt>Alarm instructions</dt>
+            <dt>Alarm/KeySafe Code</dt>
             <dd>
               {alarmInstructions ?? (
                 <button className="btn-link" onClick={onRevealAlarm}>
