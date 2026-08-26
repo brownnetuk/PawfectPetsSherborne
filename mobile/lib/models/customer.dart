@@ -100,15 +100,24 @@ class Customer {
 }
 
 /// Minimal customer reference as embedded (populated) in bookings/invoices/activity.
+/// Some endpoints (e.g. GET /invoices/:id) also populate address/phoneNumber.
 class CustomerRef {
   final String id;
   final String name;
   final String email;
+  final String? address;
+  final String? phoneNumber;
 
-  CustomerRef({required this.id, required this.name, required this.email});
+  CustomerRef({
+    required this.id,
+    required this.name,
+    required this.email,
+    this.address,
+    this.phoneNumber,
+  });
 
   /// The backend either sends a bare id string (not populated) or a populated
-  /// {_id, name, email} object depending on the endpoint.
+  /// {_id, name, email, ...} object depending on the endpoint.
   factory CustomerRef.fromDynamic(dynamic value) {
     if (value is String) {
       return CustomerRef(id: value, name: value, email: '');
@@ -118,6 +127,8 @@ class CustomerRef {
       id: json['_id'] as String,
       name: json['name'] as String? ?? '',
       email: json['email'] as String? ?? '',
+      address: json['address'] as String?,
+      phoneNumber: json['phoneNumber'] as String?,
     );
   }
 }

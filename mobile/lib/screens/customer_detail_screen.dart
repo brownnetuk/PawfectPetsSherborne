@@ -6,6 +6,7 @@ import '../models/animal.dart';
 import '../models/customer.dart';
 import '../state/auth_provider.dart';
 import '../widgets/status_badge.dart';
+import 'create_invoice_screen.dart';
 
 class CustomerDetailScreen extends StatefulWidget {
   final String customerId;
@@ -136,6 +137,19 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 onPressed: () => _showAddNoteSheet(context),
                 icon: const Icon(Icons.note_add_outlined),
                 label: const Text('Add activity note'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CreateInvoiceScreen(
+                      customerId: customer.id,
+                      customerName: customer.name,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: const Text('Create invoice'),
               ),
             ],
           );
