@@ -19,7 +19,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
   late Future<(List<Customer>, Map<String, List<String>>)> _future;
   final _searchController = TextEditingController();
   String _search = '';
-  bool _activeOnly = true;
+  // Mutually-exclusive status filter: 'active', 'pending' or 'update_info'.
+  String _statusFilter = 'active';
 
   @override
   void initState() {
@@ -131,10 +132,22 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: FilterChip(
-                    label: const Text('Active only'),
-                    selected: _activeOnly,
-                    onSelected: (v) => setState(() => _activeOnly = v),
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final f in const [
+                        ('active', 'Active'),
+                        ('pending', 'Pending'),
+                        ('update_info', 'Update'),
+                      ])
+                        ChoiceChip(
+                          label: Text(f.$2),
+                          selected: _statusFilter == f.$1,
+                          onSelected: (v) {
+                            if (v) setState(() => _statusFilter = f.$1);
+                          },
+                        ),
+                    ],
                   ),
                 ),
               ],
@@ -163,7 +176,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
             }
             final (allCustomers, petMap) = snapshot.data ?? (<Customer>[], <String, List<String>>{});
             final customers = allCustomers.where((c) {
-              if (_activeOnly && c.status != 'active') return false;
+              if (c.status != _statusFilter) return false;
               if (_search.isEmpty) return true;
               final pets = petMap[c.id] ?? const <String>[];
               return c.name.toLowerCase().contains(_search) ||
@@ -171,9 +184,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   pets.any((p) => p.toLowerCase().contains(_search));
             }).toList();
             if (customers.isEmpty) {
-              final empty = _search.isNotEmpty
-                  ? 'No matches.'
-                  : (_activeOnly ? 'No active customers.' : 'No customers yet.');
+              const labels = {'active': 'active', 'pending': 'pending', 'update_info': 'update-info'};
+              final empty =
+                  _search.isNotEmpty ? 'No matches.' : 'No ${labels[_statusFilter]} customers.';
               return ListView(
                 children: [
                   const SizedBox(height: 80),
