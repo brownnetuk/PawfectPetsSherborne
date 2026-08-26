@@ -150,7 +150,7 @@ export default function ViewBankAccountModal({ account: initialAccount, onClose,
               </tr>
               {transactions.map((t, i) => (
                 <tr key={i}>
-                  <td>{new Date(t.date).toLocaleDateString()}</td>
+                  <td>{new Date(t.date).toLocaleDateString('en-GB')}</td>
                   <td>
                     {TYPE_LABELS[t.type]}: {t.description}
                   </td>

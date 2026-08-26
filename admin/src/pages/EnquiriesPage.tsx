@@ -125,7 +125,7 @@ export default function EnquiriesPage() {
                   <td>{e.name}</td>
                   <td>{e.email || e.phone || '—'}</td>
                   <td>{e.servicesInterested.length > 0 ? e.servicesInterested.map(serviceLabel).join(', ') : '—'}</td>
-                  <td>{new Date(e.createdAt).toLocaleDateString()}</td>
+                  <td>{new Date(e.createdAt).toLocaleDateString('en-GB')}</td>
                   <td onClick={(ev) => ev.stopPropagation()}>
                     <button
                       className="icon-btn icon-btn-danger"

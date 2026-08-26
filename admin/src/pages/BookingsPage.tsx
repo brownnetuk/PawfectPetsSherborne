@@ -80,7 +80,7 @@ export default function BookingsPage() {
                   <td>{customerLabel(b.customer)}</td>
                   <td style={{ textTransform: 'capitalize' }}>{b.serviceType}</td>
                   <td>
-                    {new Date(b.startDate).toLocaleDateString()} – {new Date(b.endDate).toLocaleDateString()}
+                    {new Date(b.startDate).toLocaleDateString('en-GB')} – {new Date(b.endDate).toLocaleDateString('en-GB')}
                   </td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <select value={b.status} onChange={(e) => handleStatusChange(b._id, e.target.value)}>

@@ -831,7 +831,7 @@ function BookingsTab({
                 <tr key={b._id}>
                   <td style={{ textTransform: 'capitalize' }}>{b.serviceType}</td>
                   <td>
-                    {new Date(b.startDate).toLocaleDateString()} – {new Date(b.endDate).toLocaleDateString()}
+                    {new Date(b.startDate).toLocaleDateString('en-GB')} – {new Date(b.endDate).toLocaleDateString('en-GB')}
                   </td>
                   <td>
                     <Badge value={b.status} />
@@ -1047,7 +1047,7 @@ function InvoicesTab({
                     <Badge value={inv.status} />
                     {isPartiallyPaid(inv) && <span className="badge badge-partially_paid">Partially Paid</span>}
                   </td>
-                  <td>{new Date(inv.dueDate).toLocaleDateString()}</td>
+                  <td>{new Date(inv.dueDate).toLocaleDateString('en-GB')}</td>
                 </tr>
               ))}
             </tbody>
@@ -1305,7 +1305,7 @@ function AuditLogTab({
                   }}
                 />
                 <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
-                  {new Date(e.createdAt).toLocaleDateString()} {new Date(e.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(e.createdAt).toLocaleDateString('en-GB')} {new Date(e.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   {' · by '}
                   {e.actor}
                 </div>
@@ -1477,8 +1477,8 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
               <tr key={s._id} onClick={() => setViewing(s)}>
                 <td>{s.formName}</td>
                 <td>{statusLabel(s.status)}</td>
-                <td>{new Date(s.createdAt).toLocaleDateString()}</td>
-                <td>{s.submittedAt ? new Date(s.submittedAt).toLocaleDateString() : '—'}</td>
+                <td>{new Date(s.createdAt).toLocaleDateString('en-GB')}</td>
+                <td>{s.submittedAt ? new Date(s.submittedAt).toLocaleDateString('en-GB') : '—'}</td>
                 <td onClick={(e) => e.stopPropagation()}>
                   <ActionsMenu
                     items={[

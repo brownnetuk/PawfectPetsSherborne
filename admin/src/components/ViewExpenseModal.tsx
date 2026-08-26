@@ -17,7 +17,7 @@ export default function ViewExpenseModal({ expense, onClose, onEdit }: Props) {
     <Modal title={expense.description} onClose={onClose}>
       <dl className="kv-grid">
         <dt>Date</dt>
-        <dd>{new Date(expense.date).toLocaleDateString()}</dd>
+        <dd>{new Date(expense.date).toLocaleDateString('en-GB')}</dd>
         <dt>Category</dt>
         <dd>{expense.category}</dd>
         <dt>Payee</dt>

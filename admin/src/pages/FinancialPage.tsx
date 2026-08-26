@@ -120,7 +120,7 @@ function PaymentsCard() {
             {payments.map((p) => (
               <tr key={p._id}>
                 <td>{p.paymentId}</td>
-                <td>{new Date(p.date).toLocaleDateString()}</td>
+                <td>{new Date(p.date).toLocaleDateString('en-GB')}</td>
                 <td>{invoiceLabel(p.invoice)}</td>
                 <td>£{p.amount.toFixed(2)}</td>
                 <td>{p.charges ? `£${p.charges.toFixed(2)}` : '—'}</td>
@@ -371,7 +371,7 @@ function ExpensesCard() {
           <tbody>
             {expenses.map((e) => (
               <tr key={e._id} onClick={() => setViewing(e)}>
-                <td>{new Date(e.date).toLocaleDateString()}</td>
+                <td>{new Date(e.date).toLocaleDateString('en-GB')}</td>
                 <td>{e.category}</td>
                 <td>{e.payee || '—'}</td>
                 <td>{e.description}</td>
@@ -512,7 +512,7 @@ function CreditNotesCard() {
             {creditNotes.map((c) => (
               <tr key={c._id}>
                 <td>{c.creditNoteNumber}</td>
-                <td>{new Date(c.date).toLocaleDateString()}</td>
+                <td>{new Date(c.date).toLocaleDateString('en-GB')}</td>
                 <td>{creditNoteCustomerLabel(c.customer)}</td>
                 <td>{creditNoteInvoiceLabel(c.invoice)}</td>
                 <td>£{c.amount.toFixed(2)}</td>

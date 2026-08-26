@@ -247,8 +247,8 @@ function InvoicesTab() {
                 <tr key={inv._id} onClick={() => handleViewPdf(inv)} style={{ cursor: 'pointer' }}>
                   <td>{inv.invoiceNumber}</td>
                   <td>{customerLabel(inv.customer)}</td>
-                  <td>{new Date(inv.issueDate).toLocaleDateString()}</td>
-                  <td>{new Date(inv.dueDate).toLocaleDateString()}</td>
+                  <td>{new Date(inv.issueDate).toLocaleDateString('en-GB')}</td>
+                  <td>{new Date(inv.dueDate).toLocaleDateString('en-GB')}</td>
                   <td>£{inv.total.toFixed(2)}</td>
                   <td>£{(inv.amountPaid ?? 0).toFixed(2)}</td>
                   <td>£{(inv.total - (inv.amountPaid ?? 0)).toFixed(2)}</td>
@@ -590,7 +590,7 @@ function QuotesTab() {
                       )}
                     </span>
                   </td>
-                  <td>{new Date(q.validUntil).toLocaleDateString()}</td>
+                  <td>{new Date(q.validUntil).toLocaleDateString('en-GB')}</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <ActionsMenu
                       items={[

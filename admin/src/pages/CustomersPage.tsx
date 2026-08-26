@@ -93,7 +93,7 @@ export default function CustomersPage() {
                   <td>
                     <Badge value={c.status} />
                   </td>
-                  <td>{new Date(c.createdAt).toLocaleDateString()}</td>
+                  <td>{new Date(c.createdAt).toLocaleDateString('en-GB')}</td>
                 </tr>
               ))}
             </tbody>
