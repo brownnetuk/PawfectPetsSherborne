@@ -6,6 +6,7 @@ import CreditNoteModal from '../components/CreditNoteModal';
 import ExpenseModal from '../components/ExpenseModal';
 import Modal from '../components/Modal';
 import ViewBankAccountModal from '../components/ViewBankAccountModal';
+import ViewExpenseModal from '../components/ViewExpenseModal';
 import { PencilIcon, TrashIcon } from '../components/icons';
 import type { BankAccount, CreditNote, Expense, Payment } from '../types';
 
@@ -309,6 +310,7 @@ function ExpensesCard() {
   const [expenses, setExpenses] = useState<Expense[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [viewing, setViewing] = useState<Expense | null>(null);
   const [editing, setEditing] = useState<Expense | null>(null);
   const [deleting, setDeleting] = useState<Expense | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -368,14 +370,14 @@ function ExpensesCard() {
           </thead>
           <tbody>
             {expenses.map((e) => (
-              <tr key={e._id}>
+              <tr key={e._id} onClick={() => setViewing(e)}>
                 <td>{new Date(e.date).toLocaleDateString()}</td>
                 <td>{e.category}</td>
                 <td>{e.payee || '—'}</td>
                 <td>{e.description}</td>
                 <td>£{e.amount.toFixed(2)}</td>
                 <td>{expenseAccountLabel(e.account)}</td>
-                <td>
+                <td onClick={(ev) => ev.stopPropagation()}>
                   <div style={{ display: 'flex', gap: 2 }}>
                     <button className="icon-btn" title="Edit" onClick={() => setEditing(e)}>
                       <PencilIcon />
@@ -389,6 +391,17 @@ function ExpensesCard() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {viewing && (
+        <ViewExpenseModal
+          expense={viewing}
+          onClose={() => setViewing(null)}
+          onEdit={() => {
+            setEditing(viewing);
+            setViewing(null);
+          }}
+        />
       )}
 
       {(showNew || editing) && (
