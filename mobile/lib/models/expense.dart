@@ -5,7 +5,9 @@ class Expense {
   final String? payee;
   final String description;
   final double amount;
+  final String? accountId;
   final String? accountName;
+  final String? receipt; // base64 data URI, if a receipt is attached
 
   Expense({
     required this.id,
@@ -14,8 +16,12 @@ class Expense {
     this.payee,
     required this.description,
     required this.amount,
+    this.accountId,
     this.accountName,
+    this.receipt,
   });
+
+  bool get hasReceipt => receipt != null && receipt!.isNotEmpty;
 
   factory Expense.fromJson(Map<String, dynamic> json) {
     final account = json['account'];
@@ -26,7 +32,11 @@ class Expense {
       payee: json['payee'] as String?,
       description: json['description'] as String? ?? '',
       amount: (json['amount'] as num?)?.toDouble() ?? 0,
+      accountId: account is Map<String, dynamic>
+          ? account['_id'] as String?
+          : (account is String ? account : null),
       accountName: account is Map<String, dynamic> ? account['name'] as String? : null,
+      receipt: json['receipt'] as String?,
     );
   }
 }

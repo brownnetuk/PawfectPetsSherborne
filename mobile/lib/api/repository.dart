@@ -190,6 +190,14 @@ class Repository {
   Future<List<Expense>> listExpenses() async =>
       (await _client.getList('/expenses')).map((e) => Expense.fromJson(e)).toList();
 
+  Future<Expense> getExpense(String id) async =>
+      Expense.fromJson(await _client.get('/expenses/$id'));
+
+  Future<Expense> updateExpense(String id, Map<String, dynamic> patch) async =>
+      Expense.fromJson(await _client.patch('/expenses/$id', patch));
+
+  Future<void> deleteExpense(String id) => _client.delete('/expenses/$id');
+
   Future<List<ExpenseCategory>> listExpenseCategories() async =>
       (await _client.getList('/expense-categories')).map((e) => ExpenseCategory.fromJson(e)).toList();
 
