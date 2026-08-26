@@ -9,7 +9,7 @@ address/keys/alarm code before a visit, and log a quick CRM note, without needin
 
 ```bash
 flutter pub get
-flutter run --dart-define=API_BASE_URL=https://pawfectpets-backend.onrender.com
+flutter run --dart-define=API_BASE_URL=https://api.pawfectpetssherborne.co.uk
 ```
 
 `API_BASE_URL` defaults to the deployed backend (see [`lib/config.dart`](lib/config.dart)) so it
@@ -28,16 +28,16 @@ Log in with a staff account seeded via `backend`'s `npm run seed:staff` — ther
 
 ```bash
 # Web — no extra SDK needed, works on any machine with Flutter installed
-flutter build web --dart-define=API_BASE_URL=https://pawfectpets-backend.onrender.com
+flutter build web --dart-define=API_BASE_URL=https://api.pawfectpetssherborne.co.uk
 # output: build/web/ (serve as a static site)
 
 # Android — needs the Android SDK (Android Studio) on the build machine
-flutter build apk --release --dart-define=API_BASE_URL=https://pawfectpets-backend.onrender.com
+flutter build apk --release --dart-define=API_BASE_URL=https://api.pawfectpetssherborne.co.uk
 # output: build/app/outputs/flutter-apk/app-release.apk
 # (flutter build appbundle for a Play Store upload instead of a sideloadable APK)
 
 # iOS — needs a Mac with Xcode; won't run on Windows/Linux at all
-flutter build ios --release --dart-define=API_BASE_URL=https://pawfectpets-backend.onrender.com
+flutter build ios --release --dart-define=API_BASE_URL=https://api.pawfectpetssherborne.co.uk
 # then archive/sign/upload via Xcode, as with any iOS app
 ```
 
