@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
-import '../models/customer.dart';
 import '../models/quote.dart';
 import '../widgets/hold_to_delete_dialog.dart';
 import '../widgets/status_badge.dart';
@@ -37,16 +36,21 @@ class _QuotesScreenState extends State<QuotesScreen> {
     await _future;
   }
 
-  /// Add Quote: pick a customer first, then raise the quote against them.
+  /// Add Quote: pick an existing or manual customer, then raise the quote.
   Future<void> _addQuote() async {
-    final customer = await Navigator.of(context).push<Customer>(
-      MaterialPageRoute(builder: (_) => const SelectCustomerScreen()),
+    final result = await Navigator.of(context).push<SelectCustomerResult>(
+      MaterialPageRoute(builder: (_) => const SelectCustomerScreen(allowManual: true)),
     );
-    if (customer == null || !mounted) return;
+    if (result == null || !mounted) return;
+    final screen = result.isManual
+        ? CreateQuoteScreen(
+            customerName: result.manualName!,
+            manualCustomerName: result.manualName,
+            manualCustomerEmail: result.manualEmail,
+          )
+        : CreateQuoteScreen(customerId: result.customer!.id, customerName: result.customer!.name);
     final created = await Navigator.of(context).push<Quote>(
-      MaterialPageRoute(
-        builder: (_) => CreateQuoteScreen(customerId: customer.id, customerName: customer.name),
-      ),
+      MaterialPageRoute(builder: (_) => screen),
     );
     if (created != null) _refresh();
   }
@@ -78,6 +82,11 @@ class _QuotesScreenState extends State<QuotesScreen> {
               onTap: () => Navigator.of(context).pop('send'),
             ),
             ListTile(
+              leading: const Icon(Icons.swap_horiz),
+              title: const Text('Convert to invoice'),
+              onTap: () => Navigator.of(context).pop('convert'),
+            ),
+            ListTile(
               leading: Icon(Icons.delete_outline, color: Colors.red.shade600),
               title: Text('Delete', style: TextStyle(color: Colors.red.shade700)),
               onTap: () => Navigator.of(context).pop('delete'),
@@ -92,10 +101,43 @@ class _QuotesScreenState extends State<QuotesScreen> {
         await _editQuote(q);
       case 'send':
         await _sendEmail(q);
+      case 'convert':
+        await _convertQuote(q);
       case 'delete':
         await _deleteQuote(q);
     }
     return false;
+  }
+
+  Future<void> _convertQuote(Quote q) async {
+    final repo = context.read<Repository>();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Convert to invoice'),
+        content: Text('Mark ${q.quoteNumber} as accepted, create an invoice from it, '
+            'and email ${q.customerName} a deposit request?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Convert')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      final invoiceNumber = await repo.acceptQuote(q.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Converted to invoice${invoiceNumber != null ? ' $invoiceNumber' : ''}')));
+        _refresh();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e is ApiException ? e.message : 'Failed to convert quote'),
+            duration: const Duration(seconds: 5)));
+      }
+    }
   }
 
   Future<void> _editQuote(Quote q) async {

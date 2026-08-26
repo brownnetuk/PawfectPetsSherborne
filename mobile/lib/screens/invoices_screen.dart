@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
-import '../models/customer.dart';
 import '../models/invoice.dart';
 import '../widgets/hold_to_delete_dialog.dart';
 import '../widgets/status_badge.dart';
@@ -40,9 +39,10 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
 
   /// Add Invoice: pick a customer first, then raise the invoice against them.
   Future<void> _addInvoice() async {
-    final customer = await Navigator.of(context).push<Customer>(
+    final result = await Navigator.of(context).push<SelectCustomerResult>(
       MaterialPageRoute(builder: (_) => const SelectCustomerScreen()),
     );
+    final customer = result?.customer;
     if (customer == null || !mounted) return;
     final created = await Navigator.of(context).push<Invoice>(
       MaterialPageRoute(

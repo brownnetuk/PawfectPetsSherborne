@@ -12,25 +12,31 @@ import '../models/quote.dart';
 class _FormData {
   final List<Product> products;
   final List<InvoiceTerm> terms;
-  final Customer customer;
+  final Customer? customer;
   final List<Animal> pets;
   _FormData(this.products, this.terms, this.customer, this.pets);
 }
 
-/// Create or edit a quote against a customer. Mirrors CreateInvoiceScreen but
-/// with a "valid until" date instead of a due date and quote endpoints.
+/// Create or edit a quote against an existing customer ([customerId]) or a
+/// manual customer ([manualCustomerName] + [manualCustomerEmail]). Mirrors
+/// CreateInvoiceScreen but with a "valid until" date and quote endpoints.
 class CreateQuoteScreen extends StatefulWidget {
-  final String customerId;
+  final String? customerId;
   final String customerName;
+  final String? manualCustomerName;
+  final String? manualCustomerEmail;
   final Quote? quote;
   const CreateQuoteScreen({
     super.key,
-    required this.customerId,
+    this.customerId,
     required this.customerName,
+    this.manualCustomerName,
+    this.manualCustomerEmail,
     this.quote,
   });
 
   bool get isEditing => quote != null;
+  bool get isManual => customerId == null || customerId!.isEmpty;
 
   @override
   State<CreateQuoteScreen> createState() => _CreateQuoteScreenState();
@@ -54,8 +60,12 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
     _dataFuture = () async {
       final products = await repo.listProducts();
       final terms = await repo.listInvoiceTerms();
-      final customer = await repo.getCustomer(widget.customerId);
-      final pets = await repo.listAnimals(widget.customerId);
+      Customer? customer;
+      var pets = <Animal>[];
+      if (!widget.isManual) {
+        customer = await repo.getCustomer(widget.customerId!);
+        pets = await repo.listAnimals(widget.customerId!);
+      }
       return _FormData(products, terms, customer, pets);
     }();
     _dataFuture.then((data) async {
@@ -190,7 +200,7 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
     return null;
   }
 
-  Future<void> _submit() async {
+  Future<void> _submit({bool send = false}) async {
     final error = _validate();
     if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
@@ -211,19 +221,23 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
         });
       } else {
         quote = await repo.createQuote(
-          customerId: widget.customerId,
+          customerId: widget.isManual ? null : widget.customerId,
+          manualCustomerName: widget.isManual ? widget.manualCustomerName : null,
+          manualCustomerEmail: widget.isManual ? widget.manualCustomerEmail : null,
           lineItems: lineItems,
           issueDate: _issueDate,
           validUntil: _validUntil,
           subject: _subjectController.text.trim(),
           paymentTerms: _selectedTerm?.text ?? '',
         );
+        if (send) await repo.sendQuoteEmail(quote.id);
       }
       if (!mounted) return;
       Navigator.of(context).pop(quote);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Quote ${quote.quoteNumber} ${widget.isEditing ? 'updated' : 'created'}'),
-      ));
+      final verb = widget.isEditing ? 'updated' : (send ? 'created & sent' : 'created');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Quote ${quote.quoteNumber} $verb')),
+      );
     } catch (e) {
       if (mounted) {
         final message = e is ApiException ? e.message : 'Failed to save quote';
@@ -269,14 +283,20 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
   }
 
   Widget _buildForm(BuildContext context, _FormData data) {
-    final address = data.customer.address;
+    final address = data.customer?.address;
     final products = [...data.products, ..._extraProducts];
     return ListView(
       padding: const EdgeInsets.all(20),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
         Text(widget.customerName, style: Theme.of(context).textTheme.titleLarge),
-        if (address != null && address.trim().isNotEmpty)
+        if (widget.isManual && (widget.manualCustomerEmail ?? '').isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text('${widget.manualCustomerEmail}  ·  Manual customer',
+                style: TextStyle(color: Colors.grey.shade700)),
+          )
+        else if (address != null && address.trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Text(address, style: TextStyle(color: Colors.grey.shade700)),
@@ -344,13 +364,32 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
           ],
         ),
         const SizedBox(height: 20),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _submitting ? null : _submit,
-            child: Text(_submitting ? 'Saving…' : (widget.isEditing ? 'Save changes' : 'Create quote')),
+        if (widget.isEditing)
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _submitting ? null : _submit,
+              child: Text(_submitting ? 'Saving…' : 'Save changes'),
+            ),
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _submitting ? null : () => _submit(),
+                  child: Text(_submitting ? 'Saving…' : 'Create Draft'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _submitting ? null : () => _submit(send: true),
+                  child: Text(_submitting ? 'Saving…' : 'Create & Send'),
+                ),
+              ),
+            ],
           ),
-        ),
       ],
     );
   }

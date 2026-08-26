@@ -4,10 +4,23 @@ import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/customer.dart';
 
-/// Searchable customer list that returns the chosen [Customer] via
-/// Navigator.pop — used as the first step of raising an invoice.
+/// What [SelectCustomerScreen] returns: either an existing customer or, when
+/// [SelectCustomerScreen.allowManual] is set, a manually-typed name + email.
+class SelectCustomerResult {
+  final Customer? customer;
+  final String? manualName;
+  final String? manualEmail;
+  const SelectCustomerResult.existing(this.customer) : manualName = null, manualEmail = null;
+  const SelectCustomerResult.manual(this.manualName, this.manualEmail) : customer = null;
+
+  bool get isManual => customer == null;
+}
+
+/// Searchable customer list that returns a [SelectCustomerResult] via
+/// Navigator.pop. With [allowManual] it also offers a "Manual customer" option.
 class SelectCustomerScreen extends StatefulWidget {
-  const SelectCustomerScreen({super.key});
+  final bool allowManual;
+  const SelectCustomerScreen({super.key, this.allowManual = false});
 
   @override
   State<SelectCustomerScreen> createState() => _SelectCustomerScreenState();
@@ -21,6 +34,51 @@ class _SelectCustomerScreenState extends State<SelectCustomerScreen> {
   void initState() {
     super.initState();
     _future = context.read<Repository>().listCustomers();
+  }
+
+  Future<void> _manualCustomer() async {
+    final nameController = TextEditingController();
+    final emailController = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Manual customer'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Name'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              autocorrect: false,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Use')),
+        ],
+      ),
+    );
+    final name = nameController.text.trim();
+    final email = emailController.text.trim();
+    nameController.dispose();
+    emailController.dispose();
+    if (result != true) return;
+    if (name.isEmpty || !email.contains('@') || !email.contains('.')) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Enter a name and valid email.')));
+      }
+      return;
+    }
+    if (mounted) Navigator.of(context).pop(SelectCustomerResult.manual(name, email));
   }
 
   @override
@@ -61,21 +119,32 @@ class _SelectCustomerScreenState extends State<SelectCustomerScreen> {
                   c.name.toLowerCase().contains(_search) ||
                   c.email.toLowerCase().contains(_search))
               .toList();
-          if (customers.isEmpty) {
-            return Center(child: Text(_search.isEmpty ? 'No customers yet.' : 'No matches.'));
-          }
-          return ListView.separated(
+          return ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: customers.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, i) {
-              final c = customers[i];
-              return ListTile(
-                title: Text(c.name),
-                subtitle: Text(c.email),
-                onTap: () => Navigator.of(context).pop(c),
-              );
-            },
+            children: [
+              if (widget.allowManual)
+                ListTile(
+                  leading: const Icon(Icons.person_add_alt_1),
+                  title: const Text('Manual customer'),
+                  subtitle: const Text('Type a name and email (not saved as a customer)'),
+                  onTap: _manualCustomer,
+                ),
+              if (widget.allowManual) const Divider(height: 1),
+              if (customers.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 60),
+                  child: Center(child: Text(_search.isEmpty ? 'No customers yet.' : 'No matches.')),
+                )
+              else
+                for (final c in customers) ...[
+                  ListTile(
+                    title: Text(c.name),
+                    subtitle: Text(c.email),
+                    onTap: () => Navigator.of(context).pop(SelectCustomerResult.existing(c)),
+                  ),
+                  const Divider(height: 1),
+                ],
+            ],
           );
         },
       ),

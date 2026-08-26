@@ -135,8 +135,12 @@ class Repository {
 
   Future<Uint8List> getQuotePdf(String id) async => _client.getBytes('/quotes/$id/pdf');
 
+  /// Creates a quote against either an existing customer ([customerId]) or a
+  /// manual/placeholder customer ([manualCustomerName] + [manualCustomerEmail]).
   Future<Quote> createQuote({
-    required String customerId,
+    String? customerId,
+    String? manualCustomerName,
+    String? manualCustomerEmail,
     required List<InvoiceLineItem> lineItems,
     required DateTime issueDate,
     required DateTime validUntil,
@@ -144,13 +148,25 @@ class Repository {
     String? paymentTerms,
   }) async =>
       Quote.fromJson(await _client.post('/quotes', {
-        'customer': customerId,
+        if (customerId != null && customerId.isNotEmpty) 'customer': customerId,
+        if (manualCustomerName != null && manualCustomerName.isNotEmpty)
+          'manualCustomerName': manualCustomerName,
+        if (manualCustomerEmail != null && manualCustomerEmail.isNotEmpty)
+          'manualCustomerEmail': manualCustomerEmail,
         'lineItems': lineItems.map((e) => e.toJson()).toList(),
         'issueDate': issueDate.toIso8601String(),
         'validUntil': validUntil.toIso8601String(),
         if (subject != null && subject.isNotEmpty) 'subject': subject,
         if (paymentTerms != null && paymentTerms.isNotEmpty) 'paymentTerms': paymentTerms,
       }));
+
+  /// Accepts a quote and converts it into an invoice (server also emails a
+  /// deposit request). Returns the new invoice number, if available.
+  Future<String?> acceptQuote(String id) async {
+    final json = await _client.post('/quotes/$id/accept', {});
+    final invoice = json['invoice'];
+    return invoice is Map<String, dynamic> ? invoice['invoiceNumber'] as String? : null;
+  }
 
   Future<Quote> updateQuote(String id, Map<String, dynamic> patch) async =>
       Quote.fromJson(await _client.patch('/quotes/$id', patch));
