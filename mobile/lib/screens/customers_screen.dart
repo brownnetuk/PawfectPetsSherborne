@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/customer.dart';
+import '../widgets/hold_to_delete_dialog.dart';
 import '../widgets/status_badge.dart';
 import 'customer_detail_screen.dart';
 import 'home_shell.dart';
@@ -15,8 +16,9 @@ class CustomersScreen extends StatefulWidget {
 }
 
 class _CustomersScreenState extends State<CustomersScreen> {
-  late Future<List<Customer>> _future;
+  late Future<(List<Customer>, Map<String, List<String>>)> _future;
   String _search = '';
+  bool _activeOnly = true;
 
   @override
   void initState() {
@@ -25,7 +27,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
   }
 
   void _load() {
-    _future = context.read<Repository>().listCustomers();
+    final repo = context.read<Repository>();
+    _future = () async {
+      final customers = await repo.listCustomers();
+      final pets = await repo.petNamesByCustomer();
+      return (customers, pets);
+    }();
   }
 
   Future<void> _refresh() async {
@@ -40,7 +47,10 @@ class _CustomersScreenState extends State<CustomersScreen> {
     final repo = context.read<Repository>();
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => _DeleteCustomerDialog(name: c.name),
+      builder: (_) => HoldToDeleteDialog(
+        title: 'Delete customer?',
+        message: 'This permanently deletes ${c.name}. This cannot be undone.',
+      ),
     );
     if (confirmed != true) return false;
     try {
@@ -83,23 +93,36 @@ class _CustomersScreenState extends State<CustomersScreen> {
         title: const Text('Customers'),
         actions: const [LogoutAction()],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
+          preferredSize: const Size.fromHeight(104),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: TextField(
-              decoration: const InputDecoration(
-                hintText: 'Search by name or email…',
-                prefixIcon: Icon(Icons.search),
-                isDense: true,
-              ),
-              onChanged: (v) => setState(() => _search = v.toLowerCase()),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Column(
+              children: [
+                TextField(
+                  decoration: const InputDecoration(
+                    hintText: 'Search by name, email or pet…',
+                    prefixIcon: Icon(Icons.search),
+                    isDense: true,
+                  ),
+                  onChanged: (v) => setState(() => _search = v.toLowerCase()),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilterChip(
+                    label: const Text('Active only'),
+                    selected: _activeOnly,
+                    onSelected: (v) => setState(() => _activeOnly = v),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
-        child: FutureBuilder<List<Customer>>(
+        child: FutureBuilder<(List<Customer>, Map<String, List<String>>)>(
           future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -116,17 +139,23 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 ],
               );
             }
-            final customers = (snapshot.data ?? [])
-                .where((c) =>
-                    _search.isEmpty ||
-                    c.name.toLowerCase().contains(_search) ||
-                    c.email.toLowerCase().contains(_search))
-                .toList();
+            final (allCustomers, petMap) = snapshot.data ?? (<Customer>[], <String, List<String>>{});
+            final customers = allCustomers.where((c) {
+              if (_activeOnly && c.status != 'active') return false;
+              if (_search.isEmpty) return true;
+              final pets = petMap[c.id] ?? const <String>[];
+              return c.name.toLowerCase().contains(_search) ||
+                  c.email.toLowerCase().contains(_search) ||
+                  pets.any((p) => p.toLowerCase().contains(_search));
+            }).toList();
             if (customers.isEmpty) {
+              final empty = _search.isNotEmpty
+                  ? 'No matches.'
+                  : (_activeOnly ? 'No active customers.' : 'No customers yet.');
               return ListView(
                 children: [
                   const SizedBox(height: 80),
-                  Center(child: Text(_search.isEmpty ? 'No customers yet.' : 'No matches.')),
+                  Center(child: Text(empty)),
                 ],
               );
             }
@@ -268,103 +297,6 @@ class _NewCustomerSheetState extends State<_NewCustomerSheet> {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Deliberate delete confirmation: the user must tick a checkbox and then
-/// press-and-hold the Delete button for a full 5 seconds. Releasing early
-/// cancels. Pops `true` only once the hold completes.
-class _DeleteCustomerDialog extends StatefulWidget {
-  final String name;
-  const _DeleteCustomerDialog({required this.name});
-
-  @override
-  State<_DeleteCustomerDialog> createState() => _DeleteCustomerDialogState();
-}
-
-class _DeleteCustomerDialogState extends State<_DeleteCustomerDialog>
-    with SingleTickerProviderStateMixin {
-  bool _checked = false;
-  late final AnimationController _hold = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 5),
-  )
-    ..addListener(() => setState(() {}))
-    ..addStatusListener((status) {
-      if (status == AnimationStatus.completed) Navigator.of(context).pop(true);
-    });
-
-  @override
-  void dispose() {
-    _hold.dispose();
-    super.dispose();
-  }
-
-  void _startHold() {
-    if (_checked) _hold.forward();
-  }
-
-  void _cancelHold() {
-    if (!_hold.isCompleted) _hold.reverse();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Delete customer?'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('This permanently deletes ${widget.name}. This cannot be undone.'),
-          const SizedBox(height: 8),
-          CheckboxListTile(
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            value: _checked,
-            onChanged: (v) => setState(() {
-              _checked = v ?? false;
-              if (!_checked) _hold.reset();
-            }),
-            title: const Text('I understand this is permanent'),
-          ),
-          const SizedBox(height: 4),
-          GestureDetector(
-            onTapDown: _checked ? (_) => _startHold() : null,
-            onTapUp: (_) => _cancelHold(),
-            onTapCancel: _cancelHold,
-            child: Opacity(
-              opacity: _checked ? 1 : 0.4,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(height: 48, width: double.infinity, color: Colors.red.shade600),
-                    Positioned.fill(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: FractionallySizedBox(
-                          widthFactor: _hold.value,
-                          child: Container(color: Colors.red.shade900),
-                        ),
-                      ),
-                    ),
-                    Text(
-                      _hold.isAnimating ? 'Keep holding…' : 'Hold to delete (5s)',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-      ],
     );
   }
 }

@@ -55,6 +55,24 @@ class Repository {
           .map((e) => Animal.fromJson(e))
           .toList();
 
+  /// Map of customer id -> their pets' names, for searching customers by pet.
+  Future<Map<String, List<String>>> petNamesByCustomer() async {
+    final list = await _client.getList('/animals');
+    final map = <String, List<String>>{};
+    for (final e in list) {
+      final m = e as Map<String, dynamic>;
+      final customer = m['customer'];
+      final customerId = customer is String
+          ? customer
+          : (customer is Map<String, dynamic> ? customer['_id'] as String? : null);
+      final name = m['name'] as String?;
+      if (customerId != null && name != null && name.isNotEmpty) {
+        (map[customerId] ??= []).add(name);
+      }
+    }
+    return map;
+  }
+
   /// Partial update of a pet (only the given fields are changed).
   Future<Animal> updateAnimal(String id, Map<String, dynamic> patch) async =>
       Animal.fromJson(await _client.patch('/animals/$id', patch));
@@ -95,6 +113,18 @@ class Repository {
 
   Future<Invoice> getInvoice(String id) async =>
       Invoice.fromJson(await _client.get('/invoices/$id'));
+
+  /// The admin app's reusable payment-terms library.
+  Future<List<InvoiceTerm>> listInvoiceTerms() async =>
+      (await _client.getList('/invoice-terms')).map((e) => InvoiceTerm.fromJson(e)).toList();
+
+  /// Partial update of an invoice (subject, terms, dates, status, ...).
+  Future<Invoice> updateInvoice(String id, Map<String, dynamic> patch) async =>
+      Invoice.fromJson(await _client.patch('/invoices/$id', patch));
+
+  /// Deletes an invoice. The server rejects this (409) if it has payments or
+  /// credit notes recorded against it.
+  Future<void> deleteInvoice(String id) => _client.delete('/invoices/$id');
 
   /// The rendered invoice PDF bytes, produced server-side from the same
   /// template the web apps use.

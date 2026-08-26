@@ -3,13 +3,23 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
+import '../models/animal.dart';
+import '../models/customer.dart';
 import '../models/invoice.dart';
 import '../models/product.dart';
 
+/// Everything the form needs, loaded up front.
+class _FormData {
+  final List<Product> products;
+  final List<InvoiceTerm> terms;
+  final Customer customer;
+  final List<Animal> pets;
+  _FormData(this.products, this.terms, this.customer, this.pets);
+}
+
 /// Form for raising a new draft invoice against a customer. Line items are
-/// chosen from the product catalogue (no free-text descriptions); the server
-/// assigns the invoice number and computes the totals, so this only gathers
-/// inputs.
+/// chosen from the product catalogue and payment terms from the admin app's
+/// library; the server assigns the invoice number and computes the totals.
 class CreateInvoiceScreen extends StatefulWidget {
   final String customerId;
   final String customerName;
@@ -25,23 +35,46 @@ class CreateInvoiceScreen extends StatefulWidget {
 
 class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   final _subjectController = TextEditingController();
-  final _paymentTermsController = TextEditingController();
   final List<_LineItemEntry> _items = [_LineItemEntry()];
   DateTime _issueDate = DateTime.now();
   DateTime _dueDate = DateTime.now().add(const Duration(days: 14));
   bool _submitting = false;
-  late Future<List<Product>> _productsFuture;
+  late Future<_FormData> _dataFuture;
+  List<InvoiceTerm> _terms = [];
+  InvoiceTerm? _selectedTerm;
 
   @override
   void initState() {
     super.initState();
-    _productsFuture = context.read<Repository>().listProducts();
+    final repo = context.read<Repository>();
+    _dataFuture = () async {
+      final products = await repo.listProducts();
+      final terms = await repo.listInvoiceTerms();
+      final customer = await repo.getCustomer(widget.customerId);
+      final pets = await repo.listAnimals(widget.customerId);
+      return _FormData(products, terms, customer, pets);
+    }();
+    // Pre-select the default term (and set the due date from it) once loaded.
+    _dataFuture.then((data) {
+      if (!mounted) return;
+      InvoiceTerm? def;
+      for (final t in data.terms) {
+        if (t.isDefault) {
+          def = t;
+          break;
+        }
+      }
+      setState(() {
+        _terms = data.terms;
+        _selectedTerm = def;
+        if (def != null) _applyTermDueDate(def);
+      });
+    }).catchError((_) {});
   }
 
   @override
   void dispose() {
     _subjectController.dispose();
-    _paymentTermsController.dispose();
     for (final item in _items) {
       item.dispose();
     }
@@ -58,11 +91,20 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     });
   }
 
+  /// Sets the due date from a term's plusDays / endOfMonth, relative to the
+  /// current issue date — mirrors the admin app.
+  void _applyTermDueDate(InvoiceTerm t) {
+    if (t.endOfMonth) {
+      _dueDate = DateTime(_issueDate.year, _issueDate.month + 1, 0);
+    } else if (t.plusDays != null) {
+      _dueDate = _issueDate.add(Duration(days: t.plusDays!));
+    }
+  }
+
   Future<void> _pickDate({required bool isIssue}) async {
-    final initial = isIssue ? _issueDate : _dueDate;
     final picked = await showDatePicker(
       context: context,
-      initialDate: initial,
+      initialDate: isIssue ? _issueDate : _dueDate,
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
@@ -70,6 +112,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       setState(() {
         if (isIssue) {
           _issueDate = picked;
+          if (_selectedTerm != null) _applyTermDueDate(_selectedTerm!);
         } else {
           _dueDate = picked;
         }
@@ -78,8 +121,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   }
 
   String? _validate() {
-    final validItems = _items.where((i) => i.isValid).toList();
-    if (validItems.isEmpty) {
+    if (_items.where((i) => i.isValid).isEmpty) {
       return 'Add at least one line item with a product and quantity.';
     }
     if (_dueDate.isBefore(_issueDate)) {
@@ -103,7 +145,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             issueDate: _issueDate,
             dueDate: _dueDate,
             subject: _subjectController.text.trim(),
-            paymentTerms: _paymentTermsController.text.trim(),
+            paymentTerms: _selectedTerm?.text ?? '',
           );
       if (!mounted) return;
       Navigator.of(context).pop(invoice);
@@ -124,8 +166,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('New invoice')),
-      body: FutureBuilder<List<Product>>(
-        future: _productsFuture,
+      body: FutureBuilder<_FormData>(
+        future: _dataFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -133,11 +175,11 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
           if (snapshot.hasError) {
             final message = snapshot.error is ApiException
                 ? (snapshot.error as ApiException).message
-                : 'Failed to load products';
-            return Center(child: Text(message));
+                : 'Failed to load';
+            return Center(child: Text(message, textAlign: TextAlign.center));
           }
-          final products = snapshot.data ?? [];
-          if (products.isEmpty) {
+          final data = snapshot.data!;
+          if (data.products.isEmpty) {
             return const Center(
               child: Padding(
                 padding: EdgeInsets.all(24),
@@ -148,32 +190,53 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
               ),
             );
           }
-          return _buildForm(context, products);
+          return _buildForm(context, data);
         },
       ),
     );
   }
 
-  Widget _buildForm(BuildContext context, List<Product> products) {
+  Widget _buildForm(BuildContext context, _FormData data) {
+    final address = data.customer.address;
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        // Customer: name, address, then pets one per line.
         Text(widget.customerName, style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 20),
+        if (address != null && address.trim().isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(address, style: TextStyle(color: Colors.grey.shade700)),
+          ),
+        if (data.pets.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text('Pets', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+          for (final p in data.pets) Text('• ${p.name} (${p.breed})'),
+        ],
+        const SizedBox(height: 16),
+
         TextField(
           controller: _subjectController,
+          maxLines: 1,
           decoration: const InputDecoration(
             labelText: 'Subject',
             hintText: 'Optional',
+            isDense: true,
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
+
+        _sectionTitle('Dates'),
+        _dateRow('Issue date', _issueDate, () => _pickDate(isIssue: true)),
+        _dateRow('Due date', _dueDate, () => _pickDate(isIssue: false)),
+        const SizedBox(height: 16),
+
         _sectionTitle('Line items'),
         ..._items.asMap().entries.map(
               (entry) => _LineItemEditor(
                 key: ObjectKey(entry.value),
                 entry: entry.value,
-                products: products,
+                products: data.products,
                 onChanged: () => setState(() {}),
                 onRemove: _items.length > 1 ? () => _removeItem(entry.key) : null,
               ),
@@ -187,19 +250,32 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        _sectionTitle('Dates'),
-        _dateRow('Issue date', _issueDate, () => _pickDate(isIssue: true)),
-        _dateRow('Due date', _dueDate, () => _pickDate(isIssue: false)),
-        const SizedBox(height: 20),
+
         _sectionTitle('Payment terms'),
-        TextField(
-          controller: _paymentTermsController,
-          decoration: const InputDecoration(
-            hintText: 'Optional, e.g. "50% deposit due on booking"',
+        if (_terms.isEmpty)
+          Text(
+            'No payment terms set up. Add them in the admin app.',
+            style: TextStyle(color: Colors.grey.shade600),
+          )
+        else
+          DropdownButtonFormField<InvoiceTerm>(
+            initialValue: _selectedTerm,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Payment terms', isDense: true),
+            hint: const Text('Choose payment terms'),
+            items: _terms
+                .map((t) => DropdownMenuItem(
+                      value: t,
+                      child: Text(t.text, overflow: TextOverflow.ellipsis),
+                    ))
+                .toList(),
+            onChanged: (t) => setState(() {
+              _selectedTerm = t;
+              if (t != null) _applyTermDueDate(t);
+            }),
           ),
-          maxLines: 2,
-        ),
         const SizedBox(height: 24),
+
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -294,19 +370,22 @@ class _LineItemEditor extends StatelessWidget {
     this.onRemove,
   });
 
+  static const _dense = InputDecoration(isDense: true);
+
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             DropdownButtonFormField<Product>(
               initialValue: entry.product,
               isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Product'),
+              isDense: true,
+              decoration: const InputDecoration(labelText: 'Product', isDense: true),
               hint: const Text('Choose a product'),
               items: products
                   .map((p) => DropdownMenuItem(
@@ -319,30 +398,32 @@ class _LineItemEditor extends StatelessWidget {
                 onChanged();
               },
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: entry.quantity,
-                    decoration: const InputDecoration(labelText: 'Qty'),
+                    style: const TextStyle(fontSize: 14),
+                    decoration: _dense.copyWith(labelText: 'Qty'),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
                     onChanged: (_) => onChanged(),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Expanded(
                   child: InputDecorator(
-                    decoration: const InputDecoration(labelText: 'Unit'),
-                    child: Text(_formatMoney(entry.unitPrice)),
+                    decoration: _dense.copyWith(labelText: 'Unit'),
+                    child: Text(_formatMoney(entry.unitPrice), style: const TextStyle(fontSize: 14)),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Expanded(
                   child: TextField(
                     controller: entry.discount,
-                    decoration: const InputDecoration(labelText: 'Disc %'),
+                    style: const TextStyle(fontSize: 14),
+                    decoration: _dense.copyWith(labelText: 'Disc %'),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
                     onChanged: (_) => onChanged(),
@@ -350,7 +431,6 @@ class _LineItemEditor extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -360,7 +440,10 @@ class _LineItemEditor extends StatelessWidget {
                     onPressed: onRemove,
                     icon: const Icon(Icons.delete_outline, size: 18),
                     label: const Text('Remove'),
-                    style: TextButton.styleFrom(foregroundColor: Colors.red.shade400),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.red.shade400,
+                      visualDensity: VisualDensity.compact,
+                    ),
                   ),
               ],
             ),

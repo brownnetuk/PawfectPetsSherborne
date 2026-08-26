@@ -2,6 +2,33 @@ import 'customer.dart';
 
 const invoiceStatuses = ['draft', 'sent', 'paid', 'overdue', 'cancelled'];
 
+/// A reusable payment-terms entry from the admin app's library. Picking one
+/// sets the invoice's payment terms text and (via plusDays/endOfMonth) its due
+/// date.
+class InvoiceTerm {
+  final String id;
+  final String text;
+  final int? plusDays;
+  final bool endOfMonth;
+  final bool isDefault;
+
+  InvoiceTerm({
+    required this.id,
+    required this.text,
+    this.plusDays,
+    this.endOfMonth = false,
+    this.isDefault = false,
+  });
+
+  factory InvoiceTerm.fromJson(Map<String, dynamic> json) => InvoiceTerm(
+        id: json['_id'] as String,
+        text: json['text'] as String? ?? '',
+        plusDays: (json['plusDays'] as num?)?.toInt(),
+        endOfMonth: json['endOfMonth'] as bool? ?? false,
+        isDefault: json['isDefault'] as bool? ?? false,
+      );
+}
+
 class InvoiceLineItem {
   final String description;
   final double quantity;

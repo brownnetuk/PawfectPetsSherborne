@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/animal.dart';
@@ -145,7 +146,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
               const SizedBox(height: 20),
               _sectionTitle('Client details'),
               _row('Email', customer.email),
-              _row('Phone number', customer.phoneNumber ?? '—'),
+              _phoneRow('Phone number', customer.phoneNumber),
               _row('Address', customer.address ?? '—'),
               if (customer.emergencyContact != null) ...[
                 _sectionTitle('Emergency contact'),
@@ -154,13 +155,13 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                   _row('Name', customer.emergencyContact!.name ?? '—'),
                   _row('Address', customer.emergencyContact!.address ?? '—'),
                 ],
-                _row('Phone number', customer.emergencyContact!.phoneNumber ?? '—'),
+                _phoneRow('Phone number', customer.emergencyContact!.phoneNumber),
               ],
               if (customer.emergencyVet != null) ...[
                 _sectionTitle('Emergency vet'),
                 _row('Practice', customer.emergencyVet!.practiceName),
                 _row('Address', customer.emergencyVet!.address),
-                _row('Telephone', customer.emergencyVet!.telephone),
+                _phoneRow('Telephone', customer.emergencyVet!.telephone),
                 _row(
                   'Alt. care',
                   customer.emergencyVet!.alternativeVetAuthorised ? 'Authorised' : 'Not authorised',
@@ -269,6 +270,50 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
           ],
         ),
       );
+
+  /// A detail row whose value is a tappable phone number that opens the dialer.
+  Widget _phoneRow(String label, String? phone) {
+    final hasPhone = phone != null && phone.trim().isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 110, child: Text(label, style: TextStyle(color: Colors.grey.shade600))),
+          Expanded(
+            child: hasPhone
+                ? InkWell(
+                    onTap: () => _launchPhone(phone),
+                    child: Text(
+                      phone,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  )
+                : const Text('—'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _launchPhone(String raw) async {
+    final uri = Uri(scheme: 'tel', path: raw.replaceAll(RegExp(r'[^0-9+]'), ''));
+    try {
+      final ok = await launchUrl(uri);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Could not open the phone dialer.')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Could not open the phone dialer.')));
+      }
+    }
+  }
 }
 
 class _AddNoteSheet extends StatefulWidget {

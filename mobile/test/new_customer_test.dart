@@ -18,6 +18,9 @@ class _FakeRepository extends Repository {
   Future<List<Customer>> listCustomers() async => [];
 
   @override
+  Future<Map<String, List<String>>> petNamesByCustomer() async => {};
+
+  @override
   Future<Customer> createLead({required String name, required String email}) async {
     createCalls++;
     capturedName = name;
