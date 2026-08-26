@@ -31,6 +31,11 @@ import { SettingsService } from '../settings/settings.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { Invoice, InvoiceStatus } from './schemas/invoice.schema';
+import {
+  buildInvoicePdfBuffer,
+  PdfBusinessInfo,
+  PdfInvoice,
+} from './pdf/invoice-pdf.util';
 
 @Injectable()
 export class InvoicesService {
@@ -137,6 +142,19 @@ export class InvoicesService {
       throw new NotFoundException(`Invoice ${id} not found`);
     }
     return invoice;
+  }
+
+  // Renders the invoice as a PDF using the same staff-designed template
+  // (BusinessInfo.invoicePdfTemplate) the web apps use, so the mobile app can
+  // download an identical document. Serialized via JSON so dates arrive as ISO
+  // strings and the populated customer stays a plain object -- the same shape
+  // the renderer sees in the browser.
+  async renderPdf(id: string): Promise<Buffer> {
+    const invoice = await this.findOne(id);
+    const business = await this.settingsService.getBusinessInfo();
+    const record = JSON.parse(JSON.stringify(invoice)) as PdfInvoice;
+    const businessInfo = JSON.parse(JSON.stringify(business)) as PdfBusinessInfo;
+    return buildInvoicePdfBuffer(record, businessInfo);
   }
 
   async update(

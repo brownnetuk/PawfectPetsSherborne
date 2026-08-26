@@ -5,10 +5,8 @@ import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
-import '../models/business_info.dart';
 import '../models/expense.dart';
 import '../models/invoice.dart';
-import '../pdf/invoice_pdf.dart';
 
 /// Shows a single invoice rendered as a PDF, with a bottom action bar
 /// (Send Email / Record Payment / Request Deposit) in place of the app's
@@ -23,7 +21,6 @@ class InvoiceDetailScreen extends StatefulWidget {
 
 class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   Invoice? _invoice;
-  BusinessInfo? _business;
   Object? _loadError;
   bool _busy = false;
 
@@ -36,19 +33,11 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   Future<void> _load() async {
     setState(() {
       _invoice = null;
-      _business = null;
       _loadError = null;
     });
     try {
-      final repo = context.read<Repository>();
-      final invoice = await repo.getInvoice(widget.invoiceId);
-      final business = await repo.getBusinessInfo();
-      if (mounted) {
-        setState(() {
-          _invoice = invoice;
-          _business = business;
-        });
-      }
+      final invoice = await context.read<Repository>().getInvoice(widget.invoiceId);
+      if (mounted) setState(() => _invoice = invoice);
     } catch (e) {
       if (mounted) setState(() => _loadError = e);
     }
@@ -148,13 +137,14 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
           : 'Failed to load invoice';
       return Center(child: Text(message, textAlign: TextAlign.center));
     }
-    if (_invoice == null || _business == null) {
+    if (_invoice == null) {
       return const Center(child: CircularProgressIndicator());
     }
     return PdfPreview(
-      // Regenerate when the invoice changes (e.g. after a payment/send).
+      // Re-fetch when the invoice changes (e.g. after a payment/send) so the
+      // server-rendered PDF reflects the new status/balance.
       key: ValueKey('${_invoice!.status}-${_invoice!.amountPaid}'),
-      build: (_) => buildInvoicePdf(_invoice!, _business!),
+      build: (_) => context.read<Repository>().getInvoicePdf(widget.invoiceId),
       canChangePageFormat: false,
       canChangeOrientation: false,
       canDebug: false,

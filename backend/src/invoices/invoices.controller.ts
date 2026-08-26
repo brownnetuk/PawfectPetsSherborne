@@ -38,6 +38,21 @@ export class InvoicesController {
     return this.invoicesService.findOne(id);
   }
 
+  // The rendered invoice PDF (same template as the web apps), downloaded by
+  // the mobile app to display/print/share. Staff-authed like findOne above.
+  @Get(':id/pdf')
+  async pdf(
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const buffer = await this.invoicesService.renderPdf(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="invoice-${id}.pdf"`,
+    });
+    return new StreamableFile(buffer);
+  }
+
   @Patch(':id')
   update(
     @Param('id') id: string,

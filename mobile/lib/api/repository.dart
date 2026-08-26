@@ -1,6 +1,6 @@
 import '../models/animal.dart';
 import '../models/booking.dart';
-import '../models/business_info.dart';
+import 'dart:typed_data';
 import '../models/crm_activity.dart';
 import '../models/customer.dart';
 import '../models/expense.dart';
@@ -76,6 +76,10 @@ class Repository {
   Future<Invoice> getInvoice(String id) async =>
       Invoice.fromJson(await _client.get('/invoices/$id'));
 
+  /// The rendered invoice PDF bytes, produced server-side from the same
+  /// template the web apps use.
+  Future<Uint8List> getInvoicePdf(String id) async => _client.getBytes('/invoices/$id/pdf');
+
   /// Emails the invoice to the customer. Moves a draft to "sent".
   Future<Invoice> sendInvoiceEmail(String id) async =>
       Invoice.fromJson(await _client.post('/invoices/$id/send', {}));
@@ -110,9 +114,6 @@ class Repository {
         if (charges != null && charges > 0) 'charges': charges,
       });
 
-  // --- settings ---
-  Future<BusinessInfo> getBusinessInfo() async =>
-      BusinessInfo.fromJson(await _client.get('/settings/business'));
 
   /// Creates a draft invoice. The server assigns the invoice number and
   /// computes subtotal/total from the line items, so we only send inputs.

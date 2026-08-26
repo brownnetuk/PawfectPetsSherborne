@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import '../config.dart';
 
@@ -73,4 +74,29 @@ class ApiClient {
         () => http.patch(_uri(path), headers: _headers, body: jsonEncode(body)),
         (json) => json as Map<String, dynamic>,
       );
+
+  /// Fetches raw bytes (e.g. a PDF) rather than JSON, applying the same auth
+  /// header, timeout, and 401/error handling as [_handle].
+  Future<Uint8List> getBytes(String path, {Map<String, String>? query}) async {
+    late http.Response res;
+    try {
+      res = await http.get(_uri(path, query), headers: _headers).timeout(const Duration(seconds: 30));
+    } catch (e) {
+      throw ApiException('Could not reach the server. Check your connection and try again.');
+    }
+    if (res.statusCode == 401) {
+      _onUnauthorized?.call();
+      throw ApiException('Session expired. Please log in again.', statusCode: 401);
+    }
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      String message = 'Request failed (${res.statusCode})';
+      try {
+        final body = jsonDecode(utf8.decode(res.bodyBytes));
+        final m = body['message'];
+        message = m is List ? m.join('; ') : (m?.toString() ?? message);
+      } catch (_) {}
+      throw ApiException(message, statusCode: res.statusCode);
+    }
+    return res.bodyBytes;
+  }
 }
