@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model } from 'mongoose';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
@@ -101,13 +102,13 @@ export class InvoicesService {
   }
 
   // Flips any invoice still sitting at "sent" past its due date to "overdue".
-  // Run at the top of findAll() rather than on a schedule (e.g. @nestjs/schedule's
-  // @Cron) -- the free Render plan this backend runs on spins the process down
-  // after inactivity, so a background timer wouldn't fire while asleep and
-  // could leave invoices stale for however long nobody was using the app. A
-  // plain conditional updateMany on every list fetch is cheap at this app's
-  // scale and self-heals immediately whenever staff next open the page,
-  // regardless of how long the backend was asleep.
+  // Runs hourly via @Cron so invoices go overdue in the background even if
+  // nobody opens the app that day (self-hosted now, so no free-tier sleep to
+  // work around). Also still called at the top of findAll() below so the
+  // list is always correct the instant staff open it, rather than waiting
+  // for the next hourly tick -- a plain conditional updateMany is cheap
+  // enough to run on every list fetch too.
+  @Cron(CronExpression.EVERY_HOUR)
   private async markOverdue(): Promise<void> {
     await this.invoiceModel
       .updateMany(
