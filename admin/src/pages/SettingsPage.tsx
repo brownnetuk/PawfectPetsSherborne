@@ -863,40 +863,48 @@ function StaffTab() {
                 return (
                   <tr key={s.id} onClick={() => setEditingStaff(s)}>
                     <td>
-                      {s.name}
-                      {isSelf && <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}> (you)</span>}
-                      {s.isBreakGlass && (
-                        <span
-                          title="Bypasses the Trusted IPs restriction"
-                          style={{
-                            marginLeft: 8,
-                            fontSize: '0.72rem',
-                            fontWeight: 600,
-                            color: 'var(--accent-dark)',
-                            border: '1px solid var(--accent)',
-                            borderRadius: 4,
-                            padding: '1px 6px',
-                          }}
-                        >
-                          Break-glass
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+                        <span>
+                          {s.name}
+                          {isSelf && <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}> (you)</span>}
                         </span>
-                      )}
-                      {s.locked && (
-                        <span
-                          title="Can't log in, and any existing session is blocked immediately"
-                          style={{
-                            marginLeft: 8,
-                            fontSize: '0.72rem',
-                            fontWeight: 600,
-                            color: 'var(--error)',
-                            border: '1px solid #eecabf',
-                            borderRadius: 4,
-                            padding: '1px 6px',
-                          }}
-                        >
-                          Locked
-                        </span>
-                      )}
+                        {(s.isBreakGlass || s.locked) && (
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {s.isBreakGlass && (
+                              <span
+                                title="Bypasses the Trusted IPs restriction"
+                                style={{
+                                  whiteSpace: 'nowrap',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 600,
+                                  color: 'var(--accent-dark)',
+                                  border: '1px solid var(--accent)',
+                                  borderRadius: 4,
+                                  padding: '1px 6px',
+                                }}
+                              >
+                                Break-glass
+                              </span>
+                            )}
+                            {s.locked && (
+                              <span
+                                title="Can't log in, and any existing session is blocked immediately"
+                                style={{
+                                  whiteSpace: 'nowrap',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 600,
+                                  color: 'var(--error)',
+                                  border: '1px solid #eecabf',
+                                  borderRadius: 4,
+                                  padding: '1px 6px',
+                                }}
+                              >
+                                Locked
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td>{s.username}</td>
                     <td>{s.email}</td>
