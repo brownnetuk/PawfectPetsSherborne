@@ -1,8 +1,10 @@
-import { Body, Controller, Delete, Get, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
+import { RequirePermission } from './require-permission.decorator';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { UpdateStaffDto } from './dto/update-staff.dto';
 import { Public } from './public.decorator';
 
 @Controller('auth')
@@ -15,7 +17,10 @@ export class AuthController {
     return this.authService.login(dto, req);
   }
 
-  // Protected by the global guard: only an already-logged-in staff member can add another.
+  // Creating/listing/editing/deleting staff accounts is itself a
+  // privilege-escalation-relevant action, so it's staff.manage, same as
+  // roles themselves (roles.controller.ts).
+  @RequirePermission('staff.manage')
   @Post('register')
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
@@ -26,11 +31,19 @@ export class AuthController {
     return req.user;
   }
 
+  @RequirePermission('staff.manage')
   @Get('staff')
   listStaff() {
     return this.authService.listStaff();
   }
 
+  @RequirePermission('staff.manage')
+  @Patch('staff/:id')
+  updateStaff(@Param('id') id: string, @Body() dto: UpdateStaffDto) {
+    return this.authService.updateStaff(id, dto);
+  }
+
+  @RequirePermission('staff.manage')
   @Delete('staff/:id')
   deleteStaff(@Param('id') id: string) {
     return this.authService.deleteStaff(id);

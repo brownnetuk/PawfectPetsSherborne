@@ -7,6 +7,7 @@ import { AppController } from './app.controller';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { PermissionsGuard } from './auth/permissions.guard';
 import { EncryptionModule } from './common/encryption/encryption.module';
 import { CustomersModule } from './customers/customers.module';
 import { AnimalsModule } from './animals/animals.module';
@@ -28,6 +29,8 @@ import { EnquiriesModule } from './enquiries/enquiries.module';
 import { VendorsModule } from './vendors/vendors.module';
 import { FormsModule } from './forms/forms.module';
 import { FormSubmissionsModule } from './form-submissions/form-submissions.module';
+import { RolesModule } from './roles/roles.module';
+import { StaffModule } from './staff/staff.module';
 
 @Module({
   imports: [
@@ -65,8 +68,17 @@ import { FormSubmissionsModule } from './form-submissions/form-submissions.modul
     VendorsModule,
     FormsModule,
     FormSubmissionsModule,
+    RolesModule,
+    // Needed here (not just via AuthModule) so PermissionsGuard below --
+    // provided at this module's level -- can inject the Staff model.
+    StaffModule,
   ],
   controllers: [AppController],
-  providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    // Runs after JwtAuthGuard; a no-op on any route without
+    // @RequirePermission() (see permissions.guard.ts).
+    { provide: APP_GUARD, useClass: PermissionsGuard },
+  ],
 })
 export class AppModule {}

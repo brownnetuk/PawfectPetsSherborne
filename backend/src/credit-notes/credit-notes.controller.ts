@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { CurrentUserShape } from '../auth/current-user.decorator';
+import { RequirePermission } from '../auth/require-permission.decorator';
 import { CreditNotesService } from './credit-notes.service';
 import { CreateCreditNoteDto } from './dto/create-credit-note.dto';
 
@@ -18,6 +19,7 @@ export class CreditNotesController {
     return this.creditNotesService.findAll(customer);
   }
 
+  @RequirePermission('financial.manage')
   @Delete(':id')
   remove(@Param('id') id: string, @CurrentUser() user: CurrentUserShape) {
     return this.creditNotesService.remove(id, user.name);

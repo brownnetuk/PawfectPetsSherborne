@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { RequirePermission } from '../auth/require-permission.decorator';
 import { BankAccountsService } from './bank-accounts.service';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { SetOpeningBalanceDto } from './dto/set-opening-balance.dto';
@@ -41,6 +42,7 @@ export class BankAccountsController {
     return this.bankAccountsService.setOpeningBalance(id, dto);
   }
 
+  @RequirePermission('financial.manage')
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.bankAccountsService.remove(id);

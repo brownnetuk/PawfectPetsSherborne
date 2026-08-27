@@ -8,6 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { RequirePermission } from '../auth/require-permission.decorator';
 import { CrmService } from './crm.service';
 import { CreateCrmActivityDto } from './dto/create-crm-activity.dto';
 import { UpdateCrmActivityDto } from './dto/update-crm-activity.dto';
@@ -36,6 +37,7 @@ export class CrmController {
     return this.crmService.update(id, dto);
   }
 
+  @RequirePermission('customers.manage')
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.crmService.remove(id);

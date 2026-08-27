@@ -15,6 +15,7 @@ import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { Staff } from '../staff/schemas/staff.schema';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { UpdateStaffDto } from './dto/update-staff.dto';
 
 // Sent by the admin web app on every request (admin/src/api/client.ts) -- the
 // mobile app never sends this, so it's naturally exempt from the IP check
@@ -41,8 +42,15 @@ export class AuthService {
       email: dto.email.toLowerCase(),
       passwordHash,
       isBreakGlass: dto.isBreakGlass ?? false,
+      role: dto.role,
     }).save();
-    return { id: staff._id, name: staff.name, email: staff.email, isBreakGlass: staff.isBreakGlass ?? false };
+    return {
+      id: staff._id,
+      name: staff.name,
+      email: staff.email,
+      isBreakGlass: staff.isBreakGlass ?? false,
+      role: staff.role ?? null,
+    };
   }
 
   async login(dto: LoginDto, req: Request) {
@@ -86,10 +94,17 @@ export class AuthService {
   async listStaff() {
     const staff = await this.staffModel
       .find()
-      .select('name email isBreakGlass createdAt')
+      .select('name email isBreakGlass role createdAt')
+      .populate<{ role: { _id: unknown; name: string; permissions: string[] } | null }>('role', 'name permissions')
       .sort({ name: 1 })
       .exec();
-    return staff.map((s) => ({ id: s._id, name: s.name, email: s.email, isBreakGlass: s.isBreakGlass ?? false }));
+    return staff.map((s) => ({
+      id: s._id,
+      name: s.name,
+      email: s.email,
+      isBreakGlass: s.isBreakGlass ?? false,
+      role: s.role ? { id: s.role._id, name: s.role.name, permissions: s.role.permissions } : null,
+    }));
   }
 
   async deleteStaff(id: string) {
@@ -101,5 +116,29 @@ export class AuthService {
     if (!result) {
       throw new NotFoundException(`Staff ${id} not found`);
     }
+  }
+
+  // Currently only used to (re)assign a role -- Settings > Staff's Role
+  // dropdown saves immediately on change, same pattern as an invoice/quote
+  // status dropdown.
+  async updateStaff(id: string, dto: UpdateStaffDto) {
+    // Explicit null unassigns (full access) -- $unset, not $set, since a
+    // plain $set: { role: null } would leave the field present-but-null
+    // rather than genuinely absent, and PermissionsGuard checks presence.
+    const mongoUpdate = dto.role === null ? { $unset: { role: '' } } : dto.role !== undefined ? { $set: { role: dto.role } } : {};
+    const staff = await this.staffModel
+      .findByIdAndUpdate(id, mongoUpdate, { new: true })
+      .populate<{ role: { _id: unknown; name: string; permissions: string[] } | null }>('role', 'name permissions')
+      .exec();
+    if (!staff) {
+      throw new NotFoundException(`Staff ${id} not found`);
+    }
+    return {
+      id: staff._id,
+      name: staff.name,
+      email: staff.email,
+      isBreakGlass: staff.isBreakGlass ?? false,
+      role: staff.role ? { id: staff.role._id, name: staff.role.name, permissions: staff.role.permissions } : null,
+    };
   }
 }

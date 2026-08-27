@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Public } from '../auth/public.decorator';
+import { RequirePermission } from '../auth/require-permission.decorator';
 import { getClientIp } from '../common/client-ip.util';
 import { PreviewTermsDto } from './dto/preview-terms.dto';
 import { SendTestEmailDto } from './dto/send-test-email.dto';
@@ -49,6 +50,7 @@ export class SettingsController {
     return this.settingsService.getBusinessInfo();
   }
 
+  @RequirePermission('settings.manage')
   @Patch('business')
   updateBusinessInfo(@Body() dto: UpdateBusinessInfoDto) {
     return this.settingsService.updateBusinessInfo(dto);
@@ -75,6 +77,7 @@ export class SettingsController {
     return new StreamableFile(buffer);
   }
 
+  @RequirePermission('settings.manage')
   @Post('terms/preview')
   previewTerms(@Body() dto: PreviewTermsDto) {
     return this.settingsService.previewTerms(dto);
@@ -120,16 +123,22 @@ export class SettingsController {
     return this.settingsService.getEmailSettings();
   }
 
+  @RequirePermission('settings.manage')
   @Patch('email')
   updateEmailSettings(@Body() dto: UpdateEmailSettingsDto) {
     return this.settingsService.updateEmailSettings(dto);
   }
 
+  @RequirePermission('settings.manage')
   @Post('email/test')
   sendTestEmail(@Body() dto: SendTestEmailDto) {
     return this.settingsService.sendTestEmail(dto);
   }
 
+  // Not gated: this is the generic "send an email" endpoint used by routine,
+  // everyday customer-communication flows (RegistrationLinkModal, "Request
+  // Update", SendFormModal, AddPetChoiceModal) -- it just happens to live in
+  // this controller, it isn't itself a Settings action.
   @Post('email/send')
   sendTriggeredEmail(@Body() dto: SendTriggeredEmailDto) {
     return this.settingsService.sendTriggeredEmail(dto);
@@ -140,6 +149,7 @@ export class SettingsController {
     return this.settingsService.listEmailTemplates();
   }
 
+  @RequirePermission('settings.manage')
   @Put('email-templates/:trigger')
   upsertEmailTemplate(
     @Param('trigger', new ParseEnumPipe(EmailTrigger)) trigger: EmailTrigger,
@@ -148,6 +158,7 @@ export class SettingsController {
     return this.settingsService.upsertEmailTemplate(trigger, dto);
   }
 
+  @RequirePermission('settings.manage')
   @Delete('email-templates/:trigger')
   deleteEmailTemplate(
     @Param('trigger', new ParseEnumPipe(EmailTrigger)) trigger: EmailTrigger,

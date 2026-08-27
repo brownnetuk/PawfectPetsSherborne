@@ -11,6 +11,7 @@ import RichTextEditor from '../components/RichTextEditor';
 import type { RichTextEditorHandle } from '../components/RichTextEditor';
 import { PencilIcon, SortIcon, TrashIcon } from '../components/icons';
 import { buildItemsTableHtml, escapeHtml, interpolateBody, interpolateSubject } from '../utils/emailTemplate';
+import { PERMISSION_CATALOG } from '../utils/permissionCatalog';
 import type {
   BusinessInfo,
   EmailSettings,
@@ -19,6 +20,7 @@ import type {
   FormRecord,
   InvoiceTerm,
   Product,
+  Role,
   Staff,
 } from '../types';
 
@@ -800,16 +802,22 @@ function TermsPreviewModal({ html, onClose }: { html: string; onClose: () => voi
 function StaffTab() {
   const { staff: currentStaff } = useAuth();
   const [staff, setStaff] = useState<Staff[] | null>(null);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [deletingStaff, setDeletingStaff] = useState<Staff | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [roleUpdateError, setRoleUpdateError] = useState<string | null>(null);
 
   function refresh() {
     api.listStaff().then(setStaff).catch((err) => setError(err.message));
   }
+  function refreshRoles() {
+    api.listRoles().then(setRoles).catch(() => {});
+  }
   useEffect(refresh, []);
+  useEffect(refreshRoles, []);
 
   async function handleDelete() {
     if (!deletingStaff) return;
@@ -826,6 +834,16 @@ function StaffTab() {
     }
   }
 
+  async function handleRoleChange(staffId: string, roleId: string) {
+    setRoleUpdateError(null);
+    try {
+      await api.updateStaff(staffId, { role: roleId || null });
+      refresh();
+    } catch (err) {
+      setRoleUpdateError(err instanceof Error ? err.message : "Failed to update that account's role");
+    }
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
@@ -834,6 +852,7 @@ function StaffTab() {
         </button>
       </div>
       {error && <div className="error-banner">{error}</div>}
+      {roleUpdateError && <div className="error-banner">{roleUpdateError}</div>}
 
       <div className="card" style={{ padding: 0 }}>
         {!staff || staff.length === 0 ? (
@@ -844,6 +863,7 @@ function StaffTab() {
               <tr>
                 <th>Name</th>
                 <th>Email</th>
+                <th>Role</th>
                 <th></th>
               </tr>
             </thead>
@@ -874,6 +894,21 @@ function StaffTab() {
                     </td>
                     <td>{s.email}</td>
                     <td>
+                      <select
+                        className="select-inline"
+                        value={s.role?.id ?? ''}
+                        onChange={(e) => handleRoleChange(s.id, e.target.value)}
+                        title={s.isBreakGlass ? 'Break-glass accounts always have full access regardless of role' : undefined}
+                      >
+                        <option value="">No role (full access)</option>
+                        {roles.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
                       <button
                         className="icon-btn icon-btn-danger"
                         title={isSelf ? "You can't delete your own account while signed in" : 'Delete'}
@@ -892,8 +927,11 @@ function StaffTab() {
         )}
       </div>
 
+      <RolesCard roles={roles} onChanged={refreshRoles} />
+
       {showNew && (
         <NewStaffModal
+          roles={roles}
           onClose={() => setShowNew(false)}
           onCreated={() => {
             setShowNew(false);
@@ -923,11 +961,20 @@ function StaffTab() {
   );
 }
 
-function NewStaffModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function NewStaffModal({
+  roles,
+  onClose,
+  onCreated,
+}: {
+  roles: Role[];
+  onClose: () => void;
+  onCreated: () => void;
+}) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isBreakGlass, setIsBreakGlass] = useState(false);
+  const [role, setRole] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -936,7 +983,7 @@ function NewStaffModal({ onClose, onCreated }: { onClose: () => void; onCreated:
     setSubmitting(true);
     setError(null);
     try {
-      await api.registerStaff(name, email, password, isBreakGlass);
+      await api.registerStaff(name, email, password, isBreakGlass, role || undefined);
       onCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create staff account');
@@ -985,12 +1032,213 @@ function NewStaffModal({ onClose, onCreated }: { onClose: () => void; onCreated:
             still log into from anywhere if the trusted IP list is ever wrong or out of date.
           </div>
         </div>
+        <div className="field">
+          <label>Role</label>
+          <select value={role} onChange={(e) => setRole(e.target.value)}>
+            <option value="">No role (full access)</option>
+            {roles.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel
           </button>
           <button type="submit" className="btn btn-primary" disabled={submitting}>
             {submitting ? 'Creating…' : 'Create account'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// Settings > Staff > Access Permissions -- roles are a named set of
+// permission keys (see utils/permissionCatalog.ts), assigned to a staff
+// member via the Role dropdown on each row in the staff table above. Not
+// built on NamedListCard (which only handles a plain { name } item) since a
+// role also carries its permissions array.
+function RolesCard({ roles, onChanged }: { roles: Role[]; onChanged: () => void }) {
+  const [editing, setEditing] = useState<Role | null | 'new'>(null);
+  const [deleting, setDeleting] = useState<Role | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteRole(deleting.id);
+      setDeleting(null);
+      onChanged();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete this role');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <h2>Access Permissions</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+            Roles are a named set of permissions, assigned to a staff member from the Role column
+            above. An account with no role assigned keeps full access.
+          </p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setEditing('new')}>
+          New role
+        </button>
+      </div>
+      {roles.length === 0 ? (
+        <div className="empty-state">No roles yet — every staff account has full access until one is created and assigned.</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Permissions</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {roles.map((r) => (
+              <tr key={r.id}>
+                <td>{r.name}</td>
+                <td>
+                  {r.permissions.length === 0
+                    ? '—'
+                    : r.permissions.length === PERMISSION_CATALOG.length
+                      ? 'All permissions'
+                      : `${r.permissions.length} of ${PERMISSION_CATALOG.length}`}
+                </td>
+                <td>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    <button className="icon-btn" title="Edit" onClick={() => setEditing(r)}>
+                      <PencilIcon />
+                    </button>
+                    <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(r)}>
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {editing && (
+        <RoleFormModal
+          role={editing === 'new' ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            onChanged();
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal title="Delete role?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently removes <strong>{deleting.name}</strong>. Any staff account it's assigned
+            to would need reassigning first.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete role'}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function RoleFormModal({
+  role,
+  onClose,
+  onSaved,
+}: {
+  role: Role | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(role?.name ?? '');
+  const [permissions, setPermissions] = useState<string[]>(role?.permissions ?? []);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  function togglePermission(key: string) {
+    setPermissions((current) => (current.includes(key) ? current.filter((p) => p !== key) : [...current, key]));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      const input = { name, permissions };
+      if (role) await api.updateRole(role.id, input);
+      else await api.createRole(input);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save this role');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title={role ? 'Edit role' : 'New role'} onClose={onClose}>
+      {error && <div className="error-banner">{error}</div>}
+      <form onSubmit={handleSubmit}>
+        <div className="field">
+          <label>Name</label>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Front of house" required autoFocus />
+        </div>
+        <div className="field">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <label style={{ marginBottom: 0 }}>Permissions</label>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button type="button" className="btn-link" onClick={() => setPermissions(PERMISSION_CATALOG.map((p) => p.key))}>
+                Select all
+              </button>
+              <button type="button" className="btn-link" onClick={() => setPermissions([])}>
+                Clear all
+              </button>
+            </div>
+          </div>
+          {PERMISSION_CATALOG.map((p) => (
+            <label key={p.key} style={{ display: 'block', fontWeight: 400, marginTop: 8 }}>
+              <input
+                type="checkbox"
+                checked={permissions.includes(p.key)}
+                onChange={() => togglePermission(p.key)}
+                style={{ marginRight: 8 }}
+              />
+              {p.label}
+              <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginLeft: 24, marginTop: 2 }}>{p.hint}</div>
+            </label>
+          ))}
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
+            {submitting ? 'Saving…' : role ? 'Save changes' : 'Create role'}
           </button>
         </div>
       </form>

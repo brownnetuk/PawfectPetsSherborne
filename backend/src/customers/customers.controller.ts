@@ -13,6 +13,7 @@ import { actorFromRequest } from '../auth/actor.util';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { Public } from '../auth/public.decorator';
+import { RequirePermission } from '../auth/require-permission.decorator';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { CreateLeadDto } from './dto/create-lead.dto';
@@ -52,6 +53,7 @@ export class CustomersController {
     return this.customersService.findOne(id);
   }
 
+  @RequirePermission('customers.viewSecurity')
   @Get(':id/alarm-instructions')
   async getAlarmInstructions(@Param('id') id: string) {
     return {
@@ -112,6 +114,7 @@ export class CustomersController {
     return this.customersService.logFormSnapshot(id, dto, actorFromRequest(req));
   }
 
+  @RequirePermission('customers.manage')
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.customersService.remove(id);

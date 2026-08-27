@@ -10,11 +10,18 @@ export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
 export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'declined' | 'expired';
 export type ActivityType = 'note' | 'call' | 'email' | 'task' | 'status_change';
 
+export interface Role {
+  id: string;
+  name: string;
+  permissions: string[];
+}
+
 export interface Staff {
   id: string;
   name: string;
   email: string;
   isBreakGlass: boolean;
+  role: Role | null;
 }
 
 export interface Customer {

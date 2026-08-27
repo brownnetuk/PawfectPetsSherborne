@@ -28,6 +28,7 @@ import type {
   PaymentMethod,
   Product,
   Quote,
+  Role,
   Staff,
   VendorOption,
 } from '../types';
@@ -88,17 +89,35 @@ export function registerStaff(
   email: string,
   password: string,
   isBreakGlass?: boolean,
+  role?: string,
 ): Promise<Staff> {
   return request('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ name, email, password, isBreakGlass }),
+    body: JSON.stringify({ name, email, password, isBreakGlass, role: role || undefined }),
   });
 }
 export function listStaff(): Promise<Staff[]> {
   return request('/auth/staff');
 }
+export function updateStaff(id: string, patch: { role: string | null }): Promise<Staff> {
+  return request(`/auth/staff/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+}
 export function deleteStaff(id: string): Promise<void> {
   return request(`/auth/staff/${id}`, { method: 'DELETE' });
+}
+
+// --- roles (Settings > Staff > Access Permissions) ---
+export function listRoles(): Promise<Role[]> {
+  return request('/roles');
+}
+export function createRole(input: { name: string; permissions: string[] }): Promise<Role> {
+  return request('/roles', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateRole(id: string, input: { name: string; permissions: string[] }): Promise<Role> {
+  return request(`/roles/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deleteRole(id: string): Promise<void> {
+  return request(`/roles/${id}`, { method: 'DELETE' });
 }
 
 // --- customers ---

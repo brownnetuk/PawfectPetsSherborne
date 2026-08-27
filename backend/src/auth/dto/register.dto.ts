@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsNotEmpty, IsOptional, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsMongoId, IsNotEmpty, IsOptional, MinLength } from 'class-validator';
 
 export class RegisterDto {
   @IsNotEmpty()
@@ -13,4 +13,9 @@ export class RegisterDto {
   @IsOptional()
   @IsBoolean()
   isBreakGlass?: boolean;
+
+  // Left unassigned (the default) means full access -- see PermissionsGuard.
+  @IsOptional()
+  @IsMongoId()
+  role?: string;
 }

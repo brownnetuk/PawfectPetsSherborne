@@ -14,6 +14,7 @@ import { actorFromRequest } from '../auth/actor.util';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { Public } from '../auth/public.decorator';
+import { RequirePermission } from '../auth/require-permission.decorator';
 import { AnimalsService } from './animals.service';
 import { CreateAnimalDto } from './dto/create-animal.dto';
 import { PublicUpdateAnimalDto } from './dto/public-update-animal.dto';
@@ -76,6 +77,7 @@ export class AnimalsController {
     return this.animalsService.updateForCustomer(id, customerId, dto, actorFromRequest(req));
   }
 
+  @RequirePermission('customers.manage')
   @Delete(':id')
   remove(@Param('id') id: string, @CurrentUser() user: CurrentUserShape) {
     return this.animalsService.remove(id, user.name);

@@ -14,6 +14,7 @@ import type { Response } from 'express';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { Public } from '../auth/public.decorator';
+import { RequirePermission } from '../auth/require-permission.decorator';
 import { transparentGifBuffer } from '../common/tracking-pixel.util';
 import { QuotesService } from './quotes.service';
 import { CreateQuoteDto } from './dto/create-quote.dto';
@@ -62,6 +63,7 @@ export class QuotesController {
     return this.quotesService.update(id, dto, user.name);
   }
 
+  @RequirePermission('invoicing.manage')
   @Delete(':id')
   remove(@Param('id') id: string, @CurrentUser() user: CurrentUserShape) {
     return this.quotesService.remove(id, user.name);
