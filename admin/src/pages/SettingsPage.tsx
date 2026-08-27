@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { API_URL } from '../api/client';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import BankAccountModal from '../components/BankAccountModal';
 import FormBuilder from '../components/FormBuilder';
 import FormsListCard from '../components/FormsListCard';
 import Modal from '../components/Modal';
@@ -9,10 +10,12 @@ import NamedListCard from '../components/NamedListCard';
 import PdfTemplateDesigner from '../components/PdfTemplateDesigner';
 import RichTextEditor from '../components/RichTextEditor';
 import type { RichTextEditorHandle } from '../components/RichTextEditor';
+import ViewBankAccountModal from '../components/ViewBankAccountModal';
 import { PencilIcon, SortIcon, TrashIcon } from '../components/icons';
 import { buildItemsTableHtml, escapeHtml, interpolateBody, interpolateSubject } from '../utils/emailTemplate';
 import { PERMISSION_CATALOG } from '../utils/permissionCatalog';
 import type {
+  BankAccount,
   BusinessInfo,
   EmailSettings,
   EmailTemplate,
@@ -3136,6 +3139,7 @@ function EditProductModal({
 function FinancialTab() {
   return (
     <div>
+      <BankAccountsCard />
       <PaymentMethodsCard />
       <NamedListCard
         title="Expense Categories"
@@ -3158,6 +3162,168 @@ function FinancialTab() {
         update={api.updateVendor}
         remove={api.deleteVendor}
       />
+    </div>
+  );
+}
+
+function bankAccountTypeLabel(type: BankAccount['type']): string {
+  return type === 'savings' ? 'Savings' : 'Bank';
+}
+
+function BankAccountsCard() {
+  const [accounts, setAccounts] = useState<BankAccount[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [viewing, setViewing] = useState<BankAccount | null>(null);
+  const [editing, setEditing] = useState<BankAccount | null>(null);
+  const [deleting, setDeleting] = useState<BankAccount | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function refresh() {
+    api
+      .listBankAccounts()
+      .then(setAccounts)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bank accounts'));
+  }
+  useEffect(refresh, []);
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteBankAccount(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete this bank account');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  // Only one account can be default -- the backend already enforces that
+  // (clears it off every other account), so a click here can always just set
+  // it true; there's no case where we'd need to send false to unset an
+  // account as default other than picking a different one instead.
+  async function handleSetDefault(account: BankAccount) {
+    setError(null);
+    try {
+      await api.updateBankAccount(account._id, {
+        type: account.type,
+        name: account.name,
+        sortCode: account.sortCode,
+        accountNumber: account.accountNumber,
+        isDefault: !account.isDefault,
+      });
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update default account');
+    }
+  }
+
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <h2>Bank Accounts</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+            Balance updates automatically from recorded payments, expenses, and credit notes.
+          </p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+          Create new
+        </button>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      {!accounts || accounts.length === 0 ? (
+        <div className="empty-state">{accounts === null ? 'Loading…' : 'No bank accounts yet.'}</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Account Name</th>
+              <th>Sort Code</th>
+              <th>Account Number</th>
+              <th>Balance</th>
+              <th>Default</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {accounts.map((a) => {
+              const balance = a.currentBalance ?? 0;
+              return (
+              <tr key={a._id} onClick={() => setViewing(a)}>
+                <td>{bankAccountTypeLabel(a.type)}</td>
+                <td>{a.name}</td>
+                <td>{a.sortCode}</td>
+                <td>{a.accountNumber}</td>
+                <td style={{ fontWeight: 700, color: balance < 0 ? 'var(--error)' : 'var(--brand-green)' }}>
+                  £{balance.toFixed(2)}
+                </td>
+                <td onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={!!a.isDefault}
+                    onChange={() => handleSetDefault(a)}
+                    title="Pre-selected on all new expenses"
+                  />
+                </td>
+                <td onClick={(e) => e.stopPropagation()}>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    <button className="icon-btn" title="Edit" onClick={() => setEditing(a)}>
+                      <PencilIcon />
+                    </button>
+                    <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(a)}>
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+
+      {viewing && (
+        <ViewBankAccountModal account={viewing} onClose={() => setViewing(null)} onAccountUpdated={refresh} />
+      )}
+
+      {(showNew || editing) && (
+        <BankAccountModal
+          account={editing}
+          onClose={() => {
+            setShowNew(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setShowNew(false);
+            setEditing(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal title="Delete bank account?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently removes <strong>{deleting.name}</strong>.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
