@@ -177,6 +177,17 @@ h1, h2, h3 {
   font-family: var(--font-display);
 }
 
+.topbar .avatar-btn {
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.topbar .avatar-btn:hover {
+  filter: brightness(1.1);
+}
+
 .content {
   flex: 1;
   padding: 32px;

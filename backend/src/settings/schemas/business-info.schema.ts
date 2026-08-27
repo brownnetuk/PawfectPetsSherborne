@@ -156,6 +156,15 @@ export class BusinessInfo extends Document {
   // used out in the field from arbitrary IPs.
   @Prop({ type: [String], default: [] })
   trustedIps?: string[];
+
+  // The URL a QR code (shown when staff click their avatar in the topbar,
+  // Layout.tsx) points at -- typically the admin login page itself, so a
+  // staff member can scan it on their phone rather than typing the URL.
+  // Staff-editable (Settings > Business Info) rather than derived from an
+  // env var, since it's just a convenience shortcut, not something the app
+  // depends on functionally.
+  @Prop()
+  qrLoginUrl?: string;
 }
 
 export const BusinessInfoSchema = SchemaFactory.createForClass(BusinessInfo);

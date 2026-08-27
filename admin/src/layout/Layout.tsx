@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import logo from '../assets/logo.png';
+import QrLoginModal from '../components/QrLoginModal';
 import {
   BookingsIcon,
   CustomersIcon,
@@ -25,6 +27,7 @@ export default function Layout() {
   const { staff, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [showQrLogin, setShowQrLogin] = useState(false);
   // The invoice detail view lays out three columns side by side (list,
   // document preview, activity log) and needs the full window width to
   // avoid squeezing the preview -- every other page is fine at the
@@ -78,7 +81,14 @@ export default function Layout() {
       </aside>
       <div className="main-area">
         <div className="topbar">
-          <span className="avatar">{initials(staff?.name)}</span>
+          <button
+            className="avatar avatar-btn"
+            onClick={() => setShowQrLogin(true)}
+            title="Show QR code to log in on another device"
+            type="button"
+          >
+            {initials(staff?.name)}
+          </button>
           <span className="staff-name">{staff?.name}</span>
           <button className="btn btn-secondary btn-sm" onClick={handleLogout}>
             <LogoutIcon />
@@ -89,6 +99,7 @@ export default function Layout() {
           <Outlet />
         </div>
       </div>
+      {showQrLogin && <QrLoginModal onClose={() => setShowQrLogin(false)} />}
     </div>
   );
 }
