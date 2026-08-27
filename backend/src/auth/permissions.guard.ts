@@ -10,10 +10,17 @@ import { PERMISSION_KEY } from './require-permission.decorator';
 
 // Registered as a second global guard (app.module.ts) alongside JwtAuthGuard,
 // which runs first -- so by the time this runs on a non-@Public() route,
-// req.user is already populated. A route with no @RequirePermission() is a
-// no-op here (most routes -- see the plan doc for exactly which are gated).
+// req.user is already populated.
 //
-// Access is granted if: the route isn't gated, the staff member is
+// Does a Staff lookup on every non-@Public() route (not just permission-gated
+// ones) purely so a locked account is blocked immediately -- including on a
+// request made with an already-issued token, not just at the next login.
+// Negligible extra cost at this app's scale; the alternative (only checking
+// at login) would let a locked account keep working normally until its token
+// happened to expire, up to 12h later.
+//
+// A route with no @RequirePermission() only gets the lock check, nothing
+// else. For a gated route, access is granted if: the staff member is
 // break-glass (same "trusted, bypasses everything" semantics it already has
 // for the login IP check), the staff member has no role assigned (today's
 // default -- existing accounts keep full access until someone deliberately
@@ -33,13 +40,6 @@ export class PermissionsGuard {
     if (isPublic) {
       return true;
     }
-    const required = this.reflector.getAllAndOverride<string>(PERMISSION_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    if (!required) {
-      return true;
-    }
 
     const req = context.switchToHttp().getRequest<Request & { user?: CurrentUserShape }>();
     const userId = req.user?.id;
@@ -49,6 +49,17 @@ export class PermissionsGuard {
     const staff = await this.staffModel.findById(userId).populate<{ role: { permissions: string[] } | null }>('role').exec();
     if (!staff) {
       return false;
+    }
+    if (staff.locked) {
+      throw new ForbiddenException('This account has been locked. Ask another staff member to unlock it.');
+    }
+
+    const required = this.reflector.getAllAndOverride<string>(PERMISSION_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (!required) {
+      return true;
     }
     if (staff.isBreakGlass) {
       return true;

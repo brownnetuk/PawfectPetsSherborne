@@ -29,6 +29,14 @@ export class Staff extends Document {
   // Permissions).
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Role.name })
   role?: Types.ObjectId;
+
+  // Blocks login (AuthService.login) and, for an already-issued token,
+  // blocks every subsequent request too (PermissionsGuard checks this on
+  // every authenticated route, not just permission-gated ones) -- locking
+  // an account takes effect immediately rather than waiting for its current
+  // token to expire.
+  @Prop({ default: false })
+  locked?: boolean;
 }
 
 export const StaffSchema = SchemaFactory.createForClass(Staff);

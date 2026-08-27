@@ -21,6 +21,7 @@ export interface Staff {
   name: string;
   email: string;
   isBreakGlass: boolean;
+  locked: boolean;
   role: Role | null;
 }
 

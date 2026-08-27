@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from '@nestjs/
 import type { Request } from 'express';
 import { RequirePermission } from './require-permission.decorator';
 import { AuthService } from './auth.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
@@ -47,5 +48,11 @@ export class AuthController {
   @Delete('staff/:id')
   deleteStaff(@Param('id') id: string) {
     return this.authService.deleteStaff(id);
+  }
+
+  @RequirePermission('staff.manage')
+  @Post('staff/:id/password')
+  changePassword(@Param('id') id: string, @Body() dto: ChangePasswordDto) {
+    return this.authService.changePassword(id, dto);
   }
 }

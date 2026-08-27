@@ -13,9 +13,23 @@ import { Model } from 'mongoose';
 import { getClientIp } from '../common/client-ip.util';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { Staff } from '../staff/schemas/staff.schema';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
+
+type PopulatedRole = { _id: unknown; name: string; permissions: string[] } | null;
+
+function shapeStaff(staff: Omit<Staff, 'role'> & { role: PopulatedRole }) {
+  return {
+    id: staff._id,
+    name: staff.name,
+    email: staff.email,
+    isBreakGlass: staff.isBreakGlass ?? false,
+    locked: staff.locked ?? false,
+    role: staff.role ? { id: staff.role._id, name: staff.role.name, permissions: staff.role.permissions } : null,
+  };
+}
 
 // Sent by the admin web app on every request (admin/src/api/client.ts) -- the
 // mobile app never sends this, so it's naturally exempt from the IP check
@@ -44,13 +58,13 @@ export class AuthService {
       isBreakGlass: dto.isBreakGlass ?? false,
       role: dto.role,
     }).save();
-    return {
-      id: staff._id,
-      name: staff.name,
-      email: staff.email,
-      isBreakGlass: staff.isBreakGlass ?? false,
-      role: staff.role ?? null,
-    };
+    // role is unpopulated (just an ObjectId) fresh off save() -- re-fetch
+    // populated so the response shape matches every other staff response.
+    const populated = await this.staffModel
+      .findById(staff._id)
+      .populate<{ role: PopulatedRole }>('role', 'name permissions')
+      .exec();
+    return shapeStaff(populated!);
   }
 
   async login(dto: LoginDto, req: Request) {
@@ -61,6 +75,15 @@ export class AuthService {
     const passwordMatches = await bcrypt.compare(dto.password, staff.passwordHash);
     if (!passwordMatches) {
       throw new UnauthorizedException('Invalid email or password');
+    }
+
+    // Checked after the password (so a wrong-password attempt on a locked
+    // account doesn't reveal that it's locked), and unconditionally --
+    // unlike the trusted-IP check below, break-glass does NOT exempt this:
+    // locking an account is a deliberate action by another staff member, not
+    // a stale-config problem break-glass exists to work around.
+    if (staff.locked) {
+      throw new UnauthorizedException('This account has been locked. Ask another staff member to unlock it.');
     }
 
     // Only applies to the admin web app (see ADMIN_CLIENT_HEADER), only when
@@ -94,17 +117,11 @@ export class AuthService {
   async listStaff() {
     const staff = await this.staffModel
       .find()
-      .select('name email isBreakGlass role createdAt')
-      .populate<{ role: { _id: unknown; name: string; permissions: string[] } | null }>('role', 'name permissions')
+      .select('name email isBreakGlass locked role createdAt')
+      .populate<{ role: PopulatedRole }>('role', 'name permissions')
       .sort({ name: 1 })
       .exec();
-    return staff.map((s) => ({
-      id: s._id,
-      name: s.name,
-      email: s.email,
-      isBreakGlass: s.isBreakGlass ?? false,
-      role: s.role ? { id: s.role._id, name: s.role.name, permissions: s.role.permissions } : null,
-    }));
+    return staff.map((s) => shapeStaff(s));
   }
 
   async deleteStaff(id: string) {
@@ -118,27 +135,48 @@ export class AuthService {
     }
   }
 
-  // Currently only used to (re)assign a role -- Settings > Staff's Role
-  // dropdown saves immediately on change, same pattern as an invoice/quote
-  // status dropdown.
+  // Backs both the Edit Staff modal (name/email/isBreakGlass/locked) and the
+  // Role dropdown's immediate-save (role only) -- every field is optional so
+  // either caller only sends what it actually changed.
   async updateStaff(id: string, dto: UpdateStaffDto) {
-    // Explicit null unassigns (full access) -- $unset, not $set, since a
-    // plain $set: { role: null } would leave the field present-but-null
-    // rather than genuinely absent, and PermissionsGuard checks presence.
-    const mongoUpdate = dto.role === null ? { $unset: { role: '' } } : dto.role !== undefined ? { $set: { role: dto.role } } : {};
+    if (dto.email !== undefined) {
+      const existing = await this.staffModel
+        .findOne({ email: dto.email.toLowerCase(), _id: { $ne: id } })
+        .exec();
+      if (existing) {
+        throw new ConflictException('A staff account with that email already exists');
+      }
+    }
+    const set: Record<string, unknown> = {};
+    if (dto.name !== undefined) set.name = dto.name;
+    if (dto.email !== undefined) set.email = dto.email.toLowerCase();
+    if (dto.isBreakGlass !== undefined) set.isBreakGlass = dto.isBreakGlass;
+    if (dto.locked !== undefined) set.locked = dto.locked;
+    // Explicit null unassigns the role (full access) -- $unset, not $set,
+    // since a plain $set: { role: null } would leave the field
+    // present-but-null rather than genuinely absent, and PermissionsGuard
+    // checks presence.
+    const mongoUpdate =
+      dto.role === null
+        ? { $set: set, $unset: { role: '' } }
+        : dto.role !== undefined
+          ? { $set: { ...set, role: dto.role } }
+          : { $set: set };
     const staff = await this.staffModel
       .findByIdAndUpdate(id, mongoUpdate, { new: true })
-      .populate<{ role: { _id: unknown; name: string; permissions: string[] } | null }>('role', 'name permissions')
+      .populate<{ role: PopulatedRole }>('role', 'name permissions')
       .exec();
     if (!staff) {
       throw new NotFoundException(`Staff ${id} not found`);
     }
-    return {
-      id: staff._id,
-      name: staff.name,
-      email: staff.email,
-      isBreakGlass: staff.isBreakGlass ?? false,
-      role: staff.role ? { id: staff.role._id, name: staff.role.name, permissions: staff.role.permissions } : null,
-    };
+    return shapeStaff(staff);
+  }
+
+  async changePassword(id: string, dto: ChangePasswordDto): Promise<void> {
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const result = await this.staffModel.updateOne({ _id: id }, { passwordHash }).exec();
+    if (result.matchedCount === 0) {
+      throw new NotFoundException(`Staff ${id} not found`);
+    }
   }
 }

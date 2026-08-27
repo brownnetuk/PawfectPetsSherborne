@@ -805,10 +805,10 @@ function StaffTab() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [deletingStaff, setDeletingStaff] = useState<Staff | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [roleUpdateError, setRoleUpdateError] = useState<string | null>(null);
 
   function refresh() {
     api.listStaff().then(setStaff).catch((err) => setError(err.message));
@@ -834,16 +834,6 @@ function StaffTab() {
     }
   }
 
-  async function handleRoleChange(staffId: string, roleId: string) {
-    setRoleUpdateError(null);
-    try {
-      await api.updateStaff(staffId, { role: roleId || null });
-      refresh();
-    } catch (err) {
-      setRoleUpdateError(err instanceof Error ? err.message : "Failed to update that account's role");
-    }
-  }
-
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
@@ -852,7 +842,6 @@ function StaffTab() {
         </button>
       </div>
       {error && <div className="error-banner">{error}</div>}
-      {roleUpdateError && <div className="error-banner">{roleUpdateError}</div>}
 
       <div className="card" style={{ padding: 0 }}>
         {!staff || staff.length === 0 ? (
@@ -871,7 +860,7 @@ function StaffTab() {
               {staff.map((s) => {
                 const isSelf = s.id === currentStaff?.id;
                 return (
-                  <tr key={s.id}>
+                  <tr key={s.id} onClick={() => setEditingStaff(s)}>
                     <td>
                       {s.name}
                       {isSelf && <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}> (you)</span>}
@@ -891,24 +880,26 @@ function StaffTab() {
                           Break-glass
                         </span>
                       )}
+                      {s.locked && (
+                        <span
+                          title="Can't log in, and any existing session is blocked immediately"
+                          style={{
+                            marginLeft: 8,
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            color: 'var(--error)',
+                            border: '1px solid #eecabf',
+                            borderRadius: 4,
+                            padding: '1px 6px',
+                          }}
+                        >
+                          Locked
+                        </span>
+                      )}
                     </td>
                     <td>{s.email}</td>
-                    <td>
-                      <select
-                        className="select-inline"
-                        value={s.role?.id ?? ''}
-                        onChange={(e) => handleRoleChange(s.id, e.target.value)}
-                        title={s.isBreakGlass ? 'Break-glass accounts always have full access regardless of role' : undefined}
-                      >
-                        <option value="">No role (full access)</option>
-                        {roles.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
+                    <td>{s.role?.name ?? 'Full access'}</td>
+                    <td onClick={(e) => e.stopPropagation()}>
                       <button
                         className="icon-btn icon-btn-danger"
                         title={isSelf ? "You can't delete your own account while signed in" : 'Delete'}
@@ -935,6 +926,19 @@ function StaffTab() {
           onClose={() => setShowNew(false)}
           onCreated={() => {
             setShowNew(false);
+            refresh();
+          }}
+        />
+      )}
+
+      {editingStaff && (
+        <EditStaffModal
+          staff={editingStaff}
+          roles={roles}
+          isSelf={editingStaff.id === currentStaff?.id}
+          onClose={() => setEditingStaff(null)}
+          onSaved={() => {
+            setEditingStaff(null);
             refresh();
           }}
         />
@@ -1056,11 +1060,210 @@ function NewStaffModal({
   );
 }
 
+// Opened by clicking a row in the staff table. Handles name/email/
+// break-glass/locked/role together; password change is deliberately a
+// separate, focused action (ChangePasswordModal below) rather than one more
+// field in this form, same reasoning as ViewBankAccountModal's opening
+// balance living in its own SetOpeningBalanceModal.
+function EditStaffModal({
+  staff,
+  roles,
+  isSelf,
+  onClose,
+  onSaved,
+}: {
+  staff: Staff;
+  roles: Role[];
+  isSelf: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(staff.name);
+  const [email, setEmail] = useState(staff.email);
+  const [isBreakGlass, setIsBreakGlass] = useState(staff.isBreakGlass);
+  const [locked, setLocked] = useState(staff.locked);
+  const [role, setRole] = useState(staff.role?.id ?? '');
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.updateStaff(staff.id, { name, email, isBreakGlass, locked, role: role || null });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save this account');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title="Edit staff account" onClose={onClose}>
+      {error && <div className="error-banner">{error}</div>}
+      <form onSubmit={handleSubmit}>
+        <div className="field">
+          <label>Name</label>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+        </div>
+        <div className="field">
+          <label>Email / Username</label>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+            This is what's used to log in — there's no separate username.
+          </div>
+        </div>
+        <div className="field">
+          <label>Role</label>
+          <select value={role} onChange={(e) => setRole(e.target.value)}>
+            <option value="">No role (full access)</option>
+            {roles.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
+            <input
+              type="checkbox"
+              checked={isBreakGlass}
+              onChange={(e) => setIsBreakGlass(e.target.checked)}
+              style={{ width: 'auto' }}
+            />
+            Break-glass account
+          </label>
+          <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+            Skips the Business Info &gt; Trusted IPs restriction, and always has full access regardless
+            of role.
+          </div>
+        </div>
+        <div className="field">
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontWeight: 400,
+              opacity: isSelf ? 0.5 : 1,
+            }}
+            title={isSelf ? "You can't lock your own account while signed in" : undefined}
+          >
+            <input
+              type="checkbox"
+              checked={locked}
+              disabled={isSelf}
+              onChange={(e) => setLocked(e.target.checked)}
+              style={{ width: 'auto' }}
+            />
+            Locked
+          </label>
+          <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+            Blocks logging in, and blocks every request immediately even from an existing session.
+          </div>
+        </div>
+        <div className="field">
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowChangePassword(true)}>
+            Change password
+          </button>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
+            {submitting ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      </form>
+
+      {showChangePassword && (
+        <ChangePasswordModal staff={staff} onClose={() => setShowChangePassword(false)} />
+      )}
+    </Modal>
+  );
+}
+
+function ChangePasswordModal({ staff, onClose }: { staff: Staff; onClose: () => void }) {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (password !== confirm) {
+      setError("Passwords don't match.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.changeStaffPassword(staff.id, password);
+      setDone(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to change this password');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title={`Change password — ${staff.name}`} onClose={onClose}>
+      {error && <div className="error-banner">{error}</div>}
+      {done ? (
+        <>
+          <p>Password changed. This doesn't affect any session {staff.name} is already logged into.</p>
+          <div className="modal-actions">
+            <button className="btn btn-primary" onClick={onClose}>
+              Done
+            </button>
+          </div>
+        </>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div className="field">
+            <label>New password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              minLength={8}
+              required
+              autoFocus
+            />
+            <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+              At least 8 characters.
+            </div>
+          </div>
+          <div className="field">
+            <label>Confirm new password</label>
+            <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} minLength={8} required />
+          </div>
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={submitting}>
+              {submitting ? 'Saving…' : 'Change password'}
+            </button>
+          </div>
+        </form>
+      )}
+    </Modal>
+  );
+}
+
 // Settings > Staff > Access Permissions -- roles are a named set of
 // permission keys (see utils/permissionCatalog.ts), assigned to a staff
-// member via the Role dropdown on each row in the staff table above. Not
-// built on NamedListCard (which only handles a plain { name } item) since a
-// role also carries its permissions array.
+// member via the Edit staff account modal opened by clicking a row above.
+// Not built on NamedListCard (which only handles a plain { name } item)
+// since a role also carries its permissions array.
 function RolesCard({ roles, onChanged }: { roles: Role[]; onChanged: () => void }) {
   const [editing, setEditing] = useState<Role | null | 'new'>(null);
   const [deleting, setDeleting] = useState<Role | null>(null);

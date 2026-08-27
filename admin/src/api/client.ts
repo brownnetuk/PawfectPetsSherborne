@@ -99,8 +99,14 @@ export function registerStaff(
 export function listStaff(): Promise<Staff[]> {
   return request('/auth/staff');
 }
-export function updateStaff(id: string, patch: { role: string | null }): Promise<Staff> {
+export function updateStaff(
+  id: string,
+  patch: Partial<{ name: string; email: string; isBreakGlass: boolean; locked: boolean; role: string | null }>,
+): Promise<Staff> {
   return request(`/auth/staff/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+}
+export function changeStaffPassword(id: string, password: string): Promise<void> {
+  return request(`/auth/staff/${id}/password`, { method: 'POST', body: JSON.stringify({ password }) });
 }
 export function deleteStaff(id: string): Promise<void> {
   return request(`/auth/staff/${id}`, { method: 'DELETE' });
