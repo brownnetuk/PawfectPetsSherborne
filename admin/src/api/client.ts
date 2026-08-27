@@ -324,6 +324,7 @@ export interface BankAccountInput {
   name: string;
   sortCode: string;
   accountNumber: string;
+  isDefault?: boolean;
 }
 export function createBankAccount(input: BankAccountInput): Promise<BankAccount> {
   return request('/bank-accounts', { method: 'POST', body: JSON.stringify(input) });

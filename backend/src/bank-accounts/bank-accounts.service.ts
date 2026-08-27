@@ -32,7 +32,10 @@ export class BankAccountsService {
     private readonly creditNoteModel: Model<CreditNote>,
   ) {}
 
-  create(dto: CreateBankAccountDto): Promise<BankAccount> {
+  async create(dto: CreateBankAccountDto): Promise<BankAccount> {
+    if (dto.isDefault) {
+      await this.clearOtherDefaults();
+    }
     return new this.bankAccountModel(dto).save();
   }
 
@@ -41,6 +44,9 @@ export class BankAccountsService {
   }
 
   async update(id: string, dto: CreateBankAccountDto): Promise<BankAccount> {
+    if (dto.isDefault) {
+      await this.clearOtherDefaults(id);
+    }
     const account = await this.bankAccountModel
       .findByIdAndUpdate(id, dto, { new: true })
       .exec();
@@ -48,6 +54,14 @@ export class BankAccountsService {
       throw new NotFoundException(`Bank account ${id} not found`);
     }
     return account;
+  }
+
+  // Only one account can be the default at a time -- unset it on every other
+  // account before the caller sets it on theirs, same reasoning as
+  // PaymentMethodsService.clearOtherDefaults.
+  private async clearOtherDefaults(exceptId?: string): Promise<void> {
+    const filter = exceptId ? { _id: { $ne: exceptId } } : {};
+    await this.bankAccountModel.updateMany(filter, { isDefault: false }).exec();
   }
 
   async remove(id: string): Promise<void> {

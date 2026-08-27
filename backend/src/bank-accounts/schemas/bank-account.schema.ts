@@ -39,6 +39,14 @@ export class BankAccount extends Document {
 
   @Prop({ default: 0 })
   openingBalance?: number;
+
+  // At most one account has this set at a time -- BankAccountsService
+  // enforces that by clearing it off every other account whenever one is
+  // marked default (same pattern as InvoiceTerm.isDefault and
+  // PaymentMethod.isDefault). The admin app's "New expense" form
+  // pre-selects whichever account has this set.
+  @Prop({ default: false })
+  isDefault?: boolean;
 }
 
 export const BankAccountSchema = SchemaFactory.createForClass(BankAccount);

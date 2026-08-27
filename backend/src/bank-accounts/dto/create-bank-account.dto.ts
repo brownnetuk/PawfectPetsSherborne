@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { BankAccountType } from '../schemas/bank-account.schema';
 
 export class CreateBankAccountDto {
@@ -17,4 +17,8 @@ export class CreateBankAccountDto {
   @IsNotEmpty()
   @IsString()
   accountNumber: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
 }

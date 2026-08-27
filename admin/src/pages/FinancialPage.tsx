@@ -205,6 +205,26 @@ function BankAccountsCard() {
     }
   }
 
+  // Only one account can be default -- the backend already enforces that
+  // (clears it off every other account), so a click here can always just set
+  // it true; there's no case where we'd need to send false to unset an
+  // account as default other than picking a different one instead.
+  async function handleSetDefault(account: BankAccount) {
+    setError(null);
+    try {
+      await api.updateBankAccount(account._id, {
+        type: account.type,
+        name: account.name,
+        sortCode: account.sortCode,
+        accountNumber: account.accountNumber,
+        isDefault: !account.isDefault,
+      });
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update default account');
+    }
+  }
+
   return (
     <div className="card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
@@ -230,6 +250,7 @@ function BankAccountsCard() {
               <th>Sort Code</th>
               <th>Account Number</th>
               <th>Balance</th>
+              <th>Default</th>
               <th></th>
             </tr>
           </thead>
@@ -244,6 +265,14 @@ function BankAccountsCard() {
                 <td>{a.accountNumber}</td>
                 <td style={{ fontWeight: 700, color: balance < 0 ? 'var(--error)' : 'var(--brand-green)' }}>
                   £{balance.toFixed(2)}
+                </td>
+                <td onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={!!a.isDefault}
+                    onChange={() => handleSetDefault(a)}
+                    title="Pre-selected on all new expenses"
+                  />
                 </td>
                 <td onClick={(e) => e.stopPropagation()}>
                   <div style={{ display: 'flex', gap: 2 }}>

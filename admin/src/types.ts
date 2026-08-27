@@ -203,6 +203,7 @@ export interface BankAccount {
   currentBalance?: number;
   openingBalanceDate?: string;
   openingBalance?: number;
+  isDefault?: boolean;
   createdAt: string;
 }
 

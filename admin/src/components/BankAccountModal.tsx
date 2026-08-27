@@ -14,6 +14,7 @@ export default function BankAccountModal({ account, onClose, onSaved }: Props) {
   const [name, setName] = useState(account?.name ?? '');
   const [sortCode, setSortCode] = useState(account?.sortCode ?? '');
   const [accountNumber, setAccountNumber] = useState(account?.accountNumber ?? '');
+  const [isDefault, setIsDefault] = useState(account?.isDefault ?? false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -22,7 +23,7 @@ export default function BankAccountModal({ account, onClose, onSaved }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      const input = { type, name, sortCode, accountNumber };
+      const input = { type, name, sortCode, accountNumber, isDefault };
       if (account) {
         await api.updateBankAccount(account._id, input);
       } else {
@@ -77,6 +78,20 @@ export default function BankAccountModal({ account, onClose, onSaved }: Props) {
             placeholder="e.g. 12345678"
             required
           />
+        </div>
+        <div className="field">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
+            <input
+              type="checkbox"
+              checked={isDefault}
+              onChange={(e) => setIsDefault(e.target.checked)}
+              style={{ width: 'auto' }}
+            />
+            Default
+          </label>
+          <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+            Pre-selected on all new expenses.
+          </div>
         </div>
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>

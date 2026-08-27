@@ -34,7 +34,16 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    api.listBankAccounts().then(setAccounts);
+    api.listBankAccounts().then((list) => {
+      setAccounts(list);
+      // Only pre-select on a brand-new expense -- an existing one keeps
+      // whatever it was recorded against, same reasoning as the payment
+      // method default below.
+      if (!expense) {
+        const defaultAccount = list.find((a) => a.isDefault);
+        if (defaultAccount) setAccount((cur) => cur || defaultAccount._id);
+      }
+    });
     api.listExpenseCategories().then((list) => {
       setCategories(list);
       if (list.length > 0) setCategory((cur) => cur || list[0].name);
