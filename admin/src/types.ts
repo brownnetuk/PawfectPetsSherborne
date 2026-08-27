@@ -398,7 +398,6 @@ export interface BusinessInfo {
   creditNoteNextNumber: number;
   invoicePdfTemplate: PdfTemplateElement[];
   trustedIps: string[];
-  qrLoginUrl: string;
 }
 
 // --- Invoice/Quote PDF template (Settings > Invoices > PDF Template designer) ---

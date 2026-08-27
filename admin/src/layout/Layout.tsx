@@ -84,7 +84,7 @@ export default function Layout() {
           <button
             className="avatar avatar-btn"
             onClick={() => setShowQrLogin(true)}
-            title="Show QR code to log in on another device"
+            title="Show QR code to connect the mobile app"
             type="button"
           >
             {initials(staff?.name)}

@@ -106,7 +106,6 @@ export class SettingsService {
       creditNoteNextNumber: doc?.creditNoteNextNumber ?? 1,
       invoicePdfTemplate: doc?.invoicePdfTemplate ?? [],
       trustedIps: doc?.trustedIps ?? [],
-      qrLoginUrl: doc?.qrLoginUrl ?? '',
     };
   }
 
@@ -169,7 +168,6 @@ export class SettingsService {
     if (dto.invoicePdfTemplate !== undefined)
       update.invoicePdfTemplate = dto.invoicePdfTemplate;
     if (dto.trustedIps !== undefined) update.trustedIps = dto.trustedIps;
-    if (dto.qrLoginUrl !== undefined) update.qrLoginUrl = dto.qrLoginUrl;
     await this.businessInfoModel
       .findOneAndUpdate({}, update, { upsert: true })
       .exec();

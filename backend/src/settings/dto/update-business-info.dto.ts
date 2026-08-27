@@ -147,8 +147,4 @@ export class UpdateBusinessInfoDto {
   @IsArray()
   @IsString({ each: true })
   trustedIps?: string[];
-
-  @IsOptional()
-  @IsString()
-  qrLoginUrl?: string;
 }

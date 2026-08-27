@@ -135,11 +135,6 @@ function BusinessInfoTab() {
   const [trustedIpsError, setTrustedIpsError] = useState<string | null>(null);
   const [trustedIpsSaved, setTrustedIpsSaved] = useState(false);
 
-  const [qrLoginUrl, setQrLoginUrl] = useState('');
-  const [qrLoginUrlSaving, setQrLoginUrlSaving] = useState(false);
-  const [qrLoginUrlError, setQrLoginUrlError] = useState<string | null>(null);
-  const [qrLoginUrlSaved, setQrLoginUrlSaved] = useState(false);
-
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -169,7 +164,6 @@ function BusinessInfoTab() {
         setDeclarationText(i.declarationText);
         setDepositPercentage(i.depositPercentage);
         setTrustedIps(i.trustedIps);
-        setQrLoginUrl(i.qrLoginUrl);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load business info'));
   }
@@ -378,22 +372,6 @@ function BusinessInfoTab() {
       setDepositError(err instanceof Error ? err.message : 'Failed to save the deposit percentage');
     } finally {
       setDepositSaving(false);
-    }
-  }
-
-  async function handleSaveQrLoginUrl(e: React.FormEvent) {
-    e.preventDefault();
-    setQrLoginUrlSaving(true);
-    setQrLoginUrlError(null);
-    setQrLoginUrlSaved(false);
-    try {
-      await api.updateBusinessInfo({ qrLoginUrl });
-      setQrLoginUrlSaved(true);
-      refresh();
-    } catch (err) {
-      setQrLoginUrlError(err instanceof Error ? err.message : 'Failed to save the QR code login URL');
-    } finally {
-      setQrLoginUrlSaving(false);
     }
   }
 
@@ -727,34 +705,6 @@ function BusinessInfoTab() {
               {depositSaving ? 'Saving…' : 'Save changes'}
             </button>
             {depositSaved && (
-              <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
-            )}
-          </div>
-        </form>
-      </div>
-
-      <div className="card">
-        <h2>QR Code Login URL</h2>
-        <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
-          The page a staff member reaches by scanning the QR code shown when they click their avatar
-          in the top bar -- typically this app's login page, so they can quickly pick it up on a phone.
-        </p>
-        {qrLoginUrlError && <div className="error-banner">{qrLoginUrlError}</div>}
-        <form onSubmit={handleSaveQrLoginUrl}>
-          <div className="field">
-            <label>Login URL</label>
-            <input
-              type="text"
-              value={qrLoginUrl}
-              onChange={(e) => setQrLoginUrl(e.target.value)}
-              placeholder="https://admin.pawfectpetssherborne.co.uk/login"
-            />
-          </div>
-          <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
-            <button className="btn btn-primary" type="submit" disabled={qrLoginUrlSaving}>
-              {qrLoginUrlSaving ? 'Saving…' : 'Save changes'}
-            </button>
-            {qrLoginUrlSaved && (
               <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
             )}
           </div>

@@ -32,7 +32,7 @@ import type {
   VendorOption,
 } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
 let authToken: string | null = null;
 let onUnauthorized: (() => void) | null = null;
