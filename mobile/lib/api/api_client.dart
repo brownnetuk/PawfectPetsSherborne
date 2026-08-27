@@ -18,12 +18,16 @@ class ApiException implements Exception {
 class ApiClient {
   String? _token;
   void Function()? _onUnauthorized;
+  // The backend base URL. Defaults to the compile-time value but is normally
+  // set at startup from the URL provisioned via the first-launch QR scan.
+  String _baseUrl = apiBaseUrl;
 
   void setToken(String? token) => _token = token;
+  void setBaseUrl(String url) => _baseUrl = url;
   void setUnauthorizedHandler(void Function() handler) => _onUnauthorized = handler;
 
   Uri _uri(String path, [Map<String, String>? query]) =>
-      Uri.parse('$apiBaseUrl$path').replace(queryParameters: query);
+      Uri.parse('$_baseUrl$path').replace(queryParameters: query);
 
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
