@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { API_URL } from '../api/client';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import FormBuilder from '../components/FormBuilder';
@@ -135,6 +136,11 @@ function BusinessInfoTab() {
   const [trustedIpsError, setTrustedIpsError] = useState<string | null>(null);
   const [trustedIpsSaved, setTrustedIpsSaved] = useState(false);
 
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [qrCodeUrlSaving, setQrCodeUrlSaving] = useState(false);
+  const [qrCodeUrlError, setQrCodeUrlError] = useState<string | null>(null);
+  const [qrCodeUrlSaved, setQrCodeUrlSaved] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -164,6 +170,7 @@ function BusinessInfoTab() {
         setDeclarationText(i.declarationText);
         setDepositPercentage(i.depositPercentage);
         setTrustedIps(i.trustedIps);
+        setQrCodeUrl(i.qrCodeUrl);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load business info'));
   }
@@ -372,6 +379,22 @@ function BusinessInfoTab() {
       setDepositError(err instanceof Error ? err.message : 'Failed to save the deposit percentage');
     } finally {
       setDepositSaving(false);
+    }
+  }
+
+  async function handleSaveQrCodeUrl(e: React.FormEvent) {
+    e.preventDefault();
+    setQrCodeUrlSaving(true);
+    setQrCodeUrlError(null);
+    setQrCodeUrlSaved(false);
+    try {
+      await api.updateBusinessInfo({ qrCodeUrl });
+      setQrCodeUrlSaved(true);
+      refresh();
+    } catch (err) {
+      setQrCodeUrlError(err instanceof Error ? err.message : 'Failed to save the QR code URL');
+    } finally {
+      setQrCodeUrlSaving(false);
     }
   }
 
@@ -705,6 +728,35 @@ function BusinessInfoTab() {
               {depositSaving ? 'Saving…' : 'Save changes'}
             </button>
             {depositSaved && (
+              <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
+            )}
+          </div>
+        </form>
+      </div>
+
+      <div className="card">
+        <h2>QR Code URL</h2>
+        <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+          The URL encoded in the QR code shown when staff click their avatar in the top bar, used to
+          connect the mobile app to a server. Defaults to this admin's own API address ({API_URL}) --
+          only set this if you need the QR code to point somewhere else.
+        </p>
+        {qrCodeUrlError && <div className="error-banner">{qrCodeUrlError}</div>}
+        <form onSubmit={handleSaveQrCodeUrl}>
+          <div className="field">
+            <label>QR Code URL</label>
+            <input
+              type="text"
+              value={qrCodeUrl}
+              onChange={(e) => setQrCodeUrl(e.target.value)}
+              placeholder={API_URL}
+            />
+          </div>
+          <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+            <button className="btn btn-primary" type="submit" disabled={qrCodeUrlSaving}>
+              {qrCodeUrlSaving ? 'Saving…' : 'Save changes'}
+            </button>
+            {qrCodeUrlSaved && (
               <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
             )}
           </div>

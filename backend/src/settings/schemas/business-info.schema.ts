@@ -156,6 +156,16 @@ export class BusinessInfo extends Document {
   // used out in the field from arbitrary IPs.
   @Prop({ type: [String], default: [] })
   trustedIps?: string[];
+
+  // Overrides the URL encoded in the QR code shown when staff click their
+  // avatar in the topbar (Layout.tsx/QrLoginModal.tsx) -- that QR pairs with
+  // the mobile app's first-launch "Scan QR code" provisioning screen
+  // (mobile/lib/screens/scan_qr_screen.dart), which needs this backend's own
+  // API URL. Defaults to the admin build's own API_URL when unset, so this
+  // only needs touching if that default is wrong (e.g. pointing the QR at a
+  // different environment than the one this admin instance itself talks to).
+  @Prop()
+  qrCodeUrl?: string;
 }
 
 export const BusinessInfoSchema = SchemaFactory.createForClass(BusinessInfo);

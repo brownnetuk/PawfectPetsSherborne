@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { API_URL } from '../api/client';
+import { API_URL, getBusinessInfo } from '../api/client';
 import Modal from './Modal';
 
 interface Props {
@@ -8,11 +8,12 @@ interface Props {
 }
 
 /**
- * Opened by clicking the avatar in the top bar (Layout.tsx). Encodes this
- * backend's own API_URL -- the mobile app's "Scan QR code" first-launch
- * screen (mobile/lib/screens/scan_qr_screen.dart) scans exactly this to
- * provision which server it talks to, so this is the admin-side pairing for
- * that flow, not a page meant to be opened in a browser.
+ * Opened by clicking the avatar in the top bar (Layout.tsx). Encodes
+ * BusinessInfo.qrCodeUrl if staff have set one (Settings > Business Info),
+ * else this backend's own API_URL -- the mobile app's "Scan QR code"
+ * first-launch screen (mobile/lib/screens/scan_qr_screen.dart) scans exactly
+ * this to provision which server it talks to, so this is the admin-side
+ * pairing for that flow, not a page meant to be opened in a browser.
  */
 export default function QrLoginModal({ onClose }: Props) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
@@ -20,7 +21,8 @@ export default function QrLoginModal({ onClose }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    QRCode.toDataURL(API_URL, { margin: 1, width: 240 })
+    getBusinessInfo()
+      .then((info) => QRCode.toDataURL(info.qrCodeUrl || API_URL, { margin: 1, width: 240 }))
       .then((dataUrl) => {
         if (!cancelled) setQrDataUrl(dataUrl);
       })
