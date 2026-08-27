@@ -122,4 +122,16 @@ class AuthProvider extends ChangeNotifier {
     staff = null;
     notifyListeners();
   }
+
+  /// Full reset: forget the provisioned server URL, session and saved login,
+  /// sending the app back to the first-launch QR setup screen.
+  Future<void> resetProvisioning() async {
+    await _storage.delete(key: _baseUrlKey);
+    await _storage.delete(key: _tokenKey);
+    await _clearRemembered();
+    client.setToken(null);
+    staff = null;
+    needsProvisioning = true;
+    notifyListeners();
+  }
 }
