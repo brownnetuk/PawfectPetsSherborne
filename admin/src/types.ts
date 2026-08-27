@@ -188,6 +188,7 @@ export interface InvoiceTerm {
 export interface PaymentMethod {
   _id: string;
   name: string;
+  isDefault?: boolean;
   createdAt: string;
 }
 
@@ -260,6 +261,7 @@ export interface Expense {
   date: string;
   category: string;
   payee?: string;
+  paymentMethod?: string;
   description: string;
   amount: number;
   account?: { _id: string; name: string; type: BankAccountType } | string;

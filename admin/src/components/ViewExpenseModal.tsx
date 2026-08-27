@@ -22,6 +22,8 @@ export default function ViewExpenseModal({ expense, onClose, onEdit }: Props) {
         <dd>{expense.category}</dd>
         <dt>Payee</dt>
         <dd>{expense.payee || '—'}</dd>
+        <dt>Payment Method</dt>
+        <dd>{expense.paymentMethod || '—'}</dd>
         <dt>Description</dt>
         <dd>{expense.description}</dd>
         <dt>Amount</dt>

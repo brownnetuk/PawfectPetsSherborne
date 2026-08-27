@@ -18,6 +18,11 @@ export class Expense extends Document {
   @Prop()
   payee?: string;
 
+  // Copied from the chosen PaymentMethod's name at creation time, not a
+  // reference -- same reasoning as `category` above and Payment.paymentMethod.
+  @Prop()
+  paymentMethod?: string;
+
   @Prop({ required: true })
   description: string;
 

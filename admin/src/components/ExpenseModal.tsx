@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import Modal from './Modal';
-import type { BankAccount, Expense, ExpenseCategoryOption, VendorOption } from '../types';
+import type { BankAccount, Expense, ExpenseCategoryOption, PaymentMethod, VendorOption } from '../types';
 
 interface Props {
   expense: Expense | null;
@@ -20,9 +20,11 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
   const [accounts, setAccounts] = useState<BankAccount[] | null>(null);
   const [categories, setCategories] = useState<ExpenseCategoryOption[] | null>(null);
   const [vendors, setVendors] = useState<VendorOption[] | null>(null);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[] | null>(null);
   const [date, setDate] = useState(expense ? expense.date.slice(0, 10) : new Date().toISOString().slice(0, 10));
   const [category, setCategory] = useState(expense?.category ?? '');
   const [payee, setPayee] = useState(expense?.payee ?? '');
+  const [paymentMethod, setPaymentMethod] = useState(expense?.paymentMethod ?? '');
   const [description, setDescription] = useState(expense?.description ?? '');
   const [amount, setAmount] = useState(expense ? String(expense.amount) : '');
   const [account, setAccount] = useState(expense ? accountId(expense.account) : '');
@@ -38,6 +40,17 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
       if (list.length > 0) setCategory((cur) => cur || list[0].name);
     });
     api.listVendors().then(setVendors);
+    api.listPaymentMethods().then((list) => {
+      setPaymentMethods(list);
+      // Only pre-select on a brand-new expense -- an existing one keeps
+      // whatever it was recorded with, same as DocumentFormModal's default
+      // invoice term only applying when there's no existing document.
+      if (!expense) {
+        const defaultMethod = list.find((m) => m.isDefault);
+        if (defaultMethod) setPaymentMethod((cur) => cur || defaultMethod.name);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function handleReceiptChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -68,6 +81,7 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
         date,
         category,
         payee: payee || undefined,
+        paymentMethod: paymentMethod || undefined,
         description,
         amount: Number(amount),
         account: account || undefined,
@@ -115,19 +129,37 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
             </select>
           </div>
         </div>
-        <div className="field">
-          <label>Payee</label>
-          <select value={payee} onChange={(e) => setPayee(e.target.value)}>
-            <option value="">No payee</option>
-            {vendors?.map((v) => (
-              <option key={v._id} value={v.name}>
-                {v.name}
-              </option>
-            ))}
-            {/* Keeps an existing expense's stored payee selectable even if it's since
-                been renamed or removed from Settings > Finance. */}
-            {payee && !vendors?.some((v) => v.name === payee) && <option value={payee}>{payee}</option>}
-          </select>
+        <div className="field-row">
+          <div className="field">
+            <label>Payee</label>
+            <select value={payee} onChange={(e) => setPayee(e.target.value)}>
+              <option value="">No payee</option>
+              {vendors?.map((v) => (
+                <option key={v._id} value={v.name}>
+                  {v.name}
+                </option>
+              ))}
+              {/* Keeps an existing expense's stored payee selectable even if it's since
+                  been renamed or removed from Settings > Finance. */}
+              {payee && !vendors?.some((v) => v.name === payee) && <option value={payee}>{payee}</option>}
+            </select>
+          </div>
+          <div className="field">
+            <label>Payment Method</label>
+            <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+              <option value="">No payment method</option>
+              {paymentMethods?.map((m) => (
+                <option key={m._id} value={m.name}>
+                  {m.name}
+                </option>
+              ))}
+              {/* Keeps an existing expense's stored method selectable even if it's since
+                  been renamed or removed from Settings > Finance. */}
+              {paymentMethod && !paymentMethods?.some((m) => m.name === paymentMethod) && (
+                <option value={paymentMethod}>{paymentMethod}</option>
+              )}
+            </select>
+          </div>
         </div>
         <div className="field">
           <label>Description *</label>

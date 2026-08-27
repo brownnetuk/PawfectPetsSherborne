@@ -21,6 +21,10 @@ export class CreateExpenseDto {
   @IsString()
   payee?: string;
 
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+
   @IsNotEmpty()
   @IsString()
   description: string;

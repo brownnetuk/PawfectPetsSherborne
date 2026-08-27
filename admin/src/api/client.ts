@@ -303,6 +303,7 @@ export function listPaymentMethods(): Promise<PaymentMethod[]> {
 }
 export interface PaymentMethodInput {
   name: string;
+  isDefault?: boolean;
 }
 export function createPaymentMethod(input: PaymentMethodInput): Promise<PaymentMethod> {
   return request('/payment-methods', { method: 'POST', body: JSON.stringify(input) });
@@ -382,6 +383,7 @@ export interface ExpenseInput {
   date: string;
   category: string;
   payee?: string;
+  paymentMethod?: string;
   description: string;
   amount: number;
   account?: string;
