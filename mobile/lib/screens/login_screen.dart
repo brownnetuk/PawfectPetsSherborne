@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../state/auth_provider.dart';
+import 'scan_qr_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -122,6 +123,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 8),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: _submitting
+                        ? null
+                        : () => Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const ScanQrScreen()),
+                            ),
+                    icon: const Icon(Icons.qr_code_scanner, size: 18),
+                    label: const Text('Scan QR code'),
+                  ),
+                ),
               ],
             ),
           ),
