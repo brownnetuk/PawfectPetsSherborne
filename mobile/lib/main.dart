@@ -4,6 +4,7 @@ import 'api/api_client.dart';
 import 'api/repository.dart';
 import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
+import 'screens/scan_qr_screen.dart';
 import 'state/auth_provider.dart';
 import 'theme.dart';
 
@@ -37,6 +38,7 @@ class PawfectPetsStaffApp extends StatelessWidget {
           if (auth.loading) {
             return const Scaffold(body: Center(child: CircularProgressIndicator()));
           }
+          if (auth.needsProvisioning) return const ScanQrScreen();
           return auth.staff != null ? const HomeShell() : const LoginScreen();
         },
       ),

@@ -16,7 +16,16 @@ void main() {
   setUp(() {
     TestWidgetsFlutterBinding.ensureInitialized();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(secureStorageChannel, (call) async => null);
+        .setMockMethodCallHandler(secureStorageChannel, (call) async {
+      // Pretend the app is already provisioned with a backend URL so it shows
+      // the login screen (not the first-launch QR scan). Everything else
+      // (token, remembered creds) reads as absent.
+      final args = call.arguments as Map?;
+      if (call.method == 'read' && args?['key'] == 'pawfectpets_api_base_url') {
+        return 'https://api.example.com';
+      }
+      return null;
+    });
   });
 
   testWidgets('shows the staff login screen when logged out', (WidgetTester tester) async {

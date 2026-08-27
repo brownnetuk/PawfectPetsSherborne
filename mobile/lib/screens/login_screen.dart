@@ -15,6 +15,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   String? _error;
   bool _submitting = false;
+  bool _remember = false;
 
   Future<void> _submit() async {
     setState(() {
@@ -25,9 +26,24 @@ class _LoginScreenState extends State<LoginScreen> {
       await context.read<AuthProvider>().login(
             _emailController.text.trim(),
             _passwordController.text,
+            remember: _remember,
           );
     } catch (e) {
       setState(() => _error = e is ApiException ? e.message : 'Login failed');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _biometricLogin() async {
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await context.read<AuthProvider>().loginWithBiometrics();
+    } catch (e) {
+      setState(() => _error = e is ApiException ? e.message : 'Face ID sign-in failed');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -79,7 +95,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   onSubmitted: (_) => _submitting ? null : _submit(),
                   decoration: const InputDecoration(labelText: 'Password'),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: _remember,
+                  onChanged: _submitting ? null : (v) => setState(() => _remember = v ?? false),
+                  title: const Text('Remember me (Face ID / Touch ID)'),
+                ),
+                const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -87,6 +111,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text(_submitting ? 'Signing in…' : 'Sign in'),
                   ),
                 ),
+                if (context.watch<AuthProvider>().hasRemembered) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _submitting ? null : _biometricLogin,
+                      icon: const Icon(Icons.face),
+                      label: Text('Sign in as ${context.watch<AuthProvider>().rememberedEmail}'),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

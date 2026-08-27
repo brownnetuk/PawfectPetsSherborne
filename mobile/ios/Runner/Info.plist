@@ -59,11 +59,14 @@
 	<array>
 		<string>tel</string>
 	</array>
-	<!-- Capturing/scanning receipts to attach to expenses. -->
+	<!-- Scanning the setup QR code, and capturing/scanning receipts. -->
 	<key>NSCameraUsageDescription</key>
-	<string>Take a photo or scan a receipt to attach to an expense.</string>
+	<string>Scan the setup QR code to connect this device, or take a photo of a receipt to attach to an expense.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Attach a receipt image from your photo library to an expense.</string>
+	<!-- Face ID / Touch ID for remembered sign-in. -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>Use Face ID to sign in with your saved credentials.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
