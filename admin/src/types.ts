@@ -270,6 +270,16 @@ export interface Expense {
   createdAt: string;
 }
 
+export interface BankTransfer {
+  _id: string;
+  date: string;
+  reference?: string;
+  fromAccount: { _id: string; name: string; type: BankAccountType } | string;
+  toAccount: { _id: string; name: string; type: BankAccountType } | string;
+  amount: number;
+  createdAt: string;
+}
+
 export interface CreditNote {
   _id: string;
   creditNoteNumber: string;

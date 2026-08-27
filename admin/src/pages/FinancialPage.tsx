@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import AddPaymentModal from '../components/AddPaymentModal';
+import BankTransferModal from '../components/BankTransferModal';
 import CreditNoteModal from '../components/CreditNoteModal';
 import ExpenseModal from '../components/ExpenseModal';
 import Modal from '../components/Modal';
 import ViewExpenseModal from '../components/ViewExpenseModal';
 import { PencilIcon, TrashIcon } from '../components/icons';
-import type { CreditNote, Expense, Payment } from '../types';
+import type { BankTransfer, CreditNote, Expense, Payment } from '../types';
 
-type Tab = 'payments' | 'expenses' | 'creditNotes';
+type Tab = 'payments' | 'expenses' | 'creditNotes' | 'bankTransfers';
 
 const TAB_LABELS: Record<Tab, string> = {
   payments: 'Payments',
   expenses: 'Expenses',
   creditNotes: 'Credit Notes',
+  bankTransfers: 'Bank Transfers',
 };
 
 export default function FinancialPage() {
@@ -26,7 +28,7 @@ export default function FinancialPage() {
       </div>
 
       <div className="tabs">
-        {(['payments', 'expenses', 'creditNotes'] as Tab[]).map((t) => (
+        {(['payments', 'expenses', 'creditNotes', 'bankTransfers'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -36,6 +38,7 @@ export default function FinancialPage() {
       {tab === 'payments' && <PaymentsCard />}
       {tab === 'expenses' && <ExpensesCard />}
       {tab === 'creditNotes' && <CreditNotesCard />}
+      {tab === 'bankTransfers' && <BankTransfersCard />}
     </div>
   );
 }
@@ -407,6 +410,120 @@ function CreditNotesCard() {
           <p>
             This permanently removes credit note <strong>{deleting.creditNoteNumber}</strong> and reverses its
             effect on the linked invoice and account balance, if any.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function transferAccountLabel(account: BankTransfer['fromAccount']): string {
+  if (!account) return '—';
+  return typeof account === 'string' ? account : account.name;
+}
+
+function BankTransfersCard() {
+  const [transfers, setTransfers] = useState<BankTransfer[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [deleting, setDeleting] = useState<BankTransfer | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function refresh() {
+    api
+      .listBankTransfers()
+      .then(setTransfers)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bank transfers'));
+  }
+  useEffect(refresh, []);
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteBankTransfer(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete this transfer');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <h2>Bank Transfers</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+            Moves money between two of your own accounts -- deducted from the source and added to the
+            destination.
+          </p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+          New Transfer
+        </button>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      {!transfers || transfers.length === 0 ? (
+        <div className="empty-state">{transfers === null ? 'Loading…' : 'No bank transfers recorded yet.'}</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Reference</th>
+              <th>Source Account</th>
+              <th>Destination Account</th>
+              <th>Amount</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {transfers.map((t) => (
+              <tr key={t._id}>
+                <td>{new Date(t.date).toLocaleDateString('en-GB')}</td>
+                <td>{t.reference || '—'}</td>
+                <td>{transferAccountLabel(t.fromAccount)}</td>
+                <td>{transferAccountLabel(t.toAccount)}</td>
+                <td>£{t.amount.toFixed(2)}</td>
+                <td>
+                  <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(t)}>
+                    <TrashIcon />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {showNew && (
+        <BankTransferModal
+          onClose={() => setShowNew(false)}
+          onSaved={() => {
+            setShowNew(false);
+            refresh();
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal title="Delete this transfer?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently removes this transfer and reverses its effect on both accounts' balances.
           </p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setDeleting(null)}>

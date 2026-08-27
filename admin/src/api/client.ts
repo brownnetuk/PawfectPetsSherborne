@@ -4,6 +4,7 @@ import type {
   BankAccount,
   BankAccountStatement,
   BankAccountType,
+  BankTransfer,
   Booking,
   BusinessInfo,
   CreditNote,
@@ -341,6 +342,24 @@ export function getBankAccountTransactions(
   year: number,
 ): Promise<BankAccountStatement> {
   return request(`/bank-accounts/${id}/transactions?month=${month}&year=${year}`);
+}
+
+// --- bank transfers ---
+export function listBankTransfers(): Promise<BankTransfer[]> {
+  return request('/bank-transfers');
+}
+export interface BankTransferInput {
+  date: string;
+  reference?: string;
+  fromAccount: string;
+  toAccount: string;
+  amount: number;
+}
+export function createBankTransfer(input: BankTransferInput): Promise<BankTransfer> {
+  return request('/bank-transfers', { method: 'POST', body: JSON.stringify(input) });
+}
+export function deleteBankTransfer(id: string): Promise<void> {
+  return request(`/bank-transfers/${id}`, { method: 'DELETE' });
 }
 export function setBankAccountOpeningBalance(
   id: string,
