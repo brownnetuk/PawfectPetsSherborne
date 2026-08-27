@@ -16,8 +16,8 @@ class Repository {
   Repository(this._client);
 
   // --- auth ---
-  Future<({String token, Staff staff})> login(String email, String password) async {
-    final json = await _client.post('/auth/login', {'email': email, 'password': password});
+  Future<({String token, Staff staff})> login(String username, String password) async {
+    final json = await _client.post('/auth/login', {'username': username, 'password': password});
     return (
       token: json['accessToken'] as String,
       staff: Staff.fromJson(json['staff'] as Map<String, dynamic>),

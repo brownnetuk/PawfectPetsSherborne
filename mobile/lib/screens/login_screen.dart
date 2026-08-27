@@ -12,7 +12,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   String? _error;
   bool _submitting = false;
@@ -25,7 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       await context.read<AuthProvider>().login(
-            _emailController.text.trim(),
+            _usernameController.text.trim(),
             _passwordController.text,
             remember: _remember,
           );
@@ -115,10 +115,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 16),
                 ],
                 TextField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  autofillHints: const [AutofillHints.email],
-                  decoration: const InputDecoration(labelText: 'Email'),
+                  controller: _usernameController,
+                  autocorrect: false,
+                  textCapitalization: TextCapitalization.none,
+                  autofillHints: const [AutofillHints.username],
+                  decoration: const InputDecoration(labelText: 'Username'),
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -151,7 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: OutlinedButton.icon(
                       onPressed: _submitting ? null : _biometricLogin,
                       icon: const Icon(Icons.face),
-                      label: Text('Sign in as ${context.watch<AuthProvider>().rememberedEmail}'),
+                      label: Text('Sign in as ${context.watch<AuthProvider>().rememberedUsername}'),
                     ),
                   ),
                 ],

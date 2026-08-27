@@ -7,7 +7,7 @@ import '../models/staff.dart';
 
 const _tokenKey = 'pawfectpets_staff_token';
 const _baseUrlKey = 'pawfectpets_api_base_url';
-const _rememberEmailKey = 'pawfectpets_remember_email';
+const _rememberUsernameKey = 'pawfectpets_remember_username';
 const _rememberPasswordKey = 'pawfectpets_remember_password';
 
 class AuthProvider extends ChangeNotifier {
@@ -20,11 +20,11 @@ class AuthProvider extends ChangeNotifier {
   // True until the app has been provisioned with a backend URL via the
   // first-launch QR scan.
   bool needsProvisioning = false;
-  // The saved email for a remembered login (shown on the Face ID button);
+  // The saved username for a remembered login (shown on the Face ID button);
   // the password is only ever read from the keychain during a biometric login.
-  String? rememberedEmail;
+  String? rememberedUsername;
 
-  bool get hasRemembered => rememberedEmail != null;
+  bool get hasRemembered => rememberedUsername != null;
 
   AuthProvider(this.client, this.repository) {
     client.setUnauthorizedHandler(() {
@@ -45,7 +45,7 @@ class AuthProvider extends ChangeNotifier {
       return;
     }
     client.setBaseUrl(baseUrl);
-    rememberedEmail = await _storage.read(key: _rememberEmailKey);
+    rememberedUsername = await _storage.read(key: _rememberUsernameKey);
     await _restoreSession();
   }
 
@@ -58,7 +58,7 @@ class AuthProvider extends ChangeNotifier {
     needsProvisioning = false;
     loading = true;
     notifyListeners();
-    rememberedEmail = await _storage.read(key: _rememberEmailKey);
+    rememberedUsername = await _storage.read(key: _rememberUsernameKey);
     await _restoreSession();
   }
 
@@ -80,14 +80,14 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> login(String email, String password, {bool remember = false}) async {
-    final result = await repository.login(email, password);
+  Future<void> login(String username, String password, {bool remember = false}) async {
+    final result = await repository.login(username, password);
     await _storage.write(key: _tokenKey, value: result.token);
     client.setToken(result.token);
     if (remember) {
-      await _storage.write(key: _rememberEmailKey, value: email);
+      await _storage.write(key: _rememberUsernameKey, value: username);
       await _storage.write(key: _rememberPasswordKey, value: password);
-      rememberedEmail = email;
+      rememberedUsername = username;
     } else {
       await _clearRemembered();
     }
@@ -97,22 +97,22 @@ class AuthProvider extends ChangeNotifier {
 
   /// Prompts Face ID / Touch ID, then signs in with the saved credentials.
   Future<void> loginWithBiometrics() async {
-    final email = await _storage.read(key: _rememberEmailKey);
+    final username = await _storage.read(key: _rememberUsernameKey);
     final password = await _storage.read(key: _rememberPasswordKey);
-    if (email == null || password == null) {
+    if (username == null || password == null) {
       throw ApiException('No saved login found.');
     }
     final ok = await LocalAuthentication().authenticate(
       localizedReason: 'Sign in to PawfectPets Staff',
     );
     if (!ok) throw ApiException('Authentication cancelled.');
-    await login(email, password, remember: true);
+    await login(username, password, remember: true);
   }
 
   Future<void> _clearRemembered() async {
-    await _storage.delete(key: _rememberEmailKey);
+    await _storage.delete(key: _rememberUsernameKey);
     await _storage.delete(key: _rememberPasswordKey);
-    rememberedEmail = null;
+    rememberedUsername = null;
   }
 
   Future<void> logout() async {
