@@ -851,6 +851,7 @@ function StaffTab() {
             <thead>
               <tr>
                 <th>Name</th>
+                <th>Username</th>
                 <th>Email</th>
                 <th>Role</th>
                 <th></th>
@@ -897,6 +898,7 @@ function StaffTab() {
                         </span>
                       )}
                     </td>
+                    <td>{s.username}</td>
                     <td>{s.email}</td>
                     <td>{s.role?.name ?? 'Full access'}</td>
                     <td onClick={(e) => e.stopPropagation()}>
@@ -975,6 +977,7 @@ function NewStaffModal({
   onCreated: () => void;
 }) {
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isBreakGlass, setIsBreakGlass] = useState(false);
@@ -987,7 +990,7 @@ function NewStaffModal({
     setSubmitting(true);
     setError(null);
     try {
-      await api.registerStaff(name, email, password, isBreakGlass, role || undefined);
+      await api.registerStaff(name, username, email, password, isBreakGlass, role || undefined);
       onCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create staff account');
@@ -1003,6 +1006,13 @@ function NewStaffModal({
         <div className="field">
           <label>Name</label>
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+        </div>
+        <div className="field">
+          <label>Username</label>
+          <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required />
+          <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+            This is what's used to log in.
+          </div>
         </div>
         <div className="field">
           <label>Email</label>
@@ -1060,7 +1070,7 @@ function NewStaffModal({
   );
 }
 
-// Opened by clicking a row in the staff table. Handles name/email/
+// Opened by clicking a row in the staff table. Handles name/username/email/
 // break-glass/locked/role together; password change is deliberately a
 // separate, focused action (ChangePasswordModal below) rather than one more
 // field in this form, same reasoning as ViewBankAccountModal's opening
@@ -1079,6 +1089,7 @@ function EditStaffModal({
   onSaved: () => void;
 }) {
   const [name, setName] = useState(staff.name);
+  const [username, setUsername] = useState(staff.username);
   const [email, setEmail] = useState(staff.email);
   const [isBreakGlass, setIsBreakGlass] = useState(staff.isBreakGlass);
   const [locked, setLocked] = useState(staff.locked);
@@ -1092,7 +1103,7 @@ function EditStaffModal({
     setSubmitting(true);
     setError(null);
     try {
-      await api.updateStaff(staff.id, { name, email, isBreakGlass, locked, role: role || null });
+      await api.updateStaff(staff.id, { name, username, email, isBreakGlass, locked, role: role || null });
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save this account');
@@ -1110,11 +1121,15 @@ function EditStaffModal({
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
         </div>
         <div className="field">
-          <label>Email / Username</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <label>Username</label>
+          <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required />
           <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
-            This is what's used to log in — there's no separate username.
+            This is what's used to log in.
           </div>
+        </div>
+        <div className="field">
+          <label>Email</label>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </div>
         <div className="field">
           <label>Role</label>

@@ -6,6 +6,10 @@ export class UpdateStaffDto {
   name?: string;
 
   @IsOptional()
+  @IsNotEmpty()
+  username?: string;
+
+  @IsOptional()
   @IsEmail()
   email?: string;
 

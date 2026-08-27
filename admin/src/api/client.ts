@@ -78,14 +78,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 // --- auth ---
-export function login(email: string, password: string): Promise<{ accessToken: string; staff: Staff }> {
-  return request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+export function login(username: string, password: string): Promise<{ accessToken: string; staff: Staff }> {
+  return request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) });
 }
 export function me(): Promise<Staff> {
   return request('/auth/me');
 }
 export function registerStaff(
   name: string,
+  username: string,
   email: string,
   password: string,
   isBreakGlass?: boolean,
@@ -93,7 +94,7 @@ export function registerStaff(
 ): Promise<Staff> {
   return request('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ name, email, password, isBreakGlass, role: role || undefined }),
+    body: JSON.stringify({ name, username, email, password, isBreakGlass, role: role || undefined }),
   });
 }
 export function listStaff(): Promise<Staff[]> {
@@ -101,7 +102,14 @@ export function listStaff(): Promise<Staff[]> {
 }
 export function updateStaff(
   id: string,
-  patch: Partial<{ name: string; email: string; isBreakGlass: boolean; locked: boolean; role: string | null }>,
+  patch: Partial<{
+    name: string;
+    username: string;
+    email: string;
+    isBreakGlass: boolean;
+    locked: boolean;
+    role: string | null;
+  }>,
 ): Promise<Staff> {
   return request(`/auth/staff/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
 }

@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -24,6 +25,7 @@ function shapeStaff(staff: Omit<Staff, 'role'> & { role: PopulatedRole }) {
   return {
     id: staff._id,
     name: staff.name,
+    username: staff.username,
     email: staff.email,
     isBreakGlass: staff.isBreakGlass ?? false,
     locked: staff.locked ?? false,
@@ -38,21 +40,41 @@ const ADMIN_CLIENT_HEADER = 'x-client-app';
 const ADMIN_CLIENT_VALUE = 'admin';
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
   constructor(
     @InjectModel(Staff.name) private readonly staffModel: Model<Staff>,
     @InjectModel(BusinessInfo.name) private readonly businessInfoModel: Model<BusinessInfo>,
     private readonly jwtService: JwtService,
   ) {}
 
+  // One-time backfill for accounts created before `username` existed --
+  // defaults it to the account's (already-unique) email, matching what
+  // people are used to logging in with, so nothing breaks until someone
+  // deliberately changes it. Re-checks every boot but is a no-op once every
+  // account has a username (same $exists-scan idiom as other seed/backfill
+  // steps in this codebase, e.g. RolesService's seeded "Admin" role).
+  async onModuleInit() {
+    const missing = await this.staffModel.find({ username: { $exists: false } }).exec();
+    for (const staff of missing) {
+      await this.staffModel.updateOne({ _id: staff._id }, { username: staff.email }).exec();
+    }
+  }
+
   async register(dto: RegisterDto) {
-    const existing = await this.staffModel.findOne({ email: dto.email.toLowerCase() }).exec();
-    if (existing) {
+    const existingEmail = await this.staffModel.findOne({ email: dto.email.toLowerCase() }).exec();
+    if (existingEmail) {
       throw new ConflictException('A staff account with that email already exists');
+    }
+    const existingUsername = await this.staffModel
+      .findOne({ username: dto.username.toLowerCase() })
+      .exec();
+    if (existingUsername) {
+      throw new ConflictException('A staff account with that username already exists');
     }
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const staff = await new this.staffModel({
       name: dto.name,
+      username: dto.username.toLowerCase(),
       email: dto.email.toLowerCase(),
       passwordHash,
       isBreakGlass: dto.isBreakGlass ?? false,
@@ -68,13 +90,13 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, req: Request) {
-    const staff = await this.staffModel.findOne({ email: dto.email.toLowerCase() }).exec();
+    const staff = await this.staffModel.findOne({ username: dto.username.toLowerCase() }).exec();
     if (!staff) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Invalid username or password');
     }
     const passwordMatches = await bcrypt.compare(dto.password, staff.passwordHash);
     if (!passwordMatches) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Invalid username or password');
     }
 
     // Checked after the password (so a wrong-password attempt on a locked
@@ -117,7 +139,7 @@ export class AuthService {
   async listStaff() {
     const staff = await this.staffModel
       .find()
-      .select('name email isBreakGlass locked role createdAt')
+      .select('name username email isBreakGlass locked role createdAt')
       .populate<{ role: PopulatedRole }>('role', 'name permissions')
       .sort({ name: 1 })
       .exec();
@@ -135,9 +157,9 @@ export class AuthService {
     }
   }
 
-  // Backs both the Edit Staff modal (name/email/isBreakGlass/locked) and the
-  // Role dropdown's immediate-save (role only) -- every field is optional so
-  // either caller only sends what it actually changed.
+  // Backs both the Edit Staff modal (name/username/email/isBreakGlass/locked)
+  // and the Role dropdown's immediate-save (role only) -- every field is
+  // optional so either caller only sends what it actually changed.
   async updateStaff(id: string, dto: UpdateStaffDto) {
     if (dto.email !== undefined) {
       const existing = await this.staffModel
@@ -147,8 +169,17 @@ export class AuthService {
         throw new ConflictException('A staff account with that email already exists');
       }
     }
+    if (dto.username !== undefined) {
+      const existing = await this.staffModel
+        .findOne({ username: dto.username.toLowerCase(), _id: { $ne: id } })
+        .exec();
+      if (existing) {
+        throw new ConflictException('A staff account with that username already exists');
+      }
+    }
     const set: Record<string, unknown> = {};
     if (dto.name !== undefined) set.name = dto.name;
+    if (dto.username !== undefined) set.username = dto.username.toLowerCase();
     if (dto.email !== undefined) set.email = dto.email.toLowerCase();
     if (dto.isBreakGlass !== undefined) set.isBreakGlass = dto.isBreakGlass;
     if (dto.locked !== undefined) set.locked = dto.locked;

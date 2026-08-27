@@ -19,6 +19,7 @@ export interface Role {
 export interface Staff {
   id: string;
   name: string;
+  username: string;
   email: string;
   isBreakGlass: boolean;
   locked: boolean;

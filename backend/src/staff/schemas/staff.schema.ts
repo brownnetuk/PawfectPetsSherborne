@@ -10,6 +10,13 @@ export class Staff extends Document {
   @Prop({ required: true, unique: true, lowercase: true })
   email: string;
 
+  // The login identifier -- separate from email, which is now just a
+  // contact address. `sparse` so pre-existing accounts (created before this
+  // field existed) don't collide on the shared "missing" value before
+  // AuthService's onModuleInit backfill (username := email) runs.
+  @Prop({ required: true, unique: true, sparse: true, lowercase: true })
+  username: string;
+
   // bcrypt hash — never expose this field in API responses.
   @Prop({ required: true })
   passwordHash: string;
