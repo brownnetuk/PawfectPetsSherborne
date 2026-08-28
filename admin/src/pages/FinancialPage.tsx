@@ -8,10 +8,12 @@ import Modal from '../components/Modal';
 import ViewExpenseModal from '../components/ViewExpenseModal';
 import { PencilIcon, TrashIcon } from '../components/icons';
 import type { BankTransfer, CreditNote, Expense, Payment } from '../types';
+import FinancialSnapshotTab from './FinancialSnapshotTab';
 
-type Tab = 'payments' | 'expenses' | 'creditNotes' | 'bankTransfers';
+type Tab = 'snapshot' | 'payments' | 'expenses' | 'creditNotes' | 'bankTransfers';
 
 const TAB_LABELS: Record<Tab, string> = {
+  snapshot: 'Snapshot',
   payments: 'Payments',
   expenses: 'Expenses',
   creditNotes: 'Credit Notes',
@@ -19,7 +21,7 @@ const TAB_LABELS: Record<Tab, string> = {
 };
 
 export default function FinancialPage() {
-  const [tab, setTab] = useState<Tab>('payments');
+  const [tab, setTab] = useState<Tab>('snapshot');
 
   return (
     <div>
@@ -28,13 +30,14 @@ export default function FinancialPage() {
       </div>
 
       <div className="tabs">
-        {(['payments', 'expenses', 'creditNotes', 'bankTransfers'] as Tab[]).map((t) => (
+        {(['snapshot', 'payments', 'expenses', 'creditNotes', 'bankTransfers'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
         ))}
       </div>
 
+      {tab === 'snapshot' && <FinancialSnapshotTab />}
       {tab === 'payments' && <PaymentsCard />}
       {tab === 'expenses' && <ExpensesCard />}
       {tab === 'creditNotes' && <CreditNotesCard />}
