@@ -1,7 +1,10 @@
 import 'dart:typed_data';
 import '../models/animal.dart';
 import '../models/audit_log_entry.dart';
+import '../models/bank_account.dart';
 import '../models/booking.dart';
+import '../models/finance_report.dart';
+import '../models/payment.dart' as models;
 import '../models/crm_activity.dart';
 import '../models/customer.dart';
 import '../models/expense.dart';
@@ -259,6 +262,40 @@ class Repository {
       Expense.fromJson(await _client.patch('/expenses/$id', patch));
 
   Future<void> deleteExpense(String id) => _client.delete('/expenses/$id');
+
+  // --- financial: payments, bank accounts, reports ---
+  Future<List<models.Payment>> listPayments() async =>
+      (await _client.getList('/payments')).map((e) => models.Payment.fromJson(e)).toList();
+
+  Future<List<BankAccount>> listBankAccountsDetailed() async =>
+      (await _client.getList('/bank-accounts')).map((e) => BankAccount.fromJson(e)).toList();
+
+  Future<({double openingBalance, List<BankTransaction> transactions})> getBankTransactions(
+    String accountId,
+    int month,
+    int year,
+  ) async {
+    final json = await _client.get(
+      '/bank-accounts/$accountId/transactions',
+      query: {'month': '$month', 'year': '$year'},
+    );
+    return (
+      openingBalance: (json['openingBalance'] as num?)?.toDouble() ?? 0,
+      transactions: (json['transactions'] as List<dynamic>? ?? [])
+          .map((e) => BankTransaction.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+
+  Future<List<IncomeExpenseMonth>> incomeVsExpenses({int months = 6}) async =>
+      (await _client.getList('/reports/income-vs-expenses', query: {'months': '$months'}))
+          .map((e) => IncomeExpenseMonth.fromJson(e))
+          .toList();
+
+  Future<List<ExpenseCategoryTotal>> expensesByCategory({int months = 6}) async =>
+      (await _client.getList('/reports/expenses-by-category', query: {'months': '$months'}))
+          .map((e) => ExpenseCategoryTotal.fromJson(e))
+          .toList();
 
   Future<List<ExpenseCategory>> listExpenseCategories() async =>
       (await _client.getList('/expense-categories')).map((e) => ExpenseCategory.fromJson(e)).toList();

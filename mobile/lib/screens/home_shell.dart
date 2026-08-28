@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../state/auth_provider.dart';
 import 'bookings_screen.dart';
 import 'customers_screen.dart';
-import 'expenses_screen.dart';
+import 'financial_screen.dart';
 import 'invoices_screen.dart';
 import 'quotes_screen.dart';
 
@@ -22,7 +22,7 @@ class _HomeShellState extends State<HomeShell> {
     CustomersScreen(),
     InvoicesScreen(),
     QuotesScreen(),
-    ExpensesScreen(),
+    FinancialScreen(),
   ];
 
   @override
@@ -37,7 +37,7 @@ class _HomeShellState extends State<HomeShell> {
           NavigationDestination(icon: Icon(Icons.people_outline), label: 'Customers'),
           NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Invoices'),
           NavigationDestination(icon: Icon(Icons.request_quote_outlined), label: 'Quotes'),
-          NavigationDestination(icon: Icon(Icons.payments_outlined), label: 'Expenses'),
+          NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Financial'),
         ],
       ),
     );
