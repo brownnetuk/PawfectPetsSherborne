@@ -15,6 +15,7 @@ const TYPE_LABELS: Record<BankTransaction['type'], string> = {
   payment: 'Payment',
   expense: 'Expense',
   credit_note: 'Credit Note',
+  bank_transfer: 'Transfer',
 };
 
 interface Props {
@@ -62,7 +63,12 @@ export default function ViewBankAccountModal({ account: initialAccount, onClose,
         <dt>Account Number</dt>
         <dd>{account.accountNumber}</dd>
         <dt>Current Balance</dt>
-        <dd style={{ color: 'var(--brand-green)', fontWeight: 700 }}>
+        <dd
+          style={{
+            color: (account.currentBalance ?? 0) < 0 ? 'var(--error)' : 'var(--brand-green)',
+            fontWeight: 700,
+          }}
+        >
           £{(account.currentBalance ?? 0).toFixed(2)}
         </dd>
       </dl>

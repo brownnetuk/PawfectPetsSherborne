@@ -212,7 +212,7 @@ export interface BankTransaction {
   description: string;
   amount: number;
   balance: number;
-  type: 'payment' | 'expense' | 'credit_note';
+  type: 'payment' | 'expense' | 'credit_note' | 'bank_transfer';
 }
 
 export interface BankAccountStatement {

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { BankTransfer } from '../bank-transfers/schemas/bank-transfer.schema';
 import { describeBlockers } from '../common/delete-guard.util';
 import { CreditNote } from '../credit-notes/schemas/credit-note.schema';
 import { Expense } from '../expenses/schemas/expense.schema';
@@ -18,7 +19,7 @@ export interface BankTransaction {
   description: string;
   amount: number;
   balance: number;
-  type: 'payment' | 'expense' | 'credit_note';
+  type: 'payment' | 'expense' | 'credit_note' | 'bank_transfer';
 }
 
 @Injectable()
@@ -30,6 +31,8 @@ export class BankAccountsService {
     @InjectModel(Expense.name) private readonly expenseModel: Model<Expense>,
     @InjectModel(CreditNote.name)
     private readonly creditNoteModel: Model<CreditNote>,
+    @InjectModel(BankTransfer.name)
+    private readonly bankTransferModel: Model<BankTransfer>,
   ) {}
 
   async create(dto: CreateBankAccountDto): Promise<BankAccount> {
@@ -122,6 +125,39 @@ export class BankAccountsService {
     return rows[0]?.total ?? 0;
   }
 
+  // Same rolling-window sum as sumBetween(), but for BankTransfer -- unlike
+  // Payment/Expense/CreditNote (which only ever debit or credit a single
+  // `account` field), a transfer touches two accounts with opposite signs
+  // depending on which side this account is on, so it needs its own signed
+  // aggregation rather than a plain $sum of `amount`.
+  private async sumTransfersBetween(
+    accountId: Types.ObjectId,
+    from: Date,
+    to?: Date,
+  ): Promise<number> {
+    const rows = await this.bankTransferModel
+      .aggregate<{ total: number }>([
+        {
+          $match: {
+            $or: [{ fromAccount: accountId }, { toAccount: accountId }],
+            date: { $gte: from, ...(to ? { $lt: to } : {}) },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            total: {
+              $sum: {
+                $cond: [{ $eq: ['$fromAccount', accountId] }, { $multiply: ['$amount', -1] }, '$amount'],
+              },
+            },
+          },
+        },
+      ])
+      .exec();
+    return rows[0]?.total ?? 0;
+  }
+
   /**
    * Reconciles the account against a real statement: "as of `date`, the
    * balance was `balance`". Becomes the new anchor getTransactions() sums
@@ -137,7 +173,7 @@ export class BankAccountsService {
   ): Promise<BankAccount> {
     const openingBalanceDate = new Date(dto.date);
     const accountObjectId = new Types.ObjectId(id);
-    const [paymentsSince, expensesSince, creditNotesSince] = await Promise.all([
+    const [paymentsSince, expensesSince, creditNotesSince, transfersSince] = await Promise.all([
       this.sumBetween(this.paymentModel, accountObjectId, openingBalanceDate),
       this.sumBetween(this.expenseModel, accountObjectId, openingBalanceDate),
       this.sumBetween(
@@ -145,9 +181,10 @@ export class BankAccountsService {
         accountObjectId,
         openingBalanceDate,
       ),
+      this.sumTransfersBetween(accountObjectId, openingBalanceDate),
     ]);
     const currentBalance =
-      dto.balance + paymentsSince - expensesSince - creditNotesSince;
+      dto.balance + paymentsSince - expensesSince - creditNotesSince + transfersSince;
     const account = await this.bankAccountModel
       .findByIdAndUpdate(
         id,
@@ -163,14 +200,16 @@ export class BankAccountsService {
 
   /**
    * The account's own statement for one calendar month: every Payment,
-   * Expense, and CreditNote recorded against it, merged into a single
-   * signed, running-balance ledger -- Payment credits (+), Expense and
-   * CreditNote debits (-), same sign convention `adjustBalance` already uses
-   * for each of them. The period's own opening balance sums from the
-   * account's reconciliation anchor (openingBalanceDate/openingBalance, see
-   * setOpeningBalance() -- defaults to account creation / £0 if never
-   * reconciled) rather than from the beginning of time, so it stays correct
-   * even when older, now-superseded transaction history exists before it.
+   * Expense, CreditNote, and BankTransfer recorded against it, merged into a
+   * single signed, running-balance ledger -- Payment credits (+), Expense
+   * and CreditNote debits (-), same sign convention `adjustBalance` already
+   * uses for each of them; a BankTransfer credits (+) when this account is
+   * the destination and debits (-) when it's the source. The period's own
+   * opening balance sums from the account's reconciliation anchor
+   * (openingBalanceDate/openingBalance, see setOpeningBalance() -- defaults
+   * to account creation / £0 if never reconciled) rather than from the
+   * beginning of time, so it stays correct even when older, now-superseded
+   * transaction history exists before it.
    */
   async getTransactions(accountId: string, month: number, year: number) {
     const account = await this.bankAccountModel.findById(accountId).exec();
@@ -189,9 +228,11 @@ export class BankAccountsService {
       payments,
       expenses,
       creditNotes,
+      transfers,
       paymentsBefore,
       expensesBefore,
       creditNotesBefore,
+      transfersBefore,
     ] = await Promise.all([
       this.paymentModel
         .find({
@@ -212,6 +253,14 @@ export class BankAccountsService {
           date: { $gte: periodStart, $lt: periodEnd },
         })
         .exec(),
+      this.bankTransferModel
+        .find({
+          $or: [{ fromAccount: accountId }, { toAccount: accountId }],
+          date: { $gte: periodStart, $lt: periodEnd },
+        })
+        .populate('fromAccount', 'name')
+        .populate('toAccount', 'name')
+        .exec(),
       this.sumBetween(
         this.paymentModel,
         accountObjectId,
@@ -230,10 +279,11 @@ export class BankAccountsService {
         anchorDate,
         periodStart,
       ),
+      this.sumTransfersBetween(accountObjectId, anchorDate, periodStart),
     ]);
 
     const openingBalance =
-      anchorBalance + paymentsBefore - expensesBefore - creditNotesBefore;
+      anchorBalance + paymentsBefore - expensesBefore - creditNotesBefore + transfersBefore;
 
     type UnbalancedTransaction = Omit<BankTransaction, 'balance'>;
     const unbalanced: UnbalancedTransaction[] = [
@@ -259,6 +309,15 @@ export class BankAccountsService {
         amount: -c.amount,
         type: 'credit_note',
       })),
+      ...transfers.map((t): UnbalancedTransaction => {
+        const from = t.fromAccount as unknown as { _id: Types.ObjectId; name?: string };
+        const to = t.toAccount as unknown as { _id: Types.ObjectId; name?: string };
+        const isSource = from._id.toString() === accountId;
+        const reference = t.reference ? ` — ${t.reference}` : '';
+        return isSource
+          ? { date: t.date, description: `Transfer to ${to.name ?? 'another account'}${reference}`, amount: -t.amount, type: 'bank_transfer' }
+          : { date: t.date, description: `Transfer from ${from.name ?? 'another account'}${reference}`, amount: t.amount, type: 'bank_transfer' };
+      }),
     ].sort((a, b) => a.date.getTime() - b.date.getTime());
 
     let running = openingBalance;

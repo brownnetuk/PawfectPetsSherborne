@@ -358,7 +358,9 @@ function BankAccountsCard() {
               <span>
                 {a.name} <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>({bankAccountTypeLabel(a.type)})</span>
               </span>
-              <span style={{ fontWeight: 700 }}>£{(a.currentBalance ?? 0).toFixed(2)}</span>
+              <span style={{ fontWeight: 700, color: (a.currentBalance ?? 0) < 0 ? 'var(--error)' : undefined }}>
+                £{(a.currentBalance ?? 0).toFixed(2)}
+              </span>
             </div>
           ))}
         </div>
