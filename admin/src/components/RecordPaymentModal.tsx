@@ -19,6 +19,8 @@ export default function RecordPaymentModal({ invoice, onClose, onSaved }: Props)
   const [charges, setCharges] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [account, setAccount] = useState('');
+  const [isDeposit, setIsDeposit] = useState(false);
+  const [depositPercentage, setDepositPercentage] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -31,7 +33,21 @@ export default function RecordPaymentModal({ invoice, onClose, onSaved }: Props)
       setMethods(list);
       if (list.length > 0) setPaymentMethod((cur) => cur || list[0].name);
     });
+    api.getBusinessInfo().then((info) => setDepositPercentage(info.depositPercentage)).catch(() => {});
   }, []);
+
+  // Same cents-based rounding as InvoicesService.requestDeposit/
+  // RequestDepositModal, so a deposit payment recorded here matches what a
+  // deposit request email would have quoted for the same invoice.
+  function handleIsDepositChange(checked: boolean) {
+    setIsDeposit(checked);
+    if (checked && depositPercentage !== null) {
+      const depositAmount = Math.round(invoice.total * depositPercentage) / 100;
+      setAmount(depositAmount.toFixed(2));
+    } else if (!checked) {
+      setAmount(balanceDue > 0 ? balanceDue.toFixed(2) : '');
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -85,6 +101,20 @@ export default function RecordPaymentModal({ invoice, onClose, onSaved }: Props)
               onChange={(e) => setCharges(e.target.value)}
               placeholder="0.00"
             />
+          </div>
+        </div>
+        <div className="field">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
+            <input
+              type="checkbox"
+              checked={isDeposit}
+              onChange={(e) => handleIsDepositChange(e.target.checked)}
+              style={{ width: 'auto' }}
+            />
+            Is Deposit
+          </label>
+          <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+            Sets the amount to {depositPercentage ?? '…'}% of the invoice total (Settings &gt; Deposit).
           </div>
         </div>
         <div className="field">
