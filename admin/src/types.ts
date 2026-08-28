@@ -192,7 +192,7 @@ export interface PaymentMethod {
   createdAt: string;
 }
 
-export type BankAccountType = 'bank' | 'savings';
+export type BankAccountType = 'bank' | 'savings' | 'pot';
 
 export interface BankAccount {
   _id: string;

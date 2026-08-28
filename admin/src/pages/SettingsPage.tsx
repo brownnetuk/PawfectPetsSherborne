@@ -12,6 +12,7 @@ import RichTextEditor from '../components/RichTextEditor';
 import type { RichTextEditorHandle } from '../components/RichTextEditor';
 import ViewBankAccountModal from '../components/ViewBankAccountModal';
 import { PencilIcon, SortIcon, TrashIcon } from '../components/icons';
+import { bankAccountTypeLabel } from '../utils/bankAccountType';
 import { buildItemsTableHtml, escapeHtml, interpolateBody, interpolateSubject } from '../utils/emailTemplate';
 import { PERMISSION_CATALOG } from '../utils/permissionCatalog';
 import type {
@@ -3164,10 +3165,6 @@ function FinancialTab() {
       />
     </div>
   );
-}
-
-function bankAccountTypeLabel(type: BankAccount['type']): string {
-  return type === 'savings' ? 'Savings' : 'Bank';
 }
 
 function BankAccountsCard() {

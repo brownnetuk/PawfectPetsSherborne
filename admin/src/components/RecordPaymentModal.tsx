@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import Modal from './Modal';
 import type { BankAccount, Invoice, PaymentMethod } from '../types';
+import { bankAccountTypeLabel } from '../utils/bankAccountType';
 
 interface Props {
   invoice: Invoice;
@@ -108,7 +109,7 @@ export default function RecordPaymentModal({ invoice, onClose, onSaved }: Props)
             ) : (
               accounts.map((a) => (
                 <option key={a._id} value={a._id}>
-                  {a.name} ({a.type === 'savings' ? 'Savings' : 'Bank'})
+                  {a.name} ({bankAccountTypeLabel(a.type)})
                 </option>
               ))
             )}

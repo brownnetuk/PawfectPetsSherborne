@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import Modal from './Modal';
 import type { BankAccount, Expense, ExpenseCategoryOption, PaymentMethod, VendorOption } from '../types';
+import { bankAccountTypeLabel } from '../utils/bankAccountType';
 
 interface Props {
   expense: Expense | null;
@@ -193,7 +194,7 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
               <option value="">No account</option>
               {accounts?.map((a) => (
                 <option key={a._id} value={a._id}>
-                  {a.name} ({a.type === 'savings' ? 'Savings' : 'Bank'})
+                  {a.name} ({bankAccountTypeLabel(a.type)})
                 </option>
               ))}
             </select>

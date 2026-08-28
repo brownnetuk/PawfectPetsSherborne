@@ -1,5 +1,6 @@
 import Modal from './Modal';
 import type { Expense } from '../types';
+import { bankAccountTypeLabel } from '../utils/bankAccountType';
 
 interface Props {
   expense: Expense;
@@ -9,7 +10,7 @@ interface Props {
 
 function accountLabel(account: Expense['account']): string {
   if (!account) return '—';
-  return typeof account === 'string' ? account : `${account.name} (${account.type === 'savings' ? 'Savings' : 'Bank'})`;
+  return typeof account === 'string' ? account : `${account.name} (${bankAccountTypeLabel(account.type)})`;
 }
 
 export default function ViewExpenseModal({ expense, onClose, onEdit }: Props) {

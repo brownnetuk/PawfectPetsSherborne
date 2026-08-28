@@ -4,6 +4,7 @@ import { Document } from 'mongoose';
 export enum BankAccountType {
   BANK = 'bank',
   SAVINGS = 'savings',
+  POT = 'pot',
 }
 
 @Schema({ timestamps: true })

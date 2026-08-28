@@ -4,6 +4,7 @@ import Modal from './Modal';
 import SetOpeningBalanceModal from './SetOpeningBalanceModal';
 import { SettingsIcon } from './icons';
 import type { BankAccount, BankTransaction } from '../types';
+import { bankAccountTypeLabel } from '../utils/bankAccountType';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -21,10 +22,6 @@ interface Props {
   onClose: () => void;
   /** Called after a successful opening-balance reconciliation, with the updated account. */
   onAccountUpdated?: (account: BankAccount) => void;
-}
-
-function typeLabel(type: BankAccount['type']): string {
-  return type === 'savings' ? 'Savings' : 'Bank';
 }
 
 export default function ViewBankAccountModal({ account: initialAccount, onClose, onAccountUpdated }: Props) {
@@ -57,7 +54,7 @@ export default function ViewBankAccountModal({ account: initialAccount, onClose,
       <div className="section-title">Account Details</div>
       <dl className="kv-grid">
         <dt>Type</dt>
-        <dd>{typeLabel(account.type)}</dd>
+        <dd>{bankAccountTypeLabel(account.type)}</dd>
         <dt>Account Name</dt>
         <dd>{account.name}</dd>
         <dt>Sort Code</dt>

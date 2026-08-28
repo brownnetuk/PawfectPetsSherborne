@@ -46,6 +46,7 @@ export default function BankAccountModal({ account, onClose, onSaved }: Props) {
           <select value={type} onChange={(e) => setType(e.target.value as BankAccountType)}>
             <option value="bank">Bank</option>
             <option value="savings">Savings</option>
+            <option value="pot">Pot</option>
           </select>
         </div>
         <div className="field">
