@@ -2,21 +2,25 @@
 class Payment {
   final String id;
   final String paymentId;
+  final String? invoiceId;
   final String? invoiceNumber;
   final DateTime date;
   final double amount;
   final double charges;
   final String? paymentMethod;
+  final String? accountId;
   final String? accountName;
 
   Payment({
     required this.id,
     required this.paymentId,
+    this.invoiceId,
     this.invoiceNumber,
     required this.date,
     required this.amount,
     this.charges = 0,
     this.paymentMethod,
+    this.accountId,
     this.accountName,
   });
 
@@ -26,11 +30,17 @@ class Payment {
     return Payment(
       id: json['_id'] as String,
       paymentId: json['paymentId'] as String? ?? '',
+      invoiceId: invoice is Map<String, dynamic>
+          ? invoice['_id'] as String?
+          : (invoice is String ? invoice : null),
       invoiceNumber: invoice is Map<String, dynamic> ? invoice['invoiceNumber'] as String? : null,
       date: DateTime.parse(json['date'] as String),
       amount: (json['amount'] as num?)?.toDouble() ?? 0,
       charges: (json['charges'] as num?)?.toDouble() ?? 0,
       paymentMethod: json['paymentMethod'] as String?,
+      accountId: account is Map<String, dynamic>
+          ? account['_id'] as String?
+          : (account is String ? account : null),
       accountName: account is Map<String, dynamic> ? account['name'] as String? : null,
     );
   }

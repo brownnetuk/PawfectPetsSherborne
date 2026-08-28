@@ -4,8 +4,12 @@ import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/bank_account.dart';
+import '../models/bank_transfer.dart';
+import 'bank_transfer_form_sheet.dart';
 
-/// Lists the bank accounts; tapping one drills into its transactions.
+/// Shows the bank accounts with their balances (tap to drill into an account's
+/// transactions) plus the recorded transfers between accounts, with add / edit
+/// / delete.
 class BankTransfersScreen extends StatefulWidget {
   const BankTransfersScreen({super.key});
 
@@ -14,8 +18,9 @@ class BankTransfersScreen extends StatefulWidget {
 }
 
 class _BankTransfersScreenState extends State<BankTransfersScreen> {
-  late Future<List<BankAccount>> _future;
+  late Future<(List<BankAccount>, List<BankTransfer>)> _future;
   final _money = NumberFormat.currency(locale: 'en_GB', symbol: '£');
+  final _dateFmt = DateFormat('d MMM yyyy');
 
   @override
   void initState() {
@@ -23,7 +28,14 @@ class _BankTransfersScreenState extends State<BankTransfersScreen> {
     _load();
   }
 
-  void _load() => _future = context.read<Repository>().listBankAccountsDetailed();
+  void _load() {
+    final repo = context.read<Repository>();
+    _future = () async {
+      final accounts = await repo.listBankAccountsDetailed();
+      final transfers = await repo.listBankTransfers();
+      return (accounts, transfers);
+    }();
+  }
 
   Future<void> _refresh() async {
     setState(_load);
@@ -39,13 +51,106 @@ class _BankTransfersScreenState extends State<BankTransfersScreen> {
     return parts.join(' · ');
   }
 
+  Future<void> _add() async {
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const BankTransferFormSheet(),
+    );
+    if (saved == true) _refresh();
+  }
+
+  Future<void> _openTransferActions(BankTransfer transfer) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text(
+                transfer.reference?.isNotEmpty == true ? transfer.reference! : 'Transfer',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text('${transfer.fromAccountName} → ${transfer.toAccountName}'),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Edit'),
+              onTap: () => Navigator.of(context).pop('edit'),
+            ),
+            ListTile(
+              leading: Icon(Icons.delete_outline, color: Colors.red.shade600),
+              title: Text('Delete', style: TextStyle(color: Colors.red.shade600)),
+              onTap: () => Navigator.of(context).pop('delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'edit') {
+      final saved = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        builder: (_) => BankTransferFormSheet(transfer: transfer),
+      );
+      if (saved == true) _refresh();
+    } else if (action == 'delete') {
+      _confirmDelete(transfer);
+    }
+  }
+
+  Future<void> _confirmDelete(BankTransfer transfer) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete this transfer?'),
+        content: const Text(
+          'This permanently removes the transfer and reverses its effect on both accounts\' balances.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('Delete', style: TextStyle(color: Colors.red.shade600)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await context.read<Repository>().deleteBankTransfer(transfer.id);
+      _refresh();
+    } catch (e) {
+      if (mounted) {
+        final message = e is ApiException ? e.message : 'Failed to delete transfer';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
+    }
+  }
+
+  Widget _sectionTitle(String title) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+        child: Text(
+          title.toUpperCase(),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: Colors.grey.shade600),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Bank Transfers')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _add,
+        icon: const Icon(Icons.swap_horiz),
+        label: const Text('Transfer'),
+      ),
       body: RefreshIndicator(
         onRefresh: _refresh,
-        child: FutureBuilder<List<BankAccount>>(
+        child: FutureBuilder<(List<BankAccount>, List<BankTransfer>)>(
           future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -54,32 +159,50 @@ class _BankTransfersScreenState extends State<BankTransfersScreen> {
             if (snapshot.hasError) {
               final message = snapshot.error is ApiException
                   ? (snapshot.error as ApiException).message
-                  : 'Failed to load bank accounts';
+                  : 'Failed to load bank data';
               return ListView(children: [const SizedBox(height: 80), Center(child: Text(message, textAlign: TextAlign.center))]);
             }
-            final accounts = snapshot.data ?? [];
-            if (accounts.isEmpty) {
-              return ListView(children: const [SizedBox(height: 80), Center(child: Text('No bank accounts.'))]);
-            }
-            return ListView.separated(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: accounts.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, i) {
-                final a = accounts[i];
-                return ListTile(
-                  leading: Icon(Icons.account_balance_outlined, color: Theme.of(context).colorScheme.primary),
-                  title: Text(a.name),
-                  subtitle: Text(_accountLine(a)),
-                  trailing: Text(
-                    _money.format(a.currentBalance),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => BankAccountTransactionsScreen(account: a)),
-                  ),
-                );
-              },
+            final (accounts, transfers) = snapshot.data!;
+            return ListView(
+              padding: const EdgeInsets.only(bottom: 88),
+              children: [
+                _sectionTitle('Accounts'),
+                if (accounts.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Text('No bank accounts.'),
+                  )
+                else
+                  for (final a in accounts) ...[
+                    ListTile(
+                      leading: Icon(Icons.account_balance_outlined, color: Theme.of(context).colorScheme.primary),
+                      title: Text(a.name),
+                      subtitle: Text(_accountLine(a)),
+                      trailing: Text(_money.format(a.currentBalance), style: const TextStyle(fontWeight: FontWeight.w600)),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => BankAccountTransactionsScreen(account: a)),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                  ],
+                _sectionTitle('Transfers'),
+                if (transfers.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Text('No transfers recorded yet.'),
+                  )
+                else
+                  for (final t in transfers) ...[
+                    ListTile(
+                      leading: const Icon(Icons.swap_horiz),
+                      title: Text(t.reference?.isNotEmpty == true ? t.reference! : 'Transfer'),
+                      subtitle: Text('${t.fromAccountName} → ${t.toAccountName} · ${_dateFmt.format(t.date)}'),
+                      trailing: Text(_money.format(t.amount), style: const TextStyle(fontWeight: FontWeight.w600)),
+                      onTap: () => _openTransferActions(t),
+                    ),
+                    const Divider(height: 1),
+                  ],
+              ],
             );
           },
         ),

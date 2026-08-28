@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import '../models/animal.dart';
 import '../models/audit_log_entry.dart';
 import '../models/bank_account.dart';
+import '../models/bank_transfer.dart';
 import '../models/booking.dart';
 import '../models/finance_report.dart';
 import '../models/payment.dart' as models;
@@ -229,6 +230,30 @@ class Repository {
         if (charges != null && charges > 0) 'charges': charges,
       });
 
+  /// Edits an existing payment. The server reverses the old invoice/account
+  /// effects and re-applies them with these values.
+  Future<void> updatePayment(
+    String id, {
+    required String invoiceId,
+    required DateTime date,
+    required double amount,
+    required String accountId,
+    String? paymentMethod,
+    double? charges,
+  }) async =>
+      _client.patch('/payments/$id', {
+        'invoice': invoiceId,
+        'date': date.toIso8601String(),
+        'amount': amount,
+        'account': accountId,
+        'paymentMethod': paymentMethod ?? '',
+        'charges': charges ?? 0,
+      });
+
+  /// Deletes a payment; the server restores the invoice balance and reverses
+  /// the account adjustment (and any linked charges expense).
+  Future<void> deletePayment(String id) => _client.delete('/payments/$id');
+
 
   /// Creates a draft invoice. The server assigns the invoice number and
   /// computes subtotal/total from the line items, so we only send inputs.
@@ -286,6 +311,43 @@ class Repository {
           .toList(),
     );
   }
+
+  // --- bank transfers (money moved between own accounts) ---
+  Future<List<BankTransfer>> listBankTransfers() async =>
+      (await _client.getList('/bank-transfers')).map((e) => BankTransfer.fromJson(e)).toList();
+
+  Future<BankTransfer> createBankTransfer({
+    required DateTime date,
+    String? reference,
+    required String fromAccountId,
+    required String toAccountId,
+    required double amount,
+  }) async =>
+      BankTransfer.fromJson(await _client.post('/bank-transfers', {
+        'date': date.toIso8601String(),
+        if (reference != null && reference.isNotEmpty) 'reference': reference,
+        'fromAccount': fromAccountId,
+        'toAccount': toAccountId,
+        'amount': amount,
+      }));
+
+  Future<BankTransfer> updateBankTransfer(
+    String id, {
+    required DateTime date,
+    String? reference,
+    required String fromAccountId,
+    required String toAccountId,
+    required double amount,
+  }) async =>
+      BankTransfer.fromJson(await _client.patch('/bank-transfers/$id', {
+        'date': date.toIso8601String(),
+        'reference': reference ?? '',
+        'fromAccount': fromAccountId,
+        'toAccount': toAccountId,
+        'amount': amount,
+      }));
+
+  Future<void> deleteBankTransfer(String id) => _client.delete('/bank-transfers/$id');
 
   Future<List<IncomeExpenseMonth>> incomeVsExpenses({int months = 6}) async =>
       (await _client.getList('/reports/income-vs-expenses', query: {'months': '$months'}))

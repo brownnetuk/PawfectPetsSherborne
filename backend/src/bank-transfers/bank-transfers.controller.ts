@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { BankTransfersService } from './bank-transfers.service';
 import { CreateBankTransferDto } from './dto/create-bank-transfer.dto';
+import { UpdateBankTransferDto } from './dto/update-bank-transfer.dto';
 
 @Controller('bank-transfers')
 export class BankTransfersController {
@@ -15,6 +16,12 @@ export class BankTransfersController {
   @Get()
   findAll() {
     return this.bankTransfersService.findAll();
+  }
+
+  @RequirePermission('financial.manage')
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateBankTransferDto) {
+    return this.bankTransfersService.update(id, dto);
   }
 
   @RequirePermission('financial.manage')

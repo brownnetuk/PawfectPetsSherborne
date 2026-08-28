@@ -16,6 +16,7 @@ import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { Payment } from './schemas/payment.schema';
 
 @Injectable()
@@ -131,6 +132,85 @@ export class PaymentsService {
       .populate('invoice', 'invoiceNumber')
       .populate('account', 'name type')
       .exec();
+  }
+
+  // Editing a payment reverses its existing side-effects (invoice balance,
+  // account balance, linked charges expense) and then re-applies them with the
+  // new values -- the same reverse-then-apply approach remove()/create() use,
+  // so balances and `paid` status stay correct even if the invoice, amount or
+  // account changed. No "Thank You" email is re-sent on an edit.
+  async update(
+    id: string,
+    dto: UpdatePaymentDto,
+    actor = 'Staff',
+  ): Promise<Payment> {
+    const payment = await this.paymentModel.findById(id).exec();
+    if (!payment) {
+      throw new NotFoundException(`Payment ${id} not found`);
+    }
+
+    // 1. Reverse the existing payment's effects.
+    if (payment.chargesExpense) {
+      await this.expensesService.remove(payment.chargesExpense.toString());
+      payment.chargesExpense = undefined;
+    }
+    await this.invoicesService.reversePayment(
+      payment.invoice.toString(),
+      payment.amount,
+    );
+    await this.bankAccountsService.adjustBalance(payment.account, -payment.amount);
+
+    // 2. Resolve the new field values, falling back to the current ones.
+    const invoiceId = dto.invoice ?? payment.invoice.toString();
+    const date = dto.date ?? payment.date.toISOString();
+    const amount = dto.amount ?? payment.amount;
+    const account = dto.account ?? payment.account.toString();
+    const charges = dto.charges !== undefined ? dto.charges : payment.charges;
+    const paymentMethod =
+      dto.paymentMethod !== undefined ? dto.paymentMethod : payment.paymentMethod;
+
+    // 3. Re-create the linked charges expense if there is a charge.
+    let chargesExpense: Types.ObjectId | undefined;
+    if (charges) {
+      const expense = await this.expensesService.create({
+        date,
+        category: 'Payment Charges',
+        description: `Processing charges on payment ${payment.paymentId}`,
+        amount: charges,
+        account,
+      });
+      chargesExpense = expense._id;
+    }
+
+    // 4. Persist the new values.
+    payment.invoice = new Types.ObjectId(invoiceId);
+    payment.date = new Date(date);
+    payment.amount = amount;
+    payment.charges = charges ?? 0;
+    payment.paymentMethod = paymentMethod;
+    payment.account = new Types.ObjectId(account);
+    payment.chargesExpense = chargesExpense;
+    const saved = await payment.save();
+
+    // 5. Apply the new effects.
+    const invoice = await this.invoicesService.applyPayment(invoiceId, amount);
+    await this.bankAccountsService.adjustBalance(account, amount);
+
+    const customerId =
+      (invoice.customer as unknown as { _id?: unknown })?._id ??
+      invoice.customer;
+    await this.auditLogService.record(
+      customerId as string,
+      AuditEventType.PAYMENT_RECEIVED,
+      'Payment updated',
+      `Payment ${payment.paymentId} updated — £${amount.toFixed(2)} applied to ${invoice.invoiceNumber}`,
+      amount,
+      actor,
+      undefined,
+      undefined,
+      invoiceId,
+    );
+    return saved;
   }
 
   async remove(id: string, actor = 'Staff'): Promise<void> {
