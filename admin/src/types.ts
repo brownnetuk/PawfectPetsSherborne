@@ -257,6 +257,19 @@ export interface VendorOption {
   createdAt: string;
 }
 
+export interface VetPractice {
+  _id: string;
+  practiceName: string;
+  address1: string;
+  address2?: string;
+  town: string;
+  county?: string;
+  postcode: string;
+  telephone: string;
+  email?: string;
+  createdAt: string;
+}
+
 export interface Expense {
   _id: string;
   date: string;

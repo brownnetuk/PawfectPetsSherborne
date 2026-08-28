@@ -27,6 +27,7 @@ import type {
   Product,
   Role,
   Staff,
+  VetPractice,
 } from '../types';
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
@@ -655,6 +656,8 @@ function BusinessInfoTab() {
         </form>
       </div>
 
+      <VetPracticesCard />
+
       <div className="card">
         <h2>Off-Lead Consent</h2>
         <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
@@ -800,6 +803,240 @@ function TermsPreviewModal({ html, onClose }: { html: string; onClose: () => voi
           Close
         </button>
       </div>
+    </Modal>
+  );
+}
+
+// Bespoke rather than a NamedListCard (which only handles plain { name }
+// items) because a vet practice carries a full address/phone/email --
+// same reasoning as PaymentMethodsCard/BankAccountsCard above. Staff-managed
+// here; the intake form's Vet Practice step (frontend, public) lists these
+// via GET /vet-practices and copies a selected one's fields into the form.
+function VetPracticesCard() {
+  const [practices, setPractices] = useState<VetPractice[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState<VetPractice | null>(null);
+  const [deleting, setDeleting] = useState<VetPractice | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function refresh() {
+    api
+      .listVetPractices()
+      .then(setPractices)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load vet practices'));
+  }
+  useEffect(refresh, []);
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteVetPractice(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete this vet practice');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <h2>Vet Practices</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+            Selectable on the intake form's Vet Practice step, pre-filling that customer's emergency
+            vet details.
+          </p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+          New Vet
+        </button>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      {!practices || practices.length === 0 ? (
+        <div className="empty-state">{practices === null ? 'Loading…' : 'No vet practices added yet.'}</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Practice Name</th>
+              <th>Town</th>
+              <th>Postcode</th>
+              <th>Telephone</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {practices.map((v) => (
+              <tr key={v._id} onClick={() => setEditing(v)}>
+                <td>{v.practiceName}</td>
+                <td>{v.town}</td>
+                <td>{v.postcode}</td>
+                <td>{v.telephone}</td>
+                <td onClick={(e) => e.stopPropagation()}>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    <button className="icon-btn" title="Edit" onClick={() => setEditing(v)}>
+                      <PencilIcon />
+                    </button>
+                    <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(v)}>
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {(showNew || editing) && (
+        <VetPracticeModal
+          practice={editing}
+          onClose={() => {
+            setShowNew(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setShowNew(false);
+            setEditing(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal title="Delete vet practice?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently removes <strong>{deleting.practiceName}</strong> from the list. It won't
+            affect any customer who already has these details saved.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// Same field set as the intake form's EmergencyVetStep (frontend/src/intake/
+// steps/EmergencyVetStep.tsx), minus the per-customer authorisation
+// signature -- this is a reusable library entry, not a signed record.
+function VetPracticeModal({
+  practice,
+  onClose,
+  onSaved,
+}: {
+  practice: VetPractice | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [practiceName, setPracticeName] = useState(practice?.practiceName ?? '');
+  const [address1, setAddress1] = useState(practice?.address1 ?? '');
+  const [address2, setAddress2] = useState(practice?.address2 ?? '');
+  const [town, setTown] = useState(practice?.town ?? '');
+  const [county, setCounty] = useState(practice?.county ?? '');
+  const [postcode, setPostcode] = useState(practice?.postcode ?? '');
+  const [telephone, setTelephone] = useState(practice?.telephone ?? '');
+  const [email, setEmail] = useState(practice?.email ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      const input = {
+        practiceName,
+        address1,
+        address2: address2 || undefined,
+        town,
+        county: county || undefined,
+        postcode,
+        telephone,
+        email: email || undefined,
+      };
+      if (practice) {
+        await api.updateVetPractice(practice._id, input);
+      } else {
+        await api.createVetPractice(input);
+      }
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save this vet practice');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title={practice ? 'Edit vet practice' : 'New Vet'} onClose={onClose}>
+      {error && <div className="error-banner">{error}</div>}
+      <form onSubmit={handleSubmit}>
+        <div className="field">
+          <label>Practice Name</label>
+          <input
+            type="text"
+            value={practiceName}
+            onChange={(e) => setPracticeName(e.target.value)}
+            required
+            autoFocus
+          />
+        </div>
+        <div className="field">
+          <label>First line of address</label>
+          <input type="text" value={address1} onChange={(e) => setAddress1(e.target.value)} required />
+        </div>
+        <div className="field">
+          <label>Second line of address</label>
+          <input type="text" value={address2} onChange={(e) => setAddress2(e.target.value)} />
+        </div>
+        <div className="field-row">
+          <div className="field">
+            <label>Town</label>
+            <input type="text" value={town} onChange={(e) => setTown(e.target.value)} required />
+          </div>
+          <div className="field">
+            <label>County</label>
+            <input type="text" value={county} onChange={(e) => setCounty(e.target.value)} />
+          </div>
+        </div>
+        <div className="field">
+          <label>Postcode</label>
+          <input type="text" value={postcode} onChange={(e) => setPostcode(e.target.value)} required />
+        </div>
+        <div className="field-row">
+          <div className="field">
+            <label>Telephone</label>
+            <input type="tel" value={telephone} onChange={(e) => setTelephone(e.target.value)} required />
+          </div>
+          <div className="field">
+            <label>Email</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
+            {submitting ? 'Saving…' : practice ? 'Save changes' : 'Create vet'}
+          </button>
+        </div>
+      </form>
     </Modal>
   );
 }

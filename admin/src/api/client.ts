@@ -32,6 +32,7 @@ import type {
   Role,
   Staff,
   VendorOption,
+  VetPractice,
 } from '../types';
 
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
@@ -451,6 +452,30 @@ export function updateVendor(id: string, input: VendorInput): Promise<VendorOpti
 }
 export function deleteVendor(id: string): Promise<void> {
   return request(`/vendors/${id}`, { method: 'DELETE' });
+}
+
+// --- vet practices ---
+export function listVetPractices(): Promise<VetPractice[]> {
+  return request('/vet-practices');
+}
+export interface VetPracticeInput {
+  practiceName: string;
+  address1: string;
+  address2?: string;
+  town: string;
+  county?: string;
+  postcode: string;
+  telephone: string;
+  email?: string;
+}
+export function createVetPractice(input: VetPracticeInput): Promise<VetPractice> {
+  return request('/vet-practices', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateVetPractice(id: string, input: VetPracticeInput): Promise<VetPractice> {
+  return request(`/vet-practices/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deleteVetPractice(id: string): Promise<void> {
+  return request(`/vet-practices/${id}`, { method: 'DELETE' });
 }
 
 // --- credit notes ---

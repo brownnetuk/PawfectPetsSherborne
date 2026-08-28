@@ -7,6 +7,7 @@ import type {
   PetDetails,
   PublicBusinessInfo,
   QuoteRecord,
+  VetPracticeRecord,
 } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
@@ -37,6 +38,10 @@ export function fetchTerms(): Promise<{ html: string }> {
 
 export function fetchVetAuthorisationText(): Promise<{ text: string }> {
   return request('/settings/vet-authorisation');
+}
+
+export function fetchVetPractices(): Promise<VetPracticeRecord[]> {
+  return request('/vet-practices');
 }
 
 export function fetchOffLeadConsentText(): Promise<{ text: string }> {

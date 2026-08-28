@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import * as api from '../../api/client';
 import SignaturePad from '../SignaturePad';
 import { TextField } from '../fields';
-import type { EmergencyVetData } from '../../types';
+import type { EmergencyVetData, VetPracticeRecord } from '../../types';
 
 const DEFAULT_AUTHORISATION_TEXT =
   'I authorise PawfectPets Sherborne to arrange alternative veterinary care for my pet if my usual vet is unobtainable in an emergency.';
@@ -38,12 +38,53 @@ export default function EmergencyVetStep({ value, onChange }: Props) {
       .catch(() => setAuthorisationText(DEFAULT_AUTHORISATION_TEXT));
   }, []);
 
+  // Staff-maintained library (Settings > Business Info > Vet Practices) --
+  // picking one just copies its fields in below, it doesn't lock them; "Add
+  // details manually" (the default) leaves the fields exactly as typed, for
+  // when the customer's own vet isn't in the list.
+  const [vetPractices, setVetPractices] = useState<VetPracticeRecord[]>([]);
+  const [selectedVetId, setSelectedVetId] = useState('');
+  useEffect(() => {
+    api.fetchVetPractices().then(setVetPractices).catch(() => setVetPractices([]));
+  }, []);
+
+  function handleSelectVetPractice(id: string) {
+    setSelectedVetId(id);
+    if (!id) return;
+    const practice = vetPractices.find((p) => p._id === id);
+    if (!practice) return;
+    onChange({
+      ...value,
+      practiceName: practice.practiceName,
+      address1: practice.address1,
+      address2: practice.address2 ?? '',
+      town: practice.town,
+      county: practice.county ?? '',
+      postcode: practice.postcode,
+      telephone: practice.telephone,
+      email: practice.email ?? '',
+    });
+  }
+
   return (
     <div>
       <h2>Emergency vet</h2>
       <p className="subtitle">Your usual vet practice, in case of illness or injury.</p>
+      {vetPractices.length > 0 && (
+        <div className="field">
+          <label>Vet practice</label>
+          <select value={selectedVetId} onChange={(e) => handleSelectVetPractice(e.target.value)}>
+            <option value="">Add details manually</option>
+            {vetPractices.map((p) => (
+              <option key={p._id} value={p._id}>
+                {p.practiceName}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <TextField
-        label="Vet practice"
+        label="Vet practice name"
         value={value.practiceName}
         onChange={(v) => set('practiceName', v)}
         required

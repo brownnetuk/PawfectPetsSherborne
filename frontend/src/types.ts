@@ -86,6 +86,22 @@ export interface EmergencyVetData {
   authorisation?: EmergencyVetAuthorisationData;
 }
 
+// A staff-managed library entry (Settings > Business Info > Vet Practices),
+// listed on the Emergency Vet step so a customer can pick their practice
+// instead of typing it in -- selecting one just copies these fields into
+// EmergencyVetData, it isn't kept as a live reference.
+export interface VetPracticeRecord {
+  _id: string;
+  practiceName: string;
+  address1: string;
+  address2?: string;
+  town: string;
+  county?: string;
+  postcode: string;
+  telephone: string;
+  email?: string;
+}
+
 export interface SecurityData {
   keysProvided: boolean;
   alarmInstructions?: string;

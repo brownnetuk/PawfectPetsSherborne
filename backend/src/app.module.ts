@@ -28,6 +28,7 @@ import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
 import { EnquiriesModule } from './enquiries/enquiries.module';
 import { VendorsModule } from './vendors/vendors.module';
+import { VetPracticesModule } from './vet-practices/vet-practices.module';
 import { FormsModule } from './forms/forms.module';
 import { FormSubmissionsModule } from './form-submissions/form-submissions.module';
 import { RolesModule } from './roles/roles.module';
@@ -68,6 +69,7 @@ import { StaffModule } from './staff/staff.module';
     CreditNotesModule,
     ReportsModule,
     VendorsModule,
+    VetPracticesModule,
     FormsModule,
     FormSubmissionsModule,
     RolesModule,
