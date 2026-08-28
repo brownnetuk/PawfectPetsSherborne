@@ -429,6 +429,7 @@ tbody tr:last-child td {
 .field input[type='password'],
 .field input[type='number'],
 .field input[type='date'],
+.field input[type='tel'],
 .field textarea,
 .field select {
   width: 100%;
