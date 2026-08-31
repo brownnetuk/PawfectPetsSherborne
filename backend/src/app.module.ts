@@ -14,6 +14,7 @@ import { AnimalsModule } from './animals/animals.module';
 import { BankAccountsModule } from './bank-accounts/bank-accounts.module';
 import { BankTransfersModule } from './bank-transfers/bank-transfers.module';
 import { BookingsModule } from './bookings/bookings.module';
+import { DayBookingsModule } from './day-bookings/day-bookings.module';
 import { CreditNotesModule } from './credit-notes/credit-notes.module';
 import { ExpenseCategoriesModule } from './expense-categories/expense-categories.module';
 import { ExpensesModule } from './expenses/expenses.module';
@@ -55,6 +56,7 @@ import { StaffModule } from './staff/staff.module';
     BankAccountsModule,
     BankTransfersModule,
     BookingsModule,
+    DayBookingsModule,
     InvoicesModule,
     QuotesModule,
     InvoiceTermsModule,

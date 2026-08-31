@@ -164,6 +164,18 @@ export interface Booking {
   createdAt: string;
 }
 
+// One dog, one day, one product -- the Bookings calendar's own entity,
+// distinct from Booking (a date-range/multi-pet boarding-style stay).
+export interface DayBooking {
+  _id: string;
+  animal: { _id: string; name: string; species: Species } | string;
+  customer: { _id: string; name: string } | string;
+  date: string;
+  product: { _id: string; name: string; price: number } | string;
+  quantity: number;
+  createdAt: string;
+}
+
 export interface LineItem {
   description: string;
   quantity: number;

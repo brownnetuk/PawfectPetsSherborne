@@ -10,6 +10,7 @@ import type {
   CreditNote,
   Customer,
   CrmActivity,
+  DayBooking,
   EmailSettings,
   EmailTemplate,
   EmailTrigger,
@@ -212,6 +213,29 @@ export function updateBooking(id: string, patch: Record<string, unknown>): Promi
 }
 export function deleteBooking(id: string): Promise<void> {
   return request(`/bookings/${id}`, { method: 'DELETE' });
+}
+
+// --- day bookings (the Bookings page calendar: one dog, one day, one product) ---
+export function listDayBookings(from: string, to: string): Promise<DayBooking[]> {
+  return request(`/day-bookings?from=${from}&to=${to}`);
+}
+export interface DayBookingInput {
+  animal: string;
+  date: string;
+  product: string;
+  quantity?: number;
+}
+export function createDayBooking(input: DayBookingInput): Promise<DayBooking> {
+  return request('/day-bookings', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateDayBooking(
+  id: string,
+  input: Partial<Omit<DayBookingInput, 'animal'>>,
+): Promise<DayBooking> {
+  return request(`/day-bookings/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deleteDayBooking(id: string): Promise<void> {
+  return request(`/day-bookings/${id}`, { method: 'DELETE' });
 }
 
 // --- invoices ---
