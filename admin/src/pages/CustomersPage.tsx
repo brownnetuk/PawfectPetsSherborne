@@ -55,7 +55,7 @@ export default function CustomersPage() {
       {error && <div className="error-banner">{error}</div>}
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div className="field" style={{ maxWidth: 320, marginBottom: 0 }}>
+        <div className="field" style={{ flex: '1 1 600px', maxWidth: 640, marginBottom: 0 }}>
           <input
             type="text"
             placeholder="Search by name, email, or pet…"
