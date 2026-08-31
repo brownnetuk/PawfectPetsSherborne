@@ -408,7 +408,14 @@ function DayDetailPanel({
                 <select
                   value={productId(b.product)}
                   onChange={(e) => handleUpdate(b, { product: e.target.value })}
-                  style={{ flex: 1, minWidth: 0, fontSize: '0.8rem', padding: '4px 6px' }}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    fontSize: '0.8rem',
+                    padding: '4px 6px',
+                    borderRadius: 6,
+                    border: '1px solid var(--border)',
+                  }}
                 >
                   {products.map((p) => (
                     <option key={p._id} value={p._id}>
@@ -424,7 +431,15 @@ function DayDetailPanel({
                     const value = Number(e.target.value);
                     if (value >= 1 && value !== b.quantity) handleUpdate(b, { quantity: value });
                   }}
-                  style={{ width: 44, flexShrink: 0, fontSize: '0.8rem', padding: '4px 4px', textAlign: 'center' }}
+                  style={{
+                    width: 44,
+                    flexShrink: 0,
+                    fontSize: '0.8rem',
+                    padding: '4px 4px',
+                    textAlign: 'center',
+                    borderRadius: 6,
+                    border: '1px solid var(--border)',
+                  }}
                 />
                 <button
                   type="button"
