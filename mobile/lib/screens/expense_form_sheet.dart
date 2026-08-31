@@ -43,6 +43,7 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
   BankAccountRef? _account;
   String? _receipt;
   bool _submitting = false;
+  String? _error;
   late Future<(List<ExpenseCategory>, List<Vendor>, List<BankAccountRef>)> _lookups;
 
   @override
@@ -146,7 +147,10 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
       _snack('Enter a valid amount.');
       return;
     }
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
     try {
       final repo = context.read<Repository>();
       if (widget.isEditing) {
@@ -172,7 +176,12 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
       }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
-      _snack(e is ApiException ? e.message : 'Failed to save expense');
+      // Shown inline (not a snackbar): a snackbar would appear behind this
+      // bottom sheet and go unseen, making a failed save look like nothing
+      // happened.
+      if (mounted) {
+        setState(() => _error = e is ApiException ? e.message : 'Failed to save expense');
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -181,6 +190,41 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
   @override
   Widget build(BuildContext context) {
     final dateFmt = DateFormat('d MMM yyyy');
+    return Stack(
+      children: [
+        _buildForm(dateFmt),
+        // Blocking overlay while the expense (and any receipt) uploads, so it's
+        // obvious work is happening and the form can't be edited mid-save.
+        if (_submitting)
+          Positioned.fill(
+            child: ColoredBox(
+              color: Colors.black26,
+              child: Center(
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2.5),
+                        ),
+                        const SizedBox(width: 16),
+                        Text(widget.isEditing ? 'Saving changes…' : 'Saving expense…'),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildForm(DateFormat dateFmt) {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: FutureBuilder<(List<ExpenseCategory>, List<Vendor>, List<BankAccountRef>)>(
@@ -315,14 +359,36 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
                       ),
                     ],
                   ),
+                if (_error != null) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.error_outline, size: 18, color: Colors.red.shade600),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(_error!, style: TextStyle(color: Colors.red.shade700))),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: _submitting ? null : _submit,
-                    child: Text(_submitting
-                        ? 'Saving…'
-                        : (widget.isEditing ? 'Save changes' : 'Save expense')),
+                    child: _submitting
+                        ? const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              ),
+                              SizedBox(width: 10),
+                              Text('Saving…'),
+                            ],
+                          )
+                        : Text(widget.isEditing ? 'Save changes' : 'Save expense'),
                   ),
                 ),
               ],

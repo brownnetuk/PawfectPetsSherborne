@@ -34,10 +34,14 @@ class ApiClient {
         if (_token != null) 'Authorization': 'Bearer $_token',
       };
 
-  Future<T> _handle<T>(Future<http.Response> Function() send, T Function(dynamic) parse) async {
+  Future<T> _handle<T>(
+    Future<http.Response> Function() send,
+    T Function(dynamic) parse, {
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
     late http.Response res;
     try {
-      res = await send().timeout(const Duration(seconds: 20));
+      res = await send().timeout(timeout);
     } catch (e) {
       throw ApiException('Could not reach the server. Check your connection and try again.');
     }
@@ -69,14 +73,18 @@ class ApiClient {
         (json) => json as List<dynamic>,
       );
 
+  // Writes get a longer timeout than reads: a body can carry a base64 receipt
+  // image, which takes noticeably longer to upload on a slow connection.
   Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body) => _handle(
         () => http.post(_uri(path), headers: _headers, body: jsonEncode(body)),
         (json) => json as Map<String, dynamic>,
+        timeout: const Duration(seconds: 60),
       );
 
   Future<Map<String, dynamic>> patch(String path, Map<String, dynamic> body) => _handle(
         () => http.patch(_uri(path), headers: _headers, body: jsonEncode(body)),
         (json) => json as Map<String, dynamic>,
+        timeout: const Duration(seconds: 60),
       );
 
   Future<void> delete(String path) => _handle<void>(
