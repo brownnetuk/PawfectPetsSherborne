@@ -326,7 +326,7 @@ export default function CustomerDetailPage() {
       )}
 
       <div className="tabs">
-        {(['overview', 'pets', 'bookings', 'invoices', 'activity', 'log', 'forms', 'defaults'] as Tab[]).map((t) => (
+        {(['defaults', 'overview', 'pets', 'bookings', 'invoices', 'activity', 'log', 'forms'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {t === 'pets'
               ? `Pets (${animals.length})`

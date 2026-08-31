@@ -9,6 +9,7 @@ import type { Animal, Customer } from '../types';
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
 
 type Tab = 'active' | 'inactive';
+type SortDirection = 'asc' | 'desc';
 
 export default function CustomersPage() {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ export default function CustomersPage() {
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [tab, setTab] = useState<Tab>('active');
   const [showNewModal, setShowNewModal] = useState(false);
 
@@ -31,13 +33,15 @@ export default function CustomersPage() {
 
   useEffect(refresh, []);
 
-  const filtered = (customers ?? []).filter((c) => {
-    if (tab === 'active' ? c.status === 'inactive' : c.status !== 'inactive') return false;
-    const q = search.toLowerCase();
-    if (!q) return true;
-    if (c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)) return true;
-    return animals.some((a) => a.customer === c._id && a.name.toLowerCase().includes(q));
-  });
+  const filtered = (customers ?? [])
+    .filter((c) => {
+      if (tab === 'active' ? c.status === 'inactive' : c.status !== 'inactive') return false;
+      const q = search.toLowerCase();
+      if (!q) return true;
+      if (c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)) return true;
+      return animals.some((a) => a.customer === c._id && a.name.toLowerCase().includes(q));
+    })
+    .sort((a, b) => (sortDirection === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)));
 
   return (
     <div>
@@ -50,13 +54,23 @@ export default function CustomersPage() {
 
       {error && <div className="error-banner">{error}</div>}
 
-      <div className="field" style={{ maxWidth: 320 }}>
-        <input
-          type="text"
-          placeholder="Search by name, email, or pet…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="field" style={{ maxWidth: 320, marginBottom: 0 }}>
+          <input
+            type="text"
+            placeholder="Search by name, email, or pet…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <select
+          className="select-inline"
+          value={sortDirection}
+          onChange={(e) => setSortDirection(e.target.value as SortDirection)}
+        >
+          <option value="asc">Sort: A-Z</option>
+          <option value="desc">Sort: Z-A</option>
+        </select>
       </div>
 
       <div className="tabs">
