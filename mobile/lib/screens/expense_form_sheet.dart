@@ -285,9 +285,9 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
                 DropdownButtonFormField<Vendor>(
                   initialValue: _payee,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Payee', hintText: 'Optional'),
+                  decoration: const InputDecoration(labelText: 'Vendor', hintText: 'Optional'),
                   items: [
-                    const DropdownMenuItem<Vendor>(value: null, child: Text('No payee')),
+                    const DropdownMenuItem<Vendor>(value: null, child: Text('No vendor')),
                     ...vendors.map((v) => DropdownMenuItem(value: v, child: Text(v.name))),
                   ],
                   onChanged: (v) => setState(() => _payee = v),

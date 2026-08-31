@@ -27,13 +27,19 @@ class SelectCustomerScreen extends StatefulWidget {
 }
 
 class _SelectCustomerScreenState extends State<SelectCustomerScreen> {
-  late Future<List<Customer>> _future;
+  late Future<(List<Customer>, Map<String, List<String>>)> _future;
   String _search = '';
+  bool _sortAsc = true;
 
   @override
   void initState() {
     super.initState();
-    _future = context.read<Repository>().listCustomers();
+    final repo = context.read<Repository>();
+    _future = () async {
+      final customers = await repo.listCustomers();
+      final pets = await repo.petNamesByCustomer();
+      return (customers, pets);
+    }();
   }
 
   Future<void> _manualCustomer() async {
@@ -90,18 +96,30 @@ class _SelectCustomerScreenState extends State<SelectCustomerScreen> {
           preferredSize: const Size.fromHeight(56),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: TextField(
-              decoration: const InputDecoration(
-                hintText: 'Search by name or email…',
-                prefixIcon: Icon(Icons.search),
-                isDense: true,
-              ),
-              onChanged: (v) => setState(() => _search = v.toLowerCase()),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      hintText: 'Search by name, email or pet…',
+                      prefixIcon: Icon(Icons.search),
+                      isDense: true,
+                    ),
+                    onChanged: (v) => setState(() => _search = v.toLowerCase()),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () => setState(() => _sortAsc = !_sortAsc),
+                  icon: const Icon(Icons.swap_vert, size: 18),
+                  label: Text(_sortAsc ? 'A–Z' : 'Z–A'),
+                ),
+              ],
             ),
           ),
         ),
       ),
-      body: FutureBuilder<List<Customer>>(
+      body: FutureBuilder<(List<Customer>, Map<String, List<String>>)>(
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -113,12 +131,18 @@ class _SelectCustomerScreenState extends State<SelectCustomerScreen> {
                 : 'Failed to load customers';
             return Center(child: Text(message, textAlign: TextAlign.center));
           }
-          final customers = (snapshot.data ?? [])
-              .where((c) =>
-                  _search.isEmpty ||
-                  c.name.toLowerCase().contains(_search) ||
-                  c.email.toLowerCase().contains(_search))
-              .toList();
+          final (allCustomers, petMap) = snapshot.data ?? (<Customer>[], <String, List<String>>{});
+          final customers = allCustomers.where((c) {
+            if (_search.isEmpty) return true;
+            final pets = petMap[c.id] ?? const <String>[];
+            return c.name.toLowerCase().contains(_search) ||
+                c.email.toLowerCase().contains(_search) ||
+                pets.any((p) => p.toLowerCase().contains(_search));
+          }).toList()
+            ..sort((a, b) {
+              final r = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+              return _sortAsc ? r : -r;
+            });
           return ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
             children: [
