@@ -1,14 +1,26 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:cunning_document_scanner/cunning_document_scanner.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/expense.dart';
+
+/// Downscales a receipt image to at most 1600px wide and re-encodes it as
+/// JPEG (quality 70), keeping the base64 payload small. Runs in a background
+/// isolate via `compute`. Falls back to the original bytes if decoding fails.
+Uint8List _compressReceipt(Uint8List input) {
+  final decoded = img.decodeImage(input);
+  if (decoded == null) return input;
+  final resized = decoded.width > 1600 ? img.copyResize(decoded, width: 1600) : decoded;
+  return Uint8List.fromList(img.encodeJpg(resized, quality: 70));
+}
 
 /// Bottom sheet for creating or editing an expense. Pops `true` on save.
 /// When [expense] is set it edits that expense (PATCH); else it creates one.
@@ -95,7 +107,12 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
     try {
       final paths = await CunningDocumentScanner.getPictures();
       if (paths != null && paths.isNotEmpty) {
-        _setReceiptFromBytes(await File(paths.first).readAsBytes());
+        // The scanner returns a full-resolution image; downscale/re-encode it
+        // (off the UI thread) so the base64 payload stays well under the API's
+        // body-size limit — the same shrinking image_picker does for us above.
+        final raw = await File(paths.first).readAsBytes();
+        final compressed = await compute(_compressReceipt, raw);
+        _setReceiptFromBytes(compressed);
       }
     } catch (e) {
       _snack('Could not scan the document.');
