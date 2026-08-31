@@ -21,11 +21,21 @@ class InvoicesScreen extends StatefulWidget {
 
 class _InvoicesScreenState extends State<InvoicesScreen> {
   late Future<List<Invoice>> _future;
+  final _searchController = TextEditingController();
+  String _search = '';
+  // Optional status filter; null shows all statuses.
+  String? _statusFilter;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _load() {
@@ -161,7 +171,62 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     final dateFmt = DateFormat('d MMM yyyy');
     final money = NumberFormat.currency(locale: 'en_GB', symbol: '£');
     return Scaffold(
-      appBar: AppBar(title: const Text('Invoices'), actions: const [LogoutAction()]),
+      appBar: AppBar(
+        title: const Text('Invoices'),
+        actions: const [LogoutAction()],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(104),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _searchController,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                  onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                  decoration: InputDecoration(
+                    hintText: 'Search by number or customer…',
+                    prefixIcon: const Icon(Icons.search),
+                    isDense: true,
+                    suffixIcon: _search.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close),
+                            tooltip: 'Clear',
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _search = '');
+                              FocusScope.of(context).unfocus();
+                            },
+                          ),
+                  ),
+                  onChanged: (v) => setState(() => _search = v.toLowerCase()),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final f in const [
+                        ('paid', 'Paid'),
+                        ('draft', 'Draft'),
+                        ('overdue', 'Overdue'),
+                      ])
+                        ChoiceChip(
+                          label: Text(f.$2),
+                          selected: _statusFilter == f.$1,
+                          onSelected: (v) => setState(() => _statusFilter = v ? f.$1 : null),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addInvoice,
         icon: const Icon(Icons.add),
@@ -186,17 +251,25 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                 ],
               );
             }
-            final invoices = snapshot.data ?? [];
+            final allInvoices = snapshot.data ?? [];
+            final invoices = allInvoices.where((inv) {
+              if (_statusFilter != null && inv.status != _statusFilter) return false;
+              if (_search.isEmpty) return true;
+              return inv.invoiceNumber.toLowerCase().contains(_search) ||
+                  inv.customer.name.toLowerCase().contains(_search);
+            }).toList();
             if (invoices.isEmpty) {
+              final hasFilter = _search.isNotEmpty || _statusFilter != null;
               return ListView(
-                children: const [
-                  SizedBox(height: 80),
-                  Center(child: Text('No invoices yet.')),
+                children: [
+                  const SizedBox(height: 80),
+                  Center(child: Text(hasFilter ? 'No matches.' : 'No invoices yet.')),
                 ],
               );
             }
             return ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               itemCount: invoices.length,
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, i) {
