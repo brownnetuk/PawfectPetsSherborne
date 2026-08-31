@@ -22,6 +22,14 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen> {
   static final _dateFmt = DateFormat('d MMM yyyy');
   late Animal _animal = widget.animal;
 
+  /// Opens the pet's photos full-screen (pinch-to-zoom, swipe between them).
+  void _openPhoto(List<Uint8List> photos, int index) {
+    Navigator.of(context).push(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => _PhotoGalleryScreen(photos: photos, initialIndex: index),
+    ));
+  }
+
   Future<void> _edit() async {
     final updated = await Navigator.of(context).push<Animal>(
       MaterialPageRoute(builder: (_) => EditAnimalScreen(animal: _animal)),
@@ -100,9 +108,15 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen> {
                 scrollDirection: Axis.horizontal,
                 itemCount: photos.length,
                 separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (_, i) => ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.memory(photos[i], height: 160, fit: BoxFit.cover),
+                itemBuilder: (_, i) => GestureDetector(
+                  onTap: () => _openPhoto(photos, i),
+                  child: Hero(
+                    tag: 'pet-photo-$i',
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.memory(photos[i], height: 160, fit: BoxFit.cover),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -212,6 +226,56 @@ String _yesNo(bool v) => v ? 'Yes' : 'No';
 String _triState(String s) => {'yes': 'Yes', 'no': 'No', 'unsure': 'Unsure'}[s] ?? _cap(s);
 String _neutered(String s) =>
     {'neutered': 'Neutered', 'spayed': 'Spayed', 'no': 'Not neutered'}[s] ?? _cap(s);
+
+/// Full-screen photo viewer: swipe between a pet's photos and pinch to zoom.
+class _PhotoGalleryScreen extends StatefulWidget {
+  final List<Uint8List> photos;
+  final int initialIndex;
+  const _PhotoGalleryScreen({required this.photos, required this.initialIndex});
+
+  @override
+  State<_PhotoGalleryScreen> createState() => _PhotoGalleryScreenState();
+}
+
+class _PhotoGalleryScreenState extends State<_PhotoGalleryScreen> {
+  late final PageController _controller = PageController(initialPage: widget.initialIndex);
+  late int _current = widget.initialIndex;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final multiple = widget.photos.length > 1;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: multiple ? Text('${_current + 1} of ${widget.photos.length}') : null,
+      ),
+      body: PageView.builder(
+        controller: _controller,
+        itemCount: widget.photos.length,
+        onPageChanged: (i) => setState(() => _current = i),
+        itemBuilder: (_, i) => Center(
+          child: Hero(
+            tag: 'pet-photo-$i',
+            child: InteractiveViewer(
+              minScale: 1,
+              maxScale: 5,
+              child: Image.memory(widget.photos[i], fit: BoxFit.contain),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 Uint8List? _decodeDataUri(String s) {
   final comma = s.indexOf(',');
