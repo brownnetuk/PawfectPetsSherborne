@@ -294,6 +294,22 @@ function DayDetailPanel({
     return owner?.defaultProduct || (products[0]?._id ?? '');
   }
 
+  // Mirrors the travel-line auto-add on new invoices (Customer Defaults > Travel):
+  // if travel is chargeable for this dog's owner, add it as its own entry
+  // alongside whatever was just booked, unless it's already the entry just
+  // added or already present for this dog on this day.
+  async function maybeAddTravel(petId: string, custId: string | undefined, mainProductId: string) {
+    const owner = custId ? ownerOf(custId) : undefined;
+    if (!owner?.travelChargeable || !owner.travelProduct || owner.travelProduct === mainProductId) return;
+    const travelProduct = products.find((p) => p._id === owner.travelProduct);
+    if (!travelProduct) return;
+    const alreadyHasTravel = dayBookings.some(
+      (b) => animalId(b.animal) === petId && productId(b.product) === travelProduct._id,
+    );
+    if (alreadyHasTravel) return;
+    await api.createDayBooking({ animal: petId, date: dateKey(date), product: travelProduct._id, quantity: 1 });
+  }
+
   function handlePickAnimal(id: string) {
     setAddAnimalId(id);
     const animal = animals.find((a) => a._id === id);
@@ -309,6 +325,8 @@ function DayDetailPanel({
     setError(null);
     try {
       await api.createDayBooking({ animal: addAnimalId, date: dateKey(date), product: addProductId, quantity: addQuantity });
+      const animal = animals.find((a) => a._id === addAnimalId);
+      await maybeAddTravel(addAnimalId, animal?.customer, addProductId);
       setAddAnimalId('');
       setAddProductId('');
       setAddQuantity(1);
@@ -324,12 +342,14 @@ function DayDetailPanel({
     setBusy(true);
     setError(null);
     try {
+      const mainProduct = defaultProductFor(animal.customer);
       await api.createDayBooking({
         animal: animal._id,
         date: dateKey(date),
-        product: defaultProductFor(animal.customer),
+        product: mainProduct,
         quantity: 1,
       });
+      await maybeAddTravel(animal._id, animal.customer, mainProduct);
       onChange();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add this dog');
