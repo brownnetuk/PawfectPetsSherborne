@@ -11,6 +11,7 @@ import { PencilIcon, TrashIcon } from '../components/icons';
 import IncomeChart from '../components/IncomeChart';
 import Modal from '../components/Modal';
 import AddPetChoiceModal from '../components/AddPetChoiceModal';
+import FormPreviewModal from '../components/FormPreviewModal';
 import NewAnimalModal from '../components/NewAnimalModal';
 import RegistrationLinkModal from '../components/RegistrationLinkModal';
 import SendFormModal from '../components/SendFormModal';
@@ -1377,6 +1378,7 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
   const [viewing, setViewing] = useState<FormSubmissionRecord | null>(null);
   const [forms, setForms] = useState<FormRecord[]>([]);
   const [pickedFormId, setPickedFormId] = useState('');
+  const [previewingForm, setPreviewingForm] = useState<FormRecord | null>(null);
   const [sendingForm, setSendingForm] = useState<FormRecord | null>(null);
   const [resendChoice, setResendChoice] = useState<FormSubmissionRecord | null>(null);
   const [resending, setResending] = useState<FormSubmissionRecord | null>(null);
@@ -1452,9 +1454,9 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
           <button
             className="btn btn-primary btn-sm"
             disabled={!pickedFormId}
-            onClick={() => setSendingForm(forms.find((f) => f._id === pickedFormId) ?? null)}
+            onClick={() => setPreviewingForm(forms.find((f) => f._id === pickedFormId) ?? null)}
           >
-            Send
+            Preview
           </button>
         </div>
       </div>
@@ -1495,6 +1497,18 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
       )}
 
       {viewing && <ViewFormSubmissionModal submission={viewing} onClose={() => setViewing(null)} />}
+      {previewingForm && (
+        <FormPreviewModal
+          name={previewingForm.name}
+          description={previewingForm.description ?? ''}
+          fields={previewingForm.fields}
+          onClose={() => setPreviewingForm(null)}
+          onSend={() => {
+            setSendingForm(previewingForm);
+            setPreviewingForm(null);
+          }}
+        />
+      )}
       {sendingForm && (
         <SendFormModal
           form={sendingForm}

@@ -7,6 +7,8 @@ interface Props {
   description: string;
   fields: FormField[];
   onClose: () => void;
+  /** Shows a "Send" button alongside Close -- omitted when previewing mid-edit (FormBuilder), where there's no specific recipient to send to yet. */
+  onSend?: () => void;
 }
 
 // Mirrors frontend/src/forms/formDefaults.ts's isFieldVisible -- this admin
@@ -33,7 +35,7 @@ function defaultAnswersFor(fields: FormField[]): Record<string, unknown> {
 // rules -- not a pixel-accurate render of the public intake app's own CSS.
 // File/signature inputs are shown as inert placeholders since there's
 // nothing meaningful to preview about a file picker or a signature pad.
-export default function FormPreviewModal({ name, description, fields, onClose }: Props) {
+export default function FormPreviewModal({ name, description, fields, onClose, onSend }: Props) {
   const [answers, setAnswers] = useState<Record<string, unknown>>(() =>
     defaultAnswersFor(fields.filter((f) => f.type !== 'group')),
   );
@@ -127,6 +129,11 @@ export default function FormPreviewModal({ name, description, fields, onClose }:
         <button className="btn btn-secondary" onClick={onClose}>
           Close
         </button>
+        {onSend && (
+          <button className="btn btn-primary" onClick={onSend}>
+            Send
+          </button>
+        )}
       </div>
     </Modal>
   );
