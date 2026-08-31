@@ -376,9 +376,17 @@ function DayDetailPanel({
           No dogs added yet.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 18 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
           {dayBookings.map((b) => (
-            <div key={b._id}>
+            <div
+              key={b._id}
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: 10,
+                background: 'var(--card, #fff)',
+              }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
                 <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {animalLabel(b.animal)}
@@ -439,9 +447,21 @@ function DayDetailPanel({
           <p style={{ color: 'var(--muted)', fontSize: '0.8rem', marginTop: -8 }}>
             Based on each customer's regular days (Customer Defaults).
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
             {recommended.map((a) => (
-              <div key={a._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div
+                key={a._id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  padding: 10,
+                  background: 'var(--card, #fff)',
+                }}
+              >
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 700 }}>{a.name}</div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
