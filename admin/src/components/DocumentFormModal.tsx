@@ -373,6 +373,24 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
     api.listAnimals(custId).then(setCustomerPets).catch(() => setCustomerPets([]));
   }, [custId]);
 
+  // Invoices only, and only for a brand-new document (not `existing`, which
+  // keeps whatever line items it already has) -- Settings > Customer
+  // Defaults > Travel. A functional update plus the description check keeps
+  // this idempotent, so switching the customer dropdown back and forth (or
+  // this effect re-running for any other reason) never adds a duplicate.
+  useEffect(() => {
+    if (existing || kind !== 'invoice' || !custId || products.length === 0) return;
+    const selected = customers.find((c) => c._id === custId);
+    if (!selected?.travelChargeable || !selected.travelProduct) return;
+    const travelProduct = products.find((p) => p._id === selected.travelProduct);
+    if (!travelProduct) return;
+    setLineItems((prev) =>
+      prev.some((item) => item.description === travelProduct.name)
+        ? prev
+        : [...prev, { description: travelProduct.name, quantity: 1, unitPrice: travelProduct.price, discountPercent: 0 }],
+    );
+  }, [custId, products, customers, existing, kind]);
+
   // Re-suggests the due date/valid-until date when staff explicitly change the
   // term or issue date -- wired to these onChange handlers (not a reactive
   // effect) so that loading an existing document's term/date on mount never

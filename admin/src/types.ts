@@ -83,7 +83,21 @@ export interface Customer {
     termsVersion?: string;
     termsDocumentDate?: string;
   };
+  defaultProduct?: string | null;
+  travelChargeable?: boolean;
+  travelProduct?: string | null;
+  regularDays?: string[];
 }
+
+export const WEEKDAYS = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+] as const;
 
 export interface MedicationEntry {
   name: string;

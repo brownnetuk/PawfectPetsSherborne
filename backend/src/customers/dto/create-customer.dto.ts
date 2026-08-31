@@ -1,13 +1,26 @@
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsEmail,
+  IsIn,
+  IsMongoId,
   IsNotEmpty,
   IsOptional,
   IsString,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+
+export const WEEKDAYS = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+] as const;
 
 export class EmergencyContactDto {
   @IsBoolean()
@@ -182,4 +195,26 @@ export class CreateCustomerDto {
   @ValidateNested()
   @Type(() => AgreementDto)
   agreement?: AgreementDto;
+
+  // null explicitly clears the selection -- @ValidateIf so it's allowed
+  // through despite @IsMongoId (which would otherwise reject it), same
+  // pattern as UpdateStaffDto.role.
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  defaultProduct?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  travelChargeable?: boolean;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  travelProduct?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @IsIn(WEEKDAYS, { each: true })
+  regularDays?: string[];
 }

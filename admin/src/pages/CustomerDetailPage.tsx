@@ -30,7 +30,9 @@ import type {
   FormSubmissionRecord,
   IncomeMonth,
   Invoice,
+  Product,
 } from '../types';
+import { WEEKDAYS } from '../types';
 import { useAuth } from '../auth/AuthContext';
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
@@ -59,7 +61,7 @@ function isPartiallyPaid(inv: Invoice): boolean {
   return inv.status === 'sent' && paid > 0 && paid < inv.total;
 }
 
-type Tab = 'overview' | 'pets' | 'bookings' | 'invoices' | 'activity' | 'log' | 'forms';
+type Tab = 'overview' | 'pets' | 'bookings' | 'invoices' | 'activity' | 'log' | 'forms' | 'defaults';
 
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -324,7 +326,7 @@ export default function CustomerDetailPage() {
       )}
 
       <div className="tabs">
-        {(['overview', 'pets', 'bookings', 'invoices', 'activity', 'log', 'forms'] as Tab[]).map((t) => (
+        {(['overview', 'pets', 'bookings', 'invoices', 'activity', 'log', 'forms', 'defaults'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {t === 'pets'
               ? `Pets (${animals.length})`
@@ -332,7 +334,9 @@ export default function CustomerDetailPage() {
                 ? 'Notes'
                 : t === 'log'
                   ? 'Activity'
-                  : t.charAt(0).toUpperCase() + t.slice(1)}
+                  : t === 'defaults'
+                    ? 'Customer Defaults'
+                    : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
@@ -364,6 +368,7 @@ export default function CustomerDetailPage() {
         />
       )}
       {tab === 'forms' && <FormSubmissionsTab customer={customer} />}
+      {tab === 'defaults' && <CustomerDefaultsTab customer={customer} onChange={refresh} />}
 
       {showDelete && (
         <Modal title="Delete customer?" onClose={() => setShowDelete(false)}>
@@ -1602,6 +1607,230 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
           </div>
         </Modal>
       )}
+    </div>
+  );
+}
+
+function CustomerDefaultsTab({ customer, onChange }: { customer: Customer; onChange: () => void }) {
+  const [products, setProducts] = useState<Product[] | null>(null);
+
+  useEffect(() => {
+    api.listProducts().then(setProducts).catch(() => setProducts([]));
+  }, []);
+
+  return (
+    <div>
+      <DefaultProductCard customer={customer} products={products} onChange={onChange} />
+      <TravelCard customer={customer} products={products} onChange={onChange} />
+      <RegularDaysCard customer={customer} onChange={onChange} />
+    </div>
+  );
+}
+
+function DefaultProductCard({
+  customer,
+  products,
+  onChange,
+}: {
+  customer: Customer;
+  products: Product[] | null;
+  onChange: () => void;
+}) {
+  const [productId, setProductId] = useState(customer.defaultProduct ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await api.updateCustomer(customer._id, { defaultProduct: productId || null });
+      setSaved(true);
+      onChange();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save the default product');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Default Product</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        The product typically used for this customer.
+      </p>
+      {error && <div className="error-banner">{error}</div>}
+      <div className="field">
+        <label>Product</label>
+        <select value={productId} onChange={(e) => setProductId(e.target.value)}>
+          <option value="">No default</option>
+          {products?.map((p) => (
+            <option key={p._id} value={p._id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+        {saved && (
+          <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TravelCard({
+  customer,
+  products,
+  onChange,
+}: {
+  customer: Customer;
+  products: Product[] | null;
+  onChange: () => void;
+}) {
+  const [chargeable, setChargeable] = useState(customer.travelChargeable ?? false);
+  const [productId, setProductId] = useState(customer.travelProduct ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  async function handleSave() {
+    if (chargeable && !productId) {
+      setError('Choose a product for the travel charge.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await api.updateCustomer(customer._id, {
+        travelChargeable: chargeable,
+        travelProduct: chargeable ? productId : null,
+      });
+      setSaved(true);
+      onChange();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save travel charge settings');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Travel</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        When chargeable, one line item of the chosen product is added automatically every time a
+        new invoice is created for this customer.
+      </p>
+      {error && <div className="error-banner">{error}</div>}
+      <div className="field">
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
+          <input
+            type="checkbox"
+            checked={chargeable}
+            onChange={(e) => setChargeable(e.target.checked)}
+            style={{ width: 'auto' }}
+          />
+          Is travel chargeable for this customer?
+        </label>
+      </div>
+      {chargeable && (
+        <div className="field">
+          <label>Travel product</label>
+          <select value={productId} onChange={(e) => setProductId(e.target.value)}>
+            <option value="">Select a product…</option>
+            {products?.map((p) => (
+              <option key={p._id} value={p._id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+        {saved && (
+          <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const WEEKDAY_LABELS: Record<string, string> = {
+  monday: 'Monday',
+  tuesday: 'Tuesday',
+  wednesday: 'Wednesday',
+  thursday: 'Thursday',
+  friday: 'Friday',
+  saturday: 'Saturday',
+  sunday: 'Sunday',
+};
+
+function RegularDaysCard({ customer, onChange }: { customer: Customer; onChange: () => void }) {
+  const [days, setDays] = useState<string[]>(customer.regularDays ?? []);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  function toggleDay(day: string) {
+    setDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await api.updateCustomer(customer._id, { regularDays: days });
+      setSaved(true);
+      onChange();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save regular days');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Regular Days</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        The days this customer regularly books. Not used anywhere yet — reserved for a future
+        feature.
+      </p>
+      {error && <div className="error-banner">{error}</div>}
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+        {WEEKDAYS.map((day) => (
+          <label key={day} style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
+            <input
+              type="checkbox"
+              checked={days.includes(day)}
+              onChange={() => toggleDay(day)}
+              style={{ width: 'auto' }}
+            />
+            {WEEKDAY_LABELS[day]}
+          </label>
+        ))}
+      </div>
+      <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center', marginTop: 16 }}>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+        {saved && (
+          <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
+        )}
+      </div>
     </div>
   );
 }

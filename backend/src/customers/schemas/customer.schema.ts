@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Product } from '../../products/schemas/product.schema';
 
 export enum CustomerStatus {
   PENDING = 'pending',
@@ -206,6 +207,23 @@ export class Customer extends Document {
 
   @Prop({ type: String, enum: CustomerStatus, default: CustomerStatus.PENDING })
   status: CustomerStatus;
+
+  // Settings > Customer Defaults (Customer Detail > "Customer Defaults" tab).
+  // Not referenced by anything yet beyond being staff-editable preferences --
+  // Default Product has no wired behaviour so far; the travel pair drives
+  // DocumentFormModal auto-adding one line item on a new invoice (admin-side
+  // only, not enforced here); regularDays is stored for a future feature.
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  defaultProduct?: Types.ObjectId;
+
+  @Prop({ default: false })
+  travelChargeable?: boolean;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  travelProduct?: Types.ObjectId;
+
+  @Prop({ type: [String], default: [] })
+  regularDays?: string[];
 }
 
 export const CustomerSchema = SchemaFactory.createForClass(Customer);
