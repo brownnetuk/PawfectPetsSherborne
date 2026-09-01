@@ -4,6 +4,7 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
 import { Customer, CustomerSchema } from '../customers/schemas/customer.schema';
 import { InvoiceTerm, InvoiceTermSchema } from '../invoice-terms/schemas/invoice-term.schema';
 import { InvoicesModule } from '../invoices/invoices.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import {
   BusinessInfo,
   BusinessInfoSchema,
@@ -34,6 +35,8 @@ import { Quote, QuoteSchema } from './schemas/quote.schema';
     // into a real Invoice (see QuotesService.acceptAndConvert()). Safe
     // direction: InvoicesModule doesn't import QuotesModule.
     InvoicesModule,
+    // For pushing the customer's portal app when a quote is emailed to them.
+    NotificationsModule,
   ],
   controllers: [QuotesController],
   providers: [QuotesService],

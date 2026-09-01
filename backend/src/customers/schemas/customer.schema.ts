@@ -151,6 +151,32 @@ class Agreement {
 }
 const AgreementSchema = SchemaFactory.createForClass(Agreement);
 
+// Customer-portal credentials — hashed, never plain text, and never returned
+// by ordinary queries (the whole sub-doc is `select: false`, so staff/customer
+// endpoints that read a Customer don't leak it; PortalAuthService explicitly
+// selects it with `.select('+portalCredentials')`).
+@Schema({ _id: false })
+class PortalCredentials {
+  // bcrypt hash of the customer's chosen password.
+  @Prop()
+  passwordHash?: string;
+
+  // First-time-login 6-digit code (hashed) + its expiry.
+  @Prop()
+  loginCodeHash?: string;
+
+  @Prop()
+  loginCodeExpiresAt?: Date;
+
+  // Password-reset 6-digit code (hashed) + its expiry.
+  @Prop()
+  resetCodeHash?: string;
+
+  @Prop()
+  resetCodeExpiresAt?: Date;
+}
+const PortalCredentialsSchema = SchemaFactory.createForClass(PortalCredentials);
+
 @Schema({ timestamps: true })
 export class Customer extends Document {
   // firstName/surname are the source of truth; `name` is computed from them
@@ -224,6 +250,15 @@ export class Customer extends Document {
 
   @Prop({ type: [String], default: [] })
   regularDays?: string[];
+
+  // Customer app (portal) access. `portalActive` is toggled by staff (Customer
+  // Defaults > Customer Portal) and is safe to expose; credentials live in the
+  // hidden sub-doc below.
+  @Prop({ default: false })
+  portalActive?: boolean;
+
+  @Prop({ type: PortalCredentialsSchema, select: false })
+  portalCredentials?: PortalCredentials;
 }
 
 export const CustomerSchema = SchemaFactory.createForClass(Customer);

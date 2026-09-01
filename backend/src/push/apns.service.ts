@@ -20,14 +20,20 @@ export interface ApnsSendResult {
 //                    literal "\n" sequences are accepted for single-line env)
 //   APNS_KEY_ID      the key's 10-char Key ID
 //   APNS_TEAM_ID     the Apple Developer Team ID
-//   APNS_BUNDLE_ID   the app bundle id (the apns-topic)
+//   APNS_BUNDLE_ID   the staff app bundle id (the apns-topic)
+//   APNS_CUSTOMER_BUNDLE_ID  the customer portal app bundle id (its apns-topic);
+//                    unset => customer pushes are disabled, staff pushes still work
 //   APNS_PRODUCTION  "true" => api.push.apple.com, else the sandbox host
+//
+// Both apps live under the same Apple Team, so the same .p8 key/Key ID/Team ID
+// signs for both; only the apns-topic differs per audience.
 @Injectable()
 export class ApnsService {
   private readonly logger = new Logger(ApnsService.name);
   private readonly keyId = process.env.APNS_KEY_ID ?? '';
   private readonly teamId = process.env.APNS_TEAM_ID ?? '';
   private readonly bundleId = process.env.APNS_BUNDLE_ID ?? '';
+  private readonly customerBundleId = process.env.APNS_CUSTOMER_BUNDLE_ID ?? '';
   private readonly production = (process.env.APNS_PRODUCTION ?? 'true') === 'true';
   private readonly key = this.loadKey();
 
@@ -62,6 +68,18 @@ export class ApnsService {
     return !!(this.key && this.keyId && this.teamId && this.bundleId);
   }
 
+  // The customer portal app can be pushed once its own bundle id is set.
+  get customerConfigured(): boolean {
+    return !!(this.key && this.keyId && this.teamId && this.customerBundleId);
+  }
+
+  // Topic (apns-topic) for a given audience, or null when that audience isn't
+  // configured yet.
+  topicFor(audience: 'staff' | 'customer'): string | null {
+    if (audience === 'customer') return this.customerBundleId || null;
+    return this.bundleId || null;
+  }
+
   // Non-secret diagnostics: which pieces are present (the key is only reported
   // as a boolean, never its contents). Identifiers are safe to surface.
   get diagnostics() {
@@ -71,6 +89,7 @@ export class ApnsService {
       keyId: this.keyId || null,
       teamId: this.teamId || null,
       bundleId: this.bundleId || null,
+      customerBundleId: this.customerBundleId || null,
       production: this.production,
     };
   }
@@ -99,8 +118,11 @@ export class ApnsService {
     title: string,
     body: string,
     data: Record<string, unknown> = {},
+    // apns-topic to deliver under; defaults to the staff app's bundle id.
+    topic?: string,
   ): Promise<ApnsSendResult> {
-    if (!this.configured) {
+    const apnsTopic = topic ?? this.bundleId;
+    if (!this.key || !this.keyId || !this.teamId || !apnsTopic) {
       return { ok: false, unregistered: false, status: 0, reason: 'APNs not configured' };
     }
     const host = this.production ? 'https://api.push.apple.com' : 'https://api.sandbox.push.apple.com';
@@ -116,7 +138,7 @@ export class ApnsService {
         ':method': 'POST',
         ':path': `/3/device/${deviceToken}`,
         authorization: `bearer ${this.providerToken()}`,
-        'apns-topic': this.bundleId,
+        'apns-topic': apnsTopic,
         'apns-push-type': 'alert',
         'content-type': 'application/json',
       });

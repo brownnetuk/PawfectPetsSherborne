@@ -12,7 +12,9 @@ export class PushController {
   // notification permission (authenticated as the logged-in staff member).
   @Post('register')
   async register(@Body() dto: RegisterPushTokenDto, @CurrentUser() user: CurrentUserShape) {
-    await this.pushService.registerToken(dto.token, dto.platform ?? 'ios', user.id);
+    await this.pushService.registerToken(dto.token, dto.platform ?? 'ios', {
+      staff: user.id,
+    });
     return { ok: true };
   }
 

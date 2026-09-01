@@ -20,6 +20,9 @@ export enum EmailTrigger {
   PAYMENT_RECEIVED = 'payment_received',
   FORM = 'form',
   DEPOSIT_REQUEST = 'deposit_request',
+  // Customer portal: first-time login code and password-reset code.
+  PORTAL_LOGIN_CODE = 'portal_login_code',
+  PORTAL_PASSWORD_RESET = 'portal_password_reset',
 }
 
 // One document per trigger (enforced via the unique index below) -- avoids

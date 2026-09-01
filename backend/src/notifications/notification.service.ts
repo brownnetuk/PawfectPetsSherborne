@@ -66,6 +66,23 @@ export class NotificationService {
     await this.dispatch('Invoice read', body, 'invoiceRead');
   }
 
+  // Pushes a customer (their portal app) about an invoice/quote just sent to
+  // them. Customer-facing, so not gated by staff NotificationSettings and it
+  // doesn't add to the admin feed -- it routes only to that customer's device.
+  async notifyCustomerDocumentReceived(
+    customerId: string,
+    kind: 'invoice' | 'quote',
+    reference: string,
+  ): Promise<void> {
+    const title = kind === 'invoice' ? 'New invoice' : 'New quote';
+    await this.push.sendToCustomer(
+      customerId,
+      title,
+      `You've received ${kind} ${reference}.`,
+      { type: `${kind}Received`, reference },
+    );
+  }
+
   private pad(n: number): string {
     return n.toString().padStart(2, '0');
   }

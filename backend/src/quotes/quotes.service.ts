@@ -25,6 +25,7 @@ import { Customer, CustomerStatus } from '../customers/schemas/customer.schema';
 import { InvoiceTerm } from '../invoice-terms/schemas/invoice-term.schema';
 import { Invoice } from '../invoices/schemas/invoice.schema';
 import { InvoicesService } from '../invoices/invoices.service';
+import { NotificationService } from '../notifications/notification.service';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
@@ -48,6 +49,7 @@ export class QuotesService {
     private readonly settingsService: SettingsService,
     private readonly auditLogService: AuditLogService,
     private readonly invoicesService: InvoicesService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   private calculateTotals(
@@ -278,6 +280,13 @@ export class QuotesService {
         `${quote.quoteNumber} emailed to ${recipientEmail}`,
         undefined,
         actor,
+      );
+      // Ping the customer's portal app (no-op unless they have the app and the
+      // customer APNs topic is configured).
+      await this.notificationService.notifyCustomerDocumentReceived(
+        String(customer._id),
+        'quote',
+        quote.quoteNumber,
       );
     }
     if (quote.status === QuoteStatus.DRAFT) {

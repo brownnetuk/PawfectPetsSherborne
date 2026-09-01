@@ -29,6 +29,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ProductsModule } from './products/products.module';
 import { PushModule } from './push/push.module';
+import { PortalModule } from './portal/portal.module';
 import { CrmModule } from './crm/crm.module';
 import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
@@ -85,6 +86,7 @@ import { StaffModule } from './staff/staff.module';
     FormsModule,
     FormSubmissionsModule,
     RolesModule,
+    PortalModule,
     // Needed here (not just via AuthModule) so PermissionsGuard below --
     // provided at this module's level -- can inject the Staff model.
     StaffModule,
