@@ -26,7 +26,10 @@ class Appointment {
           : (customer as String? ?? ''),
       customerName: customer is Map<String, dynamic> ? (customer['name'] as String? ?? '') : '',
       reason: json['reason'] as String? ?? '',
-      date: DateTime.parse(json['date'] as String),
+      // Stored as a day at local (server) midnight and serialised as UTC —
+      // convert to local so the calendar day matches what was booked (a
+      // server on BST would otherwise read back as the previous day).
+      date: DateTime.parse(json['date'] as String).toLocal(),
       time: json['time'] as String? ?? '',
     );
   }

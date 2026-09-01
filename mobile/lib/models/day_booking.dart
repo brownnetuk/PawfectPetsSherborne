@@ -51,7 +51,9 @@ class DayBooking {
       species: animal is Map<String, dynamic> ? (animal['species'] as String? ?? '') : '',
       customerId: idOf(customer),
       customerName: customer is Map<String, dynamic> ? (customer['name'] as String? ?? '') : '',
-      date: DateTime.parse(json['date'] as String),
+      // Stored as a day at local (server) midnight, serialised as UTC — convert
+      // to local so it buckets to the correct calendar day on the device.
+      date: DateTime.parse(json['date'] as String).toLocal(),
       productId: idOf(product),
       productName: product is Map<String, dynamic> ? (product['name'] as String? ?? '') : '',
       productPrice: product is Map<String, dynamic> ? (product['price'] as num?)?.toDouble() ?? 0 : 0,
