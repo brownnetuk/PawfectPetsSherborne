@@ -34,6 +34,11 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
     _lookups = () async {
       final accounts = await repo.listBankAccounts();
       final methods = await repo.listPaymentMethods();
+      // Pre-select the admin app's default bank account (fall back to the
+      // first). Guarded so it doesn't clobber a manual pick on rebuild.
+      if (_account == null && accounts.isNotEmpty) {
+        _account = accounts.firstWhere((a) => a.isDefault, orElse: () => accounts.first);
+      }
       return (accounts, methods);
     }();
   }

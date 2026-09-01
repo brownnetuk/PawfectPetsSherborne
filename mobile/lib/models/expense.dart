@@ -70,11 +70,17 @@ class Vendor {
 class BankAccountRef {
   final String id;
   final String name;
+  // The account marked default in the admin app — pre-selected on new
+  // payments/expenses.
+  final bool isDefault;
 
-  BankAccountRef({required this.id, required this.name});
+  BankAccountRef({required this.id, required this.name, this.isDefault = false});
 
-  factory BankAccountRef.fromJson(Map<String, dynamic> json) =>
-      BankAccountRef(id: json['_id'] as String, name: json['name'] as String? ?? '');
+  factory BankAccountRef.fromJson(Map<String, dynamic> json) => BankAccountRef(
+        id: json['_id'] as String,
+        name: json['name'] as String? ?? '',
+        isDefault: json['isDefault'] as bool? ?? false,
+      );
 }
 
 /// A named payment method (e.g. "Bank Transfer", "Cash") staff pick from when
