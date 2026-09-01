@@ -40,28 +40,51 @@ function addDays(date: Date, days: number): Date {
 function animalId(animal: DayBooking['animal']): string {
   return typeof animal === 'string' ? animal : animal._id;
 }
+function productIdOf(product: DayBooking['product']): string {
+  return typeof product === 'string' ? product : product._id;
+}
+
+// Passed when reopening this modal from an animal already booked in the
+// Visits section (Bookings page) -- pre-fills the form with that animal's
+// detected date range, and switches Create into an Update that diffs
+// against its existing day-by-day entries instead of just skipping them.
+export interface NewBookingInitial {
+  customerId: string;
+  animalIds: string[];
+  startDate: string;
+  endDate: string;
+  visitsPerDay: VisitCount;
+  visitsFirstDay: VisitCount;
+  visitsLastDay: VisitCount;
+  editAnimalId: string;
+  editEntries: { date: string; bookingId: string }[];
+}
 
 export default function NewBookingModal({
   animals,
   customers,
+  initial,
   onClose,
   onCreated,
 }: {
   animals: Animal[];
   customers: Customer[];
+  initial?: NewBookingInitial;
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [custId, setCustId] = useState('');
-  const [animalIds, setAnimalIds] = useState<string[]>([]);
-  const [visitsPerDay, setVisitsPerDay] = useState<VisitCount>('1');
-  const [startDate, setStartDate] = useState('');
-  const [visitsFirstDay, setVisitsFirstDay] = useState<VisitCount>('1');
-  const [endDate, setEndDate] = useState('');
-  const [visitsLastDay, setVisitsLastDay] = useState<VisitCount>('1');
+  const [custId, setCustId] = useState(initial?.customerId ?? '');
+  const [animalIds, setAnimalIds] = useState<string[]>(initial?.animalIds ?? []);
+  const [visitsPerDay, setVisitsPerDay] = useState<VisitCount>(initial?.visitsPerDay ?? '1');
+  const [startDate, setStartDate] = useState(initial?.startDate ?? '');
+  const [visitsFirstDay, setVisitsFirstDay] = useState<VisitCount>(initial?.visitsFirstDay ?? '1');
+  const [endDate, setEndDate] = useState(initial?.endDate ?? '');
+  const [visitsLastDay, setVisitsLastDay] = useState<VisitCount>(initial?.visitsLastDay ?? '1');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ created: number; skipped: number } | null>(null);
+  const [result, setResult] = useState<{ created: number; updated: number; deleted: number; skipped: number } | null>(
+    null,
+  );
 
   const customerAnimals = animals.filter((a) => a.customer === custId);
 
@@ -134,24 +157,50 @@ export default function NewBookingModal({
       // local getters undo the server's local-midnight-to-UTC offset, same
       // fix as productAvailability's dayTypeFor (a raw slice(0,10) compares
       // the wrong calendar day).
-      const existingKeys = new Set(existing.map((b) => `${animalId(b.animal)}|${dateKey(new Date(b.date))}`));
+      const existingByKey = new Map(existing.map((b) => [`${animalId(b.animal)}|${dateKey(new Date(b.date))}`, b]));
 
       let created = 0;
+      let updated = 0;
+      let deleted = 0;
       let skipped = 0;
+
+      // Editing an existing range: remove that animal's entries for any day
+      // that's no longer in the (possibly shortened/moved) new range. Only
+      // runs while the animal being edited is still checked below -- if
+      // staff unchecked it, leave its existing entries alone rather than
+      // silently deleting them.
+      if (initial && animalIds.includes(initial.editAnimalId)) {
+        const newDateKeys = new Set(plan.map((p) => dateKey(p.date)));
+        for (const entry of initial.editEntries) {
+          if (!newDateKeys.has(entry.date)) {
+            await api.deleteDayBooking(entry.bookingId);
+            deleted++;
+          }
+        }
+      }
+
       for (const id of animalIds) {
         const animal = animals.find((a) => a._id === id);
         const owner = animal ? customers.find((c) => c._id === animal.customer) : undefined;
         const travelProductId = owner?.travelChargeable ? (owner.travelProduct ?? null) : null;
+        const isEditAnimal = initial?.editAnimalId === id;
 
         for (const { date, productId } of plan) {
-          // Compares against the *local* calendar date, not the raw UTC ISO
-          // slice -- same timezone-safety reasoning as productAvailability's
-          // own dayTypeFor.
           const key = `${id}|${dateKey(date)}`;
-          if (existingKeys.has(key)) {
-            skipped++;
+          const existingEntry = existingByKey.get(key);
+
+          if (existingEntry) {
+            if (isEditAnimal) {
+              if (productIdOf(existingEntry.product) !== productId) {
+                await api.updateDayBooking(existingEntry._id, { product: productId });
+                updated++;
+              }
+            } else {
+              skipped++;
+            }
             continue;
           }
+
           await api.createDayBooking({ animal: id, date: dateKey(date), product: productId, quantity: 1 });
           created++;
           if (travelProductId && travelProductId !== productId) {
@@ -161,22 +210,31 @@ export default function NewBookingModal({
         }
       }
 
-      setResult({ created, skipped });
+      setResult({ created, updated, deleted, skipped });
       onCreated();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create the booking');
+      setError(err instanceof Error ? err.message : 'Failed to save the booking');
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Modal title="New Booking" onClose={onClose}>
+    <Modal title={initial ? 'Update Booking' : 'New Booking'} onClose={onClose}>
       {error && <div className="error-banner">{error}</div>}
       {result && (
         <div className="error-banner" style={{ background: 'var(--sage-badge, #d9f2e3)', color: 'var(--brand-green)' }}>
-          Created {result.created} booking{result.created === 1 ? '' : 's'}
-          {result.skipped > 0 ? `, skipped ${result.skipped} already booked` : ''}.
+          {initial ? (
+            <>
+              Updated the booking: {result.created} added, {result.updated} changed, {result.deleted} removed
+              {result.skipped > 0 ? `, ${result.skipped} left as-is` : ''}.
+            </>
+          ) : (
+            <>
+              Created {result.created} booking{result.created === 1 ? '' : 's'}
+              {result.skipped > 0 ? `, skipped ${result.skipped} already booked` : ''}.
+            </>
+          )}
         </div>
       )}
       <form onSubmit={handleSubmit}>
@@ -250,7 +308,7 @@ export default function NewBookingModal({
             {result ? 'Close' : 'Cancel'}
           </button>
           <button type="submit" className="btn btn-primary" disabled={busy}>
-            {busy ? 'Creating…' : 'Create booking'}
+            {busy ? (initial ? 'Updating…' : 'Creating…') : initial ? 'Update booking' : 'Create booking'}
           </button>
         </div>
       </form>

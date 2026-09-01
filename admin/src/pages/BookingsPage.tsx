@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as api from '../api/client';
 import NewBookingModal from '../components/NewBookingModal';
+import type { NewBookingInitial } from '../components/NewBookingModal';
 import ProductAvailabilityWarningModal from '../components/ProductAvailabilityWarningModal';
 import { PlusCircleIcon, TrashIcon } from '../components/icons';
 import { availabilityMismatch } from '../utils/productAvailability';
-import type { Animal, BankHoliday, Customer, DayBooking, Product } from '../types';
+import { isVisitProduct, visitCountForProduct } from '../utils/visitMapping';
+import type { Animal, BankHoliday, Customer, DayBooking, Product, VisitMapping } from '../types';
 
 type ViewMode = 'week' | 'month';
 
@@ -88,6 +90,9 @@ function customerLabel(customer: DayBooking['customer']): string {
 function productId(product: DayBooking['product']): string {
   return typeof product === 'string' ? product : product._id;
 }
+function productLabel(product: DayBooking['product']): string {
+  return typeof product === 'string' ? product : product.name;
+}
 
 // Groups a day's bookings by dog, preserving first-seen order, so a dog
 // with e.g. a walk plus an auto-added travel line renders as one card
@@ -113,9 +118,13 @@ export default function BookingsPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [bankHolidays, setBankHolidays] = useState<BankHoliday[]>([]);
+  const [visitMapping, setVisitMapping] = useState<VisitMapping | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [showNewBooking, setShowNewBooking] = useState(false);
+  // 'new' opens a blank New Booking modal; a NewBookingInitial reopens it
+  // pre-filled for editing an existing animal's date range (clicked from the
+  // Visits section below).
+  const [bookingModal, setBookingModal] = useState<'new' | NewBookingInitial | null>(null);
 
   const weeks = useMemo(() => buildWeeks(viewMode, anchorDate), [viewMode, anchorDate]);
 
@@ -124,6 +133,7 @@ export default function BookingsPage() {
     api.listCustomers().then(setCustomers).catch(() => {});
     api.listBankHolidays().then(setBankHolidays).catch(() => {});
     api.listProducts().then(setProducts).catch(() => {});
+    api.getVisitMapping().then(setVisitMapping).catch(() => {});
   }, []);
 
   function refreshDayBookings() {
@@ -149,6 +159,60 @@ export default function BookingsPage() {
 
   function bookingsForDay(date: Date): DayBooking[] {
     return (dayBookings ?? []).filter((b) => isSameDay(new Date(b.date), date));
+  }
+
+  // Clicked an animal in the Visits section: walk outward from that day
+  // through this animal's consecutive Visits-mapping entries to find the
+  // full date range, then reopen New Booking pre-filled so staff can adjust
+  // the whole stay (dates, visit counts) rather than one day at a time.
+  async function handleEditAnimalBooking(aid: string, fromDate: Date) {
+    if (!visitMapping) return;
+    const windowStart = addDays(fromDate, -60);
+    const windowEnd = addDays(fromDate, 60);
+    let all: DayBooking[];
+    try {
+      all = await api.listDayBookings(dateKey(windowStart), dateKey(addDays(windowEnd, 1)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load this booking');
+      return;
+    }
+    const byDate = new Map(
+      all
+        .filter((b) => animalId(b.animal) === aid && isVisitProduct(visitMapping, productId(b.product)))
+        .map((b) => [dateKey(new Date(b.date)), b]),
+    );
+    if (!byDate.has(dateKey(fromDate))) return;
+
+    let start = fromDate;
+    while (byDate.has(dateKey(addDays(start, -1)))) start = addDays(start, -1);
+    let end = fromDate;
+    while (byDate.has(dateKey(addDays(end, 1)))) end = addDays(end, 1);
+
+    const rangeDates: Date[] = [];
+    for (let d = start; d <= end; d = addDays(d, 1)) rangeDates.push(d);
+
+    const editEntries = rangeDates.map((d) => ({ date: dateKey(d), bookingId: byDate.get(dateKey(d))!._id }));
+    const countFor = (d: Date): '1' | '2' => (visitCountForProduct(visitMapping, productId(byDate.get(dateKey(d))!.product)) === 2 ? '2' : '1');
+    const visitsFirstDay = countFor(start);
+    const visitsLastDay = countFor(end);
+    // "Regular"/middle default: the day after start if the range has a
+    // genuine middle day, else just fall back to the first day's own count.
+    const visitsPerDay = rangeDates.length > 2 ? countFor(addDays(start, 1)) : visitsFirstDay;
+
+    const animal = animals.find((a) => a._id === aid);
+    if (!animal) return;
+
+    setBookingModal({
+      customerId: animal.customer,
+      animalIds: [aid],
+      startDate: dateKey(start),
+      endDate: dateKey(end),
+      visitsPerDay,
+      visitsFirstDay,
+      visitsLastDay,
+      editAnimalId: aid,
+      editEntries,
+    });
   }
 
   return (
@@ -180,17 +244,18 @@ export default function BookingsPage() {
             <option value="week">This Week</option>
             <option value="month">This Month</option>
           </select>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowNewBooking(true)}>
+          <button className="btn btn-primary btn-sm" onClick={() => setBookingModal('new')}>
             New Booking
           </button>
         </div>
       </div>
 
-      {showNewBooking && (
+      {bookingModal && (
         <NewBookingModal
           animals={animals}
           customers={customers}
-          onClose={() => setShowNewBooking(false)}
+          initial={bookingModal === 'new' ? undefined : bookingModal}
+          onClose={() => setBookingModal(null)}
           onCreated={() => {
             refreshDayBookings();
           }}
@@ -287,8 +352,10 @@ export default function BookingsPage() {
             customers={customers}
             products={products}
             bankHolidays={bankHolidays}
+            visitMapping={visitMapping}
             onClose={() => setSelectedDate(null)}
             onChange={refreshDayBookings}
+            onEditAnimal={handleEditAnimalBooking}
           />
         )}
       </div>
@@ -303,8 +370,10 @@ function DayDetailPanel({
   customers,
   products,
   bankHolidays,
+  visitMapping,
   onClose,
   onChange,
+  onEditAnimal,
 }: {
   date: Date;
   dayBookings: DayBooking[];
@@ -312,8 +381,10 @@ function DayDetailPanel({
   customers: Customer[];
   products: Product[];
   bankHolidays: BankHoliday[];
+  visitMapping: VisitMapping | null;
   onClose: () => void;
   onChange: () => void;
+  onEditAnimal: (animalId: string, date: Date) => void;
 }) {
   const [addAnimalId, setAddAnimalId] = useState('');
   const [addProductId, setAddProductId] = useState('');
@@ -321,9 +392,31 @@ function DayDetailPanel({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [warning, setWarning] = useState<{ message: string; onConfirm: () => void } | null>(null);
+  // A narrow ±1 day window, refetched whenever the selected day changes --
+  // used only to tell whether a 1-visit entry sits at the start/end of a
+  // consecutive run (for the AM/PM label below), not for anything editable.
+  const [adjacentBookings, setAdjacentBookings] = useState<DayBooking[]>([]);
+
+  useEffect(() => {
+    api
+      .listDayBookings(dateKey(addDays(date, -1)), dateKey(addDays(date, 2)))
+      .then(setAdjacentBookings)
+      .catch(() => setAdjacentBookings([]));
+  }, [date]);
 
   const ownerOf = (custId: string) => customers.find((c) => c._id === custId);
   const alreadyAdded = new Set(dayBookings.map((b) => animalId(b.animal)));
+
+  function hasVisitOn(targetDate: Date, aid: string): boolean {
+    if (!visitMapping) return false;
+    const key = dateKey(targetDate);
+    return adjacentBookings.some(
+      (b) => animalId(b.animal) === aid && dateKey(new Date(b.date)) === key && isVisitProduct(visitMapping, productId(b.product)),
+    );
+  }
+
+  const walkBookings = dayBookings.filter((b) => !visitMapping || !isVisitProduct(visitMapping, productId(b.product)));
+  const visitBookings = dayBookings.filter((b) => visitMapping && isVisitProduct(visitMapping, productId(b.product)));
 
   const weekdayKey = WEEKDAY_KEYS[date.getDay()];
   const recommended = animals.filter((a) => {
@@ -475,14 +568,14 @@ function DayDetailPanel({
         />
       )}
 
-      <div className="section-title">Regular</div>
-      {dayBookings.length === 0 ? (
+      <div className="section-title">Walks</div>
+      {walkBookings.length === 0 ? (
         <div className="empty-state" style={{ padding: '10px 0' }}>
           No dogs added yet.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
-          {groupByAnimal(dayBookings).map((group) => (
+          {groupByAnimal(walkBookings).map((group) => (
             <div
               key={animalId(group[0].animal)}
               style={{
@@ -561,6 +654,97 @@ function DayDetailPanel({
             </div>
           ))}
         </div>
+      )}
+
+      {visitBookings.length > 0 && (
+        <>
+          <div className="section-title">Visits</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
+            {groupByAnimal(visitBookings).map((group) => {
+              const aid = animalId(group[0].animal);
+              const isStart = !hasVisitOn(addDays(date, -1), aid);
+              const isEnd = !hasVisitOn(addDays(date, 1), aid);
+              const oneVisitLabel = isEnd && !isStart ? 'AM' : 'PM';
+              return (
+                <div
+                  key={aid}
+                  style={{
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    padding: 10,
+                    background: 'var(--card, #fff)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => onEditAnimal(aid, date)}
+                      title="Edit this booking"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                        fontWeight: 700,
+                        color: 'var(--accent)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {animalLabel(group[0].animal)}
+                    </button>
+                    <span
+                      style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--muted)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 1,
+                      }}
+                    >
+                      {customerLabel(group[0].customer)}
+                    </span>
+                  </div>
+                  {group.map((b) => {
+                    const count = visitMapping ? visitCountForProduct(visitMapping, productId(b.product)) : null;
+                    const label = count === 2 ? 'AM & PM' : oneVisitLabel;
+                    return (
+                      <div key={b._id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                        <span
+                          style={{
+                            background: 'var(--accent-light)',
+                            color: 'var(--accent)',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            borderRadius: 4,
+                            padding: '2px 6px',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {label}
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {productLabel(b.product)}
+                        </span>
+                        <button
+                          type="button"
+                          className="icon-btn icon-btn-danger"
+                          title="Remove"
+                          style={{ flexShrink: 0 }}
+                          onClick={() => handleRemove(b)}
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {recommended.length > 0 && (
