@@ -41,15 +41,21 @@ export class PushService {
   }
 
   // Sends an alert to every registered device, pruning any Apple reports as
-  // no longer valid. No-op (logged) when APNs isn't configured.
-  async sendToAll(title: string, body: string, data: Record<string, unknown> = {}): Promise<void> {
+  // no longer valid. Returns a summary so diagnostics can surface the APNs
+  // result. No-op when APNs isn't configured.
+  async sendToAll(
+    title: string,
+    body: string,
+    data: Record<string, unknown> = {},
+  ): Promise<{ sent: number; total: number; failures: { status: number; reason?: string }[] }> {
     if (!this.apns.configured) {
       this.logger.debug('APNs not configured; skipping push');
-      return;
+      return { sent: 0, total: 0, failures: [] };
     }
     const tokens = await this.pushTokenModel.find().exec();
     this.logger.log(`Sending push "${title}" to ${tokens.length} device(s)`);
     let sent = 0;
+    const failures: { status: number; reason?: string }[] = [];
     for (const t of tokens) {
       const result = await this.apns.send(t.token, title, body, data);
       if (result.ok) {
@@ -57,10 +63,13 @@ export class PushService {
       } else if (result.unregistered) {
         await this.removeToken(t.token);
         this.logger.log(`Pruned unregistered push token (${result.reason})`);
+        failures.push({ status: result.status, reason: result.reason });
       } else {
         this.logger.warn(`Push send failed (status=${result.status} reason=${result.reason ?? 'n/a'})`);
+        failures.push({ status: result.status, reason: result.reason });
       }
     }
     this.logger.log(`Push "${title}": ${sent}/${tokens.length} delivered`);
+    return { sent, total: tokens.length, failures };
   }
 }

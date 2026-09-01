@@ -30,11 +30,13 @@ export class PushController {
     };
   }
 
-  // Diagnostics: send a test push to every registered device right now.
+  // Diagnostics (temporary, public): send a test push to every registered
+  // device right now and report the APNs result. Remove once confirmed.
+  @Public()
   @Post('test')
   async test() {
-    await this.pushService.sendToAll('Test notification', 'Push is working 🎉', { type: 'test' });
-    return { ok: true, sentTo: await this.pushService.countTokens() };
+    const result = await this.pushService.sendToAll('Test notification', 'Push is working 🎉', { type: 'test' });
+    return { ok: true, ...result };
   }
 
   @Delete('register/:token')
