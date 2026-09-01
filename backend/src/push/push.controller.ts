@@ -1,7 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { CurrentUserShape } from '../auth/current-user.decorator';
-import { Public } from '../auth/public.decorator';
 import { RegisterPushTokenDto } from './dto/register-push-token.dto';
 import { PushService } from './push.service';
 
@@ -17,10 +16,7 @@ export class PushController {
     return { ok: true };
   }
 
-  // Diagnostics (temporary, public): is APNs configured, and how many devices
-  // are registered? Only exposes a boolean + count — no secrets. Remove once
-  // push is confirmed working.
-  @Public()
+  // Is APNs configured, and how many devices are registered? (Staff-only.)
   @Get('status')
   async status() {
     return {
@@ -30,9 +26,7 @@ export class PushController {
     };
   }
 
-  // Diagnostics (temporary, public): send a test push to every registered
-  // device right now and report the APNs result. Remove once confirmed.
-  @Public()
+  // Send a test push to every registered device right now. (Staff-only.)
   @Post('test')
   async test() {
     const result = await this.pushService.sendToAll('Test notification', 'Push is working 🎉', { type: 'test' });
