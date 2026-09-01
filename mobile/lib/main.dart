@@ -10,6 +10,10 @@ import 'state/auth_provider.dart';
 import 'theme.dart';
 
 void main() {
+  // Required before touching platform channels (PushService installs a method
+  // channel handler) — otherwise main() throws before runApp and the app
+  // never renders (white screen).
+  WidgetsFlutterBinding.ensureInitialized();
   final client = ApiClient();
   final repository = Repository(client);
   final pushService = PushService(repository);
