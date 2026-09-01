@@ -7,6 +7,7 @@ import '../widgets/hold_to_delete_dialog.dart';
 import '../widgets/status_badge.dart';
 import 'customer_detail_screen.dart';
 import 'home_shell.dart';
+import 'settings_screen.dart';
 
 class CustomersScreen extends StatefulWidget {
   const CustomersScreen({super.key});
@@ -99,7 +100,16 @@ class _CustomersScreenState extends State<CustomersScreen> {
       ),
       appBar: AppBar(
         title: const Text('Customers'),
-        actions: const [LogoutAction()],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
+          ),
+          const LogoutAction(),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(104),
           child: Padding(

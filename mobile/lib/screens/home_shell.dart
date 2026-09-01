@@ -29,10 +29,10 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   static const _screens = [
-    BookingsScreen(),
     CustomersScreen(),
     InvoicesScreen(),
     QuotesScreen(),
+    BookingsScreen(),
     FinancialScreen(),
   ];
 
@@ -44,10 +44,10 @@ class _HomeShellState extends State<HomeShell> {
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.event_note_outlined), label: 'Bookings'),
           NavigationDestination(icon: Icon(Icons.people_outline), label: 'Customers'),
           NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Invoices'),
           NavigationDestination(icon: Icon(Icons.request_quote_outlined), label: 'Quotes'),
+          NavigationDestination(icon: Icon(Icons.event_note_outlined), label: 'Bookings'),
           NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Financial'),
         ],
       ),
