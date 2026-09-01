@@ -63,6 +63,20 @@ export class DayBookingsService {
       .exec();
   }
 
+  // All of one customer's day bookings, past and future -- used by the
+  // Customer Detail page's Bookings tab, which has no date-range picker of
+  // its own (unlike the Bookings calendar, which always passes from/to).
+  findForCustomer(customerId: string): Promise<DayBooking[]> {
+    return this.dayBookingModel
+      .find({ customer: customerId })
+      .populate('animal', 'name species')
+      .populate('customer', 'name')
+      .populate('product', 'name price')
+      .populate('invoice', 'invoiceNumber')
+      .sort({ date: 1 })
+      .exec();
+  }
+
   async update(id: string, dto: UpdateDayBookingDto): Promise<DayBooking> {
     const update: Record<string, unknown> = { ...dto };
     if (dto.date) update.date = toDayStart(dto.date);

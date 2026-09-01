@@ -1,5 +1,6 @@
 import type {
   Animal,
+  AnnualLeave,
   Appointment,
   AuditLogEntry,
   BankAccount,
@@ -222,6 +223,9 @@ export function deleteBooking(id: string): Promise<void> {
 // --- day bookings (the Bookings page calendar: one dog, one day, one product) ---
 export function listDayBookings(from: string, to: string): Promise<DayBooking[]> {
   return request(`/day-bookings?from=${from}&to=${to}`);
+}
+export function listDayBookingsForCustomer(customerId: string): Promise<DayBooking[]> {
+  return request(`/day-bookings/by-customer/${customerId}`);
 }
 export interface DayBookingInput {
   animal: string;
@@ -592,6 +596,25 @@ export function updateBankHoliday(id: string, input: BankHolidayInput): Promise<
 }
 export function deleteBankHoliday(id: string): Promise<void> {
   return request(`/bank-holidays/${id}`, { method: 'DELETE' });
+}
+
+// --- annual leave ---
+export function listAnnualLeave(): Promise<AnnualLeave[]> {
+  return request('/annual-leave');
+}
+export interface AnnualLeaveInput {
+  name: string;
+  startDate: string;
+  endDate: string;
+}
+export function createAnnualLeave(input: AnnualLeaveInput): Promise<AnnualLeave> {
+  return request('/annual-leave', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateAnnualLeave(id: string, input: AnnualLeaveInput): Promise<AnnualLeave> {
+  return request(`/annual-leave/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deleteAnnualLeave(id: string): Promise<void> {
+  return request(`/annual-leave/${id}`, { method: 'DELETE' });
 }
 
 // --- CRM ---

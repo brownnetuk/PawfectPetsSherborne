@@ -21,6 +21,12 @@ export class DayBookingsController {
     return this.dayBookingsService.findForRange(from, to);
   }
 
+  // Not gated: read by the Customer Detail page's Bookings tab.
+  @Get('by-customer/:customerId')
+  findForCustomer(@Param('customerId') customerId: string) {
+    return this.dayBookingsService.findForCustomer(customerId);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateDayBookingDto) {
     return this.dayBookingsService.update(id, dto);

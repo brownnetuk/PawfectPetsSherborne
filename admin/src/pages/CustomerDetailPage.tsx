@@ -5,7 +5,6 @@ import ActionsMenu from '../components/ActionsMenu';
 import Badge from '../components/Badge';
 import DocumentFormModal from '../components/DocumentFormModal';
 import EditAnimalModal from '../components/EditAnimalModal';
-import EditBookingModal from '../components/EditBookingModal';
 import EditCustomerModal from '../components/EditCustomerModal';
 import { PencilIcon, TrashIcon } from '../components/icons';
 import IncomeChart from '../components/IncomeChart';
@@ -13,6 +12,7 @@ import Modal from '../components/Modal';
 import AddPetChoiceModal from '../components/AddPetChoiceModal';
 import FormPreviewModal from '../components/FormPreviewModal';
 import NewAnimalModal from '../components/NewAnimalModal';
+import NewBookingModal from '../components/NewBookingModal';
 import RegistrationLinkModal from '../components/RegistrationLinkModal';
 import SendFormModal from '../components/SendFormModal';
 import ViewAnimalModal from '../components/ViewAnimalModal';
@@ -21,17 +21,21 @@ import { buildCustomerFormPdf } from '../pdf/customerFormPdf';
 import type {
   ActivityType,
   Animal,
+  AnnualLeave,
   AuditLogEntry,
-  Booking,
   Customer,
   CustomerStatus,
   CrmActivity,
+  DayBooking,
   FormRecord,
   FormSubmissionRecord,
   IncomeMonth,
   Invoice,
   Product,
+  VisitMapping,
 } from '../types';
+import { addDays, dateKey } from '../utils/visitPlan';
+import { isVisitProduct, visitCountForProduct } from '../utils/visitMapping';
 import { WEEKDAYS } from '../types';
 import { useAuth } from '../auth/AuthContext';
 
@@ -68,7 +72,6 @@ export default function CustomerDetailPage() {
   const navigate = useNavigate();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [animals, setAnimals] = useState<Animal[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [activity, setActivity] = useState<CrmActivity[]>([]);
   const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
@@ -95,7 +98,6 @@ export default function CustomerDetailPage() {
     if (!id) return;
     api.getCustomer(id).then(setCustomer).catch((err) => setError(err.message));
     api.listAnimals(id).then(setAnimals).catch(() => {});
-    api.listBookings(id).then(setBookings).catch(() => {});
     api.listInvoices(id).then(setInvoices).catch(() => {});
     api.listActivities(id).then(setActivity).catch(() => {});
     api.listAuditLog(id).then(setAuditLog).catch(() => {});
@@ -350,7 +352,7 @@ export default function CustomerDetailPage() {
       )}
       {tab === 'pets' && <PetsTab customer={customer} animals={animals} onChange={refresh} />}
       {tab === 'bookings' && (
-        <BookingsTab customer={customer} animals={animals} bookings={bookings} onChange={refresh} />
+        <BookingsTab customer={customer} animals={animals} />
       )}
       {tab === 'invoices' && (
         <InvoicesTab customer={customer} invoices={invoices} onChange={refresh} />
@@ -779,238 +781,199 @@ function PetsTab({
   );
 }
 
-function BookingsTab({
-  customer,
-  animals,
-  bookings,
-  onChange,
-}: {
-  customer: Customer;
-  animals: Animal[];
-  bookings: Booking[];
-  onChange: () => void;
-}) {
-  const [showNew, setShowNew] = useState(false);
-  const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
-  const [deletingBooking, setDeletingBooking] = useState<Booking | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+function dbAnimalId(animal: DayBooking['animal']): string {
+  return typeof animal === 'string' ? animal : animal._id;
+}
+function dbAnimalLabel(animal: DayBooking['animal']): string {
+  return typeof animal === 'string' ? animal : animal.name;
+}
+function dbProductId(product: DayBooking['product']): string {
+  return typeof product === 'string' ? product : product._id;
+}
+function dbProductLabel(product: DayBooking['product']): string {
+  return typeof product === 'string' ? product : product.name;
+}
 
-  async function handleDelete() {
-    if (!deletingBooking) return;
-    setDeleting(true);
-    setDeleteError(null);
+interface DateGroup {
+  key: string;
+  date: Date;
+  walks: DayBooking[];
+  visits: DayBooking[];
+}
+
+// Matches the Bookings calendar page: staff should see and add this
+// customer's Walks/Visits the same way here as they would from the Bookings
+// page's day panel, rather than the old boarding-style Booking model this
+// tab used to show.
+function BookingsTab({ customer, animals }: { customer: Customer; animals: Animal[] }) {
+  const [dayBookings, setDayBookings] = useState<DayBooking[] | null>(null);
+  const [visitMapping, setVisitMapping] = useState<VisitMapping | null>(null);
+  const [annualLeave, setAnnualLeave] = useState<AnnualLeave[]>([]);
+  const [showNew, setShowNew] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function refresh() {
+    api
+      .listDayBookingsForCustomer(customer._id)
+      .then(setDayBookings)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bookings'));
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(refresh, [customer._id]);
+
+  useEffect(() => {
+    api.getVisitMapping().then(setVisitMapping).catch(() => {});
+    api.listAnnualLeave().then(setAnnualLeave).catch(() => {});
+  }, []);
+
+  async function handleRemove(id: string) {
+    setError(null);
     try {
-      await api.deleteBooking(deletingBooking._id);
-      setDeletingBooking(null);
-      onChange();
+      await api.deleteDayBooking(id);
+      refresh();
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Failed to delete booking');
-    } finally {
-      setDeleting(false);
+      setError(err instanceof Error ? err.message : 'Failed to remove this entry');
     }
+  }
+
+  // Keyed by animal+day so a 1-visit entry's AM/PM can be inferred the same
+  // way the Bookings page does (start of a run = PM, end = AM) when it has
+  // no explicit visitTime stored -- this tab already has this customer's
+  // whole history loaded, so no extra fetch is needed to see either side.
+  const visitByAnimalDate = new Map<string, DayBooking>();
+  if (dayBookings && visitMapping) {
+    for (const b of dayBookings) {
+      if (isVisitProduct(visitMapping, dbProductId(b.product))) {
+        visitByAnimalDate.set(`${dbAnimalId(b.animal)}|${dateKey(new Date(b.date))}`, b);
+      }
+    }
+  }
+  function visitTimeFor(b: DayBooking, date: Date): 'AM' | 'PM' {
+    if (b.visitTime) return b.visitTime;
+    const aid = dbAnimalId(b.animal);
+    const isStart = !visitByAnimalDate.has(`${aid}|${dateKey(addDays(date, -1))}`);
+    const isEnd = !visitByAnimalDate.has(`${aid}|${dateKey(addDays(date, 1))}`);
+    return isEnd && !isStart ? 'AM' : 'PM';
+  }
+
+  const groups: DateGroup[] = [];
+  if (dayBookings && visitMapping) {
+    const byDate = new Map<string, DateGroup>();
+    for (const b of dayBookings) {
+      const date = new Date(b.date);
+      const key = dateKey(date);
+      let g = byDate.get(key);
+      if (!g) {
+        g = { key, date, walks: [], visits: [] };
+        byDate.set(key, g);
+      }
+      if (isVisitProduct(visitMapping, dbProductId(b.product))) g.visits.push(b);
+      else g.walks.push(b);
+    }
+    groups.push(...Array.from(byDate.values()).sort((a, b) => a.key.localeCompare(b.key)));
+  }
+
+  function Row({ b, label }: { b: DayBooking; label?: string }) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '6px 0',
+          borderBottom: '1px solid var(--border)',
+        }}
+      >
+        <span style={{ fontWeight: 600, minWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {dbAnimalLabel(b.animal)}
+        </span>
+        {label && (
+          <span
+            style={{
+              background: 'var(--accent-light)',
+              color: 'var(--accent)',
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              borderRadius: 4,
+              padding: '2px 6px',
+              flexShrink: 0,
+            }}
+          >
+            {label}
+          </span>
+        )}
+        <span style={{ flex: 1, minWidth: 0, color: 'var(--muted)', fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {dbProductLabel(b.product)} × {b.quantity}
+        </span>
+        {b.invoice && (
+          <span title="Invoiced" style={{ color: 'var(--brand-green)', fontSize: '0.85rem', flexShrink: 0 }}>
+            ✓
+          </span>
+        )}
+        <button type="button" className="icon-btn icon-btn-danger" title="Remove" style={{ flexShrink: 0 }} onClick={() => handleRemove(b._id)}>
+          <TrashIcon />
+        </button>
+      </div>
+    );
   }
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
         <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)} disabled={animals.length === 0}>
-          New booking
+          New Booking
         </button>
       </div>
-      {bookings.length === 0 ? (
+      {error && <div className="error-banner">{error}</div>}
+      {!dayBookings || !visitMapping ? (
+        <div className="empty-state">Loading…</div>
+      ) : groups.length === 0 ? (
         <div className="empty-state">No bookings yet.</div>
       ) : (
-        <div className="card" style={{ padding: 0 }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Service</th>
-                <th>Dates</th>
-                <th>Status</th>
-                <th>Price</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {bookings.map((b) => (
-                <tr key={b._id}>
-                  <td style={{ textTransform: 'capitalize' }}>{b.serviceType}</td>
-                  <td>
-                    {new Date(b.startDate).toLocaleDateString('en-GB')} – {new Date(b.endDate).toLocaleDateString('en-GB')}
-                  </td>
-                  <td>
-                    <Badge value={b.status} />
-                  </td>
-                  <td>{b.price != null ? `£${b.price.toFixed(2)}` : '—'}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 2 }}>
-                      <button className="icon-btn" title="Edit" onClick={() => setEditingBooking(b)}>
-                        <PencilIcon />
-                      </button>
-                      <button
-                        className="icon-btn icon-btn-danger"
-                        title="Delete"
-                        onClick={() => {
-                          setDeleteError(null);
-                          setDeletingBooking(b);
-                        }}
-                      >
-                        <TrashIcon />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {groups.map((g) => (
+            <div key={g.key} className="card">
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>
+                {g.date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </div>
+              {g.walks.length > 0 && (
+                <div style={{ marginBottom: g.visits.length > 0 ? 10 : 0 }}>
+                  <div className="section-title" style={{ marginTop: 0 }}>
+                    Walks
+                  </div>
+                  {g.walks.map((b) => (
+                    <Row key={b._id} b={b} />
+                  ))}
+                </div>
+              )}
+              {g.visits.length > 0 && (
+                <div>
+                  <div className="section-title">Visits</div>
+                  {g.visits.map((b) => {
+                    const count = visitCountForProduct(visitMapping, dbProductId(b.product));
+                    const label = count === 2 ? 'AM & PM' : visitTimeFor(b, g.date);
+                    return <Row key={b._id} b={b} label={label} />;
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
       {showNew && (
         <NewBookingModal
-          customer={customer}
           animals={animals}
+          customers={[customer]}
+          annualLeave={annualLeave}
+          initialCustomerId={customer._id}
           onClose={() => setShowNew(false)}
           onCreated={() => {
             setShowNew(false);
-            onChange();
+            refresh();
           }}
         />
-      )}
-      {editingBooking && (
-        <EditBookingModal
-          booking={editingBooking}
-          onClose={() => setEditingBooking(null)}
-          onSaved={() => {
-            setEditingBooking(null);
-            onChange();
-          }}
-        />
-      )}
-      {deletingBooking && (
-        <Modal title="Delete booking?" onClose={() => setDeletingBooking(null)}>
-          {deleteError && <div className="error-banner">{deleteError}</div>}
-          <p>This permanently deletes this booking. If an invoice or quote is linked to it,
-            deletion is blocked until those are removed first.</p>
-          <div className="modal-actions">
-            <button className="btn btn-secondary" onClick={() => setDeletingBooking(null)} disabled={deleting}>
-              Cancel
-            </button>
-            <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
-              {deleting ? 'Deleting…' : 'Delete booking'}
-            </button>
-          </div>
-        </Modal>
       )}
     </div>
-  );
-}
-
-function NewBookingModal({
-  customer,
-  animals,
-  onClose,
-  onCreated,
-}: {
-  customer: Customer;
-  animals: Animal[];
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const [selectedAnimals, setSelectedAnimals] = useState<string[]>([]);
-  const [serviceType, setServiceType] = useState('boarding');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [price, setPrice] = useState('');
-  const [notes, setNotes] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  function toggleAnimal(id: string) {
-    setSelectedAnimals((s) => (s.includes(id) ? s.filter((a) => a !== id) : [...s, id]));
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (selectedAnimals.length === 0) {
-      setError('Select at least one pet.');
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    try {
-      await api.createBooking({
-        customer: customer._id,
-        animals: selectedAnimals,
-        serviceType,
-        startDate,
-        endDate,
-        notes: notes || undefined,
-        price: price ? Number(price) : undefined,
-      });
-      onCreated();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create booking');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <Modal title="New booking" onClose={onClose}>
-      {error && <div className="error-banner">{error}</div>}
-      <form onSubmit={handleSubmit}>
-        <div className="field">
-          <label>Pets</label>
-          {animals.map((a) => (
-            <label key={a._id} style={{ display: 'block', fontWeight: 400, marginBottom: 4 }}>
-              <input
-                type="checkbox"
-                checked={selectedAnimals.includes(a._id)}
-                onChange={() => toggleAnimal(a._id)}
-                style={{ marginRight: 8 }}
-              />
-              {a.name} ({a.species})
-            </label>
-          ))}
-        </div>
-        <div className="field">
-          <label>Service type</label>
-          <select value={serviceType} onChange={(e) => setServiceType(e.target.value)}>
-            <option value="boarding">Boarding</option>
-            <option value="daycare">Daycare</option>
-            <option value="grooming">Grooming</option>
-            <option value="walking">Walking</option>
-          </select>
-        </div>
-        <div className="field-row">
-          <div className="field">
-            <label>Start date</label>
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
-          </div>
-          <div className="field">
-            <label>End date</label>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
-          </div>
-        </div>
-        <div className="field">
-          <label>Price (£)</label>
-          <input type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
-        </div>
-        <div className="field">
-          <label>Notes</label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </div>
-        <div className="modal-actions">
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? 'Creating…' : 'Create booking'}
-          </button>
-        </div>
-      </form>
-    </Modal>
   );
 }
 

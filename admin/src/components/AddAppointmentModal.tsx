@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import * as api from '../api/client';
 import Modal from './Modal';
-import type { Customer } from '../types';
+import { annualLeaveOn } from '../utils/annualLeave';
+import { parseYmd } from '../utils/visitPlan';
+import type { AnnualLeave, Customer } from '../types';
 
 export default function AddAppointmentModal({
   customers,
+  annualLeave = [],
   onClose,
   onCreated,
 }: {
   customers: Customer[];
+  annualLeave?: AnnualLeave[];
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -31,6 +35,11 @@ export default function AddAppointmentModal({
     }
     if (!date || !time) {
       setError('Choose a date and time.');
+      return;
+    }
+    const leave = annualLeaveOn(parseYmd(date), annualLeave);
+    if (leave) {
+      setError(`This date is marked as Annual Leave (${leave.name}) in Settings > Invoices. Bookings are blocked on that day.`);
       return;
     }
     setBusy(true);
@@ -74,7 +83,7 @@ export default function AddAppointmentModal({
         <div className="field-row">
           <div className="field">
             <label>Date</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+            <input type="date" lang="en-GB" value={date} onChange={(e) => setDate(e.target.value)} required />
           </div>
           <div className="field">
             <label>Time</label>

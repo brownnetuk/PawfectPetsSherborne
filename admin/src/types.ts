@@ -292,6 +292,14 @@ export interface BankHoliday {
   createdAt: string;
 }
 
+export interface AnnualLeave {
+  _id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  createdAt: string;
+}
+
 export interface ExpenseCategoryOption {
   _id: string;
   name: string;

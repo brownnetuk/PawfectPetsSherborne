@@ -6,9 +6,10 @@ import NewBookingModal from '../components/NewBookingModal';
 import type { NewBookingInitial } from '../components/NewBookingModal';
 import ProductAvailabilityWarningModal from '../components/ProductAvailabilityWarningModal';
 import { PlusCircleIcon, TrashIcon } from '../components/icons';
+import { annualLeaveOn } from '../utils/annualLeave';
 import { availabilityMismatch } from '../utils/productAvailability';
 import { isVisitProduct, visitCountForProduct } from '../utils/visitMapping';
-import type { Animal, Appointment, BankHoliday, Customer, DayBooking, Product, VisitMapping } from '../types';
+import type { Animal, AnnualLeave, Appointment, BankHoliday, Customer, DayBooking, Product, VisitMapping } from '../types';
 
 type ViewMode = 'week' | 'month';
 
@@ -121,6 +122,7 @@ export default function BookingsPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [bankHolidays, setBankHolidays] = useState<BankHoliday[]>([]);
+  const [annualLeave, setAnnualLeave] = useState<AnnualLeave[]>([]);
   const [visitMapping, setVisitMapping] = useState<VisitMapping | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -141,6 +143,7 @@ export default function BookingsPage() {
     api.listAnimals().then(setAnimals).catch(() => {});
     api.listCustomers().then(setCustomers).catch(() => {});
     api.listBankHolidays().then(setBankHolidays).catch(() => {});
+    api.listAnnualLeave().then(setAnnualLeave).catch(() => {});
     api.listProducts().then(setProducts).catch(() => {});
     api.getVisitMapping().then(setVisitMapping).catch(() => {});
   }, []);
@@ -413,6 +416,7 @@ export default function BookingsPage() {
       {showAddAppointment && (
         <AddAppointmentModal
           customers={customers}
+          annualLeave={annualLeave}
           onClose={() => setShowAddAppointment(false)}
           onCreated={refreshDayBookings}
         />
@@ -422,6 +426,7 @@ export default function BookingsPage() {
         <NewBookingModal
           animals={animals}
           customers={customers}
+          annualLeave={annualLeave}
           initial={bookingModal === 'new' ? undefined : bookingModal}
           onClose={() => setBookingModal(null)}
           onCreated={() => {
@@ -462,20 +467,32 @@ export default function BookingsPage() {
                 const inCurrentMonth = viewMode === 'week' || date.getMonth() === anchorDate.getMonth();
                 const badges = badgesForDay(date);
                 const selected = selectedDate && isSameDay(date, selectedDate);
+                const leave = annualLeaveOn(date, annualLeave);
                 return (
                   <div
                     key={dateKey(date)}
                     onClick={() => setSelectedDate(date)}
+                    title={leave ? `Annual Leave: ${leave.name}` : undefined}
                     style={{
+                      position: 'relative',
                       minHeight: viewMode === 'week' ? 140 : 100,
                       padding: 8,
                       cursor: 'pointer',
                       borderRight: '1px solid var(--border)',
-                      background: selected ? 'var(--accent-light)' : isToday(date) ? '#eef6ff' : undefined,
+                      background: leave ? '#fef2f2' : selected ? 'var(--accent-light)' : isToday(date) ? '#eef6ff' : undefined,
                       outline: selected ? '2px solid var(--accent)' : undefined,
                       outlineOffset: -2,
                     }}
                   >
+                    {leave && (
+                      <svg
+                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+                        preserveAspectRatio="none"
+                      >
+                        <line x1="4" y1="4" x2="100%" y2="100%" stroke="#dc2626" strokeWidth="2" opacity="0.55" />
+                        <line x1="100%" y1="4" x2="4" y2="100%" stroke="#dc2626" strokeWidth="2" opacity="0.55" />
+                      </svg>
+                    )}
                     <div style={{ fontWeight: 700, color: inCurrentMonth ? 'var(--ink)' : 'var(--muted)', opacity: inCurrentMonth ? 1 : 0.6, marginBottom: 6 }}>
                       {date.getDate()}
                     </div>
@@ -531,6 +548,7 @@ export default function BookingsPage() {
             customers={customers}
             products={products}
             bankHolidays={bankHolidays}
+            annualLeave={annualLeaveOn(selectedDate, annualLeave)}
             visitMapping={visitMapping}
             showWalks={showWalks}
             showVisits={showVisits}
@@ -552,6 +570,7 @@ function DayDetailPanel({
   customers,
   products,
   bankHolidays,
+  annualLeave,
   visitMapping,
   showWalks,
   showVisits,
@@ -566,6 +585,7 @@ function DayDetailPanel({
   customers: Customer[];
   products: Product[];
   bankHolidays: BankHoliday[];
+  annualLeave?: AnnualLeave;
   visitMapping: VisitMapping | null;
   showWalks: boolean;
   showVisits: boolean;
@@ -754,6 +774,11 @@ function DayDetailPanel({
         </button>
       </div>
       {error && <div className="error-banner">{error}</div>}
+      {annualLeave && (
+        <div className="error-banner" style={{ background: '#fef2f2', color: '#b91c1c', borderColor: '#fecaca' }}>
+          Annual Leave: {annualLeave.name}. Nothing can be booked on this day.
+        </div>
+      )}
       {warning && (
         <ProductAvailabilityWarningModal
           message={warning.message}
@@ -1011,7 +1036,7 @@ function DayDetailPanel({
         </>
       )}
 
-      {recommended.length > 0 && (
+      {!annualLeave && recommended.length > 0 && (
         <>
           <div className="section-title">Recommended</div>
           <p style={{ color: 'var(--muted)', fontSize: '0.8rem', marginTop: -8 }}>
@@ -1053,41 +1078,45 @@ function DayDetailPanel({
         </>
       )}
 
-      <div className="section-title">Add Dog</div>
-      <div className="field">
-        <select value={addAnimalId} onChange={(e) => handlePickAnimal(e.target.value)}>
-          <option value="">Select a dog…</option>
-          {animals
-            .filter((a) => a.species === 'dog')
-            .map((a) => (
-              <option key={a._id} value={a._id}>
-                {a.name} ({ownerOf(a.customer)?.name ?? 'unknown owner'})
-              </option>
-            ))}
-        </select>
-      </div>
-      <div className="field">
-        <select value={addProductId} onChange={(e) => setAddProductId(e.target.value)}>
-          <option value="">Select a product…</option>
-          {products.map((p) => (
-            <option key={p._id} value={p._id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="field">
-        <label>Qty</label>
-        <input
-          type="number"
-          min={1}
-          value={addQuantity}
-          onChange={(e) => setAddQuantity(Math.max(1, Number(e.target.value)))}
-        />
-      </div>
-      <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleAdd} disabled={busy}>
-        {busy ? 'Adding…' : 'Add to this day'}
-      </button>
+      {!annualLeave && (
+        <>
+          <div className="section-title">Add Dog</div>
+          <div className="field">
+            <select value={addAnimalId} onChange={(e) => handlePickAnimal(e.target.value)}>
+              <option value="">Select a dog…</option>
+              {animals
+                .filter((a) => a.species === 'dog')
+                .map((a) => (
+                  <option key={a._id} value={a._id}>
+                    {a.name} ({ownerOf(a.customer)?.name ?? 'unknown owner'})
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div className="field">
+            <select value={addProductId} onChange={(e) => setAddProductId(e.target.value)}>
+              <option value="">Select a product…</option>
+              {products.map((p) => (
+                <option key={p._id} value={p._id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label>Qty</label>
+            <input
+              type="number"
+              min={1}
+              value={addQuantity}
+              onChange={(e) => setAddQuantity(Math.max(1, Number(e.target.value)))}
+            />
+          </div>
+          <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleAdd} disabled={busy}>
+            {busy ? 'Adding…' : 'Add to this day'}
+          </button>
+        </>
+      )}
     </div>
   );
 }

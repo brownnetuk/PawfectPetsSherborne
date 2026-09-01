@@ -17,6 +17,7 @@ import { buildItemsTableHtml, escapeHtml, interpolateBody, interpolateSubject } 
 import { PERMISSION_CATALOG } from '../utils/permissionCatalog';
 import { AVAILABILITY_LABELS } from '../utils/productAvailability';
 import type {
+  AnnualLeave,
   BankAccount,
   BankHoliday,
   BusinessInfo,
@@ -2577,6 +2578,7 @@ function InvoicesSettingsTab() {
     <div>
       <ProductsCard />
       <BankHolidaysCard />
+      <AnnualLeaveCard />
       <PdfTemplateDesigner />
       <InvoiceTermsCard />
       <BankDetailsCard />
@@ -3656,6 +3658,194 @@ function EditBankHolidayModal({
           </button>
           <button type="submit" className="btn btn-primary" disabled={submitting}>
             {submitting ? 'Saving…' : bankHoliday ? 'Save bank holiday' : 'Add bank holiday'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function AnnualLeaveCard() {
+  const [annualLeave, setAnnualLeave] = useState<AnnualLeave[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState<AnnualLeave | null>(null);
+  const [deleting, setDeleting] = useState<AnnualLeave | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function refresh() {
+    api
+      .listAnnualLeave()
+      .then(setAnnualLeave)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load annual leave'));
+  }
+  useEffect(refresh, []);
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteAnnualLeave(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete annual leave');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <h2>Annual Leave</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+            Date ranges blocked off on the Bookings calendar -- staff can't add a walk, visit, or appointment on
+            these days.
+          </p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+          Add annual leave
+        </button>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      {!annualLeave || annualLeave.length === 0 ? (
+        <div className="empty-state">{annualLeave === null ? 'Loading…' : 'No annual leave set.'}</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Dates</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {annualLeave.map((a) => (
+              <tr key={a._id}>
+                <td>{a.name}</td>
+                <td>
+                  {new Date(a.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  {' – '}
+                  {new Date(a.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </td>
+                <td>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    <button className="icon-btn" title="Edit" onClick={() => setEditing(a)}>
+                      <PencilIcon />
+                    </button>
+                    <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(a)}>
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {(showNew || editing) && (
+        <EditAnnualLeaveModal
+          annualLeave={editing}
+          onClose={() => {
+            setShowNew(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setShowNew(false);
+            setEditing(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal title="Delete annual leave?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently removes <strong>{deleting.name}</strong> and unblocks those dates on the Bookings
+            calendar.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete annual leave'}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function EditAnnualLeaveModal({
+  annualLeave,
+  onClose,
+  onSaved,
+}: {
+  annualLeave: AnnualLeave | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(annualLeave?.name ?? '');
+  const [startDate, setStartDate] = useState(annualLeave?.startDate.slice(0, 10) ?? '');
+  const [endDate, setEndDate] = useState(annualLeave?.endDate.slice(0, 10) ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (endDate < startDate) {
+      setError('End date must be on or after the start date.');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const input = { name, startDate, endDate };
+      if (annualLeave) {
+        await api.updateAnnualLeave(annualLeave._id, input);
+      } else {
+        await api.createAnnualLeave(input);
+      }
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save annual leave');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title={annualLeave ? 'Edit annual leave' : 'Add annual leave'} onClose={onClose}>
+      {error && <div className="error-banner">{error}</div>}
+      <form onSubmit={handleSubmit}>
+        <div className="field">
+          <label>Name</label>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required autoFocus placeholder="e.g. Christmas Break" />
+        </div>
+        <div className="field-row">
+          <div className="field">
+            <label>Start Date</label>
+            <input type="date" lang="en-GB" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+          </div>
+          <div className="field">
+            <label>End Date</label>
+            <input type="date" lang="en-GB" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
+            {submitting ? 'Saving…' : annualLeave ? 'Save annual leave' : 'Add annual leave'}
           </button>
         </div>
       </form>

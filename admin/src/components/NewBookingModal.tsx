@@ -3,7 +3,13 @@ import * as api from '../api/client';
 import Modal from './Modal';
 import { addDays, buildVisitPlan, dateKey, parseYmd } from '../utils/visitPlan';
 import type { VisitCount, VisitTime } from '../utils/visitPlan';
-import type { Animal, Customer, DayBooking } from '../types';
+import { rangeOverlapsAnnualLeave } from '../utils/annualLeave';
+import type { Animal, AnnualLeave, Customer, DayBooking } from '../types';
+
+// Reserves enough vertical space for a two-line label so a longer label in
+// one column of a field-row (e.g. "Visits on First Date") doesn't push its
+// input down relative to the shorter labels beside it ("Start Date", "AM/PM").
+const ROW_LABEL_STYLE: React.CSSProperties = { minHeight: 34 };
 
 function animalId(animal: DayBooking['animal']): string {
   return typeof animal === 'string' ? animal : animal._id;
@@ -33,17 +39,24 @@ export interface NewBookingInitial {
 export default function NewBookingModal({
   animals,
   customers,
+  annualLeave = [],
   initial,
+  initialCustomerId,
   onClose,
   onCreated,
 }: {
   animals: Animal[];
   customers: Customer[];
+  annualLeave?: AnnualLeave[];
   initial?: NewBookingInitial;
+  // Pre-selects the customer without the full edit machinery `initial`
+  // needs -- used by the Customer Detail page's Bookings tab, which already
+  // knows the customer and just wants this modal opened ready to go.
+  initialCustomerId?: string;
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [custId, setCustId] = useState(initial?.customerId ?? '');
+  const [custId, setCustId] = useState(initial?.customerId ?? initialCustomerId ?? '');
   const [animalIds, setAnimalIds] = useState<string[]>(initial?.animalIds ?? []);
   const [visitsPerDay, setVisitsPerDay] = useState<VisitCount>(initial?.visitsPerDay ?? '1');
   const [startDate, setStartDate] = useState(initial?.startDate ?? '');
@@ -113,6 +126,10 @@ export default function NewBookingModal({
     const end = parseYmd(endDate);
     if (end < start) {
       setError('End date must be on or after the start date.');
+      return;
+    }
+    if (rangeOverlapsAnnualLeave(start, end, annualLeave)) {
+      setError('This date range overlaps a day marked as Annual Leave in Settings > Invoices. Bookings are blocked on those days.');
       return;
     }
 
@@ -270,18 +287,18 @@ export default function NewBookingModal({
         </div>
         <div className="field-row" style={{ gridTemplateColumns: '1.4fr 1fr 1fr' }}>
           <div className="field">
-            <label>Start Date</label>
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+            <label style={ROW_LABEL_STYLE}>Start Date</label>
+            <input type="date" lang="en-GB" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
           </div>
           <div className="field">
-            <label>Visits on First Date</label>
+            <label style={ROW_LABEL_STYLE}>Visits on First Date</label>
             <select value={visitsFirstDay} onChange={(e) => setVisitsFirstDay(e.target.value as VisitCount)}>
               <option value="1">1</option>
               <option value="2">2</option>
             </select>
           </div>
           <div className="field">
-            <label>AM/PM</label>
+            <label style={ROW_LABEL_STYLE}>AM/PM</label>
             <select
               value={amPmFirstDay}
               onChange={(e) => setAmPmFirstDay(e.target.value as VisitTime)}
@@ -295,18 +312,18 @@ export default function NewBookingModal({
         </div>
         <div className="field-row" style={{ gridTemplateColumns: '1.4fr 1fr 1fr' }}>
           <div className="field">
-            <label>End Date</label>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+            <label style={ROW_LABEL_STYLE}>End Date</label>
+            <input type="date" lang="en-GB" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
           </div>
           <div className="field">
-            <label>Visits on End Date</label>
+            <label style={ROW_LABEL_STYLE}>Visits on End Date</label>
             <select value={visitsLastDay} onChange={(e) => setVisitsLastDay(e.target.value as VisitCount)}>
               <option value="1">1</option>
               <option value="2">2</option>
             </select>
           </div>
           <div className="field">
-            <label>AM/PM</label>
+            <label style={ROW_LABEL_STYLE}>AM/PM</label>
             <select
               value={amPmLastDay}
               onChange={(e) => setAmPmLastDay(e.target.value as VisitTime)}
