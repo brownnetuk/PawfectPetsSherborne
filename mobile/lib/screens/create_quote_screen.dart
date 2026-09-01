@@ -9,7 +9,9 @@ import '../models/customer.dart';
 import '../models/invoice.dart';
 import '../models/product.dart';
 import '../models/quote.dart';
+import '../models/visit_mapping.dart';
 import '../utils/product_availability.dart';
+import '../utils/visit_plan.dart';
 
 class _FormData {
   final List<Product> products;
@@ -17,7 +19,8 @@ class _FormData {
   final Customer? customer;
   final List<Animal> pets;
   final List<BankHoliday> bankHolidays;
-  _FormData(this.products, this.terms, this.customer, this.pets, this.bankHolidays);
+  final VisitMapping visitMapping;
+  _FormData(this.products, this.terms, this.customer, this.pets, this.bankHolidays, this.visitMapping);
 }
 
 /// Create or edit a quote against an existing customer ([customerId]) or a
@@ -56,6 +59,17 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
   List<InvoiceTerm> _terms = [];
   InvoiceTerm? _selectedTerm;
 
+  // "Visits" toggle: auto-populate line items from the Visits mapping.
+  bool _showVisits = false;
+  final Set<String> _visitAnimalIds = {};
+  int _visitsPerDay = 1;
+  DateTime? _visitStart;
+  DateTime? _visitEnd;
+  int _visitsFirstDay = 1;
+  int _visitsLastDay = 1;
+  String? _visitError;
+  String? _visitInfo;
+
   @override
   void initState() {
     super.initState();
@@ -70,7 +84,8 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
         pets = await repo.listAnimals(widget.customerId!);
       }
       final bankHolidays = await repo.listBankHolidays();
-      return _FormData(products, terms, customer, pets, bankHolidays);
+      final visitMapping = await repo.getVisitMapping();
+      return _FormData(products, terms, customer, pets, bankHolidays, visitMapping);
     }();
     _dataFuture.then((data) async {
       if (!mounted) return;
@@ -147,6 +162,202 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
   double get _total => _items.fold(0, (sum, item) => sum + item.lineTotal);
 
   void _addItem() => setState(() => _items.add(_LineItemEntry()));
+
+  Future<void> _pickVisitDate({required bool isStart}) async {
+    final initial = (isStart ? _visitStart : _visitEnd) ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() {
+        final d = DateTime(picked.year, picked.month, picked.day);
+        if (isStart) {
+          _visitStart = d;
+        } else {
+          _visitEnd = d;
+        }
+      });
+    }
+  }
+
+  // Runs the same Visits-mapping plan the Bookings page uses and merges the
+  // aggregated products (summed across every selected animal and day) into the
+  // line items, keeping anything already typed.
+  void _saveVisits(_FormData data) {
+    setState(() {
+      _visitError = null;
+      _visitInfo = null;
+    });
+    if (_visitAnimalIds.isEmpty) {
+      setState(() => _visitError = 'Choose at least one animal.');
+      return;
+    }
+    if (_visitStart == null || _visitEnd == null) {
+      setState(() => _visitError = 'Choose a start and end date.');
+      return;
+    }
+    if (_visitEnd!.isBefore(_visitStart!)) {
+      setState(() => _visitError = 'End date must be on or after the start date.');
+      return;
+    }
+    final result = buildVisitPlan(
+      start: _visitStart!,
+      end: _visitEnd!,
+      visitsPerDay: _visitsPerDay,
+      visitsFirstDay: _visitsFirstDay,
+      visitsLastDay: _visitsLastDay,
+      mapping: data.visitMapping,
+      bankHolidays: data.bankHolidays,
+    );
+    if (result.missing.isNotEmpty) {
+      setState(() => _visitError =
+          'No product is configured in Settings > Bookings > Visits for: ${result.missing.join(', ')}.');
+      return;
+    }
+    final animalCount = _visitAnimalIds.length;
+    final byProduct = <String, int>{};
+    for (final d in result.plan) {
+      byProduct[d.productId] = (byProduct[d.productId] ?? 0) + animalCount;
+    }
+    setState(() {
+      // Drop still-blank starter rows, keep anything with a product chosen.
+      final kept = _items.where((e) => e.product != null).toList();
+      for (final e in _items) {
+        if (!kept.contains(e)) e.dispose();
+      }
+      _items
+        ..clear()
+        ..addAll(kept);
+      byProduct.forEach((pid, qty) {
+        Product? product;
+        for (final p in data.products) {
+          if (p.id == pid) product = p;
+        }
+        if (product == null) return;
+        _LineItemEntry? existing;
+        for (final e in _items) {
+          if (e.product?.id == pid) existing = e;
+        }
+        if (existing != null) {
+          final cur = double.tryParse(existing.quantity.text.trim()) ?? 0;
+          final total = cur + qty;
+          existing.quantity.text = total == total.roundToDouble() ? total.toStringAsFixed(0) : total.toStringAsFixed(2);
+        } else {
+          _items.add(_LineItemEntry()
+            ..product = product
+            ..quantity.text = '$qty');
+        }
+      });
+      if (_items.isEmpty) _items.add(_LineItemEntry());
+      _visitInfo = 'Added to line items.';
+    });
+  }
+
+  Widget _visitsSection(_FormData data) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Visits'),
+          subtitle: const Text('Auto-populate line items from the Visits mapping'),
+          value: _showVisits,
+          onChanged: (v) => setState(() => _showVisits = v),
+        ),
+        if (_showVisits) ...[
+          Text('Animals', style: TextStyle(color: Colors.grey.shade700, fontSize: 12, fontWeight: FontWeight.w600)),
+          if (widget.isManual || data.pets.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(
+                widget.isManual ? 'Select a customer first.' : 'This customer has no animals on file.',
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+            )
+          else
+            for (final p in data.pets)
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                controlAffinity: ListTileControlAffinity.leading,
+                value: _visitAnimalIds.contains(p.id),
+                onChanged: (v) => setState(() {
+                  if (v == true) {
+                    _visitAnimalIds.add(p.id);
+                  } else {
+                    _visitAnimalIds.remove(p.id);
+                  }
+                }),
+                title: Text('${p.name}${p.species.isNotEmpty ? ' (${p.species})' : ''}'),
+              ),
+          const SizedBox(height: 8),
+          _visitsCountDropdown('How many visits per day', _visitsPerDay, (v) => setState(() => _visitsPerDay = v)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _visitDateField('Start date', _visitStart, () => _pickVisitDate(isStart: true))),
+              const SizedBox(width: 12),
+              Expanded(child: _visitsCountDropdown('Visits, first', _visitsFirstDay, (v) => setState(() => _visitsFirstDay = v))),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _visitDateField('End date', _visitEnd, () => _pickVisitDate(isStart: false))),
+              const SizedBox(width: 12),
+              Expanded(child: _visitsCountDropdown('Visits, last', _visitsLastDay, (v) => setState(() => _visitsLastDay = v))),
+            ],
+          ),
+          if (_visitError != null) ...[
+            const SizedBox(height: 8),
+            Text(_visitError!, style: TextStyle(color: Colors.red.shade700, fontSize: 13)),
+          ],
+          if (_visitInfo != null) ...[
+            const SizedBox(height: 8),
+            Text(_visitInfo!, style: TextStyle(color: Colors.green.shade700, fontSize: 13)),
+          ],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => _saveVisits(data),
+              icon: const Icon(Icons.playlist_add, size: 18),
+              label: const Text('Add to line items'),
+            ),
+          ),
+          const Divider(),
+        ],
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _visitsCountDropdown(String label, int value, ValueChanged<int> onChanged) {
+    return DropdownButtonFormField<int>(
+      initialValue: value,
+      isDense: true,
+      decoration: InputDecoration(labelText: label, isDense: true),
+      items: const [
+        DropdownMenuItem(value: 1, child: Text('1')),
+        DropdownMenuItem(value: 2, child: Text('2')),
+      ],
+      onChanged: (v) {
+        if (v != null) onChanged(v);
+      },
+    );
+  }
+
+  Widget _visitDateField(String label, DateTime? date, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: InputDecorator(
+        decoration: InputDecoration(labelText: label, isDense: true),
+        child: Text(date == null ? 'Choose' : _formatDate(date)),
+      ),
+    );
+  }
 
   Future<void> _confirmRemoveItem(int index) async {
     final ok = await showDialog<bool>(
@@ -321,6 +532,7 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
         _dateRow('Issue date', _issueDate, () => _pickDate(isIssue: true)),
         _dateRow('Valid until', _validUntil, () => _pickDate(isIssue: false)),
         const SizedBox(height: 16),
+        _visitsSection(data),
         _sectionTitle('Line items'),
         ..._items.asMap().entries.map(
               (entry) => _LineItemEditor(

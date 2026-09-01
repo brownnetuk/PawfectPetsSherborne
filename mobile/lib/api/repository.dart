@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import '../models/animal.dart';
+import '../models/appointment.dart';
 import '../models/audit_log_entry.dart';
 import '../models/bank_account.dart';
 import '../models/bank_holiday.dart';
@@ -123,12 +124,14 @@ class Repository {
     required DateTime date,
     required String productId,
     int quantity = 1,
+    String? visitTime,
   }) async =>
       DayBooking.fromJson(await _client.post('/day-bookings', {
         'animal': animalId,
         'date': _ymd(date),
         'product': productId,
         'quantity': quantity,
+        if (visitTime != null) 'visitTime': visitTime,
       }));
 
   Future<DayBooking> updateDayBooking(
@@ -150,6 +153,27 @@ class Repository {
   /// The Settings > Bookings > Visits product mapping (visit count × day-type).
   Future<VisitMapping> getVisitMapping() async =>
       VisitMapping.fromJson(await _client.get('/settings/visits'));
+
+  // --- appointments (standalone calendar entries, shown blue) ---
+  Future<List<Appointment>> listAppointments({required DateTime from, required DateTime to}) async =>
+      (await _client.getList('/appointments', query: {'from': _ymd(from), 'to': _ymd(to)}))
+          .map((e) => Appointment.fromJson(e))
+          .toList();
+
+  Future<Appointment> createAppointment({
+    required String customerId,
+    required String reason,
+    required DateTime date,
+    required String time,
+  }) async =>
+      Appointment.fromJson(await _client.post('/appointments', {
+        'customer': customerId,
+        'reason': reason,
+        'date': _ymd(date),
+        'time': time,
+      }));
+
+  Future<void> deleteAppointment(String id) => _client.delete('/appointments/$id');
 
   /// All animals as lightweight refs (id, name, species, owner id), for the
   /// bookings calendar's "Add dog" / "Recommended" lists.

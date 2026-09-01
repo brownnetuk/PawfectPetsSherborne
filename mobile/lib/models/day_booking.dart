@@ -15,6 +15,9 @@ class DayBooking {
   // Set once this entry has been included on a generated invoice; null while
   // it's still billable (Generate Invoices only picks up uninvoiced entries).
   final String? invoiceId;
+  // Explicit AM/PM override for a single-visit day ('AM' | 'PM'); null means
+  // fall back to inferring it from the run's start/end.
+  final String? visitTime;
 
   DayBooking({
     required this.id,
@@ -29,6 +32,7 @@ class DayBooking {
     required this.productPrice,
     required this.quantity,
     this.invoiceId,
+    this.visitTime,
   });
 
   double get lineTotal => productPrice * quantity;
@@ -55,6 +59,7 @@ class DayBooking {
       invoiceId: invoice == null
           ? null
           : (invoice is Map<String, dynamic> ? invoice['_id'] as String? : invoice as String?),
+      visitTime: json['visitTime'] as String?,
     );
   }
 }

@@ -4,15 +4,20 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
+import '../models/appointment.dart';
 import '../models/bank_holiday.dart';
 import '../models/customer.dart';
 import '../models/day_booking.dart';
 import '../models/product.dart';
 import '../models/visit_mapping.dart';
 import '../utils/product_availability.dart';
+import 'add_appointment_sheet.dart';
 import 'generate_invoices_sheet.dart';
 import 'home_shell.dart';
 import 'visits_booking_sheet.dart';
+
+// The calendar's day data: bookings (walks + visits) and appointments.
+typedef _DayData = (List<DayBooking> bookings, List<Appointment> appointments);
 
 // Customer.regularDays weekday keys, indexed by DateTime.weekday (1=Mon..7=Sun).
 const _weekdayKeys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -42,7 +47,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
   List<BankHoliday> _bankHolidays = [];
   VisitMapping _visitMapping = VisitMapping();
 
-  late Future<List<DayBooking>> _future;
+  late Future<_DayData> _future;
 
   static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
@@ -55,7 +60,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     _future = _load();
   }
 
-  Future<List<DayBooking>> _load() async {
+  Future<_DayData> _load() async {
     final repo = context.read<Repository>();
     if (_customers == null) {
       final results = await Future.wait([
@@ -85,7 +90,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
     final padFrom = DateTime(visibleFrom.year, visibleFrom.month, visibleFrom.day - 1);
     final padTo = DateTime(visibleTo.year, visibleTo.month, visibleTo.day + 1);
-    return repo.listDayBookings(from: padFrom, to: padTo);
+    final results = await Future.wait([
+      repo.listDayBookings(from: padFrom, to: padTo),
+      repo.listAppointments(from: padFrom, to: padTo),
+    ]);
+    return (results[0] as List<DayBooking>, results[1] as List<Appointment>);
   }
 
   void _reload() => setState(() => _future = _load());
@@ -219,6 +228,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
               subtitle: const Text('Book visits across a date range'),
               onTap: () => Navigator.of(context).pop('visits'),
             ),
+            ListTile(
+              leading: Icon(Icons.event_note, color: Colors.blue.shade600),
+              title: const Text('Appointment'),
+              subtitle: const Text('A standalone calendar entry'),
+              onTap: () => Navigator.of(context).pop('appointment'),
+            ),
           ],
         ),
       ),
@@ -228,6 +243,41 @@ class _BookingsScreenState extends State<BookingsScreen> {
       await _openAddDog(current);
     } else if (choice == 'visits') {
       await _openVisits();
+    } else if (choice == 'appointment') {
+      await _openAddAppointment();
+    }
+  }
+
+  Future<void> _openAddAppointment() async {
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => AddAppointmentSheet(customers: _customers ?? const [], date: _day),
+    );
+    if (saved == true) _reload();
+  }
+
+  Future<void> _confirmDeleteAppointment(Appointment a) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete appointment?'),
+        content: Text('Remove the appointment${a.customerName.isNotEmpty ? ' with ${a.customerName}' : ''}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('Delete', style: TextStyle(color: Colors.red.shade600)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await context.read<Repository>().deleteAppointment(a.id);
+      _reload();
+    } catch (e) {
+      _snack(e is ApiException ? e.message : 'Failed to delete appointment');
     }
   }
 
@@ -338,11 +388,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
         ],
       ),
       floatingActionButton: _view == _BookingView.day
-          ? FutureBuilder<List<DayBooking>>(
+          ? FutureBuilder<_DayData>(
               future: _future,
               builder: (context, snapshot) => FloatingActionButton.extended(
                 onPressed: () => _openScheduleMenu(
-                  (snapshot.data ?? const []).where((b) => _sameDay(b.date, _day)).toList(),
+                  (snapshot.data?.$1 ?? const []).where((b) => _sameDay(b.date, _day)).toList(),
                 ),
                 icon: const Icon(Icons.add),
                 label: const Text('Schedule'),
@@ -357,7 +407,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
           Expanded(
             child: RefreshIndicator(
               onRefresh: _refresh,
-              child: FutureBuilder<List<DayBooking>>(
+              child: FutureBuilder<_DayData>(
                 future: _future,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -372,8 +422,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
                       Center(child: Text(message, textAlign: TextAlign.center)),
                     ]);
                   }
-                  final bookings = snapshot.data ?? [];
-                  final body = _view == _BookingView.week ? _weekBody(bookings) : _dayBody(bookings);
+                  final (bookings, appointments) = snapshot.data ?? (<DayBooking>[], <Appointment>[]);
+                  final body = _view == _BookingView.week
+                      ? _weekBody(bookings, appointments)
+                      : _dayBody(bookings, appointments);
                   // Swipe left/right to move forward/back a day (day view) or a
                   // week (week view), mirroring the navigator arrows.
                   return GestureDetector(
@@ -447,8 +499,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
-  Widget _dayBody(List<DayBooking> all) {
+  Widget _dayBody(List<DayBooking> all, List<Appointment> allAppointments) {
     final dayItems = all.where((b) => _sameDay(b.date, _day)).toList();
+    final dayAppointments = allAppointments.where((a) => _sameDay(a.date, _day)).toList();
     final walkGroups = _groupByAnimal(dayItems.where((b) => !_visitMapping.isVisitProduct(b.productId)).toList());
     final visitGroups = _groupByAnimal(dayItems.where((b) => _visitMapping.isVisitProduct(b.productId)).toList());
     final addedIds = dayItems.map((b) => b.animalId).toSet();
@@ -465,7 +518,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
       padding: const EdgeInsets.only(bottom: 96),
       children: [
         _revenueBanner('Day revenue', dayTotal),
-        if (walkGroups.isEmpty && visitGroups.isEmpty)
+        if (walkGroups.isEmpty && visitGroups.isEmpty && dayAppointments.isEmpty)
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Text('Nothing booked.'),
@@ -477,6 +530,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (visitGroups.isNotEmpty) ...[
           _sectionTitle('Visits'),
           for (final group in visitGroups) _animalCard(group, all),
+        ],
+        if (dayAppointments.isNotEmpty) ...[
+          _sectionTitle('Appointments'),
+          for (final a in dayAppointments) _appointmentTile(a),
         ],
         if (recommended.isNotEmpty) ...[
           _sectionTitle('Recommended'),
@@ -503,6 +560,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final count = _visitMapping.visitCountForProduct(b.productId);
     if (count == null) return null;
     if (count == 2) return 'AM & PM';
+    // Prefer an explicit stored override; otherwise infer from the run.
+    if (b.visitTime != null && b.visitTime!.isNotEmpty) return b.visitTime;
     bool visitOn(int deltaDays) {
       final d = DateTime(b.date.year, b.date.month, b.date.day + deltaDays);
       return all.any((x) =>
@@ -518,7 +577,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
   bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 
-  Widget _weekBody(List<DayBooking> all) {
+  Widget _weekBody(List<DayBooking> all, List<Appointment> allAppointments) {
     final start = _weekStart;
     final today = _dateOnly(DateTime.now());
     // Sum only the visible week (the fetched list is padded ±1 day for AM/PM).
@@ -531,6 +590,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     for (int i = 0; i < 7; i++) {
       final date = DateTime(start.year, start.month, start.day + i);
       final dayItems = all.where((b) => _sameDay(b.date, date)).toList();
+      final dayAppointments = allAppointments.where((a) => _sameDay(a.date, date)).toList();
       final groups = _groupByAnimal(dayItems);
       final dayTotal = dayItems.fold<double>(0, (s, b) => s + b.lineTotal);
       final isToday = today == date;
@@ -553,7 +613,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                 const Spacer(),
                 Text(
                   groups.isEmpty
-                      ? '—'
+                      ? (dayAppointments.isEmpty ? '—' : '${dayAppointments.length} appt${dayAppointments.length == 1 ? '' : 's'}')
                       : '${groups.length} dog${groups.length == 1 ? '' : 's'} · ${_money.format(dayTotal)}',
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
@@ -564,7 +624,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
           ),
         ),
       );
-      if (groups.isEmpty) {
+      if (groups.isEmpty && dayAppointments.isEmpty) {
         children.add(Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: Text('Nothing booked.', style: TextStyle(color: Colors.grey.shade600)),
@@ -572,6 +632,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
       } else {
         for (final g in groups) {
           children.add(_animalCard(g, all));
+        }
+        for (final a in dayAppointments) {
+          children.add(_appointmentTile(a));
         }
       }
     }
@@ -623,6 +686,23 @@ class _BookingsScreenState extends State<BookingsScreen> {
       subtitle: Text(subtitle),
       trailing: Text(_money.format(b.lineTotal), style: const TextStyle(fontWeight: FontWeight.w600)),
       onTap: () => _editEntry(b),
+    );
+  }
+
+  Widget _appointmentTile(Appointment a) {
+    final subtitleParts = [
+      if (a.time.isNotEmpty) a.time,
+      if (a.reason.isNotEmpty) a.reason,
+    ];
+    return ListTile(
+      leading: Icon(Icons.event_note, color: Colors.blue.shade600),
+      title: Text(a.customerName.isEmpty ? (a.reason.isEmpty ? 'Appointment' : a.reason) : a.customerName),
+      subtitle: subtitleParts.isEmpty ? null : Text(subtitleParts.join(' · ')),
+      trailing: IconButton(
+        icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
+        tooltip: 'Delete',
+        onPressed: () => _confirmDeleteAppointment(a),
+      ),
     );
   }
 
