@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as api from '../api/client';
+import NewBookingModal from '../components/NewBookingModal';
 import ProductAvailabilityWarningModal from '../components/ProductAvailabilityWarningModal';
 import { PlusCircleIcon, TrashIcon } from '../components/icons';
 import { availabilityMismatch } from '../utils/productAvailability';
@@ -114,6 +115,7 @@ export default function BookingsPage() {
   const [bankHolidays, setBankHolidays] = useState<BankHoliday[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showNewBooking, setShowNewBooking] = useState(false);
 
   const weeks = useMemo(() => buildWeeks(viewMode, anchorDate), [viewMode, anchorDate]);
 
@@ -169,15 +171,31 @@ export default function BookingsPage() {
           </button>
           <h2 style={{ margin: 0 }}>{rangeLabel(viewMode, weeks, anchorDate)}</h2>
         </div>
-        <select
-          className="select-inline"
-          value={viewMode}
-          onChange={(e) => setViewMode(e.target.value as ViewMode)}
-        >
-          <option value="week">This Week</option>
-          <option value="month">This Month</option>
-        </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <select
+            className="select-inline"
+            value={viewMode}
+            onChange={(e) => setViewMode(e.target.value as ViewMode)}
+          >
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+          </select>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowNewBooking(true)}>
+            New Booking
+          </button>
+        </div>
       </div>
+
+      {showNewBooking && (
+        <NewBookingModal
+          animals={animals}
+          customers={customers}
+          onClose={() => setShowNewBooking(false)}
+          onCreated={() => {
+            refreshDayBookings();
+          }}
+        />
+      )}
 
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         <div className="card" style={{ padding: 0, flex: 1, minWidth: 0 }}>
