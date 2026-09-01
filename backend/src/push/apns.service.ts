@@ -36,11 +36,26 @@ export class ApnsService {
   private cachedJwt?: string;
   private cachedAt = 0;
 
+  // Rebuilds a valid PEM from APNS_KEY no matter how the env mangled it:
+  // real newlines, literal "\n", spaces instead of newlines (common when a
+  // .p8 gets pasted onto one line), or base64 of the whole file all work.
   private loadKey(): string | null {
-    const raw = process.env.APNS_KEY;
+    let raw = process.env.APNS_KEY?.trim();
     if (!raw) return null;
-    const withNewlines = raw.includes('BEGIN') ? raw.replace(/\\n/g, '\n') : Buffer.from(raw, 'base64').toString('utf8');
-    return withNewlines.includes('BEGIN') ? withNewlines : null;
+    if (!raw.includes('BEGIN')) {
+      try {
+        raw = Buffer.from(raw, 'base64').toString('utf8');
+      } catch {
+        return null;
+      }
+    }
+    const match = raw.match(/-----BEGIN [^-]+-----([\s\S]*?)-----END [^-]+-----/);
+    if (!match) return null;
+    // Keep only base64 chars, then re-wrap at 64 columns as PEM requires.
+    const body = match[1].replace(/[^A-Za-z0-9+/=]/g, '');
+    if (!body) return null;
+    const wrapped = body.match(/.{1,64}/g)?.join('\n') ?? body;
+    return `-----BEGIN PRIVATE KEY-----\n${wrapped}\n-----END PRIVATE KEY-----\n`;
   }
 
   get configured(): boolean {
