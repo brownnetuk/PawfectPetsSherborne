@@ -10,6 +10,7 @@ import {
   BusinessInfo,
   BusinessInfoSchema,
 } from '../settings/schemas/business-info.schema';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { SettingsModule } from '../settings/settings.module';
 import { InvoicesController } from './invoices.controller';
 import { InvoicesService } from './invoices.service';
@@ -28,6 +29,7 @@ import { Invoice, InvoiceSchema } from './schemas/invoice.schema';
     ]),
     SettingsModule,
     AuditLogModule,
+    NotificationsModule,
   ],
   controllers: [InvoicesController],
   providers: [InvoicesService],

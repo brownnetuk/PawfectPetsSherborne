@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { API_URL } from '../api/client';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -37,7 +38,16 @@ import type {
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
 
-type Tab = 'business' | 'staff' | 'email' | 'templates' | 'invoices' | 'bookings' | 'forms' | 'financial';
+type Tab =
+  | 'business'
+  | 'staff'
+  | 'email'
+  | 'templates'
+  | 'invoices'
+  | 'bookings'
+  | 'forms'
+  | 'financial'
+  | 'notifications';
 
 const TAB_LABELS: Record<Tab, string> = {
   business: 'Business Info',
@@ -48,6 +58,7 @@ const TAB_LABELS: Record<Tab, string> = {
   bookings: 'Bookings',
   forms: 'Forms',
   financial: 'Finance',
+  notifications: 'Notifications',
 };
 
 export default function SettingsPage() {
@@ -60,7 +71,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="tabs">
-        {(['business', 'staff', 'email', 'templates', 'invoices', 'bookings', 'forms', 'financial'] as Tab[]).map((t) => (
+        {(['business', 'staff', 'email', 'templates', 'invoices', 'bookings', 'forms', 'financial', 'notifications'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -75,6 +86,7 @@ export default function SettingsPage() {
       {tab === 'bookings' && <BookingsSettingsTab />}
       {tab === 'forms' && <FormsTab />}
       {tab === 'financial' && <FinancialTab />}
+      {tab === 'notifications' && <NotificationsSettingsTab />}
     </div>
   );
 }
@@ -4251,3 +4263,115 @@ function EditPaymentMethodModal({
   );
 }
 
+
+// Settings > Notifications: the global push/notification preferences, mirroring
+// the mobile app's Notifications page (backed by /settings/notifications).
+const LEAD_OPTIONS: { value: number; label: string }[] = [
+  { value: 15, label: '15 minutes before' },
+  { value: 30, label: '30 minutes before' },
+  { value: 45, label: '45 minutes before' },
+  { value: 60, label: '1 hour before' },
+  { value: 120, label: '2 hours before' },
+  { value: 180, label: '3 hours before' },
+];
+
+function NotificationsSettingsTab() {
+  const [settings, setSettings] = useState<api.NotificationSettings | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api
+      .getNotificationSettings()
+      .then(setSettings)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load notification settings'));
+  }, []);
+
+  async function save(patch: Partial<api.NotificationSettings>) {
+    if (!settings) return;
+    const previous = settings;
+    setSettings({ ...settings, ...patch });
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await api.updateNotificationSettings(patch);
+      setSettings(saved);
+    } catch (err) {
+      setSettings(previous);
+      setError(err instanceof Error ? err.message : 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (error && !settings) return <div className="card"><div className="error-banner">{error}</div></div>;
+  if (!settings) return <div className="card"><div className="empty-state">Loading…</div></div>;
+
+  const toggle = (label: string, hint: string, key: keyof api.NotificationSettings, extra?: ReactNode) => (
+    <div className="field">
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
+        <input
+          type="checkbox"
+          checked={settings[key] as boolean}
+          onChange={(e) => save({ [key]: e.target.checked } as Partial<api.NotificationSettings>)}
+          style={{ width: 'auto' }}
+        />
+        {label}
+      </label>
+      <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>{hint}</div>
+      {extra}
+    </div>
+  );
+
+  return (
+    <div className="card">
+      <h2>Notifications</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        Applies to everyone — notifications also go to all staff devices signed in to the mobile app.
+      </p>
+      {error && <div className="error-banner">{error}</div>}
+
+      <div className="section-title">Customers</div>
+      {toggle('Customer activated', 'When a customer moves from Pending to Active', 'customerActivated')}
+
+      <div className="section-title">Bookings</div>
+      {toggle(
+        'Appointment reminders',
+        'Remind before an appointment starts',
+        'appointmentReminders',
+        settings.appointmentReminders ? (
+          <div style={{ marginTop: 8, marginLeft: 24 }}>
+            <select
+              value={settings.appointmentLeadMinutes}
+              onChange={(e) => save({ appointmentLeadMinutes: Number(e.target.value) })}
+            >
+              {LEAD_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+        ) : null,
+      )}
+      {toggle(
+        'Daily digest',
+        "A summary of the day's bookings",
+        'dailyDigest',
+        settings.dailyDigest ? (
+          <div style={{ marginTop: 8, marginLeft: 24 }}>
+            <input
+              type="time"
+              value={settings.dailyDigestTime}
+              onChange={(e) => save({ dailyDigestTime: e.target.value })}
+            />
+          </div>
+        ) : null,
+      )}
+
+      <div className="section-title">Invoices</div>
+      {toggle('Invoice overdue', 'When an invoice passes its due date', 'invoicesOverdue')}
+      {toggle('Invoice read', 'When a customer opens an invoice', 'invoicesRead')}
+
+      {saving && <div style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>Saving…</div>}
+    </div>
+  );
+}

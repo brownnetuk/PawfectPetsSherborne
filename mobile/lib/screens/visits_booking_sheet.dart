@@ -8,7 +8,7 @@ import '../models/customer.dart';
 import '../models/day_booking.dart';
 import '../models/product.dart';
 import '../models/visit_mapping.dart';
-import '../utils/product_availability.dart';
+import '../utils/visit_plan.dart';
 
 /// Books "Visits" across a date range, mirroring the admin New Booking modal:
 /// for each day in the range it looks up the product from the Visits mapping
@@ -41,8 +41,10 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
   int _visitsPerDay = 1;
   DateTime? _startDate;
   int _visitsFirstDay = 1;
+  String _amPmFirstDay = 'PM';
   DateTime? _endDate;
   int _visitsLastDay = 1;
+  String _amPmLastDay = 'AM';
   bool _busy = false;
   String? _error;
   String? _result;
@@ -105,35 +107,23 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
       return;
     }
 
-    // The days in the range.
-    final days = <DateTime>[];
-    for (var d = start; !d.isAfter(end); d = DateTime(d.year, d.month, d.day + 1)) {
-      days.add(d);
-    }
-
-    // Plan the product for each day (shared across selected animals).
-    final plan = <({DateTime date, String productId})>[];
-    final missing = <String>{};
-    for (var i = 0; i < days.length; i++) {
-      final date = days[i];
-      final visits = days.length == 1
-          ? _visitsFirstDay
-          : i == 0
-              ? _visitsFirstDay
-              : i == days.length - 1
-                  ? _visitsLastDay
-                  : _visitsPerDay;
-      final dayType = dayTypeFor(date, widget.bankHolidays);
-      final productId = widget.visitMapping.productFor(visits, dayType);
-      if (productId == null || productId.isEmpty) {
-        missing.add('$visits Visit (${availabilityLabels[dayType] ?? dayType})');
-      } else {
-        plan.add((date: date, productId: productId));
-      }
-    }
-    if (missing.isNotEmpty) {
+    // The day-by-day product plan (shared across selected animals), including
+    // the AM/PM override for a single-visit first/last day.
+    final result = buildVisitPlan(
+      start: start,
+      end: end,
+      visitsPerDay: _visitsPerDay,
+      visitsFirstDay: _visitsFirstDay,
+      visitsLastDay: _visitsLastDay,
+      mapping: widget.visitMapping,
+      bankHolidays: widget.bankHolidays,
+      amPmFirstDay: _amPmFirstDay,
+      amPmLastDay: _amPmLastDay,
+    );
+    final plan = result.plan;
+    if (result.missing.isNotEmpty) {
       setState(() => _error =
-          'No product is configured in Settings > Bookings > Visits for: ${missing.join(', ')}.');
+          'No product is configured in Settings > Bookings > Visits for: ${result.missing.join(', ')}.');
       return;
     }
 
@@ -164,6 +154,7 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
             date: entry.date,
             productId: entry.productId,
             quantity: 1,
+            visitTime: entry.visitTime,
           );
           created++;
           if (travelId != null && travelId.isNotEmpty && travelId != entry.productId) {
@@ -279,6 +270,8 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
                   Expanded(child: _dateField('Start date', _startDate, () => _pickDate(isStart: true))),
                   const SizedBox(width: 12),
                   Expanded(child: _visitsDropdown('Visits, first day', _visitsFirstDay, (v) => setState(() => _visitsFirstDay = v))),
+                  const SizedBox(width: 12),
+                  Expanded(child: _amPmDropdown('AM/PM', _amPmFirstDay, _visitsFirstDay, (v) => setState(() => _amPmFirstDay = v))),
                 ],
               ),
               const SizedBox(height: 12),
@@ -287,6 +280,8 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
                   Expanded(child: _dateField('End date', _endDate, () => _pickDate(isStart: false))),
                   const SizedBox(width: 12),
                   Expanded(child: _visitsDropdown('Visits, end day', _visitsLastDay, (v) => setState(() => _visitsLastDay = v))),
+                  const SizedBox(width: 12),
+                  Expanded(child: _amPmDropdown('AM/PM', _amPmLastDay, _visitsLastDay, (v) => setState(() => _amPmLastDay = v))),
                 ],
               ),
               const SizedBox(height: 20),
@@ -301,6 +296,26 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
           ],
         ),
       ),
+    );
+  }
+
+  // AM/PM override, only meaningful (and enabled) when that day's visit count
+  // is 1 — a 2-visit day always covers both.
+  Widget _amPmDropdown(String label, String value, int visitCount, ValueChanged<String> onChanged) {
+    final enabled = visitCount == 1;
+    return DropdownButtonFormField<String>(
+      initialValue: enabled ? value : null,
+      decoration: InputDecoration(labelText: label),
+      hint: const Text('—'),
+      items: const [
+        DropdownMenuItem(value: 'AM', child: Text('AM')),
+        DropdownMenuItem(value: 'PM', child: Text('PM')),
+      ],
+      onChanged: enabled
+          ? (v) {
+              if (v != null) onChanged(v);
+            }
+          : null,
     );
   }
 

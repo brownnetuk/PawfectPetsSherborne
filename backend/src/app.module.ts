@@ -25,8 +25,10 @@ import { InvoicesModule } from './invoices/invoices.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { InvoiceTermsModule } from './invoice-terms/invoice-terms.module';
 import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ProductsModule } from './products/products.module';
+import { PushModule } from './push/push.module';
 import { CrmModule } from './crm/crm.module';
 import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
@@ -55,6 +57,8 @@ import { StaffModule } from './staff/staff.module';
     AuthModule,
     AppointmentsModule,
     AuditLogModule,
+    PushModule,
+    NotificationsModule,
     CustomersModule,
     AnimalsModule,
     BankAccountsModule,

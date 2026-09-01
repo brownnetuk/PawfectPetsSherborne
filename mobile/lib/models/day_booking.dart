@@ -15,6 +15,9 @@ class DayBooking {
   // Set once this entry has been included on a generated invoice; null while
   // it's still billable (Generate Invoices only picks up uninvoiced entries).
   final String? invoiceId;
+  // Explicit AM/PM override for a single-visit day ('AM' | 'PM'); null means
+  // fall back to inferring it from the run's start/end.
+  final String? visitTime;
 
   DayBooking({
     required this.id,
@@ -29,6 +32,7 @@ class DayBooking {
     required this.productPrice,
     required this.quantity,
     this.invoiceId,
+    this.visitTime,
   });
 
   double get lineTotal => productPrice * quantity;
@@ -47,7 +51,9 @@ class DayBooking {
       species: animal is Map<String, dynamic> ? (animal['species'] as String? ?? '') : '',
       customerId: idOf(customer),
       customerName: customer is Map<String, dynamic> ? (customer['name'] as String? ?? '') : '',
-      date: DateTime.parse(json['date'] as String),
+      // Stored as a day at local (server) midnight, serialised as UTC — convert
+      // to local so it buckets to the correct calendar day on the device.
+      date: DateTime.parse(json['date'] as String).toLocal(),
       productId: idOf(product),
       productName: product is Map<String, dynamic> ? (product['name'] as String? ?? '') : '',
       productPrice: product is Map<String, dynamic> ? (product['price'] as num?)?.toDouble() ?? 0 : 0,
@@ -55,6 +61,7 @@ class DayBooking {
       invoiceId: invoice == null
           ? null
           : (invoice is Map<String, dynamic> ? invoice['_id'] as String? : invoice as String?),
+      visitTime: json['visitTime'] as String?,
     );
   }
 }

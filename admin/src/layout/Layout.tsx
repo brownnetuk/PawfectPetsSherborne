@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import logo from '../assets/logo.png';
+import NotificationBell from '../components/NotificationBell';
 import QrLoginModal from '../components/QrLoginModal';
 import {
   BookingsIcon,
@@ -85,6 +86,7 @@ export default function Layout() {
           <span className="app-version" title="Admin app version">
             v{__APP_VERSION__}
           </span>
+          <NotificationBell />
           <button
             className="avatar avatar-btn"
             onClick={() => setShowQrLogin(true)}

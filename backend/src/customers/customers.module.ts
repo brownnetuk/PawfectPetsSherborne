@@ -5,6 +5,7 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
 import { BookingsModule } from '../bookings/bookings.module';
 import { CrmModule } from '../crm/crm.module';
 import { InvoicesModule } from '../invoices/invoices.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { QuotesModule } from '../quotes/quotes.module';
 import { SettingsModule } from '../settings/settings.module';
 import { CustomersController } from './customers.controller';
@@ -25,6 +26,7 @@ import { Customer, CustomerSchema } from './schemas/customer.schema';
     CrmModule,
     AuditLogModule,
     SettingsModule,
+    NotificationsModule,
   ],
   controllers: [CustomersController],
   providers: [CustomersService],

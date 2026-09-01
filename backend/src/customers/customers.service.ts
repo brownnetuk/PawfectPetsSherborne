@@ -18,6 +18,7 @@ import { Invoice } from '../invoices/schemas/invoice.schema';
 import { Quote } from '../quotes/schemas/quote.schema';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
+import { NotificationService } from '../notifications/notification.service';
 import { describeCustomerChanges } from './audit-diff.util';
 import { formatAddress, formatFullName } from './customer-format.util';
 import {
@@ -43,6 +44,7 @@ export class CustomersService {
     private readonly encryptionService: EncryptionService,
     private readonly auditLogService: AuditLogService,
     private readonly settingsService: SettingsService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   private validateEmergencyContact(emergencyContact: EmergencyContactDto) {
@@ -341,6 +343,10 @@ export class CustomersService {
       .exec();
     if (!customer) {
       throw new NotFoundException(`Customer ${id} not found`);
+    }
+    // Push when a lead becomes a real customer (Pending -> Active).
+    if (status === CustomerStatus.ACTIVE && before.status === CustomerStatus.PENDING) {
+      await this.notificationService.notifyCustomerActivated(customer.name);
     }
     // Specifically the "Request Update" action (CustomerDetailPage) landing
     // here -- not every status change is audit-worthy, but staff asking a
