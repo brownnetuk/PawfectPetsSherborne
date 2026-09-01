@@ -12,6 +12,7 @@ typedef _SnapshotData = (
   List<ExpenseCategoryTotal>,
   List<BankAccount>,
   List<Invoice>,
+  double projectedIncome,
 );
 
 /// Dashboard-style financial snapshot: cash position, receivables, income vs
@@ -41,7 +42,14 @@ class _SnapshotScreenState extends State<SnapshotScreen> {
       final categories = await repo.expensesByCategory(months: 6);
       final accounts = await repo.listBankAccountsDetailed();
       final invoices = await repo.listInvoices();
-      return (months, categories, accounts, invoices);
+      // Projected income = this month's booking revenue (walks + visits).
+      final now = DateTime.now();
+      final monthBookings = await repo.listDayBookings(
+        from: DateTime(now.year, now.month, 1),
+        to: DateTime(now.year, now.month + 1, 1),
+      );
+      final projected = monthBookings.fold<double>(0, (s, b) => s + b.lineTotal);
+      return (months, categories, accounts, invoices, projected);
     }();
   }
 
@@ -76,17 +84,19 @@ class _SnapshotScreenState extends State<SnapshotScreen> {
                   : 'Failed to load snapshot';
               return ListView(children: [const SizedBox(height: 80), Center(child: Text(message, textAlign: TextAlign.center))]);
             }
-            final (months, categories, accounts, invoices) = snapshot.data!;
+            final (months, categories, accounts, invoices, projectedIncome) = snapshot.data!;
             return ListView(
               padding: const EdgeInsets.all(16),
               children: [
                 _cashPositionRow(accounts, invoices),
                 const SizedBox(height: 16),
+                _projectedIncomeCard(projectedIncome),
+                const SizedBox(height: 16),
+                _bankAccountsCard(accounts),
+                const SizedBox(height: 16),
                 _incomeExpenseCard(months),
                 const SizedBox(height: 16),
                 _topExpensesCard(categories),
-                const SizedBox(height: 16),
-                _bankAccountsCard(accounts),
               ],
             );
           },
@@ -154,6 +164,33 @@ class _SnapshotScreenState extends State<SnapshotScreen> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  // --- This month's projected income (from bookings) ---
+  Widget _projectedIncomeCard(double amount) {
+    return _card(
+      title: "This Month's Projected Income",
+      subtitle: DateFormat('MMMM yyyy').format(DateTime.now()),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(Icons.event_available_outlined, color: Colors.green.shade700),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_money.format(amount),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.green.shade800)),
+                const SizedBox(height: 2),
+                Text('From this month\'s walks & visits',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

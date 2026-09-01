@@ -71,17 +71,21 @@ class _BookingsScreenState extends State<BookingsScreen> {
       _bankHolidays = results[3] as List<BankHoliday>;
       _visitMapping = results[4] as VisitMapping;
     }
-    // Day view fetches one day; week view fetches Mon..Sun (to = the Monday
-    // after, since the backend range is $gte from / $lt to).
-    final DateTime from, to;
+    // Day view shows one day; week view shows Mon..Sun. Fetch one day either
+    // side of what's visible so AM/PM can be inferred from neighbouring days
+    // (a visit's AM/PM depends on whether it starts/ends a run) -- the display
+    // still filters to the visible days.
+    final DateTime visibleFrom, visibleTo;
     if (_view == _BookingView.week) {
-      from = _weekStart;
-      to = DateTime(from.year, from.month, from.day + 7);
+      visibleFrom = _weekStart;
+      visibleTo = DateTime(visibleFrom.year, visibleFrom.month, visibleFrom.day + 7);
     } else {
-      from = _day;
-      to = DateTime(_day.year, _day.month, _day.day + 1);
+      visibleFrom = _day;
+      visibleTo = DateTime(_day.year, _day.month, _day.day + 1);
     }
-    return repo.listDayBookings(from: from, to: to);
+    final padFrom = DateTime(visibleFrom.year, visibleFrom.month, visibleFrom.day - 1);
+    final padTo = DateTime(visibleTo.year, visibleTo.month, visibleTo.day + 1);
+    return repo.listDayBookings(from: padFrom, to: padTo);
   }
 
   void _reload() => setState(() => _future = _load());
@@ -337,7 +341,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
           ? FutureBuilder<List<DayBooking>>(
               future: _future,
               builder: (context, snapshot) => FloatingActionButton.extended(
-                onPressed: () => _openScheduleMenu(snapshot.data ?? const []),
+                onPressed: () => _openScheduleMenu(
+                  (snapshot.data ?? const []).where((b) => _sameDay(b.date, _day)).toList(),
+                ),
                 icon: const Icon(Icons.add),
                 label: const Text('Schedule'),
               ),
@@ -367,7 +373,20 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     ]);
                   }
                   final bookings = snapshot.data ?? [];
-                  return _view == _BookingView.week ? _weekBody(bookings) : _dayBody(bookings);
+                  final body = _view == _BookingView.week ? _weekBody(bookings) : _dayBody(bookings);
+                  // Swipe left/right to move forward/back a day (day view) or a
+                  // week (week view), mirroring the navigator arrows.
+                  return GestureDetector(
+                    onHorizontalDragEnd: (details) {
+                      final v = details.primaryVelocity ?? 0;
+                      if (v < -100) {
+                        _changeRange(1);
+                      } else if (v > 100) {
+                        _changeRange(-1);
+                      }
+                    },
+                    child: body,
+                  );
                 },
               ),
             ),
@@ -428,9 +447,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
-  Widget _dayBody(List<DayBooking> dayBookings) {
-    final groups = _groupByAnimal(dayBookings);
-    final addedIds = dayBookings.map((b) => b.animalId).toSet();
+  Widget _dayBody(List<DayBooking> all) {
+    final dayItems = all.where((b) => _sameDay(b.date, _day)).toList();
+    final walkGroups = _groupByAnimal(dayItems.where((b) => !_visitMapping.isVisitProduct(b.productId)).toList());
+    final visitGroups = _groupByAnimal(dayItems.where((b) => _visitMapping.isVisitProduct(b.productId)).toList());
+    final addedIds = dayItems.map((b) => b.animalId).toSet();
     final weekdayKey = _weekdayKeys[_day.weekday - 1];
     final recommended = (_animals ?? const <AnimalRef>[]).where((a) {
       if (a.species.toLowerCase() != 'dog') return false;
@@ -439,19 +460,24 @@ class _BookingsScreenState extends State<BookingsScreen> {
       return owner?.regularDays.contains(weekdayKey) ?? false;
     }).toList();
 
-    final dayTotal = dayBookings.fold<double>(0, (s, b) => s + b.lineTotal);
+    final dayTotal = dayItems.fold<double>(0, (s, b) => s + b.lineTotal);
     return ListView(
       padding: const EdgeInsets.only(bottom: 96),
       children: [
         _revenueBanner('Day revenue', dayTotal),
-        _sectionTitle('Scheduled'),
-        if (groups.isEmpty)
+        if (walkGroups.isEmpty && visitGroups.isEmpty)
           const Padding(
-            padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Text('Nothing booked.'),
-          )
-        else
-          for (final group in groups) _animalCard(group),
+          ),
+        if (walkGroups.isNotEmpty) ...[
+          _sectionTitle('Walks'),
+          for (final group in walkGroups) _animalCard(group, all),
+        ],
+        if (visitGroups.isNotEmpty) ...[
+          _sectionTitle('Visits'),
+          for (final group in visitGroups) _animalCard(group, all),
+        ],
         if (recommended.isNotEmpty) ...[
           _sectionTitle('Recommended'),
           for (final a in recommended)
@@ -462,7 +488,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
               trailing: IconButton(
                 icon: Icon(Icons.add_circle, color: Colors.green.shade600),
                 tooltip: 'Add to this day',
-                onPressed: () => _quickAdd(a, dayBookings),
+                onPressed: () => _quickAdd(a, dayItems),
               ),
             ),
         ],
@@ -470,16 +496,41 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
+  /// The AM/PM label for a visit entry: a 2-visit day is "AM & PM"; a 1-visit
+  /// day is "AM" if it's the end of a consecutive run of visit days (and not
+  /// also the start), otherwise "PM" — matching the admin calendar.
+  String? _visitTime(DayBooking b, List<DayBooking> all) {
+    final count = _visitMapping.visitCountForProduct(b.productId);
+    if (count == null) return null;
+    if (count == 2) return 'AM & PM';
+    bool visitOn(int deltaDays) {
+      final d = DateTime(b.date.year, b.date.month, b.date.day + deltaDays);
+      return all.any((x) =>
+          x.animalId == b.animalId &&
+          _visitMapping.isVisitProduct(x.productId) &&
+          _sameDay(x.date, d));
+    }
+
+    final isStart = !visitOn(-1);
+    final isEnd = !visitOn(1);
+    return (isEnd && !isStart) ? 'AM' : 'PM';
+  }
+
   bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 
-  Widget _weekBody(List<DayBooking> bookings) {
+  Widget _weekBody(List<DayBooking> all) {
     final start = _weekStart;
     final today = _dateOnly(DateTime.now());
-    final weekTotal = bookings.fold<double>(0, (s, b) => s + b.lineTotal);
+    // Sum only the visible week (the fetched list is padded ±1 day for AM/PM).
+    var weekTotal = 0.0;
+    for (int i = 0; i < 7; i++) {
+      final date = DateTime(start.year, start.month, start.day + i);
+      weekTotal += all.where((b) => _sameDay(b.date, date)).fold<double>(0, (s, b) => s + b.lineTotal);
+    }
     final children = <Widget>[_revenueBanner('Week revenue', weekTotal), const SizedBox(height: 8)];
     for (int i = 0; i < 7; i++) {
       final date = DateTime(start.year, start.month, start.day + i);
-      final dayItems = bookings.where((b) => _sameDay(b.date, date)).toList();
+      final dayItems = all.where((b) => _sameDay(b.date, date)).toList();
       final groups = _groupByAnimal(dayItems);
       final dayTotal = dayItems.fold<double>(0, (s, b) => s + b.lineTotal);
       final isToday = today == date;
@@ -520,14 +571,14 @@ class _BookingsScreenState extends State<BookingsScreen> {
         ));
       } else {
         for (final g in groups) {
-          children.add(_animalCard(g));
+          children.add(_animalCard(g, all));
         }
       }
     }
     return ListView(padding: const EdgeInsets.only(bottom: 24), children: children);
   }
 
-  Widget _animalCard(List<DayBooking> group) {
+  Widget _animalCard(List<DayBooking> group, List<DayBooking> all) {
     final first = group.first;
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
@@ -547,24 +598,31 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
               ],
             ),
-            for (final b in group)
-              Builder(builder: (context) {
-                final isVisit = _visitMapping.isVisitProduct(b.productId);
-                final colour = isVisit ? Colors.amber.shade800 : Colors.green.shade600;
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  leading: Icon(Icons.circle, size: 12, color: colour),
-                  title: Text(b.productName.isEmpty ? '(product)' : b.productName),
-                  subtitle: Text('${isVisit ? 'Visit' : 'Walk'} · Qty ${b.quantity}'),
-                  trailing: Text(_money.format(b.lineTotal),
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                  onTap: () => _editEntry(b),
-                );
-              }),
+            for (final b in group) _entryRow(b, all),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _entryRow(DayBooking b, List<DayBooking> all) {
+    final isVisit = _visitMapping.isVisitProduct(b.productId);
+    final colour = isVisit ? Colors.amber.shade800 : Colors.green.shade600;
+    final String subtitle;
+    if (isVisit) {
+      final time = _visitTime(b, all);
+      subtitle = 'Visit${time != null ? ' · $time' : ''} · Qty ${b.quantity}';
+    } else {
+      subtitle = 'Walk · Qty ${b.quantity}';
+    }
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      leading: Icon(Icons.circle, size: 12, color: colour),
+      title: Text(b.productName.isEmpty ? '(product)' : b.productName),
+      subtitle: Text(subtitle),
+      trailing: Text(_money.format(b.lineTotal), style: const TextStyle(fontWeight: FontWeight.w600)),
+      onTap: () => _editEntry(b),
     );
   }
 

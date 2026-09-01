@@ -39,6 +39,13 @@ class VisitMapping {
   bool isVisitProduct(String productId) =>
       _oneVisitIds.contains(productId) || _twoVisitIds.contains(productId);
 
+  /// 1 or 2 if [productId] is a mapped visit product, else null (a Walk).
+  int? visitCountForProduct(String productId) {
+    if (_oneVisitIds.contains(productId)) return 1;
+    if (_twoVisitIds.contains(productId)) return 2;
+    return null;
+  }
+
   /// The mapped product for [visits] (1 or 2) on the given [dayType]
   /// ('weekday' | 'weekend' | 'bank_holiday'), or null if unconfigured.
   String? productFor(int visits, String dayType) {
