@@ -12,6 +12,8 @@ import 'home_shell.dart';
 // Customer.regularDays weekday keys, indexed by DateTime.weekday (1=Mon..7=Sun).
 const _weekdayKeys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
+enum _BookingView { day, week }
+
 /// Day-by-day scheduling calendar: for the selected day, the dogs booked in
 /// ("Scheduled"), dogs whose owner has this weekday as a regular day
 /// ("Recommended", one-tap add), and an "Add dog" action. Mirrors the admin
@@ -26,6 +28,7 @@ class BookingsScreen extends StatefulWidget {
 class _BookingsScreenState extends State<BookingsScreen> {
   final _money = NumberFormat.currency(locale: 'en_GB', symbol: '£');
   DateTime _day = _dateOnly(DateTime.now());
+  _BookingView _view = _BookingView.day;
 
   // Loaded once, reused across day changes.
   List<Customer>? _customers;
@@ -35,6 +38,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
   late Future<List<DayBooking>> _future;
 
   static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  // Monday of the week containing [_day] (weekday: Mon=1..Sun=7).
+  DateTime get _weekStart => DateTime(_day.year, _day.month, _day.day - (_day.weekday - 1));
 
   @override
   void initState() {
@@ -54,8 +60,17 @@ class _BookingsScreenState extends State<BookingsScreen> {
       _animals = results[1] as List<AnimalRef>;
       _products = results[2] as List<Product>;
     }
-    final next = DateTime(_day.year, _day.month, _day.day + 1);
-    return repo.listDayBookings(from: _day, to: next);
+    // Day view fetches one day; week view fetches Mon..Sun (to = the Monday
+    // after, since the backend range is $gte from / $lt to).
+    final DateTime from, to;
+    if (_view == _BookingView.week) {
+      from = _weekStart;
+      to = DateTime(from.year, from.month, from.day + 7);
+    } else {
+      from = _day;
+      to = DateTime(_day.year, _day.month, _day.day + 1);
+    }
+    return repo.listDayBookings(from: from, to: to);
   }
 
   void _reload() => setState(() => _future = _load());
@@ -65,9 +80,28 @@ class _BookingsScreenState extends State<BookingsScreen> {
     await _future;
   }
 
-  void _changeDay(int delta) {
+  // Steps by one day or one week depending on the current view.
+  void _changeRange(int delta) {
     setState(() {
-      _day = DateTime(_day.year, _day.month, _day.day + delta);
+      final step = _view == _BookingView.week ? delta * 7 : delta;
+      _day = DateTime(_day.year, _day.month, _day.day + step);
+      _future = _load();
+    });
+  }
+
+  void _setView(_BookingView view) {
+    if (view == _view) return;
+    setState(() {
+      _view = view;
+      _future = _load();
+    });
+  }
+
+  // Jump to the day view focused on [date] (used when tapping a day in week view).
+  void _openDay(DateTime date) {
+    setState(() {
+      _day = _dateOnly(date);
+      _view = _BookingView.day;
       _future = _load();
     });
   }
@@ -210,16 +244,19 @@ class _BookingsScreenState extends State<BookingsScreen> {
           const LogoutAction(),
         ],
       ),
-      floatingActionButton: FutureBuilder<List<DayBooking>>(
-        future: _future,
-        builder: (context, snapshot) => FloatingActionButton.extended(
-          onPressed: () => _openAddDog(snapshot.data ?? const []),
-          icon: const Icon(Icons.add),
-          label: const Text('Add dog'),
-        ),
-      ),
+      floatingActionButton: _view == _BookingView.day
+          ? FutureBuilder<List<DayBooking>>(
+              future: _future,
+              builder: (context, snapshot) => FloatingActionButton.extended(
+                onPressed: () => _openAddDog(snapshot.data ?? const []),
+                icon: const Icon(Icons.add),
+                label: const Text('Add dog'),
+              ),
+            )
+          : null,
       body: Column(
         children: [
+          _viewToggle(),
           _dateNavigator(),
           const Divider(height: 1),
           Expanded(
@@ -240,8 +277,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
                       Center(child: Text(message, textAlign: TextAlign.center)),
                     ]);
                   }
-                  final dayBookings = snapshot.data ?? [];
-                  return _dayBody(dayBookings);
+                  final bookings = snapshot.data ?? [];
+                  return _view == _BookingView.week ? _weekBody(bookings) : _dayBody(bookings);
                 },
               ),
             ),
@@ -251,16 +288,39 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
+  Widget _viewToggle() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: SegmentedButton<_BookingView>(
+        segments: const [
+          ButtonSegment(value: _BookingView.day, label: Text('Day'), icon: Icon(Icons.view_day_outlined)),
+          ButtonSegment(value: _BookingView.week, label: Text('Week'), icon: Icon(Icons.view_week_outlined)),
+        ],
+        selected: {_view},
+        onSelectionChanged: (s) => _setView(s.first),
+        showSelectedIcon: false,
+      ),
+    );
+  }
+
   Widget _dateNavigator() {
-    final label = DateFormat('EEE d MMM yyyy').format(_day);
+    final String label;
+    if (_view == _BookingView.week) {
+      final start = _weekStart;
+      final end = DateTime(start.year, start.month, start.day + 6);
+      label = '${DateFormat('d MMM').format(start)} – ${DateFormat('d MMM yyyy').format(end)}';
+    } else {
+      label = DateFormat('EEE d MMM yyyy').format(_day);
+    }
+    final isWeek = _view == _BookingView.week;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: Row(
         children: [
           IconButton(
             icon: const Icon(Icons.chevron_left),
-            tooltip: 'Previous day',
-            onPressed: () => _changeDay(-1),
+            tooltip: isWeek ? 'Previous week' : 'Previous day',
+            onPressed: () => _changeRange(-1),
           ),
           Expanded(
             child: TextButton.icon(
@@ -271,8 +331,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.chevron_right),
-            tooltip: 'Next day',
-            onPressed: () => _changeDay(1),
+            tooltip: isWeek ? 'Next week' : 'Next day',
+            onPressed: () => _changeRange(1),
           ),
         ],
       ),
@@ -316,6 +376,58 @@ class _BookingsScreenState extends State<BookingsScreen> {
         ],
       ],
     );
+  }
+
+  bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+
+  Widget _weekBody(List<DayBooking> bookings) {
+    final start = _weekStart;
+    final today = _dateOnly(DateTime.now());
+    final children = <Widget>[];
+    for (int i = 0; i < 7; i++) {
+      final date = DateTime(start.year, start.month, start.day + i);
+      final groups = _groupByAnimal(bookings.where((b) => _sameDay(b.date, date)).toList());
+      final isToday = today == date;
+      children.add(
+        InkWell(
+          onTap: () => _openDay(date),
+          child: Container(
+            width: double.infinity,
+            color: Colors.grey.shade100,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                Text(
+                  DateFormat('EEE d MMM').format(date),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isToday ? Theme.of(context).colorScheme.primary : null,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  groups.isEmpty ? '—' : '${groups.length} dog${groups.length == 1 ? '' : 's'}',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right, size: 18),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (groups.isEmpty) {
+        children.add(Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Text('No dogs booked.', style: TextStyle(color: Colors.grey.shade600)),
+        ));
+      } else {
+        for (final g in groups) {
+          children.add(_animalCard(g));
+        }
+      }
+    }
+    return ListView(padding: const EdgeInsets.only(bottom: 24), children: children);
   }
 
   Widget _animalCard(List<DayBooking> group) {
