@@ -3,9 +3,11 @@ import * as api from '../api/client';
 import ManualCustomerModal from './ManualCustomerModal';
 import type { ManualCustomer } from './ManualCustomerModal';
 import Modal from './Modal';
+import ProductAvailabilityWarningModal from './ProductAvailabilityWarningModal';
 import SendPreviewModal from './SendPreviewModal';
 import { ChevronDownIcon } from './icons';
-import type { Animal, Customer, Invoice, InvoiceTerm, LineItem, Product, Quote } from '../types';
+import { availabilityMismatch } from '../utils/productAvailability';
+import type { Animal, BankHoliday, Customer, Invoice, InvoiceTerm, LineItem, Product, Quote } from '../types';
 
 function customerId(customer: Invoice['customer'] | Quote['customer']): string {
   if (!customer) return '';
@@ -116,19 +118,32 @@ function ItemDescriptionInput({
 function ItemTable({
   lineItems,
   products,
+  issueDate,
+  bankHolidays,
   onChange,
 }: {
   lineItems: LineItem[];
   products: Product[];
+  issueDate: Date;
+  bankHolidays: BankHoliday[];
   onChange: (items: LineItem[]) => void;
 }) {
   const [pickerIndex, setPickerIndex] = useState<number | null>(null);
+  const [warning, setWarning] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
   function updateItem(i: number, patch: Partial<LineItem>) {
     onChange(lineItems.map((item, idx) => (idx === i ? { ...item, ...patch } : item)));
   }
-  function selectProduct(i: number, product: Product) {
+  function applyProduct(i: number, product: Product) {
     updateItem(i, { description: product.name, unitPrice: product.price });
+  }
+  function selectProduct(i: number, product: Product) {
+    const mismatch = availabilityMismatch(product, issueDate, bankHolidays);
+    if (mismatch) {
+      setWarning({ message: mismatch, onConfirm: () => applyProduct(i, product) });
+      return;
+    }
+    applyProduct(i, product);
   }
   function handleDescriptionChange(i: number, value: string) {
     const product = products.find((p) => p.name === value);
@@ -224,6 +239,17 @@ function ItemTable({
           onSelect={(product) => selectProduct(pickerIndex, product)}
         />
       )}
+      {warning && (
+        <ProductAvailabilityWarningModal
+          message={warning.message}
+          onCancel={() => setWarning(null)}
+          onConfirm={() => {
+            const { onConfirm } = warning;
+            setWarning(null);
+            onConfirm();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -307,6 +333,7 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [terms, setTerms] = useState<InvoiceTerm[]>([]);
+  const [bankHolidays, setBankHolidays] = useState<BankHoliday[]>([]);
   // Purely a visual double-check that the right customer is selected -- these
   // pets are never sent on the invoice/quote itself.
   const [customerPets, setCustomerPets] = useState<Animal[]>([]);
@@ -348,6 +375,7 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
   useEffect(() => {
     api.listCustomers().then(setCustomers).catch(() => {});
     api.listProducts().then(setProducts).catch(() => {});
+    api.listBankHolidays().then(setBankHolidays).catch(() => {});
     api.listInvoiceTerms().then((loaded) => {
       setTerms(loaded);
       if (existing?.paymentTerms) {
@@ -622,7 +650,13 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
 
         <div className="card">
           <div className="section-title">Item Table</div>
-          <ItemTable lineItems={lineItems} products={products} onChange={setLineItems} />
+          <ItemTable
+            lineItems={lineItems}
+            products={products}
+            issueDate={parseYmd(issueDate)}
+            bankHolidays={bankHolidays}
+            onChange={setLineItems}
+          />
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
             <div style={{ width: 260 }}>
               <div

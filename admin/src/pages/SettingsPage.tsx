@@ -15,8 +15,10 @@ import { PencilIcon, SortIcon, TrashIcon } from '../components/icons';
 import { bankAccountTypeLabel } from '../utils/bankAccountType';
 import { buildItemsTableHtml, escapeHtml, interpolateBody, interpolateSubject } from '../utils/emailTemplate';
 import { PERMISSION_CATALOG } from '../utils/permissionCatalog';
+import { AVAILABILITY_LABELS } from '../utils/productAvailability';
 import type {
   BankAccount,
+  BankHoliday,
   BusinessInfo,
   EmailSettings,
   EmailTemplate,
@@ -25,6 +27,7 @@ import type {
   InvoiceTerm,
   PaymentMethod,
   Product,
+  ProductAvailability,
   Role,
   Staff,
   VetPractice,
@@ -2570,6 +2573,7 @@ function InvoicesSettingsTab() {
   return (
     <div>
       <ProductsCard />
+      <BankHolidaysCard />
       <PdfTemplateDesigner />
       <InvoiceTermsCard />
       <BankDetailsCard />
@@ -3240,6 +3244,7 @@ function ProductsCard() {
               <SortableTh label="Name" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
               <SortableTh label="Description" sortKey="description" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
               <SortableTh label="Price" sortKey="price" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+              <th>Availability</th>
               <th></th>
             </tr>
           </thead>
@@ -3250,6 +3255,7 @@ function ProductsCard() {
                 <td>{p.name}</td>
                 <td>{p.description || '—'}</td>
                 <td>£{p.price.toFixed(2)}</td>
+                <td>{p.availability ? AVAILABILITY_LABELS[p.availability] : '—'}</td>
                 <td>
                   <div style={{ display: 'flex', gap: 2 }}>
                     <button className="icon-btn" title="Edit" onClick={() => setEditing(p)}>
@@ -3314,6 +3320,7 @@ function EditProductModal({
   const [name, setName] = useState(product?.name ?? '');
   const [description, setDescription] = useState(product?.description ?? '');
   const [price, setPrice] = useState(String(product?.price ?? 0));
+  const [availability, setAvailability] = useState<ProductAvailability | ''>(product?.availability ?? '');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -3327,6 +3334,7 @@ function EditProductModal({
         name,
         description: description || undefined,
         price: Number(price) || 0,
+        availability: availability || null,
       };
       if (product) {
         await api.updateProduct(product._id, input);
@@ -3361,12 +3369,192 @@ function EditProductModal({
           <label>Price (£)</label>
           <input type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} required />
         </div>
+        <div className="field">
+          <label>Availability</label>
+          <select value={availability} onChange={(e) => setAvailability(e.target.value as ProductAvailability | '')}>
+            <option value="">No restriction</option>
+            <option value="weekday">Weekday</option>
+            <option value="weekend">Weekend</option>
+            <option value="bank_holiday">Bank Holiday</option>
+          </select>
+        </div>
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel
           </button>
           <button type="submit" className="btn btn-primary" disabled={submitting}>
             {submitting ? 'Saving…' : product ? 'Save product' : 'Add product'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function BankHolidaysCard() {
+  const [bankHolidays, setBankHolidays] = useState<BankHoliday[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState<BankHoliday | null>(null);
+  const [deleting, setDeleting] = useState<BankHoliday | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function refresh() {
+    api
+      .listBankHolidays()
+      .then(setBankHolidays)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bank holidays'));
+  }
+  useEffect(refresh, []);
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteBankHoliday(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete bank holiday');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <h2>Bank Holidays</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+            Dates treated as Bank Holiday for Bank-Holiday-restricted products (see Products above).
+          </p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+          Add bank holiday
+        </button>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      {!bankHolidays || bankHolidays.length === 0 ? (
+        <div className="empty-state">{bankHolidays === null ? 'Loading…' : 'No bank holidays yet.'}</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Date</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {bankHolidays.map((h) => (
+              <tr key={h._id}>
+                <td>{h.name}</td>
+                <td>{new Date(h.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
+                <td>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    <button className="icon-btn" title="Edit" onClick={() => setEditing(h)}>
+                      <PencilIcon />
+                    </button>
+                    <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(h)}>
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {(showNew || editing) && (
+        <EditBankHolidayModal
+          bankHoliday={editing}
+          onClose={() => {
+            setShowNew(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setShowNew(false);
+            setEditing(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal title="Delete bank holiday?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently removes <strong>{deleting.name}</strong> from the bank holiday list.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete bank holiday'}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function EditBankHolidayModal({
+  bankHoliday,
+  onClose,
+  onSaved,
+}: {
+  bankHoliday: BankHoliday | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(bankHoliday?.name ?? '');
+  const [date, setDate] = useState(bankHoliday?.date.slice(0, 10) ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      const input = { name, date };
+      if (bankHoliday) {
+        await api.updateBankHoliday(bankHoliday._id, input);
+      } else {
+        await api.createBankHoliday(input);
+      }
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save bank holiday');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title={bankHoliday ? 'Edit bank holiday' : 'Add bank holiday'} onClose={onClose}>
+      {error && <div className="error-banner">{error}</div>}
+      <form onSubmit={handleSubmit}>
+        <div className="field">
+          <label>Name</label>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required autoFocus placeholder="e.g. Christmas Day" />
+        </div>
+        <div className="field">
+          <label>Date</label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
+            {submitting ? 'Saving…' : bankHoliday ? 'Save bank holiday' : 'Add bank holiday'}
           </button>
         </div>
       </form>

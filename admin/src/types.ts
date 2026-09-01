@@ -262,12 +262,22 @@ export interface Payment {
   createdAt: string;
 }
 
+export type ProductAvailability = 'weekday' | 'weekend' | 'bank_holiday';
+
 export interface Product {
   _id: string;
   productCode: string;
   name: string;
   description?: string;
   price: number;
+  availability?: ProductAvailability | null;
+  createdAt: string;
+}
+
+export interface BankHoliday {
+  _id: string;
+  name: string;
+  date: string;
   createdAt: string;
 }
 

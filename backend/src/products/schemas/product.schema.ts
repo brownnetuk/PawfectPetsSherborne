@@ -17,6 +17,13 @@ export class Product extends Document {
 
   @Prop({ required: true, min: 0 })
   price: number;
+
+  // Restricts which calendar days this product can be booked/invoiced for
+  // (Settings > Invoices > Products) -- unset means no restriction. Bank
+  // holidays are looked up against the BankHoliday list at the point of use,
+  // not stored here.
+  @Prop({ type: String, enum: ['weekday', 'weekend', 'bank_holiday'] })
+  availability?: 'weekday' | 'weekend' | 'bank_holiday';
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

@@ -4,6 +4,7 @@ import type {
   BankAccount,
   BankAccountStatement,
   BankAccountType,
+  BankHoliday,
   BankTransfer,
   Booking,
   BusinessInfo,
@@ -29,6 +30,7 @@ import type {
   Payment,
   PaymentMethod,
   Product,
+  ProductAvailability,
   Quote,
   Role,
   Staff,
@@ -538,6 +540,7 @@ export interface CreateProductInput {
   name: string;
   description?: string;
   price: number;
+  availability?: ProductAvailability | null;
 }
 export function createProduct(input: CreateProductInput): Promise<Product> {
   return request('/products', { method: 'POST', body: JSON.stringify(input) });
@@ -547,6 +550,24 @@ export function updateProduct(id: string, input: CreateProductInput): Promise<Pr
 }
 export function deleteProduct(id: string): Promise<void> {
   return request(`/products/${id}`, { method: 'DELETE' });
+}
+
+// --- bank holidays ---
+export function listBankHolidays(): Promise<BankHoliday[]> {
+  return request('/bank-holidays');
+}
+export interface BankHolidayInput {
+  name: string;
+  date: string;
+}
+export function createBankHoliday(input: BankHolidayInput): Promise<BankHoliday> {
+  return request('/bank-holidays', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateBankHoliday(id: string, input: BankHolidayInput): Promise<BankHoliday> {
+  return request(`/bank-holidays/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deleteBankHoliday(id: string): Promise<void> {
+  return request(`/bank-holidays/${id}`, { method: 'DELETE' });
 }
 
 // --- CRM ---

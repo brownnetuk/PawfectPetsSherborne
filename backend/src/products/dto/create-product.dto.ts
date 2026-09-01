@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateProductDto {
   @IsNotEmpty()
@@ -18,4 +18,10 @@ export class CreateProductDto {
   @IsNumber()
   @Min(0)
   price: number;
+
+  // null explicitly clears a previously-set restriction back to "no
+  // restriction" -- @IsOptional() skips validation for both undefined and null.
+  @IsOptional()
+  @IsIn(['weekday', 'weekend', 'bank_holiday'])
+  availability?: 'weekday' | 'weekend' | 'bank_holiday' | null;
 }

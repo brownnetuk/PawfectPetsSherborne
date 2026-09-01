@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as api from '../api/client';
+import ProductAvailabilityWarningModal from '../components/ProductAvailabilityWarningModal';
 import { PlusCircleIcon, TrashIcon } from '../components/icons';
-import type { Animal, Customer, DayBooking, Product } from '../types';
+import { availabilityMismatch } from '../utils/productAvailability';
+import type { Animal, BankHoliday, Customer, DayBooking, Product } from '../types';
 
 type ViewMode = 'week' | 'month';
 
@@ -109,6 +111,7 @@ export default function BookingsPage() {
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [bankHolidays, setBankHolidays] = useState<BankHoliday[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
@@ -117,6 +120,7 @@ export default function BookingsPage() {
   useEffect(() => {
     api.listAnimals().then(setAnimals).catch(() => {});
     api.listCustomers().then(setCustomers).catch(() => {});
+    api.listBankHolidays().then(setBankHolidays).catch(() => {});
     api.listProducts().then(setProducts).catch(() => {});
   }, []);
 
@@ -264,6 +268,7 @@ export default function BookingsPage() {
             animals={animals}
             customers={customers}
             products={products}
+            bankHolidays={bankHolidays}
             onClose={() => setSelectedDate(null)}
             onChange={refreshDayBookings}
           />
@@ -279,6 +284,7 @@ function DayDetailPanel({
   animals,
   customers,
   products,
+  bankHolidays,
   onClose,
   onChange,
 }: {
@@ -287,6 +293,7 @@ function DayDetailPanel({
   animals: Animal[];
   customers: Customer[];
   products: Product[];
+  bankHolidays: BankHoliday[];
   onClose: () => void;
   onChange: () => void;
 }) {
@@ -295,6 +302,7 @@ function DayDetailPanel({
   const [addQuantity, setAddQuantity] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [warning, setWarning] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
   const ownerOf = (custId: string) => customers.find((c) => c._id === custId);
   const alreadyAdded = new Set(dayBookings.map((b) => animalId(b.animal)));
@@ -332,11 +340,21 @@ function DayDetailPanel({
     setAddProductId(defaultProductFor(animal?.customer));
   }
 
-  async function handleAdd() {
+  function handleAdd() {
     if (!addAnimalId || !addProductId) {
       setError('Choose a dog and a product.');
       return;
     }
+    const product = products.find((p) => p._id === addProductId);
+    const mismatch = product && availabilityMismatch(product, date, bankHolidays);
+    if (mismatch) {
+      setWarning({ message: mismatch, onConfirm: performAdd });
+      return;
+    }
+    performAdd();
+  }
+
+  async function performAdd() {
     setBusy(true);
     setError(null);
     try {
@@ -354,11 +372,21 @@ function DayDetailPanel({
     }
   }
 
-  async function handleQuickAdd(animal: Animal) {
+  function handleQuickAdd(animal: Animal) {
+    const mainProduct = defaultProductFor(animal.customer);
+    const product = products.find((p) => p._id === mainProduct);
+    const mismatch = product && availabilityMismatch(product, date, bankHolidays);
+    if (mismatch) {
+      setWarning({ message: mismatch, onConfirm: () => performQuickAdd(animal, mainProduct) });
+      return;
+    }
+    performQuickAdd(animal, mainProduct);
+  }
+
+  async function performQuickAdd(animal: Animal, mainProduct: string) {
     setBusy(true);
     setError(null);
     try {
-      const mainProduct = defaultProductFor(animal.customer);
       await api.createDayBooking({
         animal: animal._id,
         date: dateKey(date),
@@ -374,7 +402,19 @@ function DayDetailPanel({
     }
   }
 
-  async function handleUpdate(booking: DayBooking, patch: { product?: string; quantity?: number }) {
+  function handleUpdate(booking: DayBooking, patch: { product?: string; quantity?: number }) {
+    if (patch.product) {
+      const product = products.find((p) => p._id === patch.product);
+      const mismatch = product && availabilityMismatch(product, date, bankHolidays);
+      if (mismatch) {
+        setWarning({ message: mismatch, onConfirm: () => performUpdate(booking, patch) });
+        return;
+      }
+    }
+    performUpdate(booking, patch);
+  }
+
+  async function performUpdate(booking: DayBooking, patch: { product?: string; quantity?: number }) {
     setError(null);
     try {
       await api.updateDayBooking(booking._id, patch);
@@ -405,6 +445,17 @@ function DayDetailPanel({
         </button>
       </div>
       {error && <div className="error-banner">{error}</div>}
+      {warning && (
+        <ProductAvailabilityWarningModal
+          message={warning.message}
+          onCancel={() => setWarning(null)}
+          onConfirm={() => {
+            const { onConfirm } = warning;
+            setWarning(null);
+            onConfirm();
+          }}
+        />
+      )}
 
       <div className="section-title">Regular</div>
       {dayBookings.length === 0 ? (

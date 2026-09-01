@@ -12,6 +12,7 @@ import { EncryptionModule } from './common/encryption/encryption.module';
 import { CustomersModule } from './customers/customers.module';
 import { AnimalsModule } from './animals/animals.module';
 import { BankAccountsModule } from './bank-accounts/bank-accounts.module';
+import { BankHolidaysModule } from './bank-holidays/bank-holidays.module';
 import { BankTransfersModule } from './bank-transfers/bank-transfers.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { DayBookingsModule } from './day-bookings/day-bookings.module';
@@ -54,6 +55,7 @@ import { StaffModule } from './staff/staff.module';
     CustomersModule,
     AnimalsModule,
     BankAccountsModule,
+    BankHolidaysModule,
     BankTransfersModule,
     BookingsModule,
     DayBookingsModule,
