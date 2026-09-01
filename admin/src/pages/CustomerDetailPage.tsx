@@ -1586,6 +1586,125 @@ function CustomerDefaultsTab({ customer, onChange }: { customer: Customer; onCha
       <DefaultProductCard customer={customer} products={products} onChange={onChange} />
       <TravelCard customer={customer} products={products} onChange={onChange} />
       <RegularDaysCard customer={customer} onChange={onChange} />
+      <CustomerPortalCard customer={customer} onChange={onChange} />
+    </div>
+  );
+}
+
+// iOS-style sliding toggle (visually-hidden checkbox under a custom track/thumb
+// so it stays keyboard/screen-reader accessible). Mirrors the one in
+// DocumentFormModal -- there's still no shared toggle-switch component.
+function PortalToggle({
+  checked,
+  disabled,
+  onChange,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <span style={{ position: 'relative', width: 36, height: 20, flexShrink: 0, opacity: disabled ? 0.5 : 1 }}>
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{ position: 'absolute', inset: 0, opacity: 0, margin: 0, cursor: disabled ? 'default' : 'pointer' }}
+      />
+      <span
+        style={{
+          position: 'absolute',
+          inset: 0,
+          borderRadius: 999,
+          background: checked ? 'var(--brand-green)' : 'var(--border)',
+          transition: 'background 0.15s ease',
+          pointerEvents: 'none',
+        }}
+      />
+      <span
+        style={{
+          position: 'absolute',
+          top: 2,
+          left: checked ? 18 : 2,
+          width: 16,
+          height: 16,
+          borderRadius: '50%',
+          background: 'white',
+          transition: 'left 0.15s ease',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
+          pointerEvents: 'none',
+        }}
+      />
+    </span>
+  );
+}
+
+function CustomerPortalCard({ customer, onChange }: { customer: Customer; onChange: () => void }) {
+  const [active, setActive] = useState(customer.portalActive ?? false);
+  const [savingActive, setSavingActive] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function handleToggle(value: boolean) {
+    setSavingActive(true);
+    setError(null);
+    setNotice(null);
+    setActive(value); // optimistic
+    try {
+      await api.setCustomerPortalActive(customer._id, value);
+      setNotice(value ? 'Portal enabled for this customer.' : 'Portal disabled.');
+      onChange();
+    } catch (err) {
+      setActive(!value); // revert
+      setError(err instanceof Error ? err.message : 'Failed to update portal access');
+    } finally {
+      setSavingActive(false);
+    }
+  }
+
+  async function handleReset() {
+    setResetting(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await api.sendCustomerPortalReset(customer._id);
+      setNotice('Password reset email sent.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send the reset email');
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Customer Portal</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        Give this customer access to the Pawfect Pets customer app, where they can view their
+        invoices, quotes and bookings. They log in with their email address ({customer.email}).
+      </p>
+      {error && <div className="error-banner">{error}</div>}
+      <div className="field">
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 400 }}>
+          <PortalToggle checked={active} disabled={savingActive} onChange={handleToggle} />
+          Portal Active
+        </label>
+      </div>
+      <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 12 }}>
+        <button
+          className="btn btn-secondary"
+          onClick={handleReset}
+          disabled={!active || resetting}
+          title={active ? '' : 'Enable the portal first'}
+        >
+          {resetting ? 'Sending…' : 'Password reset'}
+        </button>
+        {notice && (
+          <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>{notice}</span>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,17 @@
-import { IsEmail, IsOptional, IsString, Length, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsOptional,
+  IsString,
+  Length,
+  MinLength,
+} from 'class-validator';
+
+// Staff toggle for a customer's portal access (PortalAdminController).
+export class SetPortalActiveDto {
+  @IsBoolean()
+  active: boolean;
+}
 
 export class RequestCodeDto {
   @IsEmail()

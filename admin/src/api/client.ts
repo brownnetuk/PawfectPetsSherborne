@@ -167,6 +167,19 @@ export function updateCustomer(id: string, patch: Record<string, unknown>): Prom
 export function updateCustomerStatus(id: string, status: string): Promise<Customer> {
   return request(`/customers/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
 }
+// --- customer portal (Customer Defaults > Customer Portal card) ---
+export function setCustomerPortalActive(
+  id: string,
+  active: boolean,
+): Promise<{ portalActive: boolean }> {
+  return request(`/customers/${id}/portal`, {
+    method: 'PATCH',
+    body: JSON.stringify({ active }),
+  });
+}
+export function sendCustomerPortalReset(id: string): Promise<{ ok: boolean }> {
+  return request(`/customers/${id}/portal/reset`, { method: 'POST' });
+}
 export function logFormSnapshot(
   id: string,
   title: string,

@@ -13,6 +13,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { PushModule } from '../push/push.module';
 import { SettingsModule } from '../settings/settings.module';
 import { PortalController } from './portal.controller';
+import { PortalAdminController } from './portal-admin.controller';
 import { PortalService } from './portal.service';
 import { PortalJwtStrategy } from './portal-jwt.strategy';
 
@@ -38,7 +39,7 @@ import { PortalJwtStrategy } from './portal-jwt.strategy';
     // secret (see PortalService.sign).
     JwtModule.register({}),
   ],
-  controllers: [PortalController],
+  controllers: [PortalController, PortalAdminController],
   providers: [PortalService, PortalJwtStrategy],
 })
 export class PortalModule {}

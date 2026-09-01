@@ -87,6 +87,7 @@ export interface Customer {
   travelChargeable?: boolean;
   travelProduct?: string | null;
   regularDays?: string[];
+  portalActive?: boolean;
 }
 
 export const WEEKDAYS = [
@@ -576,7 +577,9 @@ export type EmailTrigger =
   | 'quote'
   | 'payment_received'
   | 'form'
-  | 'deposit_request';
+  | 'deposit_request'
+  | 'portal_login_code'
+  | 'portal_password_reset';
 
 export interface EmailTemplate {
   trigger: EmailTrigger;

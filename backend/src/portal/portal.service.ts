@@ -1,6 +1,8 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -75,13 +77,13 @@ export class PortalService {
     return String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
   }
 
-  // Issues a fresh code and emails it. `kind` picks which slot/template to use.
-  // Always resolves quietly (even for unknown/disabled emails) so the endpoint
-  // can't be used to probe which addresses have portal access.
-  async requestCode(email: string, kind: 'login' | 'reset'): Promise<void> {
-    const customer = await this.findActiveWithCreds(email);
-    if (!customer) return;
-
+  // Generates a fresh code into the right slot and emails it (shared by the
+  // public request-code/reset endpoints and the staff-triggered reset). The
+  // customer must have been loaded with `+portalCredentials`.
+  private async issueCode(
+    customer: Customer,
+    kind: 'login' | 'reset',
+  ): Promise<void> {
     const code = PortalService.genCode();
     const hash = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + CODE_TTL_MS);
@@ -104,6 +106,46 @@ export class PortalService {
       customer_name: customer.name ?? '',
       code,
     });
+  }
+
+  // Issues a fresh code and emails it. `kind` picks which slot/template to use.
+  // Always resolves quietly (even for unknown/disabled emails) so the endpoint
+  // can't be used to probe which addresses have portal access.
+  async requestCode(email: string, kind: 'login' | 'reset'): Promise<void> {
+    const customer = await this.findActiveWithCreds(email);
+    if (!customer) return;
+    await this.issueCode(customer, kind);
+  }
+
+  // --- staff-triggered (PortalAdminController, behind the staff guard) ---
+
+  // Toggles a customer's portal access on/off. Turning it off also blocks
+  // login (login checks portalActive).
+  async setPortalActive(customerId: string, active: boolean) {
+    const customer = await this.customerModel
+      .findByIdAndUpdate(customerId, { portalActive: active }, { new: true })
+      .exec();
+    if (!customer) throw new NotFoundException(`Customer ${customerId} not found`);
+    return { portalActive: customer.portalActive ?? false };
+  }
+
+  // Staff "Password reset" button: emails this customer a reset code.
+  async adminSendReset(customerId: string) {
+    const customer = await this.customerModel
+      .findById(customerId)
+      .select('+portalCredentials')
+      .exec();
+    if (!customer) throw new NotFoundException(`Customer ${customerId} not found`);
+    if (!customer.portalActive) {
+      throw new BadRequestException(
+        'Enable the portal for this customer before sending a reset.',
+      );
+    }
+    if (!customer.email) {
+      throw new BadRequestException('This customer has no email address on file.');
+    }
+    await this.issueCode(customer, 'reset');
+    return { ok: true };
   }
 
   // Validates a code against either slot (login or reset), honouring expiry.

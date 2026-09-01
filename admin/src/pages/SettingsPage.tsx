@@ -1966,6 +1966,16 @@ export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: 
     label: 'Request Deposit',
     description: 'Sent from Invoices & Quotes when staff choose "Request Deposit" on an invoice.',
   },
+  {
+    value: 'portal_login_code',
+    label: 'Portal Login Code',
+    description: 'Sent to a customer app user on first-time login — a 6-digit code to verify their email and set a password.',
+  },
+  {
+    value: 'portal_password_reset',
+    label: 'Portal Password Reset',
+    description: 'Sent when a customer app user (or staff via the Customer Portal card) requests a password reset — a 6-digit code.',
+  },
 ];
 
 // Every trigger is edited as raw HTML (RichTextEditor) and sent through as-is
@@ -2219,6 +2229,16 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
     { key: 'remaining_balance', hint: 'the invoice total minus the deposit amount (no £ sign)' },
     { key: 'invoice_link', hint: 'link to view this invoice online and download it as a PDF' },
     ...BANK_PLACEHOLDERS,
+    ...BUSINESS_PLACEHOLDERS,
+  ],
+  portal_login_code: [
+    { key: 'customer_name', hint: "the customer's name" },
+    { key: 'code', hint: 'the 6-digit login code (valid for 48 hours)' },
+    ...BUSINESS_PLACEHOLDERS,
+  ],
+  portal_password_reset: [
+    { key: 'customer_name', hint: "the customer's name" },
+    { key: 'code', hint: 'the 6-digit reset code (valid for 48 hours)' },
     ...BUSINESS_PLACEHOLDERS,
   ],
 };
