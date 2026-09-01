@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model } from 'mongoose';
+import { NotificationSettingsService } from '../notifications/notification-settings.service';
 import { PushService } from '../push/push.service';
 import { Appointment } from './schemas/appointment.schema';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
@@ -27,6 +28,7 @@ export class AppointmentsService {
   constructor(
     @InjectModel(Appointment.name) private readonly appointmentModel: Model<Appointment>,
     private readonly pushService: PushService,
+    private readonly notificationSettings: NotificationSettingsService,
   ) {}
 
   // The appointment's actual start moment: its calendar day (stored at local
@@ -47,8 +49,11 @@ export class AppointmentsService {
       this.logger.debug('Reminder cron: APNs not configured, skipping');
       return;
     }
+    const settings = await this.notificationSettings.get();
+    if (!settings.appointmentReminders) return;
+    const leadMinutes = settings.appointmentLeadMinutes || 60;
     const now = new Date();
-    const horizon = new Date(now.getTime() + 60 * 60 * 1000);
+    const horizon = new Date(now.getTime() + leadMinutes * 60 * 1000);
     // Candidates: not yet reminded; the exact start-time window is checked in
     // JS since `time` is a string.
     const candidates = await this.appointmentModel
@@ -57,8 +62,9 @@ export class AppointmentsService {
       .exec();
     const due = candidates.filter((a) => this.startAt(a) > now && this.startAt(a) <= horizon);
     this.logger.log(
-      `Reminder cron: now=${now.toISOString()} ${candidates.length} pending, ${due.length} due in next hour`,
+      `Reminder cron: now=${now.toISOString()} ${candidates.length} pending, ${due.length} due within ${leadMinutes}min`,
     );
+    const lead = leadMinutes % 60 === 0 ? `${leadMinutes / 60} hour${leadMinutes === 60 ? '' : 's'}` : `${leadMinutes} min`;
     for (const appt of candidates) {
       const start = this.startAt(appt);
       if (start > now && start <= horizon) {
@@ -66,7 +72,7 @@ export class AppointmentsService {
         const timeLabel = appt.time;
         try {
           await this.pushService.sendToAll(
-            'Appointment in 1 hour',
+            `Appointment in ${lead}`,
             `${who} at ${timeLabel}${appt.reason ? ' — ' + appt.reason : ''}`,
             { type: 'appointment', appointmentId: appt._id?.toString() },
           );

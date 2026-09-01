@@ -28,6 +28,7 @@ import { Payment } from '../payments/schemas/payment.schema';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
+import { NotificationService } from '../notifications/notification.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { Invoice, InvoiceStatus } from './schemas/invoice.schema';
@@ -48,6 +49,7 @@ export class InvoicesService {
     private readonly creditNoteModel: Model<CreditNote>,
     private readonly settingsService: SettingsService,
     private readonly auditLogService: AuditLogService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   private calculateTotals(
@@ -115,12 +117,13 @@ export class InvoicesService {
   // enough to run on every list fetch too.
   @Cron(CronExpression.EVERY_HOUR)
   private async markOverdue(): Promise<void> {
-    await this.invoiceModel
-      .updateMany(
-        { status: InvoiceStatus.SENT, dueDate: { $lt: new Date() } },
-        { status: InvoiceStatus.OVERDUE },
-      )
-      .exec();
+    const filter = { status: InvoiceStatus.SENT, dueDate: { $lt: new Date() } };
+    // Count what's about to flip so we only push when something actually goes
+    // overdue (this also runs on every list fetch, and re-runs find nothing).
+    const flipping = await this.invoiceModel.countDocuments(filter).exec();
+    if (flipping === 0) return;
+    await this.invoiceModel.updateMany(filter, { status: InvoiceStatus.OVERDUE }).exec();
+    await this.notificationService.notifyInvoicesOverdue(flipping);
   }
 
   async findAll(customerId?: string): Promise<Invoice[]> {
@@ -398,6 +401,7 @@ export class InvoicesService {
       undefined,
       invoice._id,
     );
+    await this.notificationService.notifyInvoiceRead(invoice.invoiceNumber);
   }
 
   /** Adds a recorded payment's amount to amountPaid, flipping status to paid once it covers the total. */
