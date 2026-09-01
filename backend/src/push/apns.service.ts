@@ -62,6 +62,19 @@ export class ApnsService {
     return !!(this.key && this.keyId && this.teamId && this.bundleId);
   }
 
+  // Non-secret diagnostics: which pieces are present (the key is only reported
+  // as a boolean, never its contents). Identifiers are safe to surface.
+  get diagnostics() {
+    return {
+      keyParsed: !!this.key,
+      keyRawLength: (process.env.APNS_KEY ?? '').length,
+      keyId: this.keyId || null,
+      teamId: this.teamId || null,
+      bundleId: this.bundleId || null,
+      production: this.production,
+    };
+  }
+
   private providerToken(): string {
     const now = Date.now();
     if (this.cachedJwt && now - this.cachedAt < 50 * 60 * 1000) return this.cachedJwt;

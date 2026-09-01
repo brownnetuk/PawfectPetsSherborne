@@ -23,7 +23,11 @@ export class PushController {
   @Public()
   @Get('status')
   async status() {
-    return { configured: this.pushService.configured, tokenCount: await this.pushService.countTokens() };
+    return {
+      configured: this.pushService.configured,
+      tokenCount: await this.pushService.countTokens(),
+      ...this.pushService.diagnostics,
+    };
   }
 
   // Diagnostics: send a test push to every registered device right now.

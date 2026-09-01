@@ -17,6 +17,10 @@ export class PushService {
     return this.apns.configured;
   }
 
+  get diagnostics() {
+    return this.apns.diagnostics;
+  }
+
   // Upsert by token so re-registering the same device just refreshes it.
   async registerToken(token: string, platform: string, staff?: string): Promise<void> {
     await this.pushTokenModel
