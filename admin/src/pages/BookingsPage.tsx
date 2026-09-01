@@ -161,6 +161,55 @@ export default function BookingsPage() {
     return (dayBookings ?? []).filter((b) => isSameDay(new Date(b.date), date));
   }
 
+  // Whether aid has a Visits-mapping entry on targetDate, within whatever
+  // range is currently loaded (dayBookings) -- used only to tell a 1-visit
+  // entry's AM/PM (start of a run vs end vs a middle/standalone day). A
+  // range that starts before the visible week/month can't see its earlier
+  // days this way, same limitation as the day panel's own narrower check.
+  function hasVisitEntryOn(targetDate: Date, aid: string): boolean {
+    if (!visitMapping) return false;
+    return (dayBookings ?? []).some(
+      (b) => animalId(b.animal) === aid && isSameDay(new Date(b.date), targetDate) && isVisitProduct(visitMapping, productId(b.product)),
+    );
+  }
+
+  // One badge per Walk-type animal (plain name, unchanged), plus one or two
+  // badges per Visit-type animal: "Name - AM"/"Name - PM" for a single visit
+  // (worked out the same start/end/regular way as the day panel), or both
+  // "Name - AM" and "Name - PM" for a 2-visit day -- the PM one is a display
+  // placeholder only, not a second underlying booking.
+  function badgesForDay(date: Date): { key: string; label: string; kind: 'walk' | 'visit' }[] {
+    const byAnimal = new Map<string, DayBooking[]>();
+    for (const b of bookingsForDay(date)) {
+      const aid = animalId(b.animal);
+      const arr = byAnimal.get(aid);
+      if (arr) arr.push(b);
+      else byAnimal.set(aid, [b]);
+    }
+    const badges: { key: string; label: string; kind: 'walk' | 'visit' }[] = [];
+    for (const [aid, entries] of byAnimal) {
+      const name = animalLabel(entries[0].animal);
+      const walkEntries = entries.filter((b) => !visitMapping || !isVisitProduct(visitMapping, productId(b.product)));
+      const visitEntries = entries.filter((b) => visitMapping && isVisitProduct(visitMapping, productId(b.product)));
+      if (walkEntries.length > 0) {
+        badges.push({ key: `${aid}-walk`, label: name, kind: 'walk' });
+      }
+      if (visitEntries.length > 0) {
+        const count = visitMapping ? visitCountForProduct(visitMapping, productId(visitEntries[0].product)) : null;
+        if (count === 2) {
+          badges.push({ key: `${aid}-visit-am`, label: `${name} - AM`, kind: 'visit' });
+          badges.push({ key: `${aid}-visit-pm`, label: `${name} - PM`, kind: 'visit' });
+        } else {
+          const isStart = !hasVisitEntryOn(addDays(date, -1), aid);
+          const isEnd = !hasVisitEntryOn(addDays(date, 1), aid);
+          const time = isEnd && !isStart ? 'AM' : 'PM';
+          badges.push({ key: `${aid}-visit`, label: `${name} - ${time}`, kind: 'visit' });
+        }
+      }
+    }
+    return badges;
+  }
+
   // Clicked an animal in the Visits section: walk outward from that day
   // through this animal's consecutive Visits-mapping entries to find the
   // full date range, then reopen New Booking pre-filled so staff can adjust
@@ -292,9 +341,7 @@ export default function BookingsPage() {
             >
               {week.map((date) => {
                 const inCurrentMonth = viewMode === 'week' || date.getMonth() === anchorDate.getMonth();
-                // One badge per dog, not per booking -- a dog with a walk plus
-                // an auto-added travel line still shows as a single entry.
-                const animalsToday = Array.from(new Map(bookingsForDay(date).map((b) => [animalId(b.animal), b])).values());
+                const badges = badgesForDay(date);
                 const selected = selectedDate && isSameDay(date, selectedDate);
                 return (
                   <div
@@ -314,12 +361,12 @@ export default function BookingsPage() {
                       {date.getDate()}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      {animalsToday.slice(0, MAX_BADGES).map((b) => (
+                      {badges.slice(0, MAX_BADGES).map((badge) => (
                         <span
-                          key={animalId(b.animal)}
+                          key={badge.key}
                           style={{
-                            background: 'var(--sage-badge, #d9f2e3)',
-                            color: 'var(--brand-green)',
+                            background: badge.kind === 'visit' ? '#fff4cc' : 'var(--sage-badge, #d9f2e3)',
+                            color: badge.kind === 'visit' ? '#8a6d00' : 'var(--brand-green)',
                             fontSize: '0.75rem',
                             borderRadius: 4,
                             padding: '2px 6px',
@@ -328,12 +375,12 @@ export default function BookingsPage() {
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          {animalLabel(b.animal)}
+                          {badge.label}
                         </span>
                       ))}
-                      {animalsToday.length > MAX_BADGES && (
+                      {badges.length > MAX_BADGES && (
                         <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
-                          +{animalsToday.length - MAX_BADGES} more
+                          +{badges.length - MAX_BADGES} more
                         </span>
                       )}
                     </div>
