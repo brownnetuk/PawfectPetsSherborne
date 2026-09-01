@@ -14,6 +14,7 @@ import '../models/customer.dart';
 import '../models/expense.dart';
 import '../models/invoice.dart';
 import '../models/product.dart';
+import '../models/notification_settings.dart';
 import '../models/quote.dart';
 import '../models/staff.dart';
 import '../models/visit_mapping.dart';
@@ -179,6 +180,13 @@ class Repository {
   /// reminders to it.
   Future<void> registerPushToken(String token) =>
       _client.post('/push/register', {'token': token, 'platform': 'ios'});
+
+  // --- notification settings (global push preferences) ---
+  Future<NotificationSettings> getNotificationSettings() async =>
+      NotificationSettings.fromJson(await _client.get('/settings/notifications'));
+
+  Future<NotificationSettings> updateNotificationSettings(Map<String, dynamic> patch) async =>
+      NotificationSettings.fromJson(await _client.patch('/settings/notifications', patch));
 
   /// All animals as lightweight refs (id, name, species, owner id), for the
   /// bookings calendar's "Add dog" / "Recommended" lists.

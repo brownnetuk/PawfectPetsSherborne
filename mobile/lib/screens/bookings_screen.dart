@@ -14,6 +14,7 @@ import '../utils/product_availability.dart';
 import 'add_appointment_sheet.dart';
 import 'generate_invoices_sheet.dart';
 import 'home_shell.dart';
+import 'settings_screen.dart';
 import 'visits_booking_sheet.dart';
 
 // The calendar's day data: bookings (walks + visits) and appointments.
@@ -383,6 +384,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
             icon: const Icon(Icons.request_quote_outlined),
             tooltip: 'Generate invoices',
             onPressed: _openGenerateInvoices,
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
           ),
           const LogoutAction(),
         ],
