@@ -575,7 +575,7 @@ function DayDetailPanel({
 
   function handleAdd() {
     if (!addAnimalId || !addProductId) {
-      setError('Choose a dog and a product.');
+      setError('Choose an animal and a product.');
       return;
     }
     const product = products.find((p) => p._id === addProductId);
@@ -599,7 +599,7 @@ function DayDetailPanel({
       setAddQuantity(1);
       onChange();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add this dog');
+      setError(err instanceof Error ? err.message : 'Failed to add this animal');
     } finally {
       setBusy(false);
     }
@@ -925,10 +925,10 @@ function DayDetailPanel({
         </>
       )}
 
-      <div className="section-title">Add Dog</div>
+      <div className="section-title">Add Animal</div>
       <div className="field">
         <select value={addAnimalId} onChange={(e) => handlePickAnimal(e.target.value)}>
-          <option value="">Select a dog…</option>
+          <option value="">Select an animal…</option>
           {animals.map((a) => (
             <option key={a._id} value={a._id}>
               {a.name} ({ownerOf(a.customer)?.name ?? 'unknown owner'})
