@@ -186,28 +186,32 @@ export default function BookingsPage() {
       if (arr) arr.push(b);
       else byAnimal.set(aid, [b]);
     }
-    const badges: { key: string; label: string; kind: 'walk' | 'visit' }[] = [];
+    // Two passes (not one loop pushing both kinds per animal) so every Walk
+    // badge -- across every animal -- sorts before every Visit badge, not
+    // just before that same animal's own visit.
+    const walkBadges: { key: string; label: string; kind: 'walk' | 'visit' }[] = [];
+    const visitBadges: { key: string; label: string; kind: 'walk' | 'visit' }[] = [];
     for (const [aid, entries] of byAnimal) {
       const name = animalLabel(entries[0].animal);
       const walkEntries = entries.filter((b) => !visitMapping || !isVisitProduct(visitMapping, productId(b.product)));
       const visitEntries = entries.filter((b) => visitMapping && isVisitProduct(visitMapping, productId(b.product)));
       if (walkEntries.length > 0) {
-        badges.push({ key: `${aid}-walk`, label: name, kind: 'walk' });
+        walkBadges.push({ key: `${aid}-walk`, label: name, kind: 'walk' });
       }
       if (visitEntries.length > 0) {
         const count = visitMapping ? visitCountForProduct(visitMapping, productId(visitEntries[0].product)) : null;
         if (count === 2) {
-          badges.push({ key: `${aid}-visit-am`, label: `${name} - AM`, kind: 'visit' });
-          badges.push({ key: `${aid}-visit-pm`, label: `${name} - PM`, kind: 'visit' });
+          visitBadges.push({ key: `${aid}-visit-am`, label: `${name} - AM`, kind: 'visit' });
+          visitBadges.push({ key: `${aid}-visit-pm`, label: `${name} - PM`, kind: 'visit' });
         } else {
           const isStart = !hasVisitEntryOn(addDays(date, -1), aid);
           const isEnd = !hasVisitEntryOn(addDays(date, 1), aid);
           const time = isEnd && !isStart ? 'AM' : 'PM';
-          badges.push({ key: `${aid}-visit`, label: `${name} - ${time}`, kind: 'visit' });
+          visitBadges.push({ key: `${aid}-visit`, label: `${name} - ${time}`, kind: 'visit' });
         }
       }
     }
-    return badges;
+    return [...walkBadges, ...visitBadges];
   }
 
   // Clicked an animal in the Visits section: walk outward from that day
