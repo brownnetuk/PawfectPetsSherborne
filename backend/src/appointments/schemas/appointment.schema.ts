@@ -22,6 +22,11 @@ export class Appointment extends Document {
 
   @Prop({ required: true })
   time: string;
+
+  // Set once the "1 hour before" push reminder has gone out, so the reminder
+  // cron only ever notifies each appointment once.
+  @Prop()
+  reminderSentAt?: Date;
 }
 
 export const AppointmentSchema = SchemaFactory.createForClass(Appointment);

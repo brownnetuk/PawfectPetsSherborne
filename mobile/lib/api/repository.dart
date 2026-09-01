@@ -175,6 +175,11 @@ class Repository {
 
   Future<void> deleteAppointment(String id) => _client.delete('/appointments/$id');
 
+  /// Registers this device's APNs token so the backend can send appointment
+  /// reminders to it.
+  Future<void> registerPushToken(String token) =>
+      _client.post('/push/register', {'token': token, 'platform': 'ios'});
+
   /// All animals as lightweight refs (id, name, species, owner id), for the
   /// bookings calendar's "Add dog" / "Recommended" lists.
   Future<List<AnimalRef>> listAllAnimals() async =>

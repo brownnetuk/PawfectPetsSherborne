@@ -5,18 +5,21 @@ import 'api/repository.dart';
 import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
 import 'screens/scan_qr_screen.dart';
+import 'services/push_service.dart';
 import 'state/auth_provider.dart';
 import 'theme.dart';
 
 void main() {
   final client = ApiClient();
   final repository = Repository(client);
+  final pushService = PushService(repository);
 
   runApp(
     MultiProvider(
       providers: [
         Provider.value(value: client),
         Provider.value(value: repository),
+        Provider.value(value: pushService),
         ChangeNotifierProvider(create: (_) => AuthProvider(client, repository)),
       ],
       child: const PawfectPetsStaffApp(),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../services/push_service.dart';
 import '../state/auth_provider.dart';
 import 'bookings_screen.dart';
 import 'customers_screen.dart';
@@ -16,6 +17,16 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Now that a staff member is logged in, ask iOS for notification
+    // permission and register this device for appointment-reminder pushes.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<PushService>().start();
+    });
+  }
 
   static const _screens = [
     BookingsScreen(),

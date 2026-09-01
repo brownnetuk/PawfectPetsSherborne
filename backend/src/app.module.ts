@@ -26,6 +26,7 @@ import { InvoiceTermsModule } from './invoice-terms/invoice-terms.module';
 import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ProductsModule } from './products/products.module';
+import { PushModule } from './push/push.module';
 import { CrmModule } from './crm/crm.module';
 import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
@@ -54,6 +55,7 @@ import { StaffModule } from './staff/staff.module';
     AuthModule,
     AppointmentsModule,
     AuditLogModule,
+    PushModule,
     CustomersModule,
     AnimalsModule,
     BankAccountsModule,
