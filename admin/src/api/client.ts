@@ -770,3 +770,38 @@ export function createEnquiry(input: CreateEnquiryInput): Promise<Enquiry> {
 export function deleteEnquiry(id: string): Promise<void> {
   return request(`/enquiries/${id}`, { method: 'DELETE' });
 }
+
+// --- notifications: feed (admin bell) + global settings ---
+export interface NotificationItem {
+  _id: string;
+  title: string;
+  body: string;
+  type?: string;
+  read: boolean;
+  createdAt: string;
+}
+export function listNotifications(): Promise<NotificationItem[]> {
+  return request('/notifications');
+}
+export function notificationsUnreadCount(): Promise<{ count: number }> {
+  return request('/notifications/unread-count');
+}
+export function markNotificationsRead(): Promise<{ ok: boolean }> {
+  return request('/notifications/mark-read', { method: 'POST' });
+}
+
+export interface NotificationSettings {
+  customerActivated: boolean;
+  appointmentReminders: boolean;
+  appointmentLeadMinutes: number;
+  dailyDigest: boolean;
+  dailyDigestTime: string;
+  invoicesOverdue: boolean;
+  invoicesRead: boolean;
+}
+export function getNotificationSettings(): Promise<NotificationSettings> {
+  return request('/settings/notifications');
+}
+export function updateNotificationSettings(patch: Partial<NotificationSettings>): Promise<NotificationSettings> {
+  return request('/settings/notifications', { method: 'PATCH', body: JSON.stringify(patch) });
+}

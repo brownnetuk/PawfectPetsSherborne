@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model } from 'mongoose';
 import { NotificationSettingsService } from '../notifications/notification-settings.service';
+import { NotificationService } from '../notifications/notification.service';
 import { PushService } from '../push/push.service';
 import { Appointment } from './schemas/appointment.schema';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
@@ -29,6 +30,7 @@ export class AppointmentsService {
     @InjectModel(Appointment.name) private readonly appointmentModel: Model<Appointment>,
     private readonly pushService: PushService,
     private readonly notificationSettings: NotificationSettingsService,
+    private readonly notifications: NotificationService,
   ) {}
 
   // The appointment's actual start moment: its calendar day (stored at local
@@ -71,10 +73,10 @@ export class AppointmentsService {
         const who = (appt.customer as unknown as { name?: string })?.name ?? 'a customer';
         const timeLabel = appt.time;
         try {
-          await this.pushService.sendToAll(
+          await this.notifications.dispatch(
             `Appointment in ${lead}`,
             `${who} at ${timeLabel}${appt.reason ? ' — ' + appt.reason : ''}`,
-            { type: 'appointment', appointmentId: appt._id?.toString() },
+            'appointment',
           );
           appt.reminderSentAt = new Date();
           await appt.save();
