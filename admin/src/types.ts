@@ -173,6 +173,7 @@ export interface DayBooking {
   date: string;
   product: { _id: string; name: string; price: number } | string;
   quantity: number;
+  invoice?: { _id: string; invoiceNumber: string } | string | null;
   createdAt: string;
 }
 

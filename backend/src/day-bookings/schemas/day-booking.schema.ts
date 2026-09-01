@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { Animal } from '../../animals/schemas/animal.schema';
 import { Customer } from '../../customers/schemas/customer.schema';
+import { Invoice } from '../../invoices/schemas/invoice.schema';
 import { Product } from '../../products/schemas/product.schema';
 
 // One dog, one day, one product -- the calendar's unit of scheduling.
@@ -30,6 +31,11 @@ export class DayBooking extends Document {
 
   @Prop({ required: true, min: 1, default: 1 })
   quantity: number;
+
+  // Set once this day's booking has been included on a generated invoice
+  // (Bookings page > Generate Invoice) -- unset means it's still billable.
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Invoice.name })
+  invoice?: Types.ObjectId;
 }
 
 export const DayBookingSchema = SchemaFactory.createForClass(DayBooking);

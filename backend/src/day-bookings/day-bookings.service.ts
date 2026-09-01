@@ -44,6 +44,7 @@ export class DayBookingsService {
       { path: 'animal', select: 'name species' },
       { path: 'customer', select: 'name' },
       { path: 'product', select: 'name price' },
+      { path: 'invoice', select: 'invoiceNumber' },
     ]);
   }
 
@@ -56,6 +57,7 @@ export class DayBookingsService {
       .populate('animal', 'name species')
       .populate('customer', 'name')
       .populate('product', 'name price')
+      .populate('invoice', 'invoiceNumber')
       .sort({ date: 1 })
       .exec();
   }
@@ -68,6 +70,7 @@ export class DayBookingsService {
       .populate('animal', 'name species')
       .populate('customer', 'name')
       .populate('product', 'name price')
+      .populate('invoice', 'invoiceNumber')
       .exec();
     if (!dayBooking) {
       throw new NotFoundException(`Day booking ${id} not found`);

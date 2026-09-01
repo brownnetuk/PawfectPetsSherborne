@@ -227,6 +227,7 @@ export interface DayBookingInput {
   date: string;
   product: string;
   quantity?: number;
+  invoice?: string | null;
 }
 export function createDayBooking(input: DayBookingInput): Promise<DayBooking> {
   return request('/day-bookings', { method: 'POST', body: JSON.stringify(input) });

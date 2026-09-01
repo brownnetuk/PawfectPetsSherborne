@@ -31,8 +31,9 @@ export default function Layout() {
   // The invoice detail view lays out three columns side by side (list,
   // document preview, activity log) and needs the full window width to
   // avoid squeezing the preview -- every other page is fine at the
-  // standard reading-width cap.
-  const isWide = location.pathname.startsWith('/invoices');
+  // standard reading-width cap. Bookings needs it too: a 7-day-wide
+  // calendar grid plus the day panel gets cramped under the standard cap.
+  const isWide = location.pathname.startsWith('/invoices') || location.pathname.startsWith('/bookings');
 
   function handleLogout() {
     logout();

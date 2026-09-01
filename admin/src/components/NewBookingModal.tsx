@@ -85,6 +85,8 @@ export default function NewBookingModal({
   const [result, setResult] = useState<{ created: number; updated: number; deleted: number; skipped: number } | null>(
     null,
   );
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const customerAnimals = animals.filter((a) => a.customer === custId);
 
@@ -95,6 +97,27 @@ export default function NewBookingModal({
 
   function toggleAnimal(id: string) {
     setAnimalIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  // Deletes every day of the detected range for the animal this modal was
+  // opened to edit -- the whole booking, not just what's currently in the
+  // form (so shrinking the range first then deleting still removes
+  // everything the range originally covered).
+  async function handleDelete() {
+    if (!initial) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      for (const entry of initial.editEntries) {
+        await api.deleteDayBooking(entry.bookingId);
+      }
+      setConfirmDelete(false);
+      onCreated();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete this booking');
+      setDeleting(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -303,15 +326,39 @@ export default function NewBookingModal({
             </select>
           </div>
         </div>
-        <div className="modal-actions">
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
-            {result ? 'Close' : 'Cancel'}
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={busy}>
-            {busy ? (initial ? 'Updating…' : 'Creating…') : initial ? 'Update booking' : 'Create booking'}
-          </button>
+        <div className="modal-actions" style={{ justifyContent: initial ? 'space-between' : 'flex-end' }}>
+          {initial && (
+            <button type="button" className="btn btn-danger" onClick={() => setConfirmDelete(true)}>
+              Delete booking
+            </button>
+          )}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              {result ? 'Close' : 'Cancel'}
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={busy}>
+              {busy ? (initial ? 'Updating…' : 'Creating…') : initial ? 'Update booking' : 'Create booking'}
+            </button>
+          </div>
         </div>
       </form>
+
+      {confirmDelete && (
+        <Modal title="Delete this booking?" onClose={() => setConfirmDelete(false)}>
+          <p>
+            This permanently removes every day of this booking ({initial?.editEntries.length ?? 0} day
+            {initial && initial.editEntries.length === 1 ? '' : 's'}) for this animal.
+          </p>
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => setConfirmDelete(false)}>
+              Cancel
+            </button>
+            <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'Deleting…' : 'Delete booking'}
+            </button>
+          </div>
+        </Modal>
+      )}
     </Modal>
   );
 }

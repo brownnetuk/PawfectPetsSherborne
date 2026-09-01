@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as api from '../api/client';
+import GenerateInvoicesModal from '../components/GenerateInvoicesModal';
 import NewBookingModal from '../components/NewBookingModal';
 import type { NewBookingInitial } from '../components/NewBookingModal';
 import ProductAvailabilityWarningModal from '../components/ProductAvailabilityWarningModal';
@@ -129,6 +130,7 @@ export default function BookingsPage() {
   // sections -- both default on, so nothing changes until staff toggle one off.
   const [showWalks, setShowWalks] = useState(true);
   const [showVisits, setShowVisits] = useState(true);
+  const [showGenerateInvoices, setShowGenerateInvoices] = useState(false);
 
   const weeks = useMemo(() => buildWeeks(viewMode, anchorDate), [viewMode, anchorDate]);
 
@@ -188,7 +190,7 @@ export default function BookingsPage() {
   // (worked out the same start/end/regular way as the day panel), or both
   // "Name - AM" and "Name - PM" for a 2-visit day -- the PM one is a display
   // placeholder only, not a second underlying booking.
-  function badgesForDay(date: Date): { key: string; label: string; kind: 'walk' | 'visit' }[] {
+  function badgesForDay(date: Date): { key: string; label: string; kind: 'walk' | 'visit'; invoiced: boolean }[] {
     const byAnimal = new Map<string, DayBooking[]>();
     for (const b of bookingsForDay(date)) {
       const aid = animalId(b.animal);
@@ -199,26 +201,28 @@ export default function BookingsPage() {
     // Three passes (not one loop pushing per animal) so ordering reflects
     // the actual time of day across every animal -- AM visits first, then
     // walks, then PM visits -- not just each animal's own badges together.
-    const amVisitBadges: { key: string; label: string; kind: 'walk' | 'visit' }[] = [];
-    const walkBadges: { key: string; label: string; kind: 'walk' | 'visit' }[] = [];
-    const pmVisitBadges: { key: string; label: string; kind: 'walk' | 'visit' }[] = [];
+    type Badge = { key: string; label: string; kind: 'walk' | 'visit'; invoiced: boolean };
+    const amVisitBadges: Badge[] = [];
+    const walkBadges: Badge[] = [];
+    const pmVisitBadges: Badge[] = [];
     for (const [aid, entries] of byAnimal) {
       const name = animalLabel(entries[0].animal);
       const walkEntries = entries.filter((b) => !visitMapping || !isVisitProduct(visitMapping, productId(b.product)));
       const visitEntries = entries.filter((b) => visitMapping && isVisitProduct(visitMapping, productId(b.product)));
       if (showWalks && walkEntries.length > 0) {
-        walkBadges.push({ key: `${aid}-walk`, label: name, kind: 'walk' });
+        walkBadges.push({ key: `${aid}-walk`, label: name, kind: 'walk', invoiced: walkEntries.every((b) => !!b.invoice) });
       }
       if (showVisits && visitEntries.length > 0) {
+        const invoiced = visitEntries.every((b) => !!b.invoice);
         const count = visitMapping ? visitCountForProduct(visitMapping, productId(visitEntries[0].product)) : null;
         if (count === 2) {
-          amVisitBadges.push({ key: `${aid}-visit-am`, label: `${name} - AM`, kind: 'visit' });
-          pmVisitBadges.push({ key: `${aid}-visit-pm`, label: `${name} - PM`, kind: 'visit' });
+          amVisitBadges.push({ key: `${aid}-visit-am`, label: `${name} - AM`, kind: 'visit', invoiced });
+          pmVisitBadges.push({ key: `${aid}-visit-pm`, label: `${name} - PM`, kind: 'visit', invoiced });
         } else {
           const isStart = !hasVisitEntryOn(addDays(date, -1), aid);
           const isEnd = !hasVisitEntryOn(addDays(date, 1), aid);
           const time = isEnd && !isStart ? 'AM' : 'PM';
-          const badge = { key: `${aid}-visit`, label: `${name} - ${time}`, kind: 'visit' as const };
+          const badge: Badge = { key: `${aid}-visit`, label: `${name} - ${time}`, kind: 'visit', invoiced };
           if (time === 'AM') amVisitBadges.push(badge);
           else pmVisitBadges.push(badge);
         }
@@ -347,8 +351,19 @@ export default function BookingsPage() {
           <button className="btn btn-primary btn-sm" onClick={() => setBookingModal('new')}>
             New Booking
           </button>
+          <button className="btn btn-success btn-sm" onClick={() => setShowGenerateInvoices(true)}>
+            Generate Invoice
+          </button>
         </div>
       </div>
+
+      {showGenerateInvoices && (
+        <GenerateInvoicesModal
+          anchorDate={anchorDate}
+          onClose={() => setShowGenerateInvoices(false)}
+          onGenerated={refreshDayBookings}
+        />
+      )}
 
       {bookingModal && (
         <NewBookingModal
@@ -415,6 +430,7 @@ export default function BookingsPage() {
                       {badges.slice(0, MAX_BADGES).map((badge) => (
                         <span
                           key={badge.key}
+                          title={badge.invoiced ? 'Invoiced' : undefined}
                           style={{
                             background: badge.kind === 'visit' ? '#fff4cc' : 'var(--sage-badge, #d9f2e3)',
                             color: badge.kind === 'visit' ? '#8a6d00' : 'var(--brand-green)',
@@ -426,6 +442,7 @@ export default function BookingsPage() {
                             whiteSpace: 'nowrap',
                           }}
                         >
+                          {badge.invoiced ? '✓ ' : ''}
                           {badge.label}
                         </span>
                       ))}
@@ -711,6 +728,11 @@ function DayDetailPanel({
                   </div>
                   {group.map((b) => (
                     <div key={b._id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                      {b.invoice && (
+                        <span title="Invoiced" style={{ color: 'var(--brand-green)', fontSize: '0.85rem', flexShrink: 0 }}>
+                          ✓
+                        </span>
+                      )}
                       <select
                         value={productId(b.product)}
                         onChange={(e) => handleUpdate(b, { product: e.target.value })}
@@ -837,6 +859,11 @@ function DayDetailPanel({
                         <span style={{ flex: 1, minWidth: 0, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {productLabel(b.product)}
                         </span>
+                        {b.invoice && (
+                          <span title="Invoiced" style={{ color: 'var(--brand-green)', fontSize: '0.85rem', flexShrink: 0 }}>
+                            ✓
+                          </span>
+                        )}
                         <button
                           type="button"
                           className="icon-btn icon-btn-danger"
