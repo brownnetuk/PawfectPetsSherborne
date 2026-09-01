@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import '../models/animal.dart';
 import '../models/audit_log_entry.dart';
 import '../models/bank_account.dart';
+import '../models/bank_holiday.dart';
 import '../models/bank_transfer.dart';
 import '../models/booking.dart';
 import '../models/day_booking.dart';
@@ -159,6 +160,11 @@ class Repository {
   // --- products (invoice line-item catalogue) ---
   Future<List<Product>> listProducts() async =>
       (await _client.getList('/products')).map((e) => Product.fromJson(e)).toList();
+
+  /// Named bank-holiday dates, used to work out a date's day-type for product
+  /// availability restrictions (Bookings + invoice/quote line items).
+  Future<List<BankHoliday>> listBankHolidays() async =>
+      (await _client.getList('/bank-holidays')).map((e) => BankHoliday.fromJson(e)).toList();
 
   // --- invoices ---
   Future<List<Invoice>> listInvoices({String? customerId}) async => (await _client.getList(

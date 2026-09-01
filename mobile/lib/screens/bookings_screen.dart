@@ -4,9 +4,11 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
+import '../models/bank_holiday.dart';
 import '../models/customer.dart';
 import '../models/day_booking.dart';
 import '../models/product.dart';
+import '../utils/product_availability.dart';
 import 'home_shell.dart';
 
 // Customer.regularDays weekday keys, indexed by DateTime.weekday (1=Mon..7=Sun).
@@ -34,6 +36,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
   List<Customer>? _customers;
   List<AnimalRef>? _animals;
   List<Product>? _products;
+  List<BankHoliday> _bankHolidays = [];
 
   late Future<List<DayBooking>> _future;
 
@@ -55,10 +58,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
         repo.listCustomers(),
         repo.listAllAnimals(),
         repo.listProducts(),
+        repo.listBankHolidays(),
       ]);
       _customers = results[0] as List<Customer>;
       _animals = results[1] as List<AnimalRef>;
       _products = results[2] as List<Product>;
+      _bankHolidays = results[3] as List<BankHoliday>;
     }
     // Day view fetches one day; week view fetches Mon..Sun (to = the Monday
     // after, since the backend range is $gte from / $lt to).
@@ -128,6 +133,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
     return null;
   }
 
+  Product? _productById(String id) {
+    for (final p in _products ?? const <Product>[]) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+
   String _defaultProductFor(String? customerId) {
     final owner = customerId == null ? null : _ownerOf(customerId);
     if (owner?.defaultProductId != null && owner!.defaultProductId!.isNotEmpty) {
@@ -161,6 +173,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
       _snack('Set up a product first.');
       return;
     }
+    final product = _productById(mainProduct);
+    if (product != null && !await confirmProductAvailability(context, product, _day, _bankHolidays)) {
+      return;
+    }
+    if (!mounted) return;
     final repo = context.read<Repository>();
     try {
       await repo.createDayBooking(animalId: animal.id, date: _day, productId: mainProduct, quantity: 1);
@@ -190,6 +207,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
       ),
     );
     if (result == null) return;
+    final product = _productById(result.productId);
+    if (product != null && mounted && !await confirmProductAvailability(context, product, _day, _bankHolidays)) {
+      return;
+    }
     try {
       await repo.createDayBooking(
         animalId: result.animalId,
@@ -209,7 +230,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final changed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _EditEntrySheet(booking: booking, products: products),
+      builder: (_) => _EditEntrySheet(booking: booking, products: products, bankHolidays: _bankHolidays),
     );
     if (changed == true) _reload();
   }
@@ -349,9 +370,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
       return owner?.regularDays.contains(weekdayKey) ?? false;
     }).toList();
 
+    final dayTotal = dayBookings.fold<double>(0, (s, b) => s + b.lineTotal);
     return ListView(
       padding: const EdgeInsets.only(bottom: 96),
       children: [
+        _revenueBanner('Day revenue', dayTotal),
         _sectionTitle('Scheduled'),
         if (groups.isEmpty)
           const Padding(
@@ -383,10 +406,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
   Widget _weekBody(List<DayBooking> bookings) {
     final start = _weekStart;
     final today = _dateOnly(DateTime.now());
-    final children = <Widget>[];
+    final weekTotal = bookings.fold<double>(0, (s, b) => s + b.lineTotal);
+    final children = <Widget>[_revenueBanner('Week revenue', weekTotal), const SizedBox(height: 8)];
     for (int i = 0; i < 7; i++) {
       final date = DateTime(start.year, start.month, start.day + i);
-      final groups = _groupByAnimal(bookings.where((b) => _sameDay(b.date, date)).toList());
+      final dayItems = bookings.where((b) => _sameDay(b.date, date)).toList();
+      final groups = _groupByAnimal(dayItems);
+      final dayTotal = dayItems.fold<double>(0, (s, b) => s + b.lineTotal);
       final isToday = today == date;
       children.add(
         InkWell(
@@ -406,7 +432,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
                 ),
                 const Spacer(),
                 Text(
-                  groups.isEmpty ? '—' : '${groups.length} dog${groups.length == 1 ? '' : 's'}',
+                  groups.isEmpty
+                      ? '—'
+                      : '${groups.length} dog${groups.length == 1 ? '' : 's'} · ${_money.format(dayTotal)}',
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
                 const SizedBox(width: 4),
@@ -476,6 +504,29 @@ class _BookingsScreenState extends State<BookingsScreen> {
             letterSpacing: 0.5,
             color: Colors.grey.shade600,
           ),
+        ),
+      );
+
+  Widget _revenueBanner(String label, double amount) => Container(
+        margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.green.shade50,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.payments_outlined, size: 18, color: Colors.green.shade700),
+                const SizedBox(width: 8),
+                Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+              ],
+            ),
+            Text(_money.format(amount),
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade800, fontSize: 16)),
+          ],
         ),
       );
 }
@@ -603,7 +654,8 @@ class _AddDogSheetState extends State<_AddDogSheet> {
 class _EditEntrySheet extends StatefulWidget {
   final DayBooking booking;
   final List<Product> products;
-  const _EditEntrySheet({required this.booking, required this.products});
+  final List<BankHoliday> bankHolidays;
+  const _EditEntrySheet({required this.booking, required this.products, required this.bankHolidays});
 
   @override
   State<_EditEntrySheet> createState() => _EditEntrySheetState();
@@ -623,6 +675,16 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
 
   Future<void> _save() async {
     final qty = int.tryParse(_qtyController.text.trim()) ?? widget.booking.quantity;
+    // Warn if the chosen product is restricted to a different day-type.
+    Product? product;
+    for (final p in widget.products) {
+      if (p.id == _productId) product = p;
+    }
+    if (product != null &&
+        !await confirmProductAvailability(context, product, widget.booking.date, widget.bankHolidays)) {
+      return;
+    }
+    if (!mounted) return;
     setState(() => _busy = true);
     try {
       await context.read<Repository>().updateDayBooking(

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:pawfectpets_staff/api/api_client.dart';
 import 'package:pawfectpets_staff/api/repository.dart';
 import 'package:pawfectpets_staff/models/animal.dart';
+import 'package:pawfectpets_staff/models/bank_holiday.dart';
 import 'package:pawfectpets_staff/models/customer.dart';
 import 'package:pawfectpets_staff/models/invoice.dart';
 import 'package:pawfectpets_staff/models/product.dart';
@@ -25,6 +26,9 @@ class _FakeRepository extends Repository {
 
   @override
   Future<List<InvoiceTerm>> listInvoiceTerms() async => [];
+
+  @override
+  Future<List<BankHoliday>> listBankHolidays() async => [];
 
   @override
   Future<Customer> getCustomer(String id) async =>

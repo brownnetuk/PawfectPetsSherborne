@@ -7,6 +7,9 @@ class Product {
   final String name;
   final String? description;
   final double price;
+  // Optional day-type restriction: 'weekday' | 'weekend' | 'bank_holiday'.
+  // Null means unrestricted (usable any day).
+  final String? availability;
 
   Product({
     required this.id,
@@ -14,6 +17,7 @@ class Product {
     required this.name,
     this.description,
     required this.price,
+    this.availability,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
@@ -22,5 +26,6 @@ class Product {
         name: json['name'] as String? ?? '',
         description: json['description'] as String?,
         price: (json['price'] as num?)?.toDouble() ?? 0,
+        availability: json['availability'] as String?,
       );
 }

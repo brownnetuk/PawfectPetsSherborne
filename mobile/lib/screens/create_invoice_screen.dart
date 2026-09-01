@@ -4,9 +4,11 @@ import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/animal.dart';
+import '../models/bank_holiday.dart';
 import '../models/customer.dart';
 import '../models/invoice.dart';
 import '../models/product.dart';
+import '../utils/product_availability.dart';
 
 /// Everything the form needs, loaded up front.
 class _FormData {
@@ -14,7 +16,8 @@ class _FormData {
   final List<InvoiceTerm> terms;
   final Customer customer;
   final List<Animal> pets;
-  _FormData(this.products, this.terms, this.customer, this.pets);
+  final List<BankHoliday> bankHolidays;
+  _FormData(this.products, this.terms, this.customer, this.pets, this.bankHolidays);
 }
 
 /// Form for raising or editing an invoice against a customer. Line items are
@@ -60,7 +63,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       final terms = await repo.listInvoiceTerms();
       final customer = await repo.getCustomer(widget.customerId);
       final pets = await repo.listAnimals(widget.customerId);
-      return _FormData(products, terms, customer, pets);
+      final bankHolidays = await repo.listBankHolidays();
+      return _FormData(products, terms, customer, pets, bankHolidays);
     }();
     _dataFuture.then((data) async {
       if (!mounted) return;
@@ -324,6 +328,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                 key: ObjectKey(entry.value),
                 entry: entry.value,
                 products: products,
+                issueDate: _issueDate,
+                bankHolidays: data.bankHolidays,
                 onChanged: () => setState(() {}),
                 onRemove: _items.length > 1 ? () => _confirmRemoveItem(entry.key) : null,
               ),
@@ -438,6 +444,10 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 /// quantity and discount. Description and unit price come from the product.
 class _LineItemEntry {
   Product? product;
+  // Bumped whenever the product is (re)picked so the product dropdown rebuilds
+  // and reflects the decided value — including reverting after a cancelled
+  // day-type warning.
+  int rev = 0;
   final quantity = TextEditingController(text: '1');
   final discount = TextEditingController();
 
@@ -465,6 +475,8 @@ class _LineItemEntry {
 class _LineItemEditor extends StatelessWidget {
   final _LineItemEntry entry;
   final List<Product> products;
+  final DateTime issueDate;
+  final List<BankHoliday> bankHolidays;
   final VoidCallback onChanged;
   final VoidCallback? onRemove;
 
@@ -472,9 +484,26 @@ class _LineItemEditor extends StatelessWidget {
     super.key,
     required this.entry,
     required this.products,
+    required this.issueDate,
+    required this.bankHolidays,
     required this.onChanged,
     this.onRemove,
   });
+
+  // Applies the chosen product, first warning if it's restricted to a
+  // different day-type than the invoice's issue date. A bumped [entry.rev]
+  // rebuilds the dropdown so it reflects the decided value (including a revert
+  // when the user cancels the warning).
+  Future<void> _pickProduct(BuildContext context, Product? p) async {
+    if (p != null && !await confirmProductAvailability(context, p, issueDate, bankHolidays)) {
+      entry.rev++;
+      onChanged();
+      return;
+    }
+    entry.product = p;
+    entry.rev++;
+    onChanged();
+  }
 
   static const _dense = InputDecoration(isDense: true);
   static void _dismissKeyboard(PointerDownEvent _) =>
@@ -490,6 +519,7 @@ class _LineItemEditor extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             DropdownButtonFormField<Product>(
+              key: ValueKey('product-${entry.rev}'),
               initialValue: entry.product,
               isExpanded: true,
               isDense: true,
@@ -501,10 +531,7 @@ class _LineItemEditor extends StatelessWidget {
                         child: Text(p.name, overflow: TextOverflow.ellipsis),
                       ))
                   .toList(),
-              onChanged: (p) {
-                entry.product = p;
-                onChanged();
-              },
+              onChanged: (p) => _pickProduct(context, p),
             ),
             const SizedBox(height: 6),
             Row(
