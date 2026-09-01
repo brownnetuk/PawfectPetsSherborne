@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
+import { AppointmentsModule } from './appointments/appointments.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
@@ -51,6 +52,7 @@ import { StaffModule } from './staff/staff.module';
     }),
     EncryptionModule,
     AuthModule,
+    AppointmentsModule,
     AuditLogModule,
     CustomersModule,
     AnimalsModule,

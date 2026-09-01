@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as api from '../api/client';
+import AddAppointmentModal from '../components/AddAppointmentModal';
 import GenerateInvoicesModal from '../components/GenerateInvoicesModal';
 import NewBookingModal from '../components/NewBookingModal';
 import type { NewBookingInitial } from '../components/NewBookingModal';
@@ -7,7 +8,7 @@ import ProductAvailabilityWarningModal from '../components/ProductAvailabilityWa
 import { PlusCircleIcon, TrashIcon } from '../components/icons';
 import { availabilityMismatch } from '../utils/productAvailability';
 import { isVisitProduct, visitCountForProduct } from '../utils/visitMapping';
-import type { Animal, BankHoliday, Customer, DayBooking, Product, VisitMapping } from '../types';
+import type { Animal, Appointment, BankHoliday, Customer, DayBooking, Product, VisitMapping } from '../types';
 
 type ViewMode = 'week' | 'month';
 
@@ -115,6 +116,7 @@ export default function BookingsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [dayBookings, setDayBookings] = useState<DayBooking[] | null>(null);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -131,6 +133,7 @@ export default function BookingsPage() {
   const [showWalks, setShowWalks] = useState(true);
   const [showVisits, setShowVisits] = useState(true);
   const [showGenerateInvoices, setShowGenerateInvoices] = useState(false);
+  const [showAddAppointment, setShowAddAppointment] = useState(false);
 
   const weeks = useMemo(() => buildWeeks(viewMode, anchorDate), [viewMode, anchorDate]);
 
@@ -153,6 +156,10 @@ export default function BookingsPage() {
       .listDayBookings(dateKey(from), dateKey(to))
       .then(setDayBookings)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bookings'));
+    api
+      .listAppointments(dateKey(from), dateKey(to))
+      .then(setAppointments)
+      .catch(() => {});
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(refreshDayBookings, [viewMode, anchorDate]);
@@ -171,6 +178,10 @@ export default function BookingsPage() {
     return (dayBookings ?? []).filter((b) => isSameDay(new Date(b.date), date));
   }
 
+  function appointmentsForDay(date: Date): Appointment[] {
+    return appointments.filter((a) => isSameDay(new Date(a.date), date)).sort((a, b) => a.time.localeCompare(b.time));
+  }
+
   // Whether aid has a Visits-mapping entry on targetDate, within whatever
   // range is currently loaded (dayBookings) -- used only to tell a 1-visit
   // entry's AM/PM (start of a run vs end vs a middle/standalone day).
@@ -185,12 +196,21 @@ export default function BookingsPage() {
     );
   }
 
+  // Only used when a 1-visit entry has no explicit visitTime set (older
+  // bookings, or ones created before this override existed): start of a run
+  // of consecutive days = PM, end = AM, a middle/standalone day = PM.
+  function inferVisitTime(date: Date, aid: string): 'AM' | 'PM' {
+    const isStart = !hasVisitEntryOn(addDays(date, -1), aid);
+    const isEnd = !hasVisitEntryOn(addDays(date, 1), aid);
+    return isEnd && !isStart ? 'AM' : 'PM';
+  }
+
   // One badge per Walk-type animal (plain name, unchanged), plus one or two
   // badges per Visit-type animal: "Name - AM"/"Name - PM" for a single visit
   // (worked out the same start/end/regular way as the day panel), or both
   // "Name - AM" and "Name - PM" for a 2-visit day -- the PM one is a display
   // placeholder only, not a second underlying booking.
-  function badgesForDay(date: Date): { key: string; label: string; kind: 'walk' | 'visit'; invoiced: boolean }[] {
+  function badgesForDay(date: Date): { key: string; label: string; kind: 'walk' | 'visit' | 'appointment'; invoiced: boolean }[] {
     const byAnimal = new Map<string, DayBooking[]>();
     for (const b of bookingsForDay(date)) {
       const aid = animalId(b.animal);
@@ -201,7 +221,7 @@ export default function BookingsPage() {
     // Three passes (not one loop pushing per animal) so ordering reflects
     // the actual time of day across every animal -- AM visits first, then
     // walks, then PM visits -- not just each animal's own badges together.
-    type Badge = { key: string; label: string; kind: 'walk' | 'visit'; invoiced: boolean };
+    type Badge = { key: string; label: string; kind: 'walk' | 'visit' | 'appointment'; invoiced: boolean };
     const amVisitBadges: Badge[] = [];
     const walkBadges: Badge[] = [];
     const pmVisitBadges: Badge[] = [];
@@ -219,16 +239,20 @@ export default function BookingsPage() {
           amVisitBadges.push({ key: `${aid}-visit-am`, label: `${name} - AM`, kind: 'visit', invoiced });
           pmVisitBadges.push({ key: `${aid}-visit-pm`, label: `${name} - PM`, kind: 'visit', invoiced });
         } else {
-          const isStart = !hasVisitEntryOn(addDays(date, -1), aid);
-          const isEnd = !hasVisitEntryOn(addDays(date, 1), aid);
-          const time = isEnd && !isStart ? 'AM' : 'PM';
+          const time = visitEntries[0].visitTime ?? inferVisitTime(date, aid);
           const badge: Badge = { key: `${aid}-visit`, label: `${name} - ${time}`, kind: 'visit', invoiced };
           if (time === 'AM') amVisitBadges.push(badge);
           else pmVisitBadges.push(badge);
         }
       }
     }
-    return [...amVisitBadges, ...walkBadges, ...pmVisitBadges];
+    const appointmentBadges: Badge[] = appointmentsForDay(date).map((a) => ({
+      key: `appt-${a._id}`,
+      label: customerLabel(a.customer),
+      kind: 'appointment',
+      invoiced: false,
+    }));
+    return [...amVisitBadges, ...walkBadges, ...pmVisitBadges, ...appointmentBadges];
   }
 
   // Clicked an animal in the Visits section: walk outward from that day
@@ -268,6 +292,18 @@ export default function BookingsPage() {
     // "Regular"/middle default: the day after start if the range has a
     // genuine middle day, else just fall back to the first day's own count.
     const visitsPerDay = rangeDates.length > 2 ? countFor(addDays(start, 1)) : visitsFirstDay;
+    // Prefer an explicit visitTime; fall back to the same start/end inference
+    // used for display, checked against the full fetched window (not just
+    // the visible calendar range, so this stays accurate).
+    function amPmFor(d: Date): 'AM' | 'PM' {
+      const entry = byDate.get(dateKey(d))!;
+      if (entry.visitTime) return entry.visitTime;
+      const isStart = !byDate.has(dateKey(addDays(d, -1)));
+      const isEnd = !byDate.has(dateKey(addDays(d, 1)));
+      return isEnd && !isStart ? 'AM' : 'PM';
+    }
+    const amPmFirstDay = amPmFor(start);
+    const amPmLastDay = amPmFor(end);
 
     const animal = animals.find((a) => a._id === aid);
     if (!animal) return;
@@ -280,6 +316,8 @@ export default function BookingsPage() {
       visitsPerDay,
       visitsFirstDay,
       visitsLastDay,
+      amPmFirstDay,
+      amPmLastDay,
       editAnimalId: aid,
       editEntries,
     });
@@ -351,6 +389,13 @@ export default function BookingsPage() {
           <button className="btn btn-primary btn-sm" onClick={() => setBookingModal('new')}>
             New Booking
           </button>
+          <button
+            className="btn btn-sm"
+            style={{ background: '#1d4ed8', color: 'white' }}
+            onClick={() => setShowAddAppointment(true)}
+          >
+            Add Appointment
+          </button>
           <button className="btn btn-success btn-sm" onClick={() => setShowGenerateInvoices(true)}>
             Generate Invoice
           </button>
@@ -362,6 +407,14 @@ export default function BookingsPage() {
           anchorDate={anchorDate}
           onClose={() => setShowGenerateInvoices(false)}
           onGenerated={refreshDayBookings}
+        />
+      )}
+
+      {showAddAppointment && (
+        <AddAppointmentModal
+          customers={customers}
+          onClose={() => setShowAddAppointment(false)}
+          onCreated={refreshDayBookings}
         />
       )}
 
@@ -432,8 +485,18 @@ export default function BookingsPage() {
                           key={badge.key}
                           title={badge.invoiced ? 'Invoiced' : undefined}
                           style={{
-                            background: badge.kind === 'visit' ? '#fff4cc' : 'var(--sage-badge, #d9f2e3)',
-                            color: badge.kind === 'visit' ? '#8a6d00' : 'var(--brand-green)',
+                            background:
+                              badge.kind === 'appointment'
+                                ? '#dbeafe'
+                                : badge.kind === 'visit'
+                                  ? '#fff4cc'
+                                  : 'var(--sage-badge, #d9f2e3)',
+                            color:
+                              badge.kind === 'appointment'
+                                ? '#1d4ed8'
+                                : badge.kind === 'visit'
+                                  ? '#8a6d00'
+                                  : 'var(--brand-green)',
                             fontSize: '0.75rem',
                             borderRadius: 4,
                             padding: '2px 6px',
@@ -463,6 +526,7 @@ export default function BookingsPage() {
           <DayDetailPanel
             date={selectedDate}
             dayBookings={bookingsForDay(selectedDate)}
+            appointments={appointmentsForDay(selectedDate)}
             animals={animals}
             customers={customers}
             products={products}
@@ -483,6 +547,7 @@ export default function BookingsPage() {
 function DayDetailPanel({
   date,
   dayBookings,
+  appointments,
   animals,
   customers,
   products,
@@ -496,6 +561,7 @@ function DayDetailPanel({
 }: {
   date: Date;
   dayBookings: DayBooking[];
+  appointments: Appointment[];
   animals: Animal[];
   customers: Customer[];
   products: Product[];
@@ -513,6 +579,16 @@ function DayDetailPanel({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [warning, setWarning] = useState<{ message: string; onConfirm: () => void } | null>(null);
+
+  async function handleRemoveAppointment(id: string) {
+    setError(null);
+    try {
+      await api.deleteAppointment(id);
+      onChange();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove this appointment');
+    }
+  }
   // A narrow ±1 day window, refetched whenever the selected day changes --
   // used only to tell whether a 1-visit entry sits at the start/end of a
   // consecutive run (for the AM/PM label below), not for anything editable.
@@ -840,7 +916,7 @@ function DayDetailPanel({
                   </div>
                   {group.map((b) => {
                     const count = visitMapping ? visitCountForProduct(visitMapping, productId(b.product)) : null;
-                    const label = count === 2 ? 'AM & PM' : oneVisitLabel;
+                    const label = count === 2 ? 'AM & PM' : (b.visitTime ?? oneVisitLabel);
                     return (
                       <div key={b._id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
                         <span
@@ -879,6 +955,58 @@ function DayDetailPanel({
                 </div>
               );
             })}
+          </div>
+        </>
+      )}
+
+      {appointments.length > 0 && (
+        <>
+          <div className="section-title">Appointments</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
+            {appointments.map((appt) => (
+              <div
+                key={appt._id}
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  padding: 10,
+                  background: 'var(--card, #fff)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {customerLabel(appt.customer)}
+                  </span>
+                  <span
+                    style={{
+                      background: '#dbeafe',
+                      color: '#1d4ed8',
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      borderRadius: 4,
+                      padding: '2px 6px',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {appt.time}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: '0.8rem', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {appt.reason}
+                  </span>
+                  <button
+                    type="button"
+                    className="icon-btn icon-btn-danger"
+                    title="Remove"
+                    style={{ flexShrink: 0 }}
+                    onClick={() => handleRemoveAppointment(appt._id)}
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </>
       )}

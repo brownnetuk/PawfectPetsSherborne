@@ -39,6 +39,7 @@ export class DayBookingsService {
       date: toDayStart(dto.date),
       product: dto.product,
       quantity: dto.quantity ?? 1,
+      visitTime: dto.visitTime ?? undefined,
     }).save();
     return created.populate([
       { path: 'animal', select: 'name species' },

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsMongoId, IsOptional, Min, ValidateIf } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsMongoId, IsOptional, Min, ValidateIf } from 'class-validator';
 
 export class CreateDayBookingDto {
   @IsMongoId()
@@ -24,4 +24,10 @@ export class CreateDayBookingDto {
   @ValidateIf((_, v) => v !== null)
   @IsMongoId()
   invoice?: string | null;
+
+  // null explicitly clears an explicit AM/PM override back to inferred.
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsIn(['AM', 'PM'])
+  visitTime?: 'AM' | 'PM' | null;
 }

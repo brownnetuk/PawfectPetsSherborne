@@ -1,5 +1,6 @@
 import type {
   Animal,
+  Appointment,
   AuditLogEntry,
   BankAccount,
   BankAccountStatement,
@@ -228,6 +229,7 @@ export interface DayBookingInput {
   product: string;
   quantity?: number;
   invoice?: string | null;
+  visitTime?: 'AM' | 'PM' | null;
 }
 export function createDayBooking(input: DayBookingInput): Promise<DayBooking> {
   return request('/day-bookings', { method: 'POST', body: JSON.stringify(input) });
@@ -240,6 +242,26 @@ export function updateDayBooking(
 }
 export function deleteDayBooking(id: string): Promise<void> {
   return request(`/day-bookings/${id}`, { method: 'DELETE' });
+}
+
+// --- appointments (Bookings page: standalone, non-animal calendar entries) ---
+export function listAppointments(from: string, to: string): Promise<Appointment[]> {
+  return request(`/appointments?from=${from}&to=${to}`);
+}
+export interface AppointmentInput {
+  customer: string;
+  reason: string;
+  date: string;
+  time: string;
+}
+export function createAppointment(input: AppointmentInput): Promise<Appointment> {
+  return request('/appointments', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateAppointment(id: string, input: Partial<AppointmentInput>): Promise<Appointment> {
+  return request(`/appointments/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deleteAppointment(id: string): Promise<void> {
+  return request(`/appointments/${id}`, { method: 'DELETE' });
 }
 
 // --- invoices ---

@@ -174,6 +174,16 @@ export interface DayBooking {
   product: { _id: string; name: string; price: number } | string;
   quantity: number;
   invoice?: { _id: string; invoiceNumber: string } | string | null;
+  visitTime?: 'AM' | 'PM' | null;
+  createdAt: string;
+}
+
+export interface Appointment {
+  _id: string;
+  customer: { _id: string; name: string } | string;
+  reason: string;
+  date: string;
+  time: string;
   createdAt: string;
 }
 

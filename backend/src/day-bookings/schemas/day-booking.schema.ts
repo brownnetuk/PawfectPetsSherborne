@@ -36,6 +36,13 @@ export class DayBooking extends Document {
   // (Bookings page > Generate Invoice) -- unset means it's still billable.
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Invoice.name })
   invoice?: Types.ObjectId;
+
+  // Explicit AM/PM override for a single-visit day, set from New Booking's
+  // "Visits on First/Last Date" AM/PM dropdown. Unset means the admin/mobile
+  // apps fall back to inferring it (start of a run = PM, end = AM, otherwise
+  // PM) rather than every booking needing this filled in.
+  @Prop({ type: String, enum: ['AM', 'PM'] })
+  visitTime?: 'AM' | 'PM';
 }
 
 export const DayBookingSchema = SchemaFactory.createForClass(DayBooking);

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import * as api from '../api/client';
 import Modal from './Modal';
 import { addDays, buildVisitPlan, dateKey, parseYmd } from '../utils/visitPlan';
-import type { VisitCount } from '../utils/visitPlan';
+import type { VisitCount, VisitTime } from '../utils/visitPlan';
 import type { Animal, Customer, DayBooking } from '../types';
 
 function animalId(animal: DayBooking['animal']): string {
@@ -24,6 +24,8 @@ export interface NewBookingInitial {
   visitsPerDay: VisitCount;
   visitsFirstDay: VisitCount;
   visitsLastDay: VisitCount;
+  amPmFirstDay: VisitTime;
+  amPmLastDay: VisitTime;
   editAnimalId: string;
   editEntries: { date: string; bookingId: string }[];
 }
@@ -46,8 +48,10 @@ export default function NewBookingModal({
   const [visitsPerDay, setVisitsPerDay] = useState<VisitCount>(initial?.visitsPerDay ?? '1');
   const [startDate, setStartDate] = useState(initial?.startDate ?? '');
   const [visitsFirstDay, setVisitsFirstDay] = useState<VisitCount>(initial?.visitsFirstDay ?? '1');
+  const [amPmFirstDay, setAmPmFirstDay] = useState<VisitTime>(initial?.amPmFirstDay ?? 'PM');
   const [endDate, setEndDate] = useState(initial?.endDate ?? '');
   const [visitsLastDay, setVisitsLastDay] = useState<VisitCount>(initial?.visitsLastDay ?? '1');
+  const [amPmLastDay, setAmPmLastDay] = useState<VisitTime>(initial?.amPmLastDay ?? 'AM');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ created: number; updated: number; deleted: number; skipped: number } | null>(
@@ -118,7 +122,17 @@ export default function NewBookingModal({
 
       // Shared across every selected animal -- the product for a given day
       // doesn't depend on which animal is being booked.
-      const { plan, missing } = buildVisitPlan(start, end, visitsPerDay, visitsFirstDay, visitsLastDay, mapping, bankHolidays);
+      const { plan, missing } = buildVisitPlan(
+        start,
+        end,
+        visitsPerDay,
+        visitsFirstDay,
+        visitsLastDay,
+        mapping,
+        bankHolidays,
+        amPmFirstDay,
+        amPmLastDay,
+      );
 
       if (missing.length > 0) {
         setError(`No product is configured in Settings > Bookings > Visits for: ${missing.join(', ')}.`);
@@ -159,14 +173,17 @@ export default function NewBookingModal({
         const travelProductId = owner?.travelChargeable ? (owner.travelProduct ?? null) : null;
         const isEditAnimal = initial?.editAnimalId === id;
 
-        for (const { date, productId } of plan) {
+        for (const { date, productId, visitTime } of plan) {
           const key = `${id}|${dateKey(date)}`;
           const existingEntry = existingByKey.get(key);
 
           if (existingEntry) {
             if (isEditAnimal) {
-              if (productIdOf(existingEntry.product) !== productId) {
-                await api.updateDayBooking(existingEntry._id, { product: productId });
+              const patch: { product?: string; visitTime?: 'AM' | 'PM' | null } = {};
+              if (productIdOf(existingEntry.product) !== productId) patch.product = productId;
+              if ((existingEntry.visitTime ?? null) !== (visitTime ?? null)) patch.visitTime = visitTime ?? null;
+              if (Object.keys(patch).length > 0) {
+                await api.updateDayBooking(existingEntry._id, patch);
                 updated++;
               }
             } else {
@@ -175,7 +192,7 @@ export default function NewBookingModal({
             continue;
           }
 
-          await api.createDayBooking({ animal: id, date: dateKey(date), product: productId, quantity: 1 });
+          await api.createDayBooking({ animal: id, date: dateKey(date), product: productId, quantity: 1, visitTime });
           created++;
           if (travelProductId && travelProductId !== productId) {
             await api.createDayBooking({ animal: id, date: dateKey(date), product: travelProductId, quantity: 1 });
@@ -251,7 +268,7 @@ export default function NewBookingModal({
             <option value="2">2</option>
           </select>
         </div>
-        <div className="field-row">
+        <div className="field-row" style={{ gridTemplateColumns: '1.4fr 1fr 1fr' }}>
           <div className="field">
             <label>Start Date</label>
             <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
@@ -263,8 +280,20 @@ export default function NewBookingModal({
               <option value="2">2</option>
             </select>
           </div>
+          <div className="field">
+            <label>AM/PM</label>
+            <select
+              value={amPmFirstDay}
+              onChange={(e) => setAmPmFirstDay(e.target.value as VisitTime)}
+              disabled={visitsFirstDay === '2'}
+              title={visitsFirstDay === '2' ? 'A 2-visit day always covers both AM and PM' : undefined}
+            >
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
+          </div>
         </div>
-        <div className="field-row">
+        <div className="field-row" style={{ gridTemplateColumns: '1.4fr 1fr 1fr' }}>
           <div className="field">
             <label>End Date</label>
             <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
@@ -274,6 +303,18 @@ export default function NewBookingModal({
             <select value={visitsLastDay} onChange={(e) => setVisitsLastDay(e.target.value as VisitCount)}>
               <option value="1">1</option>
               <option value="2">2</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>AM/PM</label>
+            <select
+              value={amPmLastDay}
+              onChange={(e) => setAmPmLastDay(e.target.value as VisitTime)}
+              disabled={visitsLastDay === '2'}
+              title={visitsLastDay === '2' ? 'A 2-visit day always covers both AM and PM' : undefined}
+            >
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
             </select>
           </div>
         </div>
