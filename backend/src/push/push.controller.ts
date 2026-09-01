@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { CurrentUserShape } from '../auth/current-user.decorator';
+import { Public } from '../auth/public.decorator';
 import { RegisterPushTokenDto } from './dto/register-push-token.dto';
 import { PushService } from './push.service';
 
@@ -16,7 +17,10 @@ export class PushController {
     return { ok: true };
   }
 
-  // Diagnostics: is APNs configured, and how many devices are registered?
+  // Diagnostics (temporary, public): is APNs configured, and how many devices
+  // are registered? Only exposes a boolean + count — no secrets. Remove once
+  // push is confirmed working.
+  @Public()
   @Get('status')
   async status() {
     return { configured: this.pushService.configured, tokenCount: await this.pushService.countTokens() };
