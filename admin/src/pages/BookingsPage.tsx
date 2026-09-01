@@ -420,6 +420,7 @@ function DayDetailPanel({
 
   const weekdayKey = WEEKDAY_KEYS[date.getDay()];
   const recommended = animals.filter((a) => {
+    if (a.species !== 'dog') return false;
     if (alreadyAdded.has(a._id)) return false;
     return ownerOf(a.customer)?.regularDays?.includes(weekdayKey);
   });
