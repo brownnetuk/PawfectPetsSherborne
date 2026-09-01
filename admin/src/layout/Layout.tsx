@@ -82,6 +82,9 @@ export default function Layout() {
       </aside>
       <div className="main-area">
         <div className="topbar">
+          <span className="app-version" title="Admin app version">
+            v{__APP_VERSION__}
+          </span>
           <button
             className="avatar avatar-btn"
             onClick={() => setShowQrLogin(true)}
