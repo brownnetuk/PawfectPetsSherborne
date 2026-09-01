@@ -31,11 +31,12 @@ import type {
   Role,
   Staff,
   VetPractice,
+  VisitMapping,
 } from '../types';
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
 
-type Tab = 'business' | 'staff' | 'email' | 'templates' | 'invoices' | 'forms' | 'financial';
+type Tab = 'business' | 'staff' | 'email' | 'templates' | 'invoices' | 'bookings' | 'forms' | 'financial';
 
 const TAB_LABELS: Record<Tab, string> = {
   business: 'Business Info',
@@ -43,6 +44,7 @@ const TAB_LABELS: Record<Tab, string> = {
   email: 'Email',
   templates: 'Email Templates',
   invoices: 'Invoice/Quotes',
+  bookings: 'Bookings',
   forms: 'Forms',
   financial: 'Finance',
 };
@@ -57,7 +59,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="tabs">
-        {(['business', 'staff', 'email', 'templates', 'invoices', 'forms', 'financial'] as Tab[]).map((t) => (
+        {(['business', 'staff', 'email', 'templates', 'invoices', 'bookings', 'forms', 'financial'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -69,6 +71,7 @@ export default function SettingsPage() {
       {tab === 'email' && <EmailTab />}
       {tab === 'templates' && <EmailTemplatesTab />}
       {tab === 'invoices' && <InvoicesSettingsTab />}
+      {tab === 'bookings' && <BookingsSettingsTab />}
       {tab === 'forms' && <FormsTab />}
       {tab === 'financial' && <FinancialTab />}
     </div>
@@ -2579,6 +2582,104 @@ function InvoicesSettingsTab() {
       <BankDetailsCard />
       <NotesMessageCard kind="invoice" />
       <NotesMessageCard kind="quote" />
+    </div>
+  );
+}
+
+function BookingsSettingsTab() {
+  return (
+    <div>
+      <VisitsCard />
+    </div>
+  );
+}
+
+const VISIT_MAPPING_FIELDS: { key: keyof VisitMapping; label: string }[] = [
+  { key: 'oneVisitWeekdayProduct', label: '1 Visit (Weekday)' },
+  { key: 'oneVisitWeekendProduct', label: '1 Visit (Weekend)' },
+  { key: 'oneVisitBankHolidayProduct', label: '1 Visit (Bank Holiday)' },
+  { key: 'twoVisitWeekdayProduct', label: '2 Visit (Weekday)' },
+  { key: 'twoVisitWeekendProduct', label: '2 Visit (Weekend)' },
+  { key: 'twoVisitBankHolidayProduct', label: '2 Visit (Bank Holiday)' },
+];
+
+function VisitsCard() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [mapping, setMapping] = useState<VisitMapping | null>(null);
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  function refresh() {
+    api
+      .getVisitMapping()
+      .then((m) => {
+        setMapping(m);
+        setValues(Object.fromEntries(VISIT_MAPPING_FIELDS.map(({ key }) => [key, m[key] ?? ''])));
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load visit mapping'));
+  }
+  useEffect(refresh, []);
+  useEffect(() => {
+    api.listProducts().then(setProducts).catch(() => {});
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const patch = Object.fromEntries(VISIT_MAPPING_FIELDS.map(({ key }) => [key, values[key] || null]));
+      await api.updateVisitMapping(patch);
+      setSaved(true);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save visit mapping');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!mapping) {
+    return (
+      <div className="card">
+        <div className="empty-state">Loading…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <h2>Visits</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        Maps each visit count and day type to the product used for it.
+      </p>
+      {error && <div className="error-banner">{error}</div>}
+      <form onSubmit={handleSubmit}>
+        {VISIT_MAPPING_FIELDS.map(({ key, label }) => (
+          <div className="field" key={key}>
+            <label>{label}</label>
+            <select value={values[key] ?? ''} onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))}>
+              <option value="">No product selected</option>
+              {products.map((p) => (
+                <option key={p._id} value={p._id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+        <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+          <button className="btn btn-primary" type="submit" disabled={saving}>
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+          {saved && (
+            <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
+          )}
+        </div>
+      </form>
     </div>
   );
 }

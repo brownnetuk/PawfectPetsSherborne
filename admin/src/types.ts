@@ -437,6 +437,15 @@ export interface IncomeMonth {
   total: number;
 }
 
+export interface VisitMapping {
+  oneVisitWeekdayProduct: string | null;
+  oneVisitWeekendProduct: string | null;
+  oneVisitBankHolidayProduct: string | null;
+  twoVisitWeekdayProduct: string | null;
+  twoVisitWeekendProduct: string | null;
+  twoVisitBankHolidayProduct: string | null;
+}
+
 export interface BusinessInfo {
   name: string;
   address: string;

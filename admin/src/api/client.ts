@@ -36,6 +36,7 @@ import type {
   Staff,
   VendorOption,
   VetPractice,
+  VisitMapping,
 } from '../types';
 
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
@@ -612,6 +613,12 @@ export function getMyIp(): Promise<{ ip: string | null }> {
 }
 export function updateBusinessInfo(patch: Record<string, unknown>): Promise<BusinessInfo> {
   return request('/settings/business', { method: 'PATCH', body: JSON.stringify(patch) });
+}
+export function getVisitMapping(): Promise<VisitMapping> {
+  return request('/settings/visits');
+}
+export function updateVisitMapping(patch: Partial<VisitMapping>): Promise<VisitMapping> {
+  return request('/settings/visits', { method: 'PATCH', body: JSON.stringify(patch) });
 }
 export function previewTerms(termsFile: string): Promise<{ html: string }> {
   return request('/settings/terms/preview', { method: 'POST', body: JSON.stringify({ termsFile }) });

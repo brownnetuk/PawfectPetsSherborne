@@ -16,10 +16,12 @@ import { SendTestEmailDto } from './dto/send-test-email.dto';
 import { SendTriggeredEmailDto } from './dto/send-triggered-email.dto';
 import { UpdateBusinessInfoDto } from './dto/update-business-info.dto';
 import { UpdateEmailSettingsDto } from './dto/update-email-settings.dto';
+import { UpdateVisitMappingDto } from './dto/update-visit-mapping.dto';
 import { UpsertEmailTemplateDto } from './dto/upsert-email-template.dto';
 import { BusinessInfo } from './schemas/business-info.schema';
 import { EmailSettings } from './schemas/email-settings.schema';
 import { EmailTemplate, EmailTrigger } from './schemas/email-template.schema';
+import { VisitMapping } from './schemas/visit-mapping.schema';
 
 // The original hardcoded copy on the intake form's "Alternative vet care
 // authorisation" step, kept as the fallback so an unconfigured BusinessInfo
@@ -64,6 +66,8 @@ export class SettingsService {
     private readonly emailSettingsModel: Model<EmailSettings>,
     @InjectModel(EmailTemplate.name)
     private readonly emailTemplateModel: Model<EmailTemplate>,
+    @InjectModel(VisitMapping.name)
+    private readonly visitMappingModel: Model<VisitMapping>,
     private readonly encryptionService: EncryptionService,
     private readonly auditLogService: AuditLogService,
   ) {}
@@ -322,6 +326,30 @@ export class SettingsService {
       .findOneAndUpdate({}, update, { upsert: true })
       .exec();
     return this.getEmailSettings();
+  }
+
+  async getVisitMapping() {
+    const doc = await this.visitMappingModel.findOne().exec();
+    return {
+      oneVisitWeekdayProduct: doc?.oneVisitWeekdayProduct?.toString() ?? null,
+      oneVisitWeekendProduct: doc?.oneVisitWeekendProduct?.toString() ?? null,
+      oneVisitBankHolidayProduct: doc?.oneVisitBankHolidayProduct?.toString() ?? null,
+      twoVisitWeekdayProduct: doc?.twoVisitWeekdayProduct?.toString() ?? null,
+      twoVisitWeekendProduct: doc?.twoVisitWeekendProduct?.toString() ?? null,
+      twoVisitBankHolidayProduct: doc?.twoVisitBankHolidayProduct?.toString() ?? null,
+    };
+  }
+
+  async updateVisitMapping(dto: UpdateVisitMappingDto) {
+    const update: Record<string, unknown> = {};
+    if (dto.oneVisitWeekdayProduct !== undefined) update.oneVisitWeekdayProduct = dto.oneVisitWeekdayProduct;
+    if (dto.oneVisitWeekendProduct !== undefined) update.oneVisitWeekendProduct = dto.oneVisitWeekendProduct;
+    if (dto.oneVisitBankHolidayProduct !== undefined) update.oneVisitBankHolidayProduct = dto.oneVisitBankHolidayProduct;
+    if (dto.twoVisitWeekdayProduct !== undefined) update.twoVisitWeekdayProduct = dto.twoVisitWeekdayProduct;
+    if (dto.twoVisitWeekendProduct !== undefined) update.twoVisitWeekendProduct = dto.twoVisitWeekendProduct;
+    if (dto.twoVisitBankHolidayProduct !== undefined) update.twoVisitBankHolidayProduct = dto.twoVisitBankHolidayProduct;
+    await this.visitMappingModel.findOneAndUpdate({}, update, { upsert: true }).exec();
+    return this.getVisitMapping();
   }
 
   listEmailTemplates() {

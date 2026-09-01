@@ -21,6 +21,7 @@ import { SendTestEmailDto } from './dto/send-test-email.dto';
 import { SendTriggeredEmailDto } from './dto/send-triggered-email.dto';
 import { UpdateBusinessInfoDto } from './dto/update-business-info.dto';
 import { UpdateEmailSettingsDto } from './dto/update-email-settings.dto';
+import { UpdateVisitMappingDto } from './dto/update-visit-mapping.dto';
 import { UpsertEmailTemplateDto } from './dto/upsert-email-template.dto';
 import { EmailTrigger } from './schemas/email-template.schema';
 import { SettingsService } from './settings.service';
@@ -116,6 +117,20 @@ export class SettingsController {
       'Content-Disposition': `attachment; filename="${file.fileName}"`,
     });
     return new StreamableFile(file.buffer);
+  }
+
+  // Read by the Bookings settings tab's Visits card, and by whatever
+  // Bookings-calendar logic later maps a day's visit count/type to a
+  // product -- not gated, same as GET /products.
+  @Get('visits')
+  getVisitMapping() {
+    return this.settingsService.getVisitMapping();
+  }
+
+  @RequirePermission('settings.manage')
+  @Patch('visits')
+  updateVisitMapping(@Body() dto: UpdateVisitMappingDto) {
+    return this.settingsService.updateVisitMapping(dto);
   }
 
   @Get('email')
