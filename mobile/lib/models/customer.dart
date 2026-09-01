@@ -70,6 +70,13 @@ class Customer {
   final EmergencyContact? emergencyContact;
   final EmergencyVet? emergencyVet;
   final Security? security;
+  // Customer Defaults (Settings > Customer Defaults) used by the bookings
+  // calendar: the dog's default product, whether travel is chargeable and its
+  // product, and which weekdays this customer's dogs are regularly booked.
+  final String? defaultProductId;
+  final bool travelChargeable;
+  final String? travelProductId;
+  final List<String> regularDays;
 
   Customer({
     required this.id,
@@ -81,24 +88,37 @@ class Customer {
     this.emergencyContact,
     this.emergencyVet,
     this.security,
+    this.defaultProductId,
+    this.travelChargeable = false,
+    this.travelProductId,
+    this.regularDays = const [],
   });
 
-  factory Customer.fromJson(Map<String, dynamic> json) => Customer(
-        id: json['_id'] as String,
-        name: json['name'] as String,
-        email: json['email'] as String,
-        address: json['address'] as String?,
-        phoneNumber: json['phoneNumber'] as String?,
-        status: json['status'] as String? ?? 'pending',
-        emergencyContact: json['emergencyContact'] != null
-            ? EmergencyContact.fromJson(json['emergencyContact'] as Map<String, dynamic>)
-            : null,
-        emergencyVet: json['emergencyVet'] != null
-            ? EmergencyVet.fromJson(json['emergencyVet'] as Map<String, dynamic>)
-            : null,
-        security:
-            json['security'] != null ? Security.fromJson(json['security'] as Map<String, dynamic>) : null,
-      );
+  factory Customer.fromJson(Map<String, dynamic> json) {
+    String? idOrNull(dynamic v) =>
+        v is Map<String, dynamic> ? v['_id'] as String? : (v as String?);
+    return Customer(
+      id: json['_id'] as String,
+      name: json['name'] as String,
+      email: json['email'] as String,
+      address: json['address'] as String?,
+      phoneNumber: json['phoneNumber'] as String?,
+      status: json['status'] as String? ?? 'pending',
+      emergencyContact: json['emergencyContact'] != null
+          ? EmergencyContact.fromJson(json['emergencyContact'] as Map<String, dynamic>)
+          : null,
+      emergencyVet: json['emergencyVet'] != null
+          ? EmergencyVet.fromJson(json['emergencyVet'] as Map<String, dynamic>)
+          : null,
+      security:
+          json['security'] != null ? Security.fromJson(json['security'] as Map<String, dynamic>) : null,
+      defaultProductId: idOrNull(json['defaultProduct']),
+      travelChargeable: json['travelChargeable'] as bool? ?? false,
+      travelProductId: idOrNull(json['travelProduct']),
+      regularDays:
+          (json['regularDays'] as List<dynamic>?)?.map((e) => e as String).toList() ?? const [],
+    );
+  }
 }
 
 /// Minimal customer reference as embedded (populated) in bookings/invoices/activity.

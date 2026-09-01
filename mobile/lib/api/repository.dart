@@ -4,6 +4,7 @@ import '../models/audit_log_entry.dart';
 import '../models/bank_account.dart';
 import '../models/bank_transfer.dart';
 import '../models/booking.dart';
+import '../models/day_booking.dart';
 import '../models/finance_report.dart';
 import '../models/payment.dart' as models;
 import '../models/crm_activity.dart';
@@ -103,6 +104,49 @@ class Repository {
 
   Future<Booking> updateBookingStatus(String id, String status) async =>
       Booking.fromJson(await _client.patch('/bookings/$id', {'status': status}));
+
+  // --- day bookings (the calendar: one dog + one day + one product) ---
+  static String _ymd(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// Day bookings from [from] (inclusive) to [to] (exclusive) — pass the day
+  /// after the last visible day as [to], matching the backend's $gte/$lt range.
+  Future<List<DayBooking>> listDayBookings({required DateTime from, required DateTime to}) async =>
+      (await _client.getList('/day-bookings', query: {'from': _ymd(from), 'to': _ymd(to)}))
+          .map((e) => DayBooking.fromJson(e))
+          .toList();
+
+  Future<DayBooking> createDayBooking({
+    required String animalId,
+    required DateTime date,
+    required String productId,
+    int quantity = 1,
+  }) async =>
+      DayBooking.fromJson(await _client.post('/day-bookings', {
+        'animal': animalId,
+        'date': _ymd(date),
+        'product': productId,
+        'quantity': quantity,
+      }));
+
+  Future<DayBooking> updateDayBooking(
+    String id, {
+    DateTime? date,
+    String? productId,
+    int? quantity,
+  }) async =>
+      DayBooking.fromJson(await _client.patch('/day-bookings/$id', {
+        if (date != null) 'date': _ymd(date),
+        if (productId != null) 'product': productId,
+        if (quantity != null) 'quantity': quantity,
+      }));
+
+  Future<void> deleteDayBooking(String id) => _client.delete('/day-bookings/$id');
+
+  /// All animals as lightweight refs (id, name, species, owner id), for the
+  /// bookings calendar's "Add dog" / "Recommended" lists.
+  Future<List<AnimalRef>> listAllAnimals() async =>
+      (await _client.getList('/animals')).map((e) => AnimalRef.fromJson(e)).toList();
 
   // --- CRM activity ---
   Future<List<CrmActivity>> listActivities({String? customerId}) async => (await _client.getList(
