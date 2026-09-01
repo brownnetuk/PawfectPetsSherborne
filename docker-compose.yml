@@ -40,6 +40,15 @@ services:
       # Already used below for the admin build's VITE_INTAKE_URL; the backend
       # needs it too now, for {{invoice_link}}/{{quote_link}} in emails.
       PUBLIC_INTAKE_URL: ${PUBLIC_INTAKE_URL}
+      # APNs credentials for appointment-reminder push (see the
+      # appointment-push-setup notes). Leave unset to disable push -- the
+      # backend then just logs and skips. APNS_KEY is the .p8 file's contents
+      # pasted as-is (a multi-line Portainer env value is fine).
+      APNS_KEY: ${APNS_KEY}
+      APNS_KEY_ID: ${APNS_KEY_ID}
+      APNS_TEAM_ID: ${APNS_TEAM_ID}
+      APNS_BUNDLE_ID: ${APNS_BUNDLE_ID}
+      APNS_PRODUCTION: ${APNS_PRODUCTION}
     # Optional now that cloudflared (below) routes public traffic straight to
     # this service over the internal network -- kept for direct host/LAN
     # access (e.g. hitting http://<docker-host>:3000 while debugging).
