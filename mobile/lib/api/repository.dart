@@ -15,6 +15,7 @@ import '../models/invoice.dart';
 import '../models/product.dart';
 import '../models/quote.dart';
 import '../models/staff.dart';
+import '../models/visit_mapping.dart';
 import 'api_client.dart';
 
 class Repository {
@@ -135,14 +136,20 @@ class Repository {
     DateTime? date,
     String? productId,
     int? quantity,
+    String? invoiceId,
   }) async =>
       DayBooking.fromJson(await _client.patch('/day-bookings/$id', {
         if (date != null) 'date': _ymd(date),
         if (productId != null) 'product': productId,
         if (quantity != null) 'quantity': quantity,
+        if (invoiceId != null) 'invoice': invoiceId,
       }));
 
   Future<void> deleteDayBooking(String id) => _client.delete('/day-bookings/$id');
+
+  /// The Settings > Bookings > Visits product mapping (visit count × day-type).
+  Future<VisitMapping> getVisitMapping() async =>
+      VisitMapping.fromJson(await _client.get('/settings/visits'));
 
   /// All animals as lightweight refs (id, name, species, owner id), for the
   /// bookings calendar's "Add dog" / "Recommended" lists.

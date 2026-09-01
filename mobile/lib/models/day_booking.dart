@@ -12,6 +12,9 @@ class DayBooking {
   final String productName;
   final double productPrice;
   final int quantity;
+  // Set once this entry has been included on a generated invoice; null while
+  // it's still billable (Generate Invoices only picks up uninvoiced entries).
+  final String? invoiceId;
 
   DayBooking({
     required this.id,
@@ -25,6 +28,7 @@ class DayBooking {
     required this.productName,
     required this.productPrice,
     required this.quantity,
+    this.invoiceId,
   });
 
   double get lineTotal => productPrice * quantity;
@@ -33,6 +37,7 @@ class DayBooking {
     final animal = json['animal'];
     final customer = json['customer'];
     final product = json['product'];
+    final invoice = json['invoice'];
     String idOf(dynamic v) =>
         v is Map<String, dynamic> ? (v['_id'] as String? ?? '') : (v as String? ?? '');
     return DayBooking(
@@ -47,6 +52,9 @@ class DayBooking {
       productName: product is Map<String, dynamic> ? (product['name'] as String? ?? '') : '',
       productPrice: product is Map<String, dynamic> ? (product['price'] as num?)?.toDouble() ?? 0 : 0,
       quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+      invoiceId: invoice == null
+          ? null
+          : (invoice is Map<String, dynamic> ? invoice['_id'] as String? : invoice as String?),
     );
   }
 }

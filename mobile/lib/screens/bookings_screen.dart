@@ -8,8 +8,11 @@ import '../models/bank_holiday.dart';
 import '../models/customer.dart';
 import '../models/day_booking.dart';
 import '../models/product.dart';
+import '../models/visit_mapping.dart';
 import '../utils/product_availability.dart';
+import 'generate_invoices_sheet.dart';
 import 'home_shell.dart';
+import 'visits_booking_sheet.dart';
 
 // Customer.regularDays weekday keys, indexed by DateTime.weekday (1=Mon..7=Sun).
 const _weekdayKeys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -37,6 +40,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
   List<AnimalRef>? _animals;
   List<Product>? _products;
   List<BankHoliday> _bankHolidays = [];
+  VisitMapping _visitMapping = VisitMapping();
 
   late Future<List<DayBooking>> _future;
 
@@ -59,11 +63,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
         repo.listAllAnimals(),
         repo.listProducts(),
         repo.listBankHolidays(),
+        repo.getVisitMapping(),
       ]);
       _customers = results[0] as List<Customer>;
       _animals = results[1] as List<AnimalRef>;
       _products = results[2] as List<Product>;
       _bankHolidays = results[3] as List<BankHoliday>;
+      _visitMapping = results[4] as VisitMapping;
     }
     // Day view fetches one day; week view fetches Mon..Sun (to = the Monday
     // after, since the backend range is $gte from / $lt to).
@@ -188,6 +194,63 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
   }
 
+  // The "Schedule" button: pick Dog Walk (the day scheduler) or Visits (a
+  // date-range booking via the Settings > Bookings > Visits mapping).
+  Future<void> _openScheduleMenu(List<DayBooking> current) async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.directions_walk, color: Colors.green.shade600),
+              title: const Text('Dog Walk'),
+              subtitle: const Text('Add a dog to this day'),
+              onTap: () => Navigator.of(context).pop('walk'),
+            ),
+            ListTile(
+              leading: Icon(Icons.home_outlined, color: Colors.amber.shade800),
+              title: const Text('Visits'),
+              subtitle: const Text('Book visits across a date range'),
+              onTap: () => Navigator.of(context).pop('visits'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (choice == 'walk') {
+      await _openAddDog(current);
+    } else if (choice == 'visits') {
+      await _openVisits();
+    }
+  }
+
+  Future<void> _openVisits() async {
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => VisitsBookingSheet(
+        customers: _customers ?? const [],
+        animals: _animals ?? const [],
+        products: _products ?? const [],
+        visitMapping: _visitMapping,
+        bankHolidays: _bankHolidays,
+      ),
+    );
+    if (saved == true) _reload();
+  }
+
+  Future<void> _openGenerateInvoices() async {
+    final generated = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => GenerateInvoicesSheet(anchorMonth: _day),
+    );
+    if (generated == true) _reload();
+  }
+
   Future<void> _openAddDog(List<DayBooking> current) async {
     final animals = _animals ?? const <AnimalRef>[];
     final products = _products ?? const <Product>[];
@@ -262,6 +325,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
               }),
               child: const Text('Today'),
             ),
+          IconButton(
+            icon: const Icon(Icons.request_quote_outlined),
+            tooltip: 'Generate invoices',
+            onPressed: _openGenerateInvoices,
+          ),
           const LogoutAction(),
         ],
       ),
@@ -269,9 +337,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
           ? FutureBuilder<List<DayBooking>>(
               future: _future,
               builder: (context, snapshot) => FloatingActionButton.extended(
-                onPressed: () => _openAddDog(snapshot.data ?? const []),
+                onPressed: () => _openScheduleMenu(snapshot.data ?? const []),
                 icon: const Icon(Icons.add),
-                label: const Text('Add dog'),
+                label: const Text('Schedule'),
               ),
             )
           : null,
@@ -365,6 +433,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final addedIds = dayBookings.map((b) => b.animalId).toSet();
     final weekdayKey = _weekdayKeys[_day.weekday - 1];
     final recommended = (_animals ?? const <AnimalRef>[]).where((a) {
+      if (a.species.toLowerCase() != 'dog') return false;
       if (addedIds.contains(a.id)) return false;
       final owner = _ownerOf(a.customerId);
       return owner?.regularDays.contains(weekdayKey) ?? false;
@@ -379,7 +448,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (groups.isEmpty)
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: Text('No dogs booked for this day.'),
+            child: Text('Nothing booked.'),
           )
         else
           for (final group in groups) _animalCard(group),
@@ -447,7 +516,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
       if (groups.isEmpty) {
         children.add(Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: Text('No dogs booked.', style: TextStyle(color: Colors.grey.shade600)),
+          child: Text('Nothing booked.', style: TextStyle(color: Colors.grey.shade600)),
         ));
       } else {
         for (final g in groups) {
@@ -479,15 +548,20 @@ class _BookingsScreenState extends State<BookingsScreen> {
               ],
             ),
             for (final b in group)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                dense: true,
-                title: Text(b.productName.isEmpty ? '(product)' : b.productName),
-                subtitle: Text('Qty ${b.quantity}'),
-                trailing: Text(_money.format(b.lineTotal),
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                onTap: () => _editEntry(b),
-              ),
+              Builder(builder: (context) {
+                final isVisit = _visitMapping.isVisitProduct(b.productId);
+                final colour = isVisit ? Colors.amber.shade800 : Colors.green.shade600;
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: Icon(Icons.circle, size: 12, color: colour),
+                  title: Text(b.productName.isEmpty ? '(product)' : b.productName),
+                  subtitle: Text('${isVisit ? 'Visit' : 'Walk'} · Qty ${b.quantity}'),
+                  trailing: Text(_money.format(b.lineTotal),
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () => _editEntry(b),
+                );
+              }),
           ],
         ),
       ),
