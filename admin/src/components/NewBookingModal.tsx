@@ -1,42 +1,10 @@
 import { useState } from 'react';
 import * as api from '../api/client';
 import Modal from './Modal';
-import { AVAILABILITY_LABELS, dayTypeFor } from '../utils/productAvailability';
-import type { Animal, Customer, DayBooking, ProductAvailability, VisitMapping } from '../types';
+import { addDays, buildVisitPlan, dateKey, parseYmd } from '../utils/visitPlan';
+import type { VisitCount } from '../utils/visitPlan';
+import type { Animal, Customer, DayBooking } from '../types';
 
-type VisitCount = '1' | '2';
-
-// Maps (visit count, day type) onto the matching VisitMapping field --
-// Settings > Bookings > Visits is where staff configure which product each
-// combination uses.
-const MAPPING_KEY: Record<VisitCount, Record<ProductAvailability, keyof VisitMapping>> = {
-  '1': {
-    weekday: 'oneVisitWeekdayProduct',
-    weekend: 'oneVisitWeekendProduct',
-    bank_holiday: 'oneVisitBankHolidayProduct',
-  },
-  '2': {
-    weekday: 'twoVisitWeekdayProduct',
-    weekend: 'twoVisitWeekendProduct',
-    bank_holiday: 'twoVisitBankHolidayProduct',
-  },
-};
-
-function parseYmd(s: string): Date {
-  const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-function dateKey(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
 function animalId(animal: DayBooking['animal']): string {
   return typeof animal === 'string' ? animal : animal._id;
 }
@@ -148,29 +116,12 @@ export default function NewBookingModal({
     try {
       const [mapping, bankHolidays] = await Promise.all([api.getVisitMapping(), api.listBankHolidays()]);
 
-      const days: Date[] = [];
-      for (let d = start; d <= end; d = addDays(d, 1)) days.push(d);
-
       // Shared across every selected animal -- the product for a given day
       // doesn't depend on which animal is being booked.
-      const plan: { date: Date; productId: string }[] = [];
-      const missing = new Set<string>();
-      days.forEach((date, i) => {
-        const visits: VisitCount =
-          days.length === 1 ? visitsFirstDay : i === 0 ? visitsFirstDay : i === days.length - 1 ? visitsLastDay : visitsPerDay;
-        const dayType = dayTypeFor(date, bankHolidays);
-        const productId = mapping[MAPPING_KEY[visits][dayType]];
-        if (!productId) {
-          missing.add(`${visits} Visit (${AVAILABILITY_LABELS[dayType]})`);
-        } else {
-          plan.push({ date, productId });
-        }
-      });
+      const { plan, missing } = buildVisitPlan(start, end, visitsPerDay, visitsFirstDay, visitsLastDay, mapping, bankHolidays);
 
-      if (missing.size > 0) {
-        setError(
-          `No product is configured in Settings > Bookings > Visits for: ${Array.from(missing).join(', ')}.`,
-        );
+      if (missing.length > 0) {
+        setError(`No product is configured in Settings > Bookings > Visits for: ${missing.join(', ')}.`);
         setBusy(false);
         return;
       }

@@ -7,7 +7,9 @@ import ProductAvailabilityWarningModal from './ProductAvailabilityWarningModal';
 import SendPreviewModal from './SendPreviewModal';
 import { ChevronDownIcon } from './icons';
 import { availabilityMismatch } from '../utils/productAvailability';
-import type { Animal, BankHoliday, Customer, Invoice, InvoiceTerm, LineItem, Product, Quote } from '../types';
+import { buildVisitPlan, parseYmd as parseVisitYmd } from '../utils/visitPlan';
+import type { VisitCount } from '../utils/visitPlan';
+import type { Animal, BankHoliday, Customer, Invoice, InvoiceTerm, LineItem, Product, Quote, VisitMapping } from '../types';
 
 function customerId(customer: Invoice['customer'] | Quote['customer']): string {
   if (!customer) return '';
@@ -52,6 +54,49 @@ function calculateDueDate(issueDateStr: string, term: InvoiceTerm | undefined): 
 
 function lineItemAmount(item: LineItem): number {
   return item.quantity * item.unitPrice * (1 - (item.discountPercent ?? 0) / 100);
+}
+
+// A real (visually-hidden) checkbox under a custom sliding track/thumb, so
+// it stays keyboard/screen-reader accessible while looking like an iOS-style
+// toggle -- there's no shared toggle-switch component elsewhere yet.
+function ToggleSwitch({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+      <span style={{ position: 'relative', width: 36, height: 20, flexShrink: 0 }}>
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          style={{ position: 'absolute', inset: 0, opacity: 0, margin: 0, cursor: 'pointer' }}
+        />
+        <span
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: 999,
+            background: checked ? 'var(--brand-green)' : 'var(--border)',
+            transition: 'background 0.15s ease',
+            pointerEvents: 'none',
+          }}
+        />
+        <span
+          style={{
+            position: 'absolute',
+            top: 2,
+            left: checked ? 18 : 2,
+            width: 16,
+            height: 16,
+            borderRadius: '50%',
+            background: 'white',
+            transition: 'left 0.15s ease',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
+            pointerEvents: 'none',
+          }}
+        />
+      </span>
+      <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{label}</span>
+    </label>
+  );
 }
 
 function ItemDescriptionInput({
@@ -334,9 +379,25 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
   const [products, setProducts] = useState<Product[]>([]);
   const [terms, setTerms] = useState<InvoiceTerm[]>([]);
   const [bankHolidays, setBankHolidays] = useState<BankHoliday[]>([]);
+  const [visitMapping, setVisitMapping] = useState<VisitMapping | null>(null);
   // Purely a visual double-check that the right customer is selected -- these
-  // pets are never sent on the invoice/quote itself.
+  // pets are never sent on the invoice/quote itself (except as the Animals
+  // checkboxes for the Visits section below, which only ever contributes
+  // aggregated product/quantity line items, never the animals themselves).
   const [customerPets, setCustomerPets] = useState<Animal[]>([]);
+
+  // Quote-only: lets staff populate the line items from a date range of
+  // visits (same Settings > Bookings > Visits mapping the Bookings page's
+  // New Booking modal uses) instead of typing them by hand.
+  const [showVisits, setShowVisits] = useState(false);
+  const [visitAnimalIds, setVisitAnimalIds] = useState<string[]>([]);
+  const [visitsPerDay, setVisitsPerDay] = useState<VisitCount>('1');
+  const [visitStartDate, setVisitStartDate] = useState('');
+  const [visitsFirstDay, setVisitsFirstDay] = useState<VisitCount>('1');
+  const [visitEndDate, setVisitEndDate] = useState('');
+  const [visitsLastDay, setVisitsLastDay] = useState<VisitCount>('1');
+  const [visitError, setVisitError] = useState<string | null>(null);
+  const [visitSaved, setVisitSaved] = useState(false);
 
   const [custId, setCustId] = useState(existing ? customerId(existing.customer) : presetCustomerId ?? '');
   const [lineItems, setLineItems] = useState<LineItem[]>(
@@ -376,6 +437,7 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
     api.listCustomers().then(setCustomers).catch(() => {});
     api.listProducts().then(setProducts).catch(() => {});
     api.listBankHolidays().then(setBankHolidays).catch(() => {});
+    api.getVisitMapping().then(setVisitMapping).catch(() => {});
     api.listInvoiceTerms().then((loaded) => {
       setTerms(loaded);
       if (existing?.paymentTerms) {
@@ -438,6 +500,65 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
     setManualCustomer(customer);
     setCustId('');
     setShowManualCustomer(false);
+  }
+
+  function toggleVisitAnimal(id: string) {
+    setVisitAnimalIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  // Computes the same day-by-day product plan New Booking uses, then
+  // aggregates it (summed across every selected animal and day, by product)
+  // into line items -- merged into whatever's already in the Item Table
+  // rather than replacing it outright, so filled-in rows survive while a
+  // still-blank starter row gets replaced.
+  function handleSaveVisits() {
+    setVisitError(null);
+    setVisitSaved(false);
+    if (visitAnimalIds.length === 0) {
+      setVisitError('Choose at least one animal.');
+      return;
+    }
+    if (!visitStartDate || !visitEndDate) {
+      setVisitError('Choose a start and end date.');
+      return;
+    }
+    const start = parseVisitYmd(visitStartDate);
+    const end = parseVisitYmd(visitEndDate);
+    if (end < start) {
+      setVisitError('End date must be on or after the start date.');
+      return;
+    }
+    if (!visitMapping) {
+      setVisitError('Still loading the Visits configuration -- try again in a moment.');
+      return;
+    }
+
+    const { plan, missing } = buildVisitPlan(start, end, visitsPerDay, visitsFirstDay, visitsLastDay, visitMapping, bankHolidays);
+    if (missing.length > 0) {
+      setVisitError(`No product is configured in Settings > Bookings > Visits for: ${missing.join(', ')}.`);
+      return;
+    }
+
+    const byProduct = new Map<string, { name: string; price: number; quantity: number }>();
+    for (const { productId } of plan) {
+      const product = products.find((p) => p._id === productId);
+      if (!product) continue;
+      const existing = byProduct.get(productId);
+      if (existing) existing.quantity += visitAnimalIds.length;
+      else byProduct.set(productId, { name: product.name, price: product.price, quantity: visitAnimalIds.length });
+    }
+
+    setLineItems((prev) => {
+      const kept = prev.filter((item) => item.description.trim() !== '');
+      const merged = [...kept];
+      for (const p of byProduct.values()) {
+        const idx = merged.findIndex((m) => m.description === p.name);
+        if (idx >= 0) merged[idx] = { ...merged[idx], quantity: merged[idx].quantity + p.quantity };
+        else merged.push({ description: p.name, quantity: p.quantity, unitPrice: p.price, discountPercent: 0 });
+      }
+      return merged;
+    });
+    setVisitSaved(true);
   }
 
   const selectedCustomer = customers.find((c) => c._id === custId);
@@ -550,6 +671,7 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
                   Manual Customer
                 </button>
               )}
+              {kind === 'quote' && <ToggleSwitch checked={showVisits} onChange={setShowVisits} label="Visits" />}
             </div>
             {manualCustomer ? (
               <div
@@ -647,6 +769,84 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
             />
           </div>
         </div>
+
+        {kind === 'quote' && showVisits && (
+          <div className="card">
+            <div className="section-title">Visits</div>
+            <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+              Populates the line items below from a date range, using Settings &gt; Bookings &gt; Visits.
+            </p>
+            {visitError && <div className="error-banner">{visitError}</div>}
+            <div className="field">
+              <label>Animals</label>
+              {!custId ? (
+                <div className="field-hint" style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
+                  Select a customer first.
+                </div>
+              ) : customerPets.length === 0 ? (
+                <div className="field-hint" style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
+                  This customer has no animals on file.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {customerPets.map((a) => (
+                    <label key={a._id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
+                      <input
+                        type="checkbox"
+                        checked={visitAnimalIds.includes(a._id)}
+                        onChange={() => toggleVisitAnimal(a._id)}
+                      />
+                      {a.name} ({a.species})
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="field">
+              <label>How Many Visits per Day</label>
+              <select value={visitsPerDay} onChange={(e) => setVisitsPerDay(e.target.value as VisitCount)}>
+                <option value="1">1</option>
+                <option value="2">2</option>
+              </select>
+            </div>
+            <div className="field-row">
+              <div className="field">
+                <label>Start Date</label>
+                <input type="date" value={visitStartDate} onChange={(e) => setVisitStartDate(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Visits on First Date</label>
+                <select value={visitsFirstDay} onChange={(e) => setVisitsFirstDay(e.target.value as VisitCount)}>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                </select>
+              </div>
+            </div>
+            <div className="field-row">
+              <div className="field">
+                <label>End Date</label>
+                <input type="date" value={visitEndDate} onChange={(e) => setVisitEndDate(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Visits on End Date</label>
+                <select value={visitsLastDay} onChange={(e) => setVisitsLastDay(e.target.value as VisitCount)}>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                </select>
+              </div>
+            </div>
+            <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+              <button type="button" className="btn btn-primary" onClick={handleSaveVisits}>
+                Save
+              </button>
+              {visitSaved && (
+                <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>
+                  Added to the line items below.
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="card">
           <div className="section-title">Item Table</div>
