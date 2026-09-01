@@ -208,7 +208,7 @@ function ItemTable({
           <tr>
             <th>Item Details</th>
             <th style={{ width: 80 }}>Quantity</th>
-            <th style={{ width: 100 }}>Rate (£)</th>
+            <th style={{ width: 110 }}>Rate (£)</th>
             <th style={{ width: 100 }}>Discount %</th>
             <th style={{ width: 100 }}>Amount</th>
             <th style={{ width: 40 }}></th>

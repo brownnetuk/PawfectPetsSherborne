@@ -545,6 +545,18 @@ table input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(232, 150, 60, 0.2);
 }
+/* The Item Table's Quantity/Rate/Discount cells are narrow enough that the
+   native up/down spinner buttons crowd out the digits (a price like 26.25
+   would visibly clip) -- hidden here rather than site-wide since these are
+   the only number inputs actually squeezed into a fixed-width table cell. */
+.item-table input[type='number']::-webkit-inner-spin-button,
+.item-table input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.item-table input[type='number'] {
+  -moz-appearance: textfield;
+}
 
 /* The Item Details cell's text input plus its "browse products" trigger,
    styled as one combined control (input left, button right, no seam). */
