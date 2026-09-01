@@ -43,15 +43,22 @@ export class AppointmentsService {
   // repeat sends. No-op when APNs isn't configured.
   @Cron(CronExpression.EVERY_5_MINUTES)
   async sendDueReminders(): Promise<void> {
-    if (!this.pushService.configured) return;
+    if (!this.pushService.configured) {
+      this.logger.debug('Reminder cron: APNs not configured, skipping');
+      return;
+    }
     const now = new Date();
     const horizon = new Date(now.getTime() + 60 * 60 * 1000);
-    // Candidates: not yet reminded, on today's date (cheap pre-filter); the
-    // exact start-time window is checked in JS since `time` is a string.
+    // Candidates: not yet reminded; the exact start-time window is checked in
+    // JS since `time` is a string.
     const candidates = await this.appointmentModel
       .find({ reminderSentAt: { $exists: false } })
       .populate('customer', 'name')
       .exec();
+    const due = candidates.filter((a) => this.startAt(a) > now && this.startAt(a) <= horizon);
+    this.logger.log(
+      `Reminder cron: now=${now.toISOString()} ${candidates.length} pending, ${due.length} due in next hour`,
+    );
     for (const appt of candidates) {
       const start = this.startAt(appt);
       if (start > now && start <= horizon) {

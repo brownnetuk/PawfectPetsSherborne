@@ -22,6 +22,14 @@ export class PushService {
     await this.pushTokenModel
       .updateOne({ token }, { $set: { token, platform, staff } }, { upsert: true })
       .exec();
+    const count = await this.pushTokenModel.countDocuments().exec();
+    this.logger.log(
+      `Registered push token …${token.slice(-8)} (${count} total; APNs configured=${this.apns.configured})`,
+    );
+  }
+
+  countTokens(): Promise<number> {
+    return this.pushTokenModel.countDocuments().exec();
   }
 
   removeToken(token: string): Promise<unknown> {
@@ -36,14 +44,19 @@ export class PushService {
       return;
     }
     const tokens = await this.pushTokenModel.find().exec();
+    this.logger.log(`Sending push "${title}" to ${tokens.length} device(s)`);
+    let sent = 0;
     for (const t of tokens) {
       const result = await this.apns.send(t.token, title, body, data);
-      if (result.unregistered) {
+      if (result.ok) {
+        sent++;
+      } else if (result.unregistered) {
         await this.removeToken(t.token);
         this.logger.log(`Pruned unregistered push token (${result.reason})`);
-      } else if (!result.ok) {
-        this.logger.warn(`Push send failed (${result.status} ${result.reason ?? ''})`);
+      } else {
+        this.logger.warn(`Push send failed (status=${result.status} reason=${result.reason ?? 'n/a'})`);
       }
     }
+    this.logger.log(`Push "${title}": ${sent}/${tokens.length} delivered`);
   }
 }

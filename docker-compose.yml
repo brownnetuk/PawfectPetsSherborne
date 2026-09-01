@@ -25,6 +25,11 @@ services:
       - mongo
     environment:
       PORT: 3000
+      # The app's date handling normalises to "local midnight" and appointment
+      # reminder timing uses the server's local clock -- pin it to UK time so
+      # that matches the business (otherwise a UTC container fires reminders an
+      # hour off during BST).
+      TZ: Europe/London
       MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongo:27017/pawfectpets?authSource=admin
       # Keep these identical to the values already in backend/.env when
       # migrating -- ENCRYPTION_KEY especially must not change, or every
