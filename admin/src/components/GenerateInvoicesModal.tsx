@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import Modal from './Modal';
+import { ChevronDownIcon } from './icons';
 import type { DayBooking, InvoiceTerm, LineItem } from '../types';
+
+function lineItemAmount(item: LineItem): number {
+  return item.quantity * item.unitPrice * (1 - (item.discountPercent ?? 0) / 100);
+}
 
 function dateKey(date: Date): string {
   const y = date.getFullYear();
@@ -56,6 +61,7 @@ export default function GenerateInvoicesModal({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ invoiceCount: number } | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const monthStart = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
   const monthEndExclusive = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 1);
@@ -162,27 +168,59 @@ export default function GenerateInvoicesModal({
             One invoice per customer, covering every not-yet-invoiced Walk and Visit booked in {monthLabel}.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
-            {groups.map((g) => (
-              <div
-                key={g.customerId}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  border: '1px solid var(--border)',
-                  borderRadius: 8,
-                  padding: '8px 12px',
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 700 }}>{g.customerName}</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
-                    {g.lineItems.length} line item{g.lineItems.length === 1 ? '' : 's'}
+            {groups.map((g) => {
+              const expanded = expandedId === g.customerId;
+              return (
+                <div
+                  key={g.customerId}
+                  style={{
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    padding: '8px 12px',
+                  }}
+                >
+                  <div
+                    onClick={() => setExpandedId(expanded ? null : g.customerId)}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ display: 'inline-flex', transform: expanded ? 'rotate(180deg)' : undefined, color: 'var(--muted)' }}>
+                        <ChevronDownIcon />
+                      </span>
+                      <div>
+                        <div style={{ fontWeight: 700 }}>{g.customerName}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+                          {g.lineItems.length} line item{g.lineItems.length === 1 ? '' : 's'}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ fontWeight: 700 }}>£{g.total.toFixed(2)}</div>
                   </div>
+                  {expanded && (
+                    <table style={{ width: '100%', marginTop: 10, fontSize: '0.85rem' }}>
+                      <thead>
+                        <tr style={{ color: 'var(--muted)', textAlign: 'left' }}>
+                          <th style={{ fontWeight: 600, paddingBottom: 4 }}>Item</th>
+                          <th style={{ fontWeight: 600, paddingBottom: 4, textAlign: 'right' }}>Qty</th>
+                          <th style={{ fontWeight: 600, paddingBottom: 4, textAlign: 'right' }}>Rate</th>
+                          <th style={{ fontWeight: 600, paddingBottom: 4, textAlign: 'right' }}>Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {g.lineItems.map((li, i) => (
+                          <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
+                            <td style={{ padding: '4px 0' }}>{li.description}</td>
+                            <td style={{ padding: '4px 0', textAlign: 'right' }}>{li.quantity}</td>
+                            <td style={{ padding: '4px 0', textAlign: 'right' }}>£{li.unitPrice.toFixed(2)}</td>
+                            <td style={{ padding: '4px 0', textAlign: 'right' }}>£{lineItemAmount(li).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
-                <div style={{ fontWeight: 700 }}>£{g.total.toFixed(2)}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
             {groups.length} invoice{groups.length === 1 ? '' : 's'} will be created.
