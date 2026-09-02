@@ -1,14 +1,17 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:signature/signature.dart';
 import '../../api/api_client.dart';
 import '../../api/repository.dart';
 import '../../models/portal_models.dart';
+import '../../state/auth_provider.dart';
 import 'section_scaffold.dart';
 
 /// Add or edit one pet. Mirrors the backend's required fields so a create is
-/// always valid (including dogs' off-lead consent).
+/// always valid (including dogs' off-lead consent, which requires a signature).
 class AnimalFormScreen extends StatefulWidget {
   final Animal? animal;
   const AnimalFormScreen({super.key, this.animal});
@@ -17,6 +20,39 @@ class AnimalFormScreen extends StatefulWidget {
 
   @override
   State<AnimalFormScreen> createState() => _AnimalFormScreenState();
+}
+
+/// One repeatable medication row's controllers/state.
+class _MedEntry {
+  final name = TextEditingController();
+  final dosage = TextEditingController();
+  final frequency = TextEditingController();
+  bool vetPrescribed = false;
+  bool administeredByPawfectPets = false;
+
+  _MedEntry();
+
+  _MedEntry.from(AnimalMedication m) {
+    name.text = m.name;
+    dosage.text = m.dosage ?? '';
+    frequency.text = m.frequency ?? '';
+    vetPrescribed = m.vetPrescribed;
+    administeredByPawfectPets = m.administeredByPawfectPets;
+  }
+
+  void dispose() {
+    name.dispose();
+    dosage.dispose();
+    frequency.dispose();
+  }
+
+  Map<String, dynamic> toJson() => {
+        'name': name.text.trim(),
+        if (dosage.text.trim().isNotEmpty) 'dosage': dosage.text.trim(),
+        if (frequency.text.trim().isNotEmpty) 'frequency': frequency.text.trim(),
+        'vetPrescribed': vetPrescribed,
+        'administeredByPawfectPets': administeredByPawfectPets,
+      };
 }
 
 class _AnimalFormScreenState extends State<AnimalFormScreen> {
@@ -31,10 +67,9 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
   final _aggAnimalsDetails = TextEditingController();
   final _chasesDetails = TextEditingController();
   final _allergyDetails = TextEditingController();
-  final _medName = TextEditingController();
-  final _medDosage = TextEditingController();
-  final _medFrequency = TextEditingController();
-  final _offLeadSignature = TextEditingController();
+
+  final List<_MedEntry> _meds = [];
+  final _sig = SignatureController(penStrokeWidth: 2, penColor: Colors.black);
 
   String _species = 'dog';
   String _sex = 'male';
@@ -48,8 +83,6 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
   String _chases = '';
   String _allergyStatus = 'no';
   bool _onMedication = false;
-  bool _vetPrescribed = false;
-  bool _adminByPP = false;
   String _offLeadMode = 'on_lead';
 
   bool _saving = false;
@@ -85,14 +118,7 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
       _chases = a.chasesLivestock ?? '';
       _allergyStatus = a.allergyStatus;
       _onMedication = a.onMedication;
-      if (a.medications.isNotEmpty) {
-        final m = a.medications.first;
-        _medName.text = m.name;
-        _medDosage.text = m.dosage ?? '';
-        _medFrequency.text = m.frequency ?? '';
-        _vetPrescribed = m.vetPrescribed;
-        _adminByPP = m.administeredByPawfectPets;
-      }
+      _meds.addAll(a.medications.map((m) => _MedEntry.from(m)));
       _offLeadMode = a.offLeadMode ?? 'on_lead';
     }
   }
@@ -102,12 +128,26 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
     for (final c in [
       _name, _breed, _age, _microchip, _colour, _insurer, _temperament,
       _aggPeopleDetails, _aggAnimalsDetails, _chasesDetails, _allergyDetails,
-      _medName, _medDosage, _medFrequency, _offLeadSignature,
     ]) {
       c.dispose();
     }
+    for (final m in _meds) {
+      m.dispose();
+    }
+    _sig.dispose();
     super.dispose();
   }
+
+  void _toggleMedication(bool on) {
+    setState(() {
+      _onMedication = on;
+      if (on && _meds.isEmpty) _meds.add(_MedEntry());
+    });
+  }
+
+  void _addMed() => setState(() => _meds.add(_MedEntry()));
+
+  void _removeMed(int i) => setState(() => _meds.removeAt(i).dispose());
 
   Future<void> _pickExpiry() async {
     final now = DateTime.now();
@@ -123,6 +163,15 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
     }
   }
 
+  // Whether an off-lead signature must be captured now (new pet, or switching
+  // to off-lead on an edit). An unchanged off-lead pet may keep its existing
+  // signature without re-signing.
+  bool get _needsNewSignature {
+    if (!_isDog || _offLeadMode != 'off_lead') return false;
+    final wasOffLead = widget.animal?.offLeadMode == 'off_lead';
+    return !(widget.isEdit && wasOffLead);
+  }
+
   String? _validate() {
     if (_name.text.trim().isEmpty) return 'Enter your pet\'s name.';
     if (_breed.text.trim().isEmpty) return 'Enter the breed.';
@@ -134,16 +183,17 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
     if (_allergyStatus != 'no' && _allergyDetails.text.trim().isEmpty) {
       return 'Add allergy details.';
     }
-    if (_onMedication && _medName.text.trim().isEmpty) {
-      return 'Enter the medication name.';
+    if (_onMedication) {
+      if (_meds.isEmpty) return 'Add at least one medication, or turn off "On medication".';
+      if (_meds.any((m) => m.name.text.trim().isEmpty)) return 'Every medication needs a name.';
     }
-    if (_isDog && _offLeadMode == 'off_lead' && _offLeadSignature.text.trim().isEmpty) {
-      return 'Type your name to consent to off-lead walking.';
+    if (_isDog && _offLeadMode == 'off_lead' && _sig.isEmpty && _needsNewSignature) {
+      return 'Please sign to consent to off-lead walking.';
     }
     return null;
   }
 
-  Map<String, dynamic> _buildBody() {
+  Future<Map<String, dynamic>> _buildBody() async {
     final body = <String, dynamic>{
       'species': _species,
       'breed': _breed.text.trim(),
@@ -159,16 +209,7 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
       },
       'medication': {
         'onMedication': _onMedication,
-        if (_onMedication)
-          'medications': [
-            {
-              'name': _medName.text.trim(),
-              if (_medDosage.text.trim().isNotEmpty) 'dosage': _medDosage.text.trim(),
-              if (_medFrequency.text.trim().isNotEmpty) 'frequency': _medFrequency.text.trim(),
-              'vetPrescribed': _vetPrescribed,
-              'administeredByPawfectPets': _adminByPP,
-            }
-          ],
+        if (_onMedication) 'medications': _meds.map((m) => m.toJson()).toList(),
       },
     };
     if (_vaccinated && _vaccineExpiry != null) body['vaccineExpiryDate'] = _vaccineExpiry;
@@ -193,10 +234,22 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
           body['chasesLivestockDetails'] = _chasesDetails.text.trim();
         }
       }
-      body['offLeadConsent'] = {
-        'mode': _offLeadMode,
-        if (_offLeadMode == 'off_lead') 'signature': _offLeadSignature.text.trim(),
-      };
+      if (_offLeadMode == 'on_lead') {
+        body['offLeadConsent'] = {'mode': 'on_lead'};
+      } else {
+        // off_lead: include a freshly-captured signature if there is one;
+        // otherwise (edit of an already-off-lead pet) omit it to keep the
+        // stored signature untouched.
+        if (_sig.isNotEmpty) {
+          final bytes = await _sig.toPngBytes();
+          if (bytes != null) {
+            body['offLeadConsent'] = {
+              'mode': 'off_lead',
+              'signature': 'data:image/png;base64,${base64Encode(bytes)}',
+            };
+          }
+        }
+      }
     }
     return body;
   }
@@ -213,7 +266,7 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
     });
     try {
       final repo = context.read<Repository>();
-      final body = _buildBody();
+      final body = await _buildBody();
       if (widget.isEdit) {
         await repo.updateAnimal(widget.animal!.id, body);
       } else {
@@ -318,36 +371,123 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
           contentPadding: EdgeInsets.zero,
           title: const Text('On medication'),
           value: _onMedication,
-          onChanged: (v) => setState(() => _onMedication = v),
+          onChanged: _toggleMedication,
         ),
-        if (_onMedication) ...[
-          sectionField('Medication name', _medName),
-          sectionField('Dosage', _medDosage),
-          sectionField('Frequency', _medFrequency),
+        if (_onMedication) ..._medicationList(),
+        if (_isDog) ..._offLeadSection(),
+      ],
+    );
+  }
+
+  List<Widget> _medicationList() {
+    return [
+      for (int i = 0; i < _meds.length; i++) _medCard(i),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: _addMed,
+          icon: const Icon(Icons.add),
+          label: const Text('Add medication'),
+        ),
+      ),
+    ];
+  }
+
+  Widget _medCard(int i) {
+    final m = _meds[i];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Text('Medication ${i + 1}', style: const TextStyle(fontWeight: FontWeight.w600)),
+              const Spacer(),
+              if (_meds.length > 1)
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.delete_outline, color: Color(0xFFC0392B)),
+                  onPressed: () => _removeMed(i),
+                ),
+            ],
+          ),
+          sectionField('Name', m.name),
+          sectionField('Dosage', m.dosage),
+          sectionField('Frequency', m.frequency),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Vet prescribed'),
-            value: _vetPrescribed,
-            onChanged: (v) => setState(() => _vetPrescribed = v),
+            value: m.vetPrescribed,
+            onChanged: (v) => setState(() => m.vetPrescribed = v),
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Administered by Pawfect Pets'),
-            value: _adminByPP,
-            onChanged: (v) => setState(() => _adminByPP = v),
+            value: m.administeredByPawfectPets,
+            onChanged: (v) => setState(() => m.administeredByPawfectPets = v),
           ),
         ],
-        if (_isDog) ...[
-          const Divider(height: 28),
-          _dropdown('Walking', _offLeadMode, const {
-            'on_lead': 'On lead',
-            'off_lead': 'Off lead',
-          }, (v) => setState(() => _offLeadMode = v)),
-          if (_offLeadMode == 'off_lead')
-            sectionField('Type your name to consent to off-lead walking', _offLeadSignature),
-        ],
-      ],
+      ),
     );
+  }
+
+  List<Widget> _offLeadSection() {
+    final consentText = context.read<AuthProvider>().profile?.offLeadConsentText ?? '';
+    final wasOffLead = widget.animal?.offLeadMode == 'off_lead';
+    return [
+      const Divider(height: 28),
+      _dropdown('Walking', _offLeadMode, const {
+        'on_lead': 'On lead',
+        'off_lead': 'Off lead',
+      }, (v) => setState(() => _offLeadMode = v)),
+      if (_offLeadMode == 'off_lead') ...[
+        if (consentText.trim().isNotEmpty)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFB),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Text(consentText, style: const TextStyle(fontSize: 13, height: 1.4)),
+          ),
+        if (widget.isEdit && wasOffLead)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              'A signature is already on file. Sign again below only if you want to replace it.',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+            ),
+          ),
+        const Text('Sign to consent', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFCBD5E1)),
+            borderRadius: BorderRadius.circular(8),
+            color: Colors.white,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Signature(controller: _sig, height: 160, backgroundColor: const Color(0xFFF8FAFB)),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: () => setState(() => _sig.clear()),
+            icon: const Icon(Icons.undo, size: 18),
+            label: const Text('Clear'),
+          ),
+        ),
+      ],
+    ];
   }
 
   Widget _numberField(String label, TextEditingController c) => Padding(

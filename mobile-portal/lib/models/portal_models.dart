@@ -18,6 +18,8 @@ class Profile {
   final Security security;
   final Agreement agreement;
   final Terms terms;
+  // The business's off-lead consent wording, shown on the animal form (dogs).
+  final String offLeadConsentText;
 
   Profile({
     required this.id,
@@ -37,6 +39,7 @@ class Profile {
     required this.security,
     required this.agreement,
     required this.terms,
+    this.offLeadConsentText = '',
   });
 
   factory Profile.fromJson(Map<String, dynamic> json) {
@@ -59,6 +62,7 @@ class Profile {
       security: Security.fromJson(m('security') ?? const {}),
       agreement: Agreement.fromJson(m('agreement') ?? const {}),
       terms: Terms.fromJson(m('terms') ?? const {}),
+      offLeadConsentText: json['offLeadConsentText'] as String? ?? '',
     );
   }
 }

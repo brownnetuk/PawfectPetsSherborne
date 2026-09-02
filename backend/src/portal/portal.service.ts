@@ -271,6 +271,9 @@ export class PortalService {
         version: business.termsVersion,
         documentDate: business.termsDocumentDate,
       },
+      // Shown on the animal form's off-lead consent step (dogs), where the
+      // customer must sign to agree.
+      offLeadConsentText: business.offLeadConsentText ?? '',
     };
   }
 
