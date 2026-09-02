@@ -7,6 +7,7 @@ import '../api/repository.dart';
 import '../models/message.dart';
 import '../theme.dart';
 import 'home_shell.dart';
+import 'select_customer_screen.dart';
 
 /// Staff conversation list. Tapping a row opens the thread with that customer.
 class MessagesScreen extends StatefulWidget {
@@ -62,10 +63,36 @@ class _MessagesScreenState extends State<MessagesScreen> {
     _load(silent: true); // refresh unread counts on return
   }
 
+  // Start a new conversation: pick a customer, then open their (possibly empty)
+  // thread.
+  Future<void> _newMessage() async {
+    final result = await Navigator.of(context).push<SelectCustomerResult>(
+      MaterialPageRoute(builder: (_) => const SelectCustomerScreen()),
+    );
+    final customer = result?.customer;
+    if (customer == null || !mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MessageThreadScreen(customerId: customer.id, customerName: customer.name),
+      ),
+    );
+    _load(silent: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Messages'), actions: const [LogoutAction()]),
+      appBar: AppBar(
+        title: const Text('Messages'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_square),
+            tooltip: 'New message',
+            onPressed: _newMessage,
+          ),
+          const LogoutAction(),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () => _load(),
         child: _body(),

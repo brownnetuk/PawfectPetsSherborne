@@ -5,9 +5,8 @@ import '../state/auth_provider.dart';
 import 'bookings_screen.dart';
 import 'customers_screen.dart';
 import 'financial_screen.dart';
-import 'invoices_screen.dart';
+import 'invoicing_screen.dart';
 import 'messages_screen.dart';
-import 'quotes_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -31,8 +30,7 @@ class _HomeShellState extends State<HomeShell> {
 
   static const _screens = [
     CustomersScreen(),
-    InvoicesScreen(),
-    QuotesScreen(),
+    InvoicingScreen(),
     BookingsScreen(),
     FinancialScreen(),
     MessagesScreen(),
@@ -47,8 +45,7 @@ class _HomeShellState extends State<HomeShell> {
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.people_outline), label: 'Customers'),
-          NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Invoices'),
-          NavigationDestination(icon: Icon(Icons.request_quote_outlined), label: 'Quotes'),
+          NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Invoicing'),
           NavigationDestination(icon: Icon(Icons.event_note_outlined), label: 'Bookings'),
           NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Financial'),
           NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Messages'),
