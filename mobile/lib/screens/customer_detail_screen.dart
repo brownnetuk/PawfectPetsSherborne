@@ -189,6 +189,9 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                     ],
                   ),
                 ),
+                if (customer.security!.furtherInformation != null &&
+                    customer.security!.furtherInformation!.trim().isNotEmpty)
+                  _row('Further information', customer.security!.furtherInformation!),
               ],
               _sectionTitle('Pets (${animals.length})'),
               if (animals.isEmpty)
