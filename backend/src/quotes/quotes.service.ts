@@ -281,14 +281,9 @@ export class QuotesService {
         undefined,
         actor,
       );
-      // Ping the customer's portal app (no-op unless they have the app and the
-      // customer APNs topic is configured).
-      await this.notificationService.notifyCustomerDocumentReceived(
-        String(customer._id),
-        'quote',
-        quote.quoteNumber,
-      );
     }
+    // The customer's portal push fires on create/edit (see QuotesController),
+    // so emailing doesn't push again here.
     if (quote.status === QuoteStatus.DRAFT) {
       return this.update(id, { status: QuoteStatus.SENT }, actor);
     }

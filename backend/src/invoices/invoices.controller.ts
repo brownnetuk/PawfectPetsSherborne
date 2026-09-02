@@ -16,17 +16,39 @@ import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { Public } from '../auth/public.decorator';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { transparentGifBuffer } from '../common/tracking-pixel.util';
+import { NotificationService } from '../notifications/notification.service';
 import { InvoicesService } from './invoices.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 
+// Pulls the customer id off an invoice whether its `customer` is a raw
+// ObjectId or a populated document.
+function customerIdOf(doc: { customer?: unknown }): string | null {
+  const c = doc.customer as { _id?: unknown } | undefined;
+  if (c == null) return null;
+  return c._id != null ? String(c._id) : String(c);
+}
+
 @Controller('invoices')
 export class InvoicesController {
-  constructor(private readonly invoicesService: InvoicesService) {}
+  constructor(
+    private readonly invoicesService: InvoicesService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   @Post()
-  create(@Body() dto: CreateInvoiceDto, @CurrentUser() user: CurrentUserShape) {
-    return this.invoicesService.create(dto, user.name);
+  async create(@Body() dto: CreateInvoiceDto, @CurrentUser() user: CurrentUserShape) {
+    const invoice = await this.invoicesService.create(dto, user.name);
+    const customerId = customerIdOf(invoice);
+    if (customerId) {
+      await this.notificationService.notifyCustomerDocument(
+        customerId,
+        'invoice',
+        invoice.invoiceNumber,
+        'new',
+      );
+    }
+    return invoice;
   }
 
   @Get()
@@ -55,12 +77,22 @@ export class InvoicesController {
   }
 
   @Patch(':id')
-  update(
+  async update(
     @Param('id') id: string,
     @Body() dto: UpdateInvoiceDto,
     @CurrentUser() user: CurrentUserShape,
   ) {
-    return this.invoicesService.update(id, dto, user.name);
+    const invoice = await this.invoicesService.update(id, dto, user.name);
+    const customerId = customerIdOf(invoice);
+    if (customerId) {
+      await this.notificationService.notifyCustomerDocument(
+        customerId,
+        'invoice',
+        invoice.invoiceNumber,
+        'updated',
+      );
+    }
+    return invoice;
   }
 
   @RequirePermission('invoicing.manage')

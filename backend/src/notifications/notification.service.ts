@@ -66,21 +66,32 @@ export class NotificationService {
     await this.dispatch('Invoice read', body, 'invoiceRead');
   }
 
-  // Pushes a customer (their portal app) about an invoice/quote just sent to
-  // them. Customer-facing, so not gated by staff NotificationSettings and it
-  // doesn't add to the admin feed -- it routes only to that customer's device.
-  async notifyCustomerDocumentReceived(
+  // Pushes a customer (their portal app) about a new or edited invoice/quote.
+  // Customer-facing, so not gated by staff NotificationSettings and it doesn't
+  // add to the admin feed -- it routes only to that customer's device.
+  async notifyCustomerDocument(
     customerId: string,
     kind: 'invoice' | 'quote',
     reference: string,
+    event: 'new' | 'updated',
   ): Promise<void> {
-    const title = kind === 'invoice' ? 'New invoice' : 'New quote';
-    await this.push.sendToCustomer(
-      customerId,
-      title,
-      `You've received ${kind} ${reference}.`,
-      { type: `${kind}Received`, reference },
-    );
+    const noun = kind === 'invoice' ? 'invoice' : 'quote';
+    const title =
+      event === 'new'
+        ? kind === 'invoice'
+          ? 'New invoice'
+          : 'New quote'
+        : kind === 'invoice'
+          ? 'Invoice updated'
+          : 'Quote updated';
+    const body =
+      event === 'new'
+        ? `You've received ${noun} ${reference}.`
+        : `Your ${noun} ${reference} has been updated.`;
+    await this.push.sendToCustomer(customerId, title, body, {
+      type: `${kind}${event === 'new' ? 'Received' : 'Updated'}`,
+      reference,
+    });
   }
 
   private pad(n: number): string {

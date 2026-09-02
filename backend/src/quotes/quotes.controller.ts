@@ -16,17 +16,39 @@ import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { Public } from '../auth/public.decorator';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { transparentGifBuffer } from '../common/tracking-pixel.util';
+import { NotificationService } from '../notifications/notification.service';
 import { QuotesService } from './quotes.service';
 import { CreateQuoteDto } from './dto/create-quote.dto';
 import { UpdateQuoteDto } from './dto/update-quote.dto';
 
+// Pulls the customer id off a quote whether its `customer` is a raw ObjectId,
+// a populated document, or absent (a manual-customer quote).
+function customerIdOf(doc: { customer?: unknown }): string | null {
+  const c = doc.customer as { _id?: unknown } | undefined;
+  if (c == null) return null;
+  return c._id != null ? String(c._id) : String(c);
+}
+
 @Controller('quotes')
 export class QuotesController {
-  constructor(private readonly quotesService: QuotesService) {}
+  constructor(
+    private readonly quotesService: QuotesService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   @Post()
-  create(@Body() dto: CreateQuoteDto, @CurrentUser() user: CurrentUserShape) {
-    return this.quotesService.create(dto, user.name);
+  async create(@Body() dto: CreateQuoteDto, @CurrentUser() user: CurrentUserShape) {
+    const quote = await this.quotesService.create(dto, user.name);
+    const customerId = customerIdOf(quote);
+    if (customerId) {
+      await this.notificationService.notifyCustomerDocument(
+        customerId,
+        'quote',
+        quote.quoteNumber,
+        'new',
+      );
+    }
+    return quote;
   }
 
   @Get()
@@ -55,12 +77,22 @@ export class QuotesController {
   }
 
   @Patch(':id')
-  update(
+  async update(
     @Param('id') id: string,
     @Body() dto: UpdateQuoteDto,
     @CurrentUser() user: CurrentUserShape,
   ) {
-    return this.quotesService.update(id, dto, user.name);
+    const quote = await this.quotesService.update(id, dto, user.name);
+    const customerId = customerIdOf(quote);
+    if (customerId) {
+      await this.notificationService.notifyCustomerDocument(
+        customerId,
+        'quote',
+        quote.quoteNumber,
+        'updated',
+      );
+    }
+    return quote;
   }
 
   @RequirePermission('invoicing.manage')

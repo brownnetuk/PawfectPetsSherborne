@@ -292,15 +292,8 @@ export class InvoicesService {
       undefined,
       id,
     );
-    // Ping the customer's portal app that a new invoice has landed (no-op
-    // unless they have the app and the customer APNs topic is configured).
-    if (customer._id) {
-      await this.notificationService.notifyCustomerDocumentReceived(
-        String(customer._id),
-        'invoice',
-        invoice.invoiceNumber,
-      );
-    }
+    // The customer's portal push fires on create/edit (see InvoicesController),
+    // so emailing doesn't push again here.
     if (invoice.status === InvoiceStatus.DRAFT) {
       return this.update(id, { status: InvoiceStatus.SENT }, actor);
     }
