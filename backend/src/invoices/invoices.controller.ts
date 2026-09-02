@@ -37,18 +37,10 @@ export class InvoicesController {
   ) {}
 
   @Post()
-  async create(@Body() dto: CreateInvoiceDto, @CurrentUser() user: CurrentUserShape) {
-    const invoice = await this.invoicesService.create(dto, user.name);
-    const customerId = customerIdOf(invoice);
-    if (customerId) {
-      await this.notificationService.notifyCustomerDocument(
-        customerId,
-        'invoice',
-        invoice.invoiceNumber,
-        'new',
-      );
-    }
-    return invoice;
+  create(@Body() dto: CreateInvoiceDto, @CurrentUser() user: CurrentUserShape) {
+    // The "new invoice" customer push fires in InvoicesService.create() so it
+    // covers every creation path (Generate Invoices, quote acceptance, etc.).
+    return this.invoicesService.create(dto, user.name);
   }
 
   @Get()

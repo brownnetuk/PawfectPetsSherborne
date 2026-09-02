@@ -37,18 +37,9 @@ export class QuotesController {
   ) {}
 
   @Post()
-  async create(@Body() dto: CreateQuoteDto, @CurrentUser() user: CurrentUserShape) {
-    const quote = await this.quotesService.create(dto, user.name);
-    const customerId = customerIdOf(quote);
-    if (customerId) {
-      await this.notificationService.notifyCustomerDocument(
-        customerId,
-        'quote',
-        quote.quoteNumber,
-        'new',
-      );
-    }
-    return quote;
+  create(@Body() dto: CreateQuoteDto, @CurrentUser() user: CurrentUserShape) {
+    // The "new quote" customer push fires in QuotesService.create().
+    return this.quotesService.create(dto, user.name);
   }
 
   @Get()

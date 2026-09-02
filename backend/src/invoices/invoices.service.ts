@@ -105,6 +105,18 @@ export class InvoicesService {
       undefined,
       created._id,
     );
+    // Push the owning customer's portal app about the new invoice. Done here
+    // (not just the controller) so every creation path is covered -- the
+    // Generate Invoices flow and quote acceptance also call create(). No-op
+    // unless the customer has the app and the customer APNs topic is set.
+    if (created.customer) {
+      await this.notificationService.notifyCustomerDocument(
+        String(created.customer),
+        'invoice',
+        created.invoiceNumber,
+        'new',
+      );
+    }
     return created;
   }
 

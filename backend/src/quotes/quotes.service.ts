@@ -107,6 +107,14 @@ export class QuotesService {
         undefined,
         actor,
       );
+      // Push the owning customer's portal app about the new quote (no-op unless
+      // they have the app and the customer APNs topic is configured).
+      await this.notificationService.notifyCustomerDocument(
+        String(created.customer),
+        'quote',
+        created.quoteNumber,
+        'new',
+      );
     }
     return created;
   }

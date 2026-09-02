@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
@@ -186,6 +187,16 @@ class _InvoiceSheetState extends State<_InvoiceSheet> {
           if (inv.balanceDue > 0) _totalRow('Balance due', inv.balanceDue, bold: true),
           const SizedBox(height: 20),
           OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => InvoicePdfScreen(invoiceId: inv.id, title: inv.invoiceNumber),
+              ),
+            ),
+            icon: const Icon(Icons.visibility_outlined),
+            label: const Text('View Invoice'),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
             onPressed: _pdfBusy ? null : _download,
             icon: const Icon(Icons.picture_as_pdf_outlined),
             label: Text(_pdfBusy ? 'Preparing…' : 'Download PDF'),
@@ -208,6 +219,59 @@ class _InvoiceSheetState extends State<_InvoiceSheet> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [Text(label, style: style), Text(money.format(value), style: style)],
+      ),
+    );
+  }
+}
+
+/// Renders the server-generated invoice PDF full-screen (with built-in print /
+/// share). The bytes are fetched once and reused for every layout callback.
+class InvoicePdfScreen extends StatefulWidget {
+  final String invoiceId;
+  final String title;
+  const InvoicePdfScreen({super.key, required this.invoiceId, required this.title});
+
+  @override
+  State<InvoicePdfScreen> createState() => _InvoicePdfScreenState();
+}
+
+class _InvoicePdfScreenState extends State<InvoicePdfScreen> {
+  late final Future<Uint8List> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = context.read<Repository>().invoicePdf(widget.invoiceId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.title)),
+      body: FutureBuilder<Uint8List>(
+        future: _future,
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snap.hasError || snap.data == null) {
+            return Center(
+              child: Text(
+                snap.error is ApiException ? (snap.error as ApiException).message : 'Could not load the invoice',
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
+          final bytes = snap.data!;
+          return PdfPreview(
+            build: (_) => bytes,
+            canChangePageFormat: false,
+            canChangeOrientation: false,
+            allowPrinting: true,
+            allowSharing: true,
+            pdfFileName: '${widget.title}.pdf',
+          );
+        },
       ),
     );
   }
