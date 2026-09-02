@@ -25,6 +25,7 @@ import {
 } from './dto/portal-auth.dto';
 import { PortalCreateAnimalDto } from './dto/portal-animal.dto';
 import { PublicUpdateAnimalDto } from '../animals/dto/public-update-animal.dto';
+import { SendMessageDto } from '../messages/dto/send-message.dto';
 
 // Customer-facing portal. @Public() at the class level takes the routes out of
 // the global staff auth guard; the protected ones re-guard with the customer
@@ -181,5 +182,28 @@ export class PortalController {
   ) {
     await this.portal.registerPush(customer.customerId, dto.token, dto.platform);
     return { ok: true };
+  }
+
+  // --- messages ---
+
+  @UseGuards(PortalJwtGuard)
+  @Get('messages')
+  async messages(@CurrentCustomer() customer: CurrentCustomerData) {
+    return this.portal.messagesThread(customer.customerId);
+  }
+
+  @UseGuards(PortalJwtGuard)
+  @Get('messages/unread-count')
+  async messagesUnread(@CurrentCustomer() customer: CurrentCustomerData) {
+    return this.portal.messagesUnread(customer.customerId);
+  }
+
+  @UseGuards(PortalJwtGuard)
+  @Post('messages')
+  async sendMessage(
+    @CurrentCustomer() customer: CurrentCustomerData,
+    @Body() dto: SendMessageDto,
+  ) {
+    return this.portal.sendMessage(customer.customerId, dto.body);
   }
 }

@@ -12,6 +12,7 @@ import { InvoicesModule } from '../invoices/invoices.module';
 import { QuotesModule } from '../quotes/quotes.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PushModule } from '../push/push.module';
+import { MessagesModule } from '../messages/messages.module';
 import { SettingsModule } from '../settings/settings.module';
 import { PortalController } from './portal.controller';
 import { PortalAdminController } from './portal-admin.controller';
@@ -32,6 +33,7 @@ import { PortalJwtStrategy } from './portal-jwt.strategy';
     QuotesModule,
     NotificationsModule,
     PushModule,
+    MessagesModule,
     SettingsModule,
     MongooseModule.forFeature([
       { name: DayBooking.name, schema: DayBookingSchema },

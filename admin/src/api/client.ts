@@ -10,6 +10,7 @@ import type {
   BankTransfer,
   Booking,
   BusinessInfo,
+  Conversation,
   CreditNote,
   Customer,
   CrmActivity,
@@ -29,6 +30,7 @@ import type {
   Invoice,
   InvoiceTerm,
   LineItem,
+  Message,
   Payment,
   PaymentMethod,
   Product,
@@ -188,6 +190,20 @@ export function sendCustomerPortalTestPush(
     method: 'POST',
     body: JSON.stringify({ message }),
   });
+}
+
+// --- messages (staff <-> customer) ---
+export function listConversations(): Promise<Conversation[]> {
+  return request('/messages/conversations');
+}
+export function getMessageThread(customerId: string): Promise<Message[]> {
+  return request(`/messages/${customerId}`);
+}
+export function sendMessageToCustomer(customerId: string, body: string): Promise<Message> {
+  return request(`/messages/${customerId}`, { method: 'POST', body: JSON.stringify({ body }) });
+}
+export function messagesUnreadCount(): Promise<{ count: number }> {
+  return request('/messages/unread-count');
 }
 export function logFormSnapshot(
   id: string,

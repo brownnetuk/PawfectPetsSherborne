@@ -78,6 +78,20 @@ class Repository {
   Future<void> updateAnimal(String id, Map<String, dynamic> body) =>
       client.patch('/portal/animals/$id', body);
 
+  // --- messages ---
+
+  Future<List<PortalMessage>> listMessages() async {
+    final list = await client.getList('/portal/messages');
+    return list.map((e) => PortalMessage.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<void> sendMessage(String body) => client.post('/portal/messages', {'body': body});
+
+  Future<int> messagesUnread() async {
+    final res = await client.get('/portal/messages/unread-count');
+    return (res['count'] as num?)?.toInt() ?? 0;
+  }
+
   // --- push ---
 
   Future<void> registerPushToken(String token) =>

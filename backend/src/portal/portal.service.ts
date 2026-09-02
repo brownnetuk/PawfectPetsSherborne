@@ -21,6 +21,7 @@ import { PublicUpdateAnimalDto } from '../animals/dto/public-update-animal.dto';
 import { DayBooking } from '../day-bookings/schemas/day-booking.schema';
 import { NotificationService } from '../notifications/notification.service';
 import { PushService } from '../push/push.service';
+import { MessagesService } from '../messages/messages.service';
 import { SettingsService } from '../settings/settings.service';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { portalJwtSecret, PORTAL_TOKEN_TTL } from './portal-jwt.util';
@@ -45,7 +46,22 @@ export class PortalService {
     private readonly animals: AnimalsService,
     private readonly notifications: NotificationService,
     private readonly push: PushService,
+    private readonly messages: MessagesService,
   ) {}
+
+  // --- messages (customer side of the staff <-> customer thread) ---
+
+  messagesThread(customerId: string) {
+    return this.messages.openThreadAsCustomer(customerId);
+  }
+
+  async messagesUnread(customerId: string) {
+    return { count: await this.messages.customerUnread(customerId) };
+  }
+
+  sendMessage(customerId: string, body: string) {
+    return this.messages.customerSend(customerId, body);
+  }
 
   // The customer app registers its APNs device token here (tagged with the
   // customer id so sends route to the customer topic).

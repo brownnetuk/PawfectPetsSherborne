@@ -285,6 +285,33 @@ class Animal {
   }
 }
 
+/// One message in the staff <-> customer thread (GET /portal/messages).
+class PortalMessage {
+  final String id;
+  final String sender; // 'staff' | 'customer'
+  final String? senderName;
+  final String body;
+  final DateTime createdAt;
+
+  PortalMessage({
+    required this.id,
+    required this.sender,
+    this.senderName,
+    required this.body,
+    required this.createdAt,
+  });
+
+  bool get fromStaff => sender == 'staff';
+
+  factory PortalMessage.fromJson(Map<String, dynamic> j) => PortalMessage(
+        id: j['_id'] as String,
+        sender: j['sender'] as String? ?? 'staff',
+        senderName: j['senderName'] as String?,
+        body: j['body'] as String? ?? '',
+        createdAt: DateTime.parse(j['createdAt'] as String).toLocal(),
+      );
+}
+
 class AnimalMedication {
   final String name;
   final String? dosage;

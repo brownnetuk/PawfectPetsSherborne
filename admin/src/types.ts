@@ -588,6 +588,27 @@ export interface EmailTemplate {
   body: string;
 }
 
+// --- Messages (staff <-> customer) ---
+
+export interface Message {
+  _id: string;
+  customer: string;
+  sender: 'staff' | 'customer';
+  senderName?: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface Conversation {
+  customerId: string;
+  name: string;
+  email: string;
+  lastBody: string;
+  lastAt: string;
+  lastSender: 'staff' | 'customer';
+  unread: number;
+}
+
 // --- Forms builder (Settings > Forms) ---
 
 export type FieldTarget = 'customer' | 'animal';

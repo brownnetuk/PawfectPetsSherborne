@@ -6,6 +6,7 @@ import 'bookings_screen.dart';
 import 'customers_screen.dart';
 import 'financial_screen.dart';
 import 'invoices_screen.dart';
+import 'messages_screen.dart';
 import 'quotes_screen.dart';
 
 class HomeShell extends StatefulWidget {
@@ -34,6 +35,7 @@ class _HomeShellState extends State<HomeShell> {
     QuotesScreen(),
     BookingsScreen(),
     FinancialScreen(),
+    MessagesScreen(),
   ];
 
   @override
@@ -49,6 +51,7 @@ class _HomeShellState extends State<HomeShell> {
           NavigationDestination(icon: Icon(Icons.request_quote_outlined), label: 'Quotes'),
           NavigationDestination(icon: Icon(Icons.event_note_outlined), label: 'Bookings'),
           NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Financial'),
+          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Messages'),
         ],
       ),
     );

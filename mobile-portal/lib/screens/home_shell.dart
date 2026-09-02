@@ -5,6 +5,7 @@ import '../state/auth_provider.dart';
 import 'bookings_screen.dart';
 import 'details_screen.dart';
 import 'invoices_screen.dart';
+import 'messages_screen.dart';
 import 'quotes_screen.dart';
 
 class HomeShell extends StatefulWidget {
@@ -17,7 +18,7 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
-  static const _titles = ['My Details', 'Invoices', 'Quotes', 'Bookings'];
+  static const _titles = ['My Details', 'Invoices', 'Quotes', 'Bookings', 'Messages'];
 
   @override
   void initState() {
@@ -36,6 +37,7 @@ class _HomeShellState extends State<HomeShell> {
       InvoicesScreen(),
       QuotesScreen(),
       BookingsScreen(),
+      MessagesScreen(),
     ];
     return Scaffold(
       appBar: AppBar(
@@ -57,6 +59,7 @@ class _HomeShellState extends State<HomeShell> {
           NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Invoices'),
           NavigationDestination(icon: Icon(Icons.request_quote_outlined), selectedIcon: Icon(Icons.request_quote), label: 'Quotes'),
           NavigationDestination(icon: Icon(Icons.event_outlined), selectedIcon: Icon(Icons.event), label: 'Bookings'),
+          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Messages'),
         ],
       ),
     );

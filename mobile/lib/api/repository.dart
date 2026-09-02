@@ -13,6 +13,7 @@ import '../models/crm_activity.dart';
 import '../models/customer.dart';
 import '../models/expense.dart';
 import '../models/invoice.dart';
+import '../models/message.dart';
 import '../models/product.dart';
 import '../models/notification_settings.dart';
 import '../models/quote.dart';
@@ -38,6 +39,21 @@ class Repository {
   // --- customers ---
   Future<List<Customer>> listCustomers() async =>
       (await _client.getList('/customers')).map((e) => Customer.fromJson(e)).toList();
+
+  // --- messages ---
+  Future<List<Conversation>> listConversations() async =>
+      (await _client.getList('/messages/conversations')).map((e) => Conversation.fromJson(e)).toList();
+
+  Future<List<Message>> messageThread(String customerId) async =>
+      (await _client.getList('/messages/$customerId')).map((e) => Message.fromJson(e)).toList();
+
+  Future<void> sendMessage(String customerId, String body) =>
+      _client.post('/messages/$customerId', {'body': body});
+
+  Future<int> messagesUnreadCount() async {
+    final json = await _client.get('/messages/unread-count');
+    return (json['count'] as num?)?.toInt() ?? 0;
+  }
 
   Future<Customer> getCustomer(String id) async =>
       Customer.fromJson(await _client.get('/customers/$id'));

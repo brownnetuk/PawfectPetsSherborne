@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import * as api from '../api/client';
 import logo from '../assets/logo.png';
 import NotificationBell from '../components/NotificationBell';
 import QrLoginModal from '../components/QrLoginModal';
@@ -24,11 +25,38 @@ function initials(name: string | undefined): string {
     .join('');
 }
 
+// Simple chat-bubble glyph (kept inline — the shared icons file has no chat
+// icon and this is the only place that needs one).
+function MessagesIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8A8.5 8.5 0 0 1 12.5 3 8.5 8.5 0 0 1 21 11.5z" />
+    </svg>
+  );
+}
+
 export default function Layout() {
   const { staff, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [showQrLogin, setShowQrLogin] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
+  // Poll the unread-message count for the nav badge.
+  useEffect(() => {
+    let active = true;
+    const tick = () =>
+      api
+        .messagesUnreadCount()
+        .then((r) => active && setUnreadMessages(r.count))
+        .catch(() => {});
+    tick();
+    const t = setInterval(tick, 15000);
+    return () => {
+      active = false;
+      clearInterval(t);
+    };
+  }, [location.pathname]);
   // The invoice detail view lays out three columns side by side (list,
   // document preview, activity log) and needs the full window width to
   // avoid squeezing the preview -- every other page is fine at the
@@ -70,6 +98,25 @@ export default function Layout() {
           <NavLink to="/financial" className={({ isActive }) => (isActive ? 'active' : '')}>
             <FinancialIcon />
             Financial
+          </NavLink>
+          <NavLink to="/messages" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <MessagesIcon />
+            Messages
+            {unreadMessages > 0 && (
+              <span
+                style={{
+                  marginLeft: 'auto',
+                  background: 'var(--brand-green)',
+                  color: 'white',
+                  borderRadius: 999,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: '1px 7px',
+                }}
+              >
+                {unreadMessages}
+              </span>
+            )}
           </NavLink>
           <NavLink to="/reports" className={({ isActive }) => (isActive ? 'active' : '')}>
             <ReportsIcon />
