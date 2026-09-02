@@ -180,6 +180,15 @@ export function setCustomerPortalActive(
 export function sendCustomerPortalReset(id: string): Promise<{ ok: boolean }> {
   return request(`/customers/${id}/portal/reset`, { method: 'POST' });
 }
+export function sendCustomerPortalTestPush(
+  id: string,
+  message: string,
+): Promise<{ sent: number; total: number; customerPushConfigured: boolean }> {
+  return request(`/customers/${id}/portal/test-push`, {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  });
+}
 export function logFormSnapshot(
   id: string,
   title: string,

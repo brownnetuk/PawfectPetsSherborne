@@ -1,6 +1,6 @@
 import { Body, Controller, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import { PortalService } from './portal.service';
-import { SetPortalActiveDto } from './dto/portal-auth.dto';
+import { SetPortalActiveDto, TestPushDto } from './dto/portal-auth.dto';
 
 // Staff-facing portal administration (Customer Detail > Customer Defaults >
 // Customer Portal card). NOT @Public(), so the global staff JwtAuthGuard
@@ -20,5 +20,12 @@ export class PortalAdminController {
   @HttpCode(200)
   async sendReset(@Param('id') id: string) {
     return this.portal.adminSendReset(id);
+  }
+
+  // "Send test push" button — pushes a free-text message to this customer's app.
+  @Post('test-push')
+  @HttpCode(200)
+  async testPush(@Param('id') id: string, @Body() dto: TestPushDto) {
+    return this.portal.adminSendTestPush(id, dto.message);
   }
 }

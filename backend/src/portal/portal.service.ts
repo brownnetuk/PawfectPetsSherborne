@@ -152,6 +152,25 @@ export class PortalService {
     return { ok: true };
   }
 
+  // Staff "send test push" button: pushes a free-text message to this
+  // customer's device(s). Returns the delivery summary so the admin can see
+  // whether anything was reached (and diagnose config/registration issues).
+  async adminSendTestPush(customerId: string, message?: string) {
+    const customer = await this.customerModel.findById(customerId).exec();
+    if (!customer) throw new NotFoundException(`Customer ${customerId} not found`);
+    const text = (message ?? '').trim() || 'This is a test notification from Pawfect Pets.';
+    const result = await this.push.sendToCustomer(customerId, 'Pawfect Pets', text, {
+      type: 'test',
+    });
+    return {
+      ...result,
+      // Surface whether the customer APNs topic is even configured, so a 0/0
+      // result is easy to interpret.
+      customerPushConfigured: this.push.diagnostics.keyParsed &&
+        !!this.push.diagnostics.customerBundleId,
+    };
+  }
+
   // Validates a code against either slot (login or reset), honouring expiry.
   private static async matchCode(
     creds: Customer['portalCredentials'],

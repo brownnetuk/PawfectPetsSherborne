@@ -20,6 +20,13 @@ export class SetPortalActiveDto {
   active: boolean;
 }
 
+// Staff "send test push" from the Customer Portal card.
+export class TestPushDto {
+  @IsOptional()
+  @IsString()
+  message?: string;
+}
+
 export class RequestCodeDto {
   @IsEmail()
   email: string;

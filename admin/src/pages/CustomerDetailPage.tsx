@@ -1646,6 +1646,8 @@ function CustomerPortalCard({ customer, onChange }: { customer: Customer; onChan
   const [resetting, setResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [testMessage, setTestMessage] = useState('');
+  const [pushing, setPushing] = useState(false);
 
   async function handleToggle(value: boolean) {
     setSavingActive(true);
@@ -1678,6 +1680,26 @@ function CustomerPortalCard({ customer, onChange }: { customer: Customer; onChan
     }
   }
 
+  async function handleTestPush() {
+    setPushing(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await api.sendCustomerPortalTestPush(customer._id, testMessage);
+      if (!res.customerPushConfigured) {
+        setError('Customer push isn\'t configured on the server (APNS_CUSTOMER_BUNDLE_ID).');
+      } else if (res.total === 0) {
+        setNotice('No devices registered for this customer yet — they need to sign in to the app first.');
+      } else {
+        setNotice(`Test push delivered to ${res.sent} of ${res.total} device(s).`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send the test push');
+    } finally {
+      setPushing(false);
+    }
+  }
+
   return (
     <div className="card">
       <h2>Customer Portal</h2>
@@ -1704,6 +1726,24 @@ function CustomerPortalCard({ customer, onChange }: { customer: Customer; onChan
         {notice && (
           <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>{notice}</span>
         )}
+      </div>
+      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '16px 0' }} />
+      <h3 style={{ margin: '0 0 4px', fontSize: '0.95rem' }}>Send test push</h3>
+      <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: 0 }}>
+        Send a one-off notification to this customer's app to check push is working.
+      </p>
+      <div className="field">
+        <textarea
+          rows={2}
+          placeholder="Message (optional)"
+          value={testMessage}
+          onChange={(e) => setTestMessage(e.target.value)}
+        />
+      </div>
+      <div className="modal-actions" style={{ justifyContent: 'flex-start' }}>
+        <button className="btn btn-secondary" onClick={handleTestPush} disabled={pushing}>
+          {pushing ? 'Sending…' : 'Send test push'}
+        </button>
       </div>
     </div>
   );
