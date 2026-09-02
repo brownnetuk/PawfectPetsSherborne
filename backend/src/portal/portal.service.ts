@@ -63,6 +63,10 @@ export class PortalService {
     return this.messages.customerSend(customerId, body);
   }
 
+  deleteMessage(customerId: string, messageId: string) {
+    return this.messages.customerDelete(customerId, messageId);
+  }
+
   // The customer app registers its APNs device token here (tagged with the
   // customer id so sends route to the customer topic).
   async registerPush(

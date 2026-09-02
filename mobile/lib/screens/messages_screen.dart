@@ -193,6 +193,35 @@ class _MessageThreadScreenState extends State<MessageThreadScreen> {
     }
   }
 
+  // Staff can delete any message in the thread (long-press).
+  Future<void> _confirmDelete(Message m) async {
+    final repo = context.read<Repository>();
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete message?'),
+        content: const Text('This removes it for everyone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFC0392B)),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await repo.deleteMessage(widget.customerId, m.id);
+      await _load(silent: true);
+    } catch (e) {
+      messenger.showSnackBar(
+          SnackBar(content: Text(e is ApiException ? e.message : 'Failed to delete')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -208,7 +237,10 @@ class _MessageThreadScreenState extends State<MessageThreadScreen> {
                         controller: _scroll,
                         padding: const EdgeInsets.all(12),
                         itemCount: _messages.length,
-                        itemBuilder: (context, i) => _Bubble(message: _messages[i]),
+                        itemBuilder: (context, i) => _Bubble(
+                          message: _messages[i],
+                          onLongPress: () => _confirmDelete(_messages[i]),
+                        ),
                       ),
           ),
           SafeArea(
@@ -240,14 +272,17 @@ class _MessageThreadScreenState extends State<MessageThreadScreen> {
 
 class _Bubble extends StatelessWidget {
   final Message message;
-  const _Bubble({required this.message});
+  final VoidCallback? onLongPress;
+  const _Bubble({required this.message, this.onLongPress});
 
   @override
   Widget build(BuildContext context) {
     final fromStaff = message.fromStaff;
     return Align(
       alignment: fromStaff ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
+      child: GestureDetector(
+        onLongPress: onLongPress,
+        child: Container(
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
         margin: const EdgeInsets.only(bottom: 8),
         child: Column(
@@ -268,6 +303,7 @@ class _Bubble extends StatelessWidget {
               style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
             ),
           ],
+          ),
         ),
       ),
     );

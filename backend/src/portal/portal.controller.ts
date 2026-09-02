@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -205,5 +206,14 @@ export class PortalController {
     @Body() dto: SendMessageDto,
   ) {
     return this.portal.sendMessage(customer.customerId, dto.body);
+  }
+
+  @UseGuards(PortalJwtGuard)
+  @Delete('messages/:id')
+  async deleteMessage(
+    @CurrentCustomer() customer: CurrentCustomerData,
+    @Param('id') id: string,
+  ) {
+    return this.portal.deleteMessage(customer.customerId, id);
   }
 }

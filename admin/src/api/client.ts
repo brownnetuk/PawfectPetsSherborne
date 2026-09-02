@@ -205,6 +205,9 @@ export function sendMessageToCustomer(customerId: string, body: string): Promise
 export function messagesUnreadCount(): Promise<{ count: number }> {
   return request('/messages/unread-count');
 }
+export function deleteMessage(customerId: string, messageId: string): Promise<{ ok: boolean }> {
+  return request(`/messages/${customerId}/${messageId}`, { method: 'DELETE' });
+}
 export function logFormSnapshot(
   id: string,
   title: string,

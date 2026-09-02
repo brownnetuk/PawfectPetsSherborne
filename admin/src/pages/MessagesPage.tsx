@@ -184,6 +184,17 @@ function Thread({ customer, onSent }: { customer: ActiveCustomer; onSent: () => 
     }
   }
 
+  async function handleDelete(id: string) {
+    if (!window.confirm('Delete this message? This removes it for everyone.')) return;
+    try {
+      await api.deleteMessage(customer.customerId, id);
+      await load();
+      onSent();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete');
+    }
+  }
+
   return (
     <>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
@@ -196,7 +207,7 @@ function Thread({ customer, onSent }: { customer: ActiveCustomer; onSent: () => 
             No messages yet — say hello.
           </div>
         ) : (
-          messages.map((m) => <MessageBubble key={m._id} message={m} />)
+          messages.map((m) => <MessageBubble key={m._id} message={m} onDelete={() => handleDelete(m._id)} />)
         )}
       </div>
       {error && <div className="error-banner" style={{ margin: '0 16px' }}>{error}</div>}
@@ -222,10 +233,15 @@ function Thread({ customer, onSent }: { customer: ActiveCustomer; onSent: () => 
   );
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({ message, onDelete }: { message: Message; onDelete: () => void }) {
   const fromStaff = message.sender === 'staff';
+  const [hover, setHover] = useState(false);
   return (
-    <div style={{ alignSelf: fromStaff ? 'flex-end' : 'flex-start', maxWidth: '75%' }}>
+    <div
+      style={{ alignSelf: fromStaff ? 'flex-end' : 'flex-start', maxWidth: '75%' }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
       <div
         style={{
           background: fromStaff ? 'var(--brand-green)' : '#eef1f4',
@@ -253,6 +269,23 @@ function MessageBubble({ message }: { message: Message }) {
           hour: '2-digit',
           minute: '2-digit',
         })}
+        {hover && (
+          <button
+            onClick={onDelete}
+            title="Delete message"
+            style={{
+              marginLeft: 8,
+              border: 'none',
+              background: 'none',
+              color: 'var(--danger, #c0392b)',
+              cursor: 'pointer',
+              fontSize: 11,
+              padding: 0,
+            }}
+          >
+            Delete
+          </button>
+        )}
       </div>
     </div>
   );

@@ -50,6 +50,9 @@ class Repository {
   Future<void> sendMessage(String customerId, String body) =>
       _client.post('/messages/$customerId', {'body': body});
 
+  Future<void> deleteMessage(String customerId, String messageId) =>
+      _client.delete('/messages/$customerId/$messageId');
+
   Future<int> messagesUnreadCount() async {
     final json = await _client.get('/messages/unread-count');
     return (json['count'] as num?)?.toInt() ?? 0;

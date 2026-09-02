@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { MessagesService } from './messages.service';
@@ -33,5 +33,12 @@ export class MessagesController {
     @CurrentUser() user: CurrentUserShape,
   ) {
     return this.messages.staffSend(customerId, dto.body, user.name);
+  }
+
+  // Staff can delete any message in a thread. customerId is in the path for
+  // clarity/scoping; deletion is by message id.
+  @Delete(':customerId/:messageId')
+  remove(@Param('messageId') messageId: string) {
+    return this.messages.staffDelete(messageId);
   }
 }

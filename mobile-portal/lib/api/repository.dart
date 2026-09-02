@@ -87,6 +87,8 @@ class Repository {
 
   Future<void> sendMessage(String body) => client.post('/portal/messages', {'body': body});
 
+  Future<void> deleteMessage(String id) => client.delete('/portal/messages/$id');
+
   Future<int> messagesUnread() async {
     final res = await client.get('/portal/messages/unread-count');
     return (res['count'] as num?)?.toInt() ?? 0;

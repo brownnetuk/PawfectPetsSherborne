@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Customer } from '../customers/schemas/customer.schema';
@@ -80,6 +80,13 @@ export class MessagesService {
     return this.getThread(customerId);
   }
 
+  // Staff can delete any message in a thread (moderation).
+  async staffDelete(messageId: string) {
+    const deleted = await this.messageModel.findByIdAndDelete(messageId).exec();
+    if (!deleted) throw new NotFoundException(`Message ${messageId} not found`);
+    return { ok: true };
+  }
+
   async staffSend(customerId: string, body: string, staffName: string) {
     const customer = await this.customerModel.findById(customerId).exec();
     if (!customer) throw new NotFoundException(`Customer ${customerId} not found`);
@@ -116,6 +123,20 @@ export class MessagesService {
     return this.messageModel
       .countDocuments({ customer: customerId, sender: 'staff', readByCustomer: false })
       .exec();
+  }
+
+  // A customer may only delete their own messages, and only within their own
+  // thread.
+  async customerDelete(customerId: string, messageId: string) {
+    const message = await this.messageModel.findById(messageId).exec();
+    if (!message || String(message.customer) !== customerId) {
+      throw new NotFoundException(`Message ${messageId} not found`);
+    }
+    if (message.sender !== 'customer') {
+      throw new ForbiddenException('You can only delete your own messages.');
+    }
+    await this.messageModel.deleteOne({ _id: messageId }).exec();
+    return { ok: true };
   }
 
   async customerSend(customerId: string, body: string) {
