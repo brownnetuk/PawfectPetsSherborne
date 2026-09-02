@@ -53,6 +53,9 @@ services:
       APNS_KEY_ID: ${APNS_KEY_ID}
       APNS_TEAM_ID: ${APNS_TEAM_ID}
       APNS_BUNDLE_ID: ${APNS_BUNDLE_ID}
+      # The customer portal app's bundle id (its own apns-topic) -- enables
+      # per-customer push. Same .p8 key/Key ID/Team ID as the staff app.
+      APNS_CUSTOMER_BUNDLE_ID: ${APNS_CUSTOMER_BUNDLE_ID}
       APNS_PRODUCTION: ${APNS_PRODUCTION}
     # Optional now that cloudflared (below) routes public traffic straight to
     # this service over the internal network -- kept for direct host/LAN
