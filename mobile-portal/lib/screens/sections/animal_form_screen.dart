@@ -93,6 +93,10 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
   @override
   void initState() {
     super.initState();
+    // Keep the off-lead consent text's {{petName}} in sync as the name is typed.
+    _name.addListener(() {
+      if (mounted) setState(() {});
+    });
     final a = widget.animal;
     if (a != null) {
       _name.text = a.name;
@@ -437,8 +441,17 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
     );
   }
 
+  // Fallback wording matching the web apps when Business Info has none set.
+  static const _defaultOffLeadConsent =
+      'I consent to {{petName}} being exercised off the lead, and understand this is at my own risk.';
+
   List<Widget> _offLeadSection() {
-    final consentText = context.read<AuthProvider>().profile?.offLeadConsentText ?? '';
+    final raw = context.read<AuthProvider>().profile?.offLeadConsentText ?? '';
+    final petName = _name.text.trim().isNotEmpty ? _name.text.trim() : 'my dog';
+    // Substitute the {{petName}} placeholder with the real name, same as the
+    // intake form / PDF do.
+    final consentText =
+        (raw.trim().isEmpty ? _defaultOffLeadConsent : raw).replaceAll('{{petName}}', petName);
     final wasOffLead = widget.animal?.offLeadMode == 'off_lead';
     return [
       const Divider(height: 28),
