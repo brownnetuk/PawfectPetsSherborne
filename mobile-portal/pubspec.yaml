@@ -1,0 +1,39 @@
+name: pawfectpets_portal
+description: "Pawfect Pets Sherborne — customer portal app."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  http: ^1.6.0
+  flutter_secure_storage: ^11.0.0
+  provider: ^6.1.5+1
+  intl: ^0.20.3
+  printing: ^5.15.0
+  url_launcher: ^6.3.2
+  package_info_plus: ^10.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+# Reuses the staff app's icon for now (drop a distinct 1024x1024 customer icon
+# at assets/icon/app_icon.png later, then: dart run flutter_launcher_icons).
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  ios: true
+  remove_alpha_ios: true
+  background_color_ios: "#FFFFFF"
+  android: false
+
+flutter:
+  uses-material-design: true
