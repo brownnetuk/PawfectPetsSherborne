@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEmail,
@@ -5,7 +6,13 @@ import {
   IsString,
   Length,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+import {
+  EmergencyContactDto,
+  SecurityArrangementsDto,
+} from '../../customers/dto/create-customer.dto';
+import { PortalEmergencyVetDto } from './portal-emergency-vet.dto';
 
 // Staff toggle for a customer's portal access (PortalAdminController).
 export class SetPortalActiveDto {
@@ -92,4 +99,22 @@ export class UpdateMeDto {
   @IsOptional()
   @IsString()
   postcode?: string;
+
+  // Optional sub-sections, each edited from its own portal screen. Routed
+  // through CustomersService.update (recomputes names/addresses, encrypts alarm
+  // instructions, carries an existing vet authorisation forward).
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EmergencyContactDto)
+  emergencyContact?: EmergencyContactDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PortalEmergencyVetDto)
+  emergencyVet?: PortalEmergencyVetDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SecurityArrangementsDto)
+  security?: SecurityArrangementsDto;
 }

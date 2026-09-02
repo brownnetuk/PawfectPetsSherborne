@@ -16,6 +16,8 @@ import { CustomersService } from '../customers/customers.service';
 import { UpdateCustomerDto } from '../customers/dto/update-customer.dto';
 import { InvoicesService } from '../invoices/invoices.service';
 import { QuotesService } from '../quotes/quotes.service';
+import { AnimalsService } from '../animals/animals.service';
+import { PublicUpdateAnimalDto } from '../animals/dto/public-update-animal.dto';
 import { DayBooking } from '../day-bookings/schemas/day-booking.schema';
 import { NotificationService } from '../notifications/notification.service';
 import { PushService } from '../push/push.service';
@@ -23,6 +25,7 @@ import { SettingsService } from '../settings/settings.service';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { portalJwtSecret, PORTAL_TOKEN_TTL } from './portal-jwt.util';
 import { UpdateMeDto } from './dto/portal-auth.dto';
+import { PortalCreateAnimalDto } from './dto/portal-animal.dto';
 
 // First-time-login and password-reset codes are valid for 48 hours.
 const CODE_TTL_MS = 48 * 60 * 60 * 1000;
@@ -39,6 +42,7 @@ export class PortalService {
     private readonly customers: CustomersService,
     private readonly invoices: InvoicesService,
     private readonly quotes: QuotesService,
+    private readonly animals: AnimalsService,
     private readonly notifications: NotificationService,
     private readonly push: PushService,
   ) {}
@@ -200,11 +204,16 @@ export class PortalService {
     return { token: this.sign(customer) };
   }
 
-  // The curated profile the app shows on "Customer Details". Never includes
-  // credentials (loaded without the hidden sub-doc).
+  // The curated profile the app shows on "My Details" and its sub-sections.
+  // Never includes credentials (loaded without the hidden sub-doc) nor the
+  // decrypted alarm instructions (only whether some are on file). Bundles the
+  // business's current terms so the read-only Agreement screen can render them.
   async getProfile(customerId: string) {
     const c = await this.customerModel.findById(customerId).exec();
     if (!c) throw new UnauthorizedException();
+    const ec = c.emergencyContact;
+    const ev = c.emergencyVet;
+    const business = await this.settings.getBusinessInfo();
     return {
       id: c._id?.toString(),
       firstName: c.firstName,
@@ -218,6 +227,50 @@ export class PortalService {
       county: c.county,
       postcode: c.postcode,
       address: c.address,
+      emergencyContact: ec
+        ? {
+            sameAsClient: ec.sameAsClient ?? false,
+            firstName: ec.firstName,
+            surname: ec.surname,
+            address1: ec.address1,
+            address2: ec.address2,
+            town: ec.town,
+            county: ec.county,
+            postcode: ec.postcode,
+            phoneNumber: ec.phoneNumber,
+            email: ec.email,
+          }
+        : null,
+      emergencyVet: ev
+        ? {
+            practiceName: ev.practiceName,
+            address1: ev.address1,
+            address2: ev.address2,
+            town: ev.town,
+            county: ev.county,
+            postcode: ev.postcode,
+            telephone: ev.telephone,
+            email: ev.email,
+          }
+        : null,
+      security: {
+        keysProvided: c.security?.keysProvided ?? false,
+        furtherInformation: c.security?.furtherInformation,
+        // Never the plaintext — just whether any are on file.
+        hasAlarmInstructions: !!c.security?.alarmInstructionsEncrypted,
+      },
+      agreement: {
+        signedName: c.agreement?.signedName,
+        signatureImage: c.agreement?.signatureImage,
+        signedAt: c.agreement?.signedAt,
+        termsVersion: c.agreement?.termsVersion,
+        termsDocumentDate: c.agreement?.termsDocumentDate,
+      },
+      terms: {
+        html: business.termsHtml ?? '',
+        version: business.termsVersion,
+        documentDate: business.termsDocumentDate,
+      },
     };
   }
 
@@ -305,5 +358,26 @@ export class PortalService {
       .populate('animal', 'name')
       .populate('product', 'name')
       .exec();
+  }
+
+  // --- animals (the customer's own pets) ---
+
+  listAnimals(customerId: string) {
+    return this.animals.findAll(customerId);
+  }
+
+  // Creates a pet owned by the authenticated customer (the customer id is
+  // forced here, never taken from the request body).
+  createAnimal(customerId: string, dto: PortalCreateAnimalDto) {
+    return this.animals.create(
+      { ...dto, customer: customerId },
+      'Customer (portal)',
+    );
+  }
+
+  // Ownership is enforced inside updateForCustomer (matches the animal's own
+  // customer field), so a customer can only edit their own pets.
+  updateAnimal(customerId: string, id: string, dto: PublicUpdateAnimalDto) {
+    return this.animals.updateForCustomer(id, customerId, dto, 'Customer (portal)');
   }
 }

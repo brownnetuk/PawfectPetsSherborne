@@ -7,6 +7,7 @@ import {
   DayBookingSchema,
 } from '../day-bookings/schemas/day-booking.schema';
 import { CustomersModule } from '../customers/customers.module';
+import { AnimalsModule } from '../animals/animals.module';
 import { InvoicesModule } from '../invoices/invoices.module';
 import { QuotesModule } from '../quotes/quotes.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -26,6 +27,7 @@ import { PortalJwtStrategy } from './portal-jwt.strategy';
     // CustomersModule re-exports the Customer model (MongooseModule) plus
     // CustomersService, so no separate forFeature for Customer is needed.
     CustomersModule,
+    AnimalsModule,
     InvoicesModule,
     QuotesModule,
     NotificationsModule,

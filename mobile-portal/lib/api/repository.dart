@@ -66,6 +66,18 @@ class Repository {
     return list.map((e) => Booking.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  // --- animals ---
+
+  Future<List<Animal>> listAnimals() async {
+    final list = await client.getList('/portal/animals');
+    return list.map((e) => Animal.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<void> createAnimal(Map<String, dynamic> body) => client.post('/portal/animals', body);
+
+  Future<void> updateAnimal(String id, Map<String, dynamic> body) =>
+      client.patch('/portal/animals/$id', body);
+
   // --- push ---
 
   Future<void> registerPushToken(String token) =>

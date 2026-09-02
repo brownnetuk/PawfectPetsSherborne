@@ -23,6 +23,8 @@ import {
   UpdateMeDto,
   VerifyCodeDto,
 } from './dto/portal-auth.dto';
+import { PortalCreateAnimalDto } from './dto/portal-animal.dto';
+import { PublicUpdateAnimalDto } from '../animals/dto/public-update-animal.dto';
 
 // Customer-facing portal. @Public() at the class level takes the routes out of
 // the global staff auth guard; the protected ones re-guard with the customer
@@ -143,6 +145,31 @@ export class PortalController {
   @Get('bookings')
   async bookings(@CurrentCustomer() customer: CurrentCustomerData) {
     return this.portal.listBookings(customer.customerId);
+  }
+
+  @UseGuards(PortalJwtGuard)
+  @Get('animals')
+  async animals(@CurrentCustomer() customer: CurrentCustomerData) {
+    return this.portal.listAnimals(customer.customerId);
+  }
+
+  @UseGuards(PortalJwtGuard)
+  @Post('animals')
+  async createAnimal(
+    @CurrentCustomer() customer: CurrentCustomerData,
+    @Body() dto: PortalCreateAnimalDto,
+  ) {
+    return this.portal.createAnimal(customer.customerId, dto);
+  }
+
+  @UseGuards(PortalJwtGuard)
+  @Patch('animals/:id')
+  async updateAnimal(
+    @CurrentCustomer() customer: CurrentCustomerData,
+    @Param('id') id: string,
+    @Body() dto: PublicUpdateAnimalDto,
+  ) {
+    return this.portal.updateAnimal(customer.customerId, id, dto);
   }
 
   @UseGuards(PortalJwtGuard)

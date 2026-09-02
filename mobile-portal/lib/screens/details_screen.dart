@@ -1,69 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../api/api_client.dart';
 import '../state/auth_provider.dart';
 import '../theme.dart';
+import 'sections/agreement_screen.dart';
+import 'sections/animals_screen.dart';
+import 'sections/customer_details_screen.dart';
+import 'sections/emergency_contact_screen.dart';
+import 'sections/emergency_vet_screen.dart';
+import 'sections/security_screen.dart';
 
-class DetailsScreen extends StatefulWidget {
+/// The "My Details" tab: a menu into each editable section of the customer's
+/// record. Everything is editable except the Agreement (read-only T&Cs +
+/// their signature).
+class DetailsScreen extends StatelessWidget {
   const DetailsScreen({super.key});
 
   @override
-  State<DetailsScreen> createState() => _DetailsScreenState();
-}
-
-class _DetailsScreenState extends State<DetailsScreen> {
-  late final Map<String, TextEditingController> _c;
-  bool _saving = false;
-  String? _error;
-  bool _saved = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final p = context.read<AuthProvider>().profile;
-    _c = {
-      'firstName': TextEditingController(text: p?.firstName ?? ''),
-      'surname': TextEditingController(text: p?.surname ?? ''),
-      'phoneNumber': TextEditingController(text: p?.phoneNumber ?? ''),
-      'address1': TextEditingController(text: p?.address1 ?? ''),
-      'address2': TextEditingController(text: p?.address2 ?? ''),
-      'town': TextEditingController(text: p?.town ?? ''),
-      'county': TextEditingController(text: p?.county ?? ''),
-      'postcode': TextEditingController(text: p?.postcode ?? ''),
-    };
-  }
-
-  @override
-  void dispose() {
-    for (final ctrl in _c.values) {
-      ctrl.dispose();
-    }
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    setState(() {
-      _saving = true;
-      _error = null;
-      _saved = false;
-    });
-    try {
-      final auth = context.read<AuthProvider>();
-      final patch = {for (final e in _c.entries) e.key: e.value.text.trim()};
-      await auth.repository.updateMe(patch);
-      await auth.refreshProfile();
-      if (mounted) setState(() => _saved = true);
-    } catch (e) {
-      setState(() => _error = e is ApiException ? e.message : 'Failed to save your details');
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-    final p = auth.profile;
+    final profile = context.watch<AuthProvider>().profile;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -73,53 +27,79 @@ class _DetailsScreenState extends State<DetailsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Signed in as', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                Text(profile?.name ?? '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 2),
-                Text(p?.email ?? '', style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text(profile?.email ?? '', style: TextStyle(color: Colors.grey.shade600)),
               ],
             ),
           ),
         ),
         const SizedBox(height: 8),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(_error!, style: const TextStyle(color: Color(0xFFC0392B))),
-          ),
-        _field('First name', 'firstName'),
-        _field('Surname', 'surname'),
-        _field('Phone number', 'phoneNumber', keyboard: TextInputType.phone),
-        _field('Address line 1', 'address1'),
-        _field('Address line 2', 'address2'),
-        _field('Town', 'town'),
-        _field('County', 'county'),
-        _field('Postcode', 'postcode'),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton(
-                onPressed: _saving ? null : _save,
-                child: Text(_saving ? 'Saving…' : 'Save changes'),
-              ),
-            ),
-            if (_saved) ...[
-              const SizedBox(width: 12),
-              const Text('Saved.', style: TextStyle(color: brandGreenDark, fontWeight: FontWeight.w600)),
-            ],
-          ],
+        _MenuTile(
+          icon: Icons.person_outline,
+          title: 'Customer Details',
+          subtitle: 'Your name, address and phone',
+          onTap: () => _open(context, const CustomerDetailsScreen()),
+        ),
+        _MenuTile(
+          icon: Icons.contact_emergency_outlined,
+          title: 'Emergency Contact',
+          subtitle: 'Who we call if we can\'t reach you',
+          onTap: () => _open(context, const EmergencyContactScreen()),
+        ),
+        _MenuTile(
+          icon: Icons.local_hospital_outlined,
+          title: 'Emergency Vet',
+          subtitle: 'Your pets\' veterinary practice',
+          onTap: () => _open(context, const EmergencyVetScreen()),
+        ),
+        _MenuTile(
+          icon: Icons.pets_outlined,
+          title: 'Animals',
+          subtitle: 'Your pets',
+          onTap: () => _open(context, const AnimalsScreen()),
+        ),
+        _MenuTile(
+          icon: Icons.vpn_key_outlined,
+          title: 'Security',
+          subtitle: 'Keys, alarm and access notes',
+          onTap: () => _open(context, const SecurityScreen()),
+        ),
+        _MenuTile(
+          icon: Icons.description_outlined,
+          title: 'Agreement',
+          subtitle: 'Terms & conditions you signed',
+          onTap: () => _open(context, const AgreementScreen()),
         ),
       ],
     );
   }
 
-  Widget _field(String label, String key, {TextInputType? keyboard}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        controller: _c[key],
-        keyboardType: keyboard,
-        decoration: InputDecoration(labelText: label),
+  void _open(BuildContext context, Widget screen) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+  }
+}
+
+class _MenuTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _MenuTile({required this.icon, required this.title, required this.subtitle, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: const Color(0xFFEAF5EE),
+          child: Icon(icon, color: brandGreenDark),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
       ),
     );
   }

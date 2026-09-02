@@ -1,5 +1,5 @@
 /// The customer's own details (GET /portal/me). Mirrors the curated shape the
-/// backend returns — never any credentials.
+/// backend returns — never any credentials or decrypted alarm instructions.
 class Profile {
   final String id;
   final String? firstName;
@@ -13,6 +13,11 @@ class Profile {
   final String? county;
   final String? postcode;
   final String? address;
+  final EmergencyContact? emergencyContact;
+  final EmergencyVet? emergencyVet;
+  final Security security;
+  final Agreement agreement;
+  final Terms terms;
 
   Profile({
     required this.id,
@@ -27,22 +32,285 @@ class Profile {
     this.county,
     this.postcode,
     this.address,
+    this.emergencyContact,
+    this.emergencyVet,
+    required this.security,
+    required this.agreement,
+    required this.terms,
   });
 
-  factory Profile.fromJson(Map<String, dynamic> json) => Profile(
-        id: json['id'] as String? ?? json['_id'] as String? ?? '',
-        firstName: json['firstName'] as String?,
-        surname: json['surname'] as String?,
-        name: json['name'] as String? ?? '',
-        email: json['email'] as String? ?? '',
-        phoneNumber: json['phoneNumber'] as String?,
-        address1: json['address1'] as String?,
-        address2: json['address2'] as String?,
-        town: json['town'] as String?,
-        county: json['county'] as String?,
-        postcode: json['postcode'] as String?,
-        address: json['address'] as String?,
+  factory Profile.fromJson(Map<String, dynamic> json) {
+    Map<String, dynamic>? m(String k) => json[k] as Map<String, dynamic>?;
+    return Profile(
+      id: json['id'] as String? ?? json['_id'] as String? ?? '',
+      firstName: json['firstName'] as String?,
+      surname: json['surname'] as String?,
+      name: json['name'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      phoneNumber: json['phoneNumber'] as String?,
+      address1: json['address1'] as String?,
+      address2: json['address2'] as String?,
+      town: json['town'] as String?,
+      county: json['county'] as String?,
+      postcode: json['postcode'] as String?,
+      address: json['address'] as String?,
+      emergencyContact: m('emergencyContact') == null ? null : EmergencyContact.fromJson(m('emergencyContact')!),
+      emergencyVet: m('emergencyVet') == null ? null : EmergencyVet.fromJson(m('emergencyVet')!),
+      security: Security.fromJson(m('security') ?? const {}),
+      agreement: Agreement.fromJson(m('agreement') ?? const {}),
+      terms: Terms.fromJson(m('terms') ?? const {}),
+    );
+  }
+}
+
+class EmergencyContact {
+  final bool sameAsClient;
+  final String? firstName;
+  final String? surname;
+  final String? address1;
+  final String? address2;
+  final String? town;
+  final String? county;
+  final String? postcode;
+  final String? phoneNumber;
+  final String? email;
+
+  EmergencyContact({
+    this.sameAsClient = false,
+    this.firstName,
+    this.surname,
+    this.address1,
+    this.address2,
+    this.town,
+    this.county,
+    this.postcode,
+    this.phoneNumber,
+    this.email,
+  });
+
+  factory EmergencyContact.fromJson(Map<String, dynamic> j) => EmergencyContact(
+        sameAsClient: j['sameAsClient'] as bool? ?? false,
+        firstName: j['firstName'] as String?,
+        surname: j['surname'] as String?,
+        address1: j['address1'] as String?,
+        address2: j['address2'] as String?,
+        town: j['town'] as String?,
+        county: j['county'] as String?,
+        postcode: j['postcode'] as String?,
+        phoneNumber: j['phoneNumber'] as String?,
+        email: j['email'] as String?,
       );
+}
+
+class EmergencyVet {
+  final String? practiceName;
+  final String? address1;
+  final String? address2;
+  final String? town;
+  final String? county;
+  final String? postcode;
+  final String? telephone;
+  final String? email;
+
+  EmergencyVet({
+    this.practiceName,
+    this.address1,
+    this.address2,
+    this.town,
+    this.county,
+    this.postcode,
+    this.telephone,
+    this.email,
+  });
+
+  factory EmergencyVet.fromJson(Map<String, dynamic> j) => EmergencyVet(
+        practiceName: j['practiceName'] as String?,
+        address1: j['address1'] as String?,
+        address2: j['address2'] as String?,
+        town: j['town'] as String?,
+        county: j['county'] as String?,
+        postcode: j['postcode'] as String?,
+        telephone: j['telephone'] as String?,
+        email: j['email'] as String?,
+      );
+}
+
+class Security {
+  final bool keysProvided;
+  final String? furtherInformation;
+  // Whether alarm instructions are on file — the plaintext is never sent back.
+  final bool hasAlarmInstructions;
+
+  Security({this.keysProvided = false, this.furtherInformation, this.hasAlarmInstructions = false});
+
+  factory Security.fromJson(Map<String, dynamic> j) => Security(
+        keysProvided: j['keysProvided'] as bool? ?? false,
+        furtherInformation: j['furtherInformation'] as String?,
+        hasAlarmInstructions: j['hasAlarmInstructions'] as bool? ?? false,
+      );
+}
+
+class Agreement {
+  final String? signedName;
+  final String? signatureImage; // base64 data URI
+  final DateTime? signedAt;
+  final String? termsVersion;
+  final String? termsDocumentDate;
+
+  Agreement({this.signedName, this.signatureImage, this.signedAt, this.termsVersion, this.termsDocumentDate});
+
+  bool get isSigned => signedName != null && signedName!.isNotEmpty;
+
+  factory Agreement.fromJson(Map<String, dynamic> j) => Agreement(
+        signedName: j['signedName'] as String?,
+        signatureImage: j['signatureImage'] as String?,
+        signedAt: j['signedAt'] != null ? DateTime.tryParse(j['signedAt'] as String) : null,
+        termsVersion: j['termsVersion'] as String?,
+        termsDocumentDate: j['termsDocumentDate'] as String?,
+      );
+}
+
+class Terms {
+  final String html;
+  final String? version;
+  final String? documentDate;
+
+  Terms({this.html = '', this.version, this.documentDate});
+
+  factory Terms.fromJson(Map<String, dynamic> j) => Terms(
+        html: j['html'] as String? ?? '',
+        version: j['version'] as String?,
+        documentDate: j['documentDate'] as String?,
+      );
+}
+
+/// A customer's pet (GET /portal/animals). Carries the fields the portal add/
+/// edit form reads and writes; unknown fields are simply ignored.
+class Animal {
+  final String id;
+  final String species; // dog | cat | other
+  final String breed;
+  final String name;
+  final String sex; // male | female
+  final int age;
+  final bool vaccinated;
+  final String? vaccineExpiryDate; // ISO date (yyyy-MM-dd)
+  final String? colourMarkings;
+  final String? microchipNumber;
+  final bool insured;
+  final String? insurer;
+  final String? neuteredStatus; // neutered | spayed | no
+  final String? temperamentNotes;
+  final bool aggressionToPeople;
+  final String? aggressionToPeopleDetails;
+  final bool? aggressionToOtherAnimals;
+  final String? aggressionToOtherAnimalsDetails;
+  final String? travelsWellInCar; // yes | no | unsure
+  final String? chasesLivestock; // yes | no | unsure
+  final String? chasesLivestockDetails;
+  final String allergyStatus; // yes | no | unsure
+  final String? allergyDetails;
+  final bool onMedication;
+  final List<AnimalMedication> medications;
+  final String? offLeadMode; // on_lead | off_lead (dogs)
+
+  Animal({
+    required this.id,
+    required this.species,
+    required this.breed,
+    required this.name,
+    required this.sex,
+    required this.age,
+    required this.vaccinated,
+    this.vaccineExpiryDate,
+    this.colourMarkings,
+    this.microchipNumber,
+    this.insured = false,
+    this.insurer,
+    this.neuteredStatus,
+    this.temperamentNotes,
+    this.aggressionToPeople = false,
+    this.aggressionToPeopleDetails,
+    this.aggressionToOtherAnimals,
+    this.aggressionToOtherAnimalsDetails,
+    this.travelsWellInCar,
+    this.chasesLivestock,
+    this.chasesLivestockDetails,
+    this.allergyStatus = 'no',
+    this.allergyDetails,
+    this.onMedication = false,
+    this.medications = const [],
+    this.offLeadMode,
+  });
+
+  factory Animal.fromJson(Map<String, dynamic> j) {
+    final allergies = j['allergies'] as Map<String, dynamic>?;
+    final medication = j['medication'] as Map<String, dynamic>?;
+    final offLead = j['offLeadConsent'] as Map<String, dynamic>?;
+    String isoDate(dynamic v) => v == null ? '' : (v as String).split('T').first;
+    return Animal(
+      id: j['_id'] as String,
+      species: j['species'] as String? ?? 'dog',
+      breed: j['breed'] as String? ?? '',
+      name: j['name'] as String? ?? '',
+      sex: j['sex'] as String? ?? 'male',
+      age: (j['age'] as num?)?.toInt() ?? 0,
+      vaccinated: j['vaccinated'] as bool? ?? false,
+      vaccineExpiryDate: j['vaccineExpiryDate'] == null ? null : isoDate(j['vaccineExpiryDate']),
+      colourMarkings: j['colourMarkings'] as String?,
+      microchipNumber: j['microchipNumber'] as String?,
+      insured: j['insured'] as bool? ?? false,
+      insurer: j['insurer'] as String?,
+      neuteredStatus: j['neuteredStatus'] as String?,
+      temperamentNotes: j['temperamentNotes'] as String?,
+      aggressionToPeople: j['aggressionToPeople'] as bool? ?? false,
+      aggressionToPeopleDetails: j['aggressionToPeopleDetails'] as String?,
+      aggressionToOtherAnimals: j['aggressionToOtherAnimals'] as bool?,
+      aggressionToOtherAnimalsDetails: j['aggressionToOtherAnimalsDetails'] as String?,
+      travelsWellInCar: j['travelsWellInCar'] as String?,
+      chasesLivestock: j['chasesLivestock'] as String?,
+      chasesLivestockDetails: j['chasesLivestockDetails'] as String?,
+      allergyStatus: allergies?['status'] as String? ?? 'no',
+      allergyDetails: allergies?['details'] as String?,
+      onMedication: medication?['onMedication'] as bool? ?? false,
+      medications: ((medication?['medications'] as List<dynamic>?) ?? [])
+          .map((e) => AnimalMedication.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      offLeadMode: offLead?['mode'] as String?,
+    );
+  }
+}
+
+class AnimalMedication {
+  final String name;
+  final String? dosage;
+  final String? frequency;
+  final bool vetPrescribed;
+  final bool administeredByPawfectPets;
+
+  AnimalMedication({
+    required this.name,
+    this.dosage,
+    this.frequency,
+    this.vetPrescribed = false,
+    this.administeredByPawfectPets = false,
+  });
+
+  factory AnimalMedication.fromJson(Map<String, dynamic> j) => AnimalMedication(
+        name: j['name'] as String? ?? '',
+        dosage: j['dosage'] as String?,
+        frequency: j['frequency'] as String?,
+        vetPrescribed: j['vetPrescribed'] as bool? ?? false,
+        administeredByPawfectPets: j['administeredByPawfectPets'] as bool? ?? false,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        if (dosage != null && dosage!.isNotEmpty) 'dosage': dosage,
+        if (frequency != null && frequency!.isNotEmpty) 'frequency': frequency,
+        'vetPrescribed': vetPrescribed,
+        'administeredByPawfectPets': administeredByPawfectPets,
+      };
 }
 
 class LineItem {
