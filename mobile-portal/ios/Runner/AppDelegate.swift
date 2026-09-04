@@ -50,12 +50,19 @@ import UserNotifications
   }
 
   // Extract our custom data keys (type/reference/title/body) from a
-  // notification's payload, dropping the reserved "aps" dictionary.
+  // notification's payload, dropping the reserved "aps" dictionary. Falls back
+  // to the aps alert's title/body so the in-app modal always has text, even for
+  // pushes that didn't duplicate them into the data payload.
   private func tapPayload(from userInfo: [AnyHashable: Any]) -> [String: Any] {
     var out: [String: Any] = [:]
     for (key, value) in userInfo {
       guard let k = key as? String, k != "aps" else { continue }
       out[k] = value
+    }
+    if let aps = userInfo["aps"] as? [String: Any],
+       let alert = aps["alert"] as? [String: Any] {
+      if out["title"] == nil, let title = alert["title"] { out["title"] = title }
+      if out["body"] == nil, let body = alert["body"] { out["body"] = body }
     }
     return out
   }
