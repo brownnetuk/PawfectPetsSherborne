@@ -28,6 +28,8 @@ class _LoginScreenState extends State<LoginScreen> {
   // only affects the wording.
   bool _resetFlow = false;
   bool _busy = false;
+  // Save the login so Face ID / Touch ID can be used next time.
+  bool _remember = false;
   String? _error;
 
   @override
@@ -61,7 +63,12 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _error = 'Enter your email and password.');
       return;
     }
-    await _run(() => context.read<AuthProvider>().login(_email.text, _password.text));
+    await _run(() =>
+        context.read<AuthProvider>().login(_email.text, _password.text, saveCredentials: _remember));
+  }
+
+  Future<void> _biometricLogin() async {
+    await _run(() => context.read<AuthProvider>().loginWithBiometrics());
   }
 
   Future<void> _sendCode({required bool reset}) async {
@@ -191,11 +198,26 @@ class _LoginScreenState extends State<LoginScreen> {
             decoration: const InputDecoration(labelText: 'Password'),
             onSubmitted: (_) => _login(),
           ),
-          const SizedBox(height: 20),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: _remember,
+            onChanged: _busy ? null : (v) => setState(() => _remember = v ?? false),
+            title: const Text('Remember me (Face ID / Touch ID)'),
+          ),
+          const SizedBox(height: 8),
           ElevatedButton(
             onPressed: _busy ? null : _login,
             child: Text(_busy ? 'Signing in…' : 'Log in'),
           ),
+          if (context.watch<AuthProvider>().hasSavedLogin) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _busy ? null : _biometricLogin,
+              icon: const Icon(Icons.fingerprint),
+              label: Text('Sign in as ${context.watch<AuthProvider>().savedEmail}'),
+            ),
+          ],
           const SizedBox(height: 8),
           TextButton(
             onPressed: _busy ? null : () => _sendCode(reset: true),

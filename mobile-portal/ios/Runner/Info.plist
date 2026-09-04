@@ -10,6 +10,8 @@
 	<false/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Use Face ID to sign in with your saved login.</string>
 	<key>CFBundleDisplayName</key>
 	<string>Pawfect Pets Customer</string>
 	<key>CFBundleExecutable</key>
