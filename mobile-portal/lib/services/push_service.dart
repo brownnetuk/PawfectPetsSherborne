@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../api/repository.dart';
 
@@ -9,6 +10,12 @@ class PushService {
   static const _channel = MethodChannel('pawfectpets/push');
   final Repository _repository;
   bool _started = false;
+
+  /// The last tapped notification's payload (type/reference/title/body). The
+  /// HomeShell listens to this and routes: a 'message' tap opens the Messages
+  /// tab; anything else shows the notification in a modal. Set back to null
+  /// once handled.
+  final ValueNotifier<Map<String, dynamic>?> tappedNotification = ValueNotifier(null);
 
   PushService(this._repository) {
     _channel.setMethodCallHandler(_handle);
@@ -35,6 +42,11 @@ class PushService {
         } catch (_) {
           // Not logged in yet or offline — re-sent on the next start()/token.
         }
+      }
+    } else if (call.method == 'onNotificationTap') {
+      final args = call.arguments;
+      if (args is Map) {
+        tappedNotification.value = args.map((k, v) => MapEntry(k.toString(), v));
       }
     }
     return null;

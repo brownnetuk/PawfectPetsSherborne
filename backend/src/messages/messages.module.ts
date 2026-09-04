@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { CustomersModule } from '../customers/customers.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PushModule } from '../push/push.module';
+import { CustomerNotificationsModule } from '../customer-notifications/customer-notifications.module';
 import { MessagesController } from './messages.controller';
 import { MessagesService } from './messages.service';
 import { Message, MessageSchema } from './schemas/message.schema';
@@ -13,7 +14,8 @@ import { Message, MessageSchema } from './schemas/message.schema';
   imports: [
     MongooseModule.forFeature([{ name: Message.name, schema: MessageSchema }]),
     CustomersModule, // Customer model, for names and existence checks
-    PushModule, // push the customer on a staff message
+    PushModule, // push (via CustomerNotifications) + staff push
+    CustomerNotificationsModule, // record + push a staff message to the customer
     NotificationsModule, // notify staff on a customer message
   ],
   controllers: [MessagesController],

@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Customer } from '../customers/schemas/customer.schema';
 import { NotificationService } from '../notifications/notification.service';
-import { PushService } from '../push/push.service';
+import { CustomerNotificationsService } from '../customer-notifications/customer-notifications.service';
 import { Message } from './schemas/message.schema';
 
 @Injectable()
@@ -11,7 +11,7 @@ export class MessagesService {
   constructor(
     @InjectModel(Message.name) private readonly messageModel: Model<Message>,
     @InjectModel(Customer.name) private readonly customerModel: Model<Customer>,
-    private readonly push: PushService,
+    private readonly customerNotifications: CustomerNotificationsService,
     private readonly notifications: NotificationService,
   ) {}
 
@@ -98,8 +98,8 @@ export class MessagesService {
       readByStaff: true,
       readByCustomer: false,
     });
-    // Push the customer's portal app (no-op unless configured/registered).
-    await this.push.sendToCustomer(customerId, 'New message', body, { type: 'message' });
+    // Add to the customer app's bell feed and push (no-op unless configured).
+    await this.customerNotifications.record(customerId, 'New message', body, 'message');
     return message;
   }
 

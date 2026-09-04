@@ -9,6 +9,9 @@ import UserNotifications
   // ("start"). Set up defensively so nothing here can block app launch.
   private var pushChannel: FlutterMethodChannel?
   private var pendingToken: String?
+  // A notification tap that arrived before the Flutter channel was ready
+  // (e.g. a cold start from tapping a push) — flushed once the engine attaches.
+  private var pendingTap: [String: Any]?
 
   override func application(
     _ application: UIApplication,
@@ -40,6 +43,21 @@ import UserNotifications
       channel.invokeMethod("onToken", arguments: token)
       pendingToken = nil
     }
+    if let tap = pendingTap {
+      channel.invokeMethod("onNotificationTap", arguments: tap)
+      pendingTap = nil
+    }
+  }
+
+  // Extract our custom data keys (type/reference/title/body) from a
+  // notification's payload, dropping the reserved "aps" dictionary.
+  private func tapPayload(from userInfo: [AnyHashable: Any]) -> [String: Any] {
+    var out: [String: Any] = [:]
+    for (key, value) in userInfo {
+      guard let k = key as? String, k != "aps" else { continue }
+      out[k] = value
+    }
+    return out
   }
 
   private func requestAndRegister() {
@@ -77,5 +95,22 @@ import UserNotifications
     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
   ) {
     completionHandler([.banner, .sound])
+  }
+
+  // The user tapped a notification (foreground banner or from the lock/home
+  // screen, including a cold start) — forward its payload to Dart so the app
+  // can route to Messages or show it in a modal.
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse,
+    withCompletionHandler completionHandler: @escaping () -> Void
+  ) {
+    let payload = tapPayload(from: response.notification.request.content.userInfo)
+    if let channel = pushChannel {
+      channel.invokeMethod("onNotificationTap", arguments: payload)
+    } else {
+      pendingTap = payload
+    }
+    completionHandler()
   }
 }

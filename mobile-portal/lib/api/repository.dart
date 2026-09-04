@@ -94,6 +94,20 @@ class Repository {
     return (res['count'] as num?)?.toInt() ?? 0;
   }
 
+  // --- notifications (bell feed) ---
+
+  Future<List<PortalNotification>> listNotifications() async {
+    final list = await client.getList('/portal/notifications');
+    return list.map((e) => PortalNotification.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<int> notificationsUnread() async {
+    final res = await client.get('/portal/notifications/unread-count');
+    return (res['count'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<void> markNotificationsRead() => client.post('/portal/notifications/read');
+
   // --- push ---
 
   Future<void> registerPushToken(String token) =>

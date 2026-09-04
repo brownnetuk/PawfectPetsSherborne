@@ -216,4 +216,25 @@ export class PortalController {
   ) {
     return this.portal.deleteMessage(customer.customerId, id);
   }
+
+  // --- notifications (bell feed) ---
+
+  @UseGuards(PortalJwtGuard)
+  @Get('notifications')
+  async notifications(@CurrentCustomer() customer: CurrentCustomerData) {
+    return this.portal.listNotifications(customer.customerId);
+  }
+
+  @UseGuards(PortalJwtGuard)
+  @Get('notifications/unread-count')
+  async notificationsUnread(@CurrentCustomer() customer: CurrentCustomerData) {
+    return this.portal.notificationsUnread(customer.customerId);
+  }
+
+  @UseGuards(PortalJwtGuard)
+  @Post('notifications/read')
+  @HttpCode(200)
+  async markNotificationsRead(@CurrentCustomer() customer: CurrentCustomerData) {
+    return this.portal.markNotificationsRead(customer.customerId);
+  }
 }

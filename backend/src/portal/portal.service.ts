@@ -22,6 +22,7 @@ import { DayBooking } from '../day-bookings/schemas/day-booking.schema';
 import { NotificationService } from '../notifications/notification.service';
 import { PushService } from '../push/push.service';
 import { MessagesService } from '../messages/messages.service';
+import { CustomerNotificationsService } from '../customer-notifications/customer-notifications.service';
 import { SettingsService } from '../settings/settings.service';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { portalJwtSecret, PORTAL_TOKEN_TTL } from './portal-jwt.util';
@@ -47,7 +48,22 @@ export class PortalService {
     private readonly notifications: NotificationService,
     private readonly push: PushService,
     private readonly messages: MessagesService,
+    private readonly customerNotifications: CustomerNotificationsService,
   ) {}
+
+  // --- notifications (the customer app's bell feed) ---
+
+  listNotifications(customerId: string) {
+    return this.customerNotifications.list(customerId);
+  }
+
+  async notificationsUnread(customerId: string) {
+    return { count: await this.customerNotifications.unread(customerId) };
+  }
+
+  markNotificationsRead(customerId: string) {
+    return this.customerNotifications.markAllRead(customerId);
+  }
 
   // --- messages (customer side of the staff <-> customer thread) ---
 
@@ -179,9 +195,13 @@ export class PortalService {
     const customer = await this.customerModel.findById(customerId).exec();
     if (!customer) throw new NotFoundException(`Customer ${customerId} not found`);
     const text = (message ?? '').trim() || 'This is a test notification from Pawfect Pets.';
-    const result = await this.push.sendToCustomer(customerId, 'Pawfect Pets', text, {
-      type: 'test',
-    });
+    // Records to the customer's bell feed and pushes; returns the push summary.
+    const result = await this.customerNotifications.record(
+      customerId,
+      'Pawfect Pets',
+      text,
+      'test',
+    );
     return {
       ...result,
       // Surface whether the customer APNs topic is even configured, so a 0/0
