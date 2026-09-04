@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
+import '../models/annual_leave.dart';
 import '../models/appointment.dart';
 import '../models/bank_holiday.dart';
 import '../models/customer.dart';
@@ -45,6 +46,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
   List<AnimalRef>? _animals;
   List<Product>? _products;
   List<BankHoliday> _bankHolidays = [];
+  List<AnnualLeave> _annualLeave = [];
   VisitMapping _visitMapping = VisitMapping();
 
   late Future<_DayData> _future;
@@ -69,12 +71,14 @@ class _BookingsScreenState extends State<BookingsScreen> {
         repo.listProducts(),
         repo.listBankHolidays(),
         repo.getVisitMapping(),
+        repo.listAnnualLeave(),
       ]);
       _customers = results[0] as List<Customer>;
       _animals = results[1] as List<AnimalRef>;
       _products = results[2] as List<Product>;
       _bankHolidays = results[3] as List<BankHoliday>;
       _visitMapping = results[4] as VisitMapping;
+      _annualLeave = results[5] as List<AnnualLeave>;
     }
     // Day view shows one day; week view shows Mon..Sun. Fetch one day either
     // side of what's visible so AM/PM can be inferred from neighbouring days
@@ -387,7 +391,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
           const LogoutAction(),
         ],
       ),
-      floatingActionButton: _view == _BookingView.day
+      floatingActionButton: _view == _BookingView.day && _leaveOn(_day) == null
           ? FutureBuilder<_DayData>(
               future: _future,
               builder: (context, snapshot) => FloatingActionButton.extended(
@@ -500,23 +504,28 @@ class _BookingsScreenState extends State<BookingsScreen> {
   }
 
   Widget _dayBody(List<DayBooking> all, List<Appointment> allAppointments) {
+    final leave = _leaveOn(_day);
     final dayItems = all.where((b) => _sameDay(b.date, _day)).toList();
     final dayAppointments = allAppointments.where((a) => _sameDay(a.date, _day)).toList();
     final walkGroups = _groupByAnimal(dayItems.where((b) => !_visitMapping.isVisitProduct(b.productId)).toList());
     final visitGroups = _groupByAnimal(dayItems.where((b) => _visitMapping.isVisitProduct(b.productId)).toList());
     final addedIds = dayItems.map((b) => b.animalId).toSet();
     final weekdayKey = _weekdayKeys[_day.weekday - 1];
-    final recommended = (_animals ?? const <AnimalRef>[]).where((a) {
-      if (a.species.toLowerCase() != 'dog') return false;
-      if (addedIds.contains(a.id)) return false;
-      final owner = _ownerOf(a.customerId);
-      return owner?.regularDays.contains(weekdayKey) ?? false;
-    }).toList();
+    // No recommendations on a leave day — nothing can be booked.
+    final recommended = leave != null
+        ? const <AnimalRef>[]
+        : (_animals ?? const <AnimalRef>[]).where((a) {
+            if (a.species.toLowerCase() != 'dog') return false;
+            if (addedIds.contains(a.id)) return false;
+            final owner = _ownerOf(a.customerId);
+            return owner?.regularDays.contains(weekdayKey) ?? false;
+          }).toList();
 
     final dayTotal = dayItems.fold<double>(0, (s, b) => s + b.lineTotal);
     return ListView(
       padding: const EdgeInsets.only(bottom: 96),
       children: [
+        if (leave != null) _annualLeaveBanner(leave),
         _revenueBanner('Day revenue', dayTotal),
         if (walkGroups.isEmpty && visitGroups.isEmpty && dayAppointments.isEmpty)
           const Padding(
@@ -577,6 +586,18 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
   bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 
+  // The annual-leave range covering [date], if any — days are blocked out and
+  // nothing can be scheduled on them (mirrors the admin Bookings calendar).
+  AnnualLeave? _leaveOn(DateTime date) {
+    final key = _dateOnly(date);
+    for (final l in _annualLeave) {
+      final start = _dateOnly(l.startDate);
+      final end = _dateOnly(l.endDate);
+      if (!key.isBefore(start) && !key.isAfter(end)) return l;
+    }
+    return null;
+  }
+
   Widget _weekBody(List<DayBooking> all, List<Appointment> allAppointments) {
     final start = _weekStart;
     final today = _dateOnly(DateTime.now());
@@ -594,12 +615,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
       final groups = _groupByAnimal(dayItems);
       final dayTotal = dayItems.fold<double>(0, (s, b) => s + b.lineTotal);
       final isToday = today == date;
+      final leave = _leaveOn(date);
       children.add(
         InkWell(
           onTap: () => _openDay(date),
           child: Container(
             width: double.infinity,
-            color: Colors.grey.shade100,
+            color: leave != null ? Colors.red.shade50 : Colors.grey.shade100,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
               children: [
@@ -607,15 +629,25 @@ class _BookingsScreenState extends State<BookingsScreen> {
                   DateFormat('EEE d MMM').format(date),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: isToday ? Theme.of(context).colorScheme.primary : null,
+                    color: leave != null
+                        ? Colors.red.shade800
+                        : isToday
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
                   ),
                 ),
                 const Spacer(),
                 Text(
-                  groups.isEmpty
-                      ? (dayAppointments.isEmpty ? '—' : '${dayAppointments.length} appt${dayAppointments.length == 1 ? '' : 's'}')
-                      : '${groups.length} dog${groups.length == 1 ? '' : 's'} · ${_money.format(dayTotal)}',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  leave != null
+                      ? 'Annual leave'
+                      : groups.isEmpty
+                          ? (dayAppointments.isEmpty ? '—' : '${dayAppointments.length} appt${dayAppointments.length == 1 ? '' : 's'}')
+                          : '${groups.length} dog${groups.length == 1 ? '' : 's'} · ${_money.format(dayTotal)}',
+                  style: TextStyle(
+                    color: leave != null ? Colors.red.shade700 : Colors.grey.shade600,
+                    fontSize: 12,
+                    fontWeight: leave != null ? FontWeight.w600 : FontWeight.normal,
+                  ),
                 ),
                 const SizedBox(width: 4),
                 const Icon(Icons.chevron_right, size: 18),
@@ -624,7 +656,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
           ),
         ),
       );
-      if (groups.isEmpty && dayAppointments.isEmpty) {
+      if (leave != null && groups.isEmpty && dayAppointments.isEmpty) {
+        children.add(Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Text('Annual Leave: ${leave.name}',
+              style: TextStyle(color: Colors.red.shade700)),
+        ));
+      } else if (groups.isEmpty && dayAppointments.isEmpty) {
         children.add(Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: Text('Nothing booked.', style: TextStyle(color: Colors.grey.shade600)),
@@ -716,6 +754,28 @@ class _BookingsScreenState extends State<BookingsScreen> {
             letterSpacing: 0.5,
             color: Colors.grey.shade600,
           ),
+        ),
+      );
+
+  Widget _annualLeaveBanner(AnnualLeave leave) => Container(
+        margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.red.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red.shade200),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.event_busy, size: 18, color: Colors.red.shade700),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Annual Leave: ${leave.name}. Nothing can be booked on this day.',
+                style: TextStyle(color: Colors.red.shade800, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
         ),
       );
 

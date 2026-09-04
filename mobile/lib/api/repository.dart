@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import '../models/animal.dart';
+import '../models/annual_leave.dart';
 import '../models/appointment.dart';
 import '../models/audit_log_entry.dart';
 import '../models/bank_account.dart';
@@ -228,6 +229,9 @@ class Repository {
   /// availability restrictions (Bookings + invoice/quote line items).
   Future<List<BankHoliday>> listBankHolidays() async =>
       (await _client.getList('/bank-holidays')).map((e) => BankHoliday.fromJson(e)).toList();
+
+  Future<List<AnnualLeave>> listAnnualLeave() async =>
+      (await _client.getList('/annual-leave')).map((e) => AnnualLeave.fromJson(e)).toList();
 
   // --- invoices ---
   Future<List<Invoice>> listInvoices({String? customerId}) async => (await _client.getList(
