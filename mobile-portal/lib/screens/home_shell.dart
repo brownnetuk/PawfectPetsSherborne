@@ -107,8 +107,14 @@ class _HomeShellState extends State<HomeShell> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: brandGreen,
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              icon: const Icon(Icons.check),
+              icon: const Icon(Icons.check, size: 18),
               label: const Text('Acknowledge'),
               onPressed: () async {
                 Navigator.of(dialogContext).pop();
