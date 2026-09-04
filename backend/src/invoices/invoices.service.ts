@@ -105,18 +105,8 @@ export class InvoicesService {
       undefined,
       created._id,
     );
-    // Push the owning customer's portal app about the new invoice. Done here
-    // (not just the controller) so every creation path is covered -- the
-    // Generate Invoices flow and quote acceptance also call create(). No-op
-    // unless the customer has the app and the customer APNs topic is set.
-    if (created.customer) {
-      await this.notificationService.notifyCustomerDocument(
-        String(created.customer),
-        'invoice',
-        created.invoiceNumber,
-        'new',
-      );
-    }
+    // No customer push on create: new invoices start as DRAFT. The customer is
+    // notified only once the invoice becomes SENT (see update()).
     return created;
   }
 
@@ -177,6 +167,9 @@ export class InvoicesService {
     dto: UpdateInvoiceDto,
     actor = 'System',
   ): Promise<Invoice> {
+    // Prior status, to decide whether to notify the customer (see below).
+    const prior = await this.invoiceModel.findById(id).select('status').exec();
+    const wasSent = prior?.status === InvoiceStatus.SENT;
     const update: Record<string, unknown> = { ...dto };
     if (dto.lineItems) {
       update.lineItems = dto.lineItems;
@@ -218,6 +211,19 @@ export class InvoicesService {
         undefined,
         undefined,
         id,
+      );
+    }
+    // Customer push only concerns SENT invoices (never drafts):
+    //  - becoming sent (e.g. draft -> sent on the Send action) -> "New invoice"
+    //  - an edit to an already-sent invoice -> "Invoice updated"
+    // The draft -> sent flip is treated as "new", not a status update.
+    const isSent = invoice.status === InvoiceStatus.SENT;
+    if (customerId && isSent) {
+      await this.notificationService.notifyCustomerDocument(
+        String(customerId),
+        'invoice',
+        invoice.invoiceNumber,
+        wasSent ? 'updated' : 'new',
       );
     }
     return invoice;
