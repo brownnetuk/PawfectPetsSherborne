@@ -132,13 +132,149 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, { value: string; onChang
     }
 
     function insertTable() {
-      exec(
+      // Focus the editor first: the Table dropdown steals focus, so without
+      // this insertHTML has no caret to insert at.
+      if (document.activeElement !== ref.current) focusAtEnd();
+      else ref.current?.focus();
+      document.execCommand(
         'insertHTML',
+        false,
         '<table style="width:100%;border-collapse:collapse;" border="1"><tbody>' +
           '<tr><td style="padding:6px;">&nbsp;</td><td style="padding:6px;">&nbsp;</td></tr>' +
           '<tr><td style="padding:6px;">&nbsp;</td><td style="padding:6px;">&nbsp;</td></tr>' +
           '</tbody></table><p><br></p>',
       );
+      handleInput();
+    }
+
+    // --- table cell editing (operates on the cell containing the caret) ---
+
+    function currentCell(): HTMLTableCellElement | null {
+      let node = window.getSelection()?.anchorNode ?? null;
+      while (node && node !== ref.current) {
+        if (node instanceof HTMLElement && (node.tagName === 'TD' || node.tagName === 'TH')) {
+          return node as HTMLTableCellElement;
+        }
+        node = node.parentNode;
+      }
+      return null;
+    }
+
+    function newCell(): HTMLTableCellElement {
+      const td = document.createElement('td');
+      td.style.padding = '6px';
+      td.innerHTML = '&nbsp;';
+      return td;
+    }
+
+    function withCell(
+      fn: (cell: HTMLTableCellElement, row: HTMLTableRowElement, table: HTMLTableElement) => void,
+    ) {
+      const cell = currentCell();
+      const row = cell?.parentElement as HTMLTableRowElement | undefined;
+      const table = cell?.closest('table') as HTMLTableElement | null;
+      if (!cell || !row || !table) {
+        window.alert('Put the cursor inside a table cell first.');
+        return;
+      }
+      fn(cell, row, table);
+      handleInput();
+    }
+
+    function tableAddRow(after: boolean) {
+      withCell((_cell, row) => {
+        const tr = document.createElement('tr');
+        for (let i = 0; i < row.cells.length; i++) tr.appendChild(newCell());
+        row.parentElement!.insertBefore(tr, after ? row.nextSibling : row);
+      });
+    }
+
+    function tableDeleteRow() {
+      withCell((_cell, row, table) => {
+        if (table.rows.length <= 1) return;
+        row.remove();
+      });
+    }
+
+    function tableAddColumn(after: boolean) {
+      withCell((cell, _row, table) => {
+        const idx = cell.cellIndex;
+        Array.from(table.rows).forEach((r) => {
+          const target = r.cells[idx] ?? null;
+          r.insertBefore(newCell(), after ? (target ? target.nextSibling : null) : target);
+        });
+      });
+    }
+
+    function tableDeleteColumn() {
+      withCell((cell, row, table) => {
+        if (row.cells.length <= 1) return;
+        const idx = cell.cellIndex;
+        Array.from(table.rows).forEach((r) => {
+          if (r.cells[idx]) r.deleteCell(idx);
+        });
+      });
+    }
+
+    function absorb(into: HTMLTableCellElement, from: HTMLTableCellElement) {
+      const extra = from.innerHTML.trim();
+      if (extra && extra !== '&nbsp;') into.innerHTML += ` ${from.innerHTML}`;
+    }
+
+    function tableMergeRight() {
+      withCell((cell) => {
+        const next = cell.nextElementSibling as HTMLTableCellElement | null;
+        if (!next) return;
+        cell.colSpan = (cell.colSpan || 1) + (next.colSpan || 1);
+        absorb(cell, next);
+        next.remove();
+      });
+    }
+
+    function tableMergeDown() {
+      withCell((cell, row) => {
+        const idx = cell.cellIndex;
+        const nextRow = row.nextElementSibling as HTMLTableRowElement | null;
+        const below = nextRow?.cells[idx];
+        if (!below) return;
+        cell.rowSpan = (cell.rowSpan || 1) + (below.rowSpan || 1);
+        absorb(cell, below);
+        below.remove();
+      });
+    }
+
+    function tableSplitCell() {
+      withCell((cell, row, _table) => {
+        const cs = cell.colSpan || 1;
+        const rs = cell.rowSpan || 1;
+        cell.colSpan = 1;
+        cell.rowSpan = 1;
+        // Re-add the blank cells the merge had absorbed.
+        for (let i = 1; i < cs; i++) row.insertBefore(newCell(), cell.nextSibling);
+        if (rs > 1) {
+          const idx = cell.cellIndex;
+          let r = row.nextElementSibling as HTMLTableRowElement | null;
+          for (let k = 1; k < rs && r; k++) {
+            r.insertBefore(newCell(), r.cells[idx] ?? null);
+            r = r.nextElementSibling as HTMLTableRowElement | null;
+          }
+        }
+      });
+    }
+
+    function tableAction(action: string) {
+      switch (action) {
+        case 'insert': return insertTable();
+        case 'rowAbove': return tableAddRow(false);
+        case 'rowBelow': return tableAddRow(true);
+        case 'delRow': return tableDeleteRow();
+        case 'colLeft': return tableAddColumn(false);
+        case 'colRight': return tableAddColumn(true);
+        case 'delCol': return tableDeleteColumn();
+        case 'mergeRight': return tableMergeRight();
+        case 'mergeDown': return tableMergeDown();
+        case 'split': return tableSplitCell();
+      }
     }
 
     // execCommand has no direct "set this px font-size" command -- only the
@@ -297,9 +433,29 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, { value: string; onChang
               <button type="button" onClick={insertButton} title="Insert a button linking somewhere">
                 Button
               </button>
-              <button type="button" onClick={insertTable} title="Insert table">
-                Table
-              </button>
+              <select
+                defaultValue=""
+                title="Table"
+                onChange={(e) => {
+                  const v = e.target.value;
+                  e.target.value = '';
+                  if (v) tableAction(v);
+                }}
+              >
+                <option value="" disabled>
+                  Table
+                </option>
+                <option value="insert">Insert table</option>
+                <option value="rowAbove">Add row above</option>
+                <option value="rowBelow">Add row below</option>
+                <option value="delRow">Delete row</option>
+                <option value="colLeft">Add column left</option>
+                <option value="colRight">Add column right</option>
+                <option value="delCol">Delete column</option>
+                <option value="mergeRight">Merge cell right</option>
+                <option value="mergeDown">Merge cell down</option>
+                <option value="split">Split cell</option>
+              </select>
               <button type="button" onClick={insertBox} title="Insert a bordered box">
                 Box
               </button>
