@@ -58,6 +58,12 @@ export class PushService {
     return this.pushTokenModel.deleteOne({ token }).exec();
   }
 
+  // Drops all of a customer's device tokens (e.g. when their app access is
+  // revoked) so no further pushes reach them.
+  removeCustomerTokens(customerId: string): Promise<unknown> {
+    return this.pushTokenModel.deleteMany({ customer: customerId }).exec();
+  }
+
   // Sends an alert to every STAFF device (customer-app tokens are excluded so
   // internal reminders never reach customers), under the staff apns-topic.
   async sendToAll(

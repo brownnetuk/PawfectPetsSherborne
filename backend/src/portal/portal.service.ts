@@ -174,6 +174,12 @@ export class PortalService {
     const wasActive = before.portalActive ?? false;
     before.portalActive = active;
     await before.save();
+    // Disabling revokes access immediately: the portal guard re-checks
+    // portalActive on every request (so existing sessions 401 and the app logs
+    // out), and we drop their device tokens so no more pushes reach them.
+    if (!active && wasActive) {
+      await this.push.removeCustomerTokens(customerId);
+    }
     // Email the customer the first time access is switched on (best-effort —
     // a missing PORTAL_ENABLED template mustn't block the toggle).
     if (active && !wasActive && before.email) {

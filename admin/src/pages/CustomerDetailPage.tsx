@@ -1702,10 +1702,11 @@ function CustomerPortalCard({ customer, onChange }: { customer: Customer; onChan
 
   return (
     <div className="card">
-      <h2>Customer Portal</h2>
+      <h2>Mobile App Access</h2>
       <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
         Give this customer access to the Pawfect Pets customer app, where they can view their
         invoices, quotes and bookings. They log in with their email address ({customer.email}).
+        Turning this off signs them out of the app immediately.
       </p>
       {error && <div className="error-banner">{error}</div>}
       <div className="field">
