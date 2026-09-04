@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { PushService } from '../push/push.service';
@@ -48,5 +48,14 @@ export class PushMessagesService {
       sentBy: staffId,
     });
     return created.populate(POPULATE);
+  }
+
+  // Removes a past send from the history list -- doesn't unsend the actual
+  // push (already delivered or not), just the task record.
+  async remove(id: string): Promise<void> {
+    const result = await this.pushMessageModel.findByIdAndDelete(id).exec();
+    if (!result) {
+      throw new NotFoundException(`Push message ${id} not found`);
+    }
   }
 }

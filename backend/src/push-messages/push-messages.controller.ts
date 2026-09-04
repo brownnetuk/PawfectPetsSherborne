@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { CreatePushMessageDto } from './dto/create-push-message.dto';
@@ -19,5 +19,10 @@ export class PushMessagesController {
   @Post()
   send(@Body() dto: CreatePushMessageDto, @CurrentUser() user: CurrentUserShape) {
     return this.pushMessages.send(dto, user.id);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.pushMessages.remove(id);
   }
 }

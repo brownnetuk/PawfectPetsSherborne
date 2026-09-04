@@ -222,6 +222,9 @@ export interface SendPushMessageInput {
 export function sendPushMessage(input: SendPushMessageInput): Promise<PushMessage> {
   return request('/push-messages', { method: 'POST', body: JSON.stringify(input) });
 }
+export function deletePushMessage(id: string): Promise<void> {
+  return request(`/push-messages/${id}`, { method: 'DELETE' });
+}
 export function logFormSnapshot(
   id: string,
   title: string,

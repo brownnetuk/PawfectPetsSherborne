@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as api from '../api/client';
 import Modal from '../components/Modal';
+import { TrashIcon } from '../components/icons';
 import type { Conversation, Customer, Message, PushMessage, PushMessageRecipient } from '../types';
 
 type Tab = 'conversations' | 'push';
@@ -399,6 +400,9 @@ function PushMessagesTab() {
   const [error, setError] = useState<string | null>(null);
   const [showSend, setShowSend] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState<PushMessage | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function refresh() {
     api
@@ -415,6 +419,21 @@ function PushMessagesTab() {
       else next.add(id);
       return next;
     });
+  }
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deletePushMessage(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete this push message');
+    } finally {
+      setDeleteBusy(false);
+    }
   }
 
   return (
@@ -459,14 +478,27 @@ function PushMessagesTab() {
                     </div>
                   </div>
                   <div style={{ flexShrink: 0, textAlign: 'right' }}>
-                    <div style={{ fontSize: '0.85rem' }}>
-                      <span style={{ color: 'var(--brand-green)', fontWeight: 700 }}>{received} received</span>
-                      {notReceived > 0 && (
-                        <>
-                          {', '}
-                          <span style={{ color: 'var(--error, #c85a4a)', fontWeight: 700 }}>{notReceived} not received</span>
-                        </>
-                      )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                      <div style={{ fontSize: '0.85rem' }}>
+                        <span style={{ color: 'var(--brand-green)', fontWeight: 700 }}>{received} received</span>
+                        {notReceived > 0 && (
+                          <>
+                            {', '}
+                            <span style={{ color: 'var(--error, #c85a4a)', fontWeight: 700 }}>{notReceived} not received</span>
+                          </>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="icon-btn icon-btn-danger"
+                        title="Delete"
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeleting(s);
+                        }}
+                      >
+                        <TrashIcon />
+                      </button>
                     </div>
                     <button
                       type="button"
@@ -522,6 +554,23 @@ function PushMessagesTab() {
             refresh();
           }}
         />
+      )}
+      {deleting && (
+        <Modal title="Delete this push message?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently removes <strong>{deleting.title}</strong> from the history. It doesn't unsend the
+            push that was already delivered.
+          </p>
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => setDeleting(null)} disabled={deleteBusy}>
+              Cancel
+            </button>
+            <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );
