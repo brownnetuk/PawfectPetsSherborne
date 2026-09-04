@@ -89,8 +89,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 // --- auth ---
-export function login(username: string, password: string): Promise<{ accessToken: string; staff: Staff }> {
-  return request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) });
+export function login(
+  username: string,
+  password: string,
+  rememberMe = false,
+): Promise<{ accessToken: string; staff: Staff }> {
+  return request('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password, rememberMe }),
+  });
 }
 export function me(): Promise<Staff> {
   return request('/auth/me');

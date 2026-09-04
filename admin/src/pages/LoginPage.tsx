@@ -8,6 +8,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -16,7 +17,7 @@ export default function LoginPage() {
     setSubmitting(true);
     setError(null);
     try {
-      await login(username, password);
+      await login(username, password, rememberMe);
       navigate('/customers');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -56,6 +57,17 @@ export default function LoginPage() {
               required
             />
           </div>
+          <label
+            style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400, cursor: 'pointer', marginBottom: 16 }}
+          >
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              style={{ width: 'auto' }}
+            />
+            Keep me signed in
+          </label>
           <button className="btn btn-primary" type="submit" disabled={submitting} style={{ width: '100%' }}>
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>

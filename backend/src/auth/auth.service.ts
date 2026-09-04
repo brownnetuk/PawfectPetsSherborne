@@ -131,7 +131,11 @@ export class AuthService implements OnModuleInit {
 
     const payload = { sub: staff._id.toString(), email: staff.email, name: staff.name };
     return {
-      accessToken: await this.jwtService.signAsync(payload),
+      // "Remember me" swaps the default 12h expiry for 30 days.
+      accessToken: await this.jwtService.signAsync(
+        payload,
+        dto.rememberMe ? { expiresIn: '30d' } : {},
+      ),
       staff: { id: staff._id, name: staff.name, email: staff.email },
     };
   }
