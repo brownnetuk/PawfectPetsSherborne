@@ -1,31 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
-import '../api/api_client.dart';
-import '../api/repository.dart';
-import '../models/portal_models.dart';
+import '../services/notification_store.dart';
 import '../theme.dart';
 
-/// The bell feed: lists this customer's notifications. Marks them all read on
-/// open, and pops the tapped notification so the shell can route (message ->
-/// Messages tab; anything else -> a modal).
+/// The bell feed: lists this customer's notifications (on-device captures merged
+/// with the server feed). Marks them read on open, and pops the tapped
+/// notification so the shell can route (message -> Messages tab; else a modal).
 class NotificationsSheet extends StatefulWidget {
-  const NotificationsSheet({super.key});
+  final NotificationsCenter center;
+  const NotificationsSheet({super.key, required this.center});
 
   @override
   State<NotificationsSheet> createState() => _NotificationsSheetState();
 }
 
 class _NotificationsSheetState extends State<NotificationsSheet> {
-  late Future<List<PortalNotification>> _future;
+  late Future<List<LocalNotification>> _future;
 
   @override
   void initState() {
     super.initState();
-    final repo = context.read<Repository>();
-    _future = repo.listNotifications();
-    // Opening the bell clears the unread badge.
-    repo.markNotificationsRead().catchError((_) {});
+    _future = widget.center.load();
+    widget.center.markRead(); // opening the bell clears the unread badge
   }
 
   @override
@@ -40,18 +36,11 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
           Text('Notifications', style: Theme.of(context).textTheme.titleMedium),
           const Divider(height: 20),
           Expanded(
-            child: FutureBuilder<List<PortalNotification>>(
+            child: FutureBuilder<List<LocalNotification>>(
               future: _future,
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
-                }
-                if (snap.hasError) {
-                  return Center(
-                    child: Text(snap.error is ApiException
-                        ? (snap.error as ApiException).message
-                        : 'Failed to load notifications'),
-                  );
                 }
                 final items = snap.data ?? [];
                 if (items.isEmpty) {
@@ -73,7 +62,7 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
                       title: Text(n.title, style: const TextStyle(fontWeight: FontWeight.w600)),
                       subtitle: Text(n.body, maxLines: 2, overflow: TextOverflow.ellipsis),
                       trailing: Text(
-                        DateFormat('d MMM HH:mm').format(n.createdAt),
+                        DateFormat('d MMM HH:mm').format(n.timestamp),
                         style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
                       ),
                       onTap: () => Navigator.of(context).pop(n),

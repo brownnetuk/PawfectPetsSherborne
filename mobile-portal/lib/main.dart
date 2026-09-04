@@ -4,6 +4,7 @@ import 'api/api_client.dart';
 import 'api/repository.dart';
 import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
+import 'services/notification_store.dart';
 import 'services/push_service.dart';
 import 'state/auth_provider.dart';
 import 'theme.dart';
@@ -15,13 +16,15 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   final client = ApiClient();
   final repository = Repository(client);
-  final pushService = PushService(repository);
+  final notificationStore = NotificationStore();
+  final pushService = PushService(repository, notificationStore);
 
   runApp(
     MultiProvider(
       providers: [
         Provider.value(value: client),
         Provider.value(value: repository),
+        Provider.value(value: notificationStore),
         Provider.value(value: pushService),
         ChangeNotifierProvider(create: (_) => AuthProvider(client, repository)),
       ],

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../api/repository.dart';
-import '../models/portal_models.dart';
+import '../services/notification_store.dart';
 import '../services/push_service.dart';
 import '../state/auth_provider.dart';
 import 'bookings_screen.dart';
@@ -23,6 +23,7 @@ class _HomeShellState extends State<HomeShell> {
   int _index = 0;
   int _unread = 0;
   Timer? _pollTimer;
+  late final NotificationsCenter _center;
   static const _messagesTab = 4;
 
   static const _titles = ['My Details', 'Invoices', 'Quotes', 'Bookings', 'Messages'];
@@ -30,12 +31,15 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    _center = NotificationsCenter(context.read<Repository>(), context.read<NotificationStore>());
     final push = context.read<PushService>();
     // Now that we're logged in, register for push so the server can notify
     // this customer about new invoices/quotes/messages.
     WidgetsBinding.instance.addPostFrameCallback((_) => push.start());
     // Route notification taps (from the OS) once we're mounted.
     push.tappedNotification.addListener(_onPushTap);
+    // Refresh the badge whenever a push is captured (received/tapped).
+    push.inbound.addListener(_refreshUnread);
     _refreshUnread();
     _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) => _refreshUnread());
     // A tap may already be queued from a cold start.
@@ -44,14 +48,16 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   void dispose() {
-    context.read<PushService>().tappedNotification.removeListener(_onPushTap);
+    final push = context.read<PushService>();
+    push.tappedNotification.removeListener(_onPushTap);
+    push.inbound.removeListener(_refreshUnread);
     _pollTimer?.cancel();
     super.dispose();
   }
 
   Future<void> _refreshUnread() async {
     try {
-      final count = await context.read<Repository>().notificationsUnread();
+      final count = await _center.unreadCount();
       if (mounted) setState(() => _unread = count);
     } catch (_) {}
   }
@@ -90,10 +96,10 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   Future<void> _openNotifications() async {
-    final selected = await showModalBottomSheet<PortalNotification>(
+    final selected = await showModalBottomSheet<LocalNotification>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => const NotificationsSheet(),
+      builder: (_) => NotificationsSheet(center: _center),
     );
     await _refreshUnread();
     if (selected == null || !mounted) return;

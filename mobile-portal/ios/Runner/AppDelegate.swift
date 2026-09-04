@@ -95,12 +95,17 @@ import UserNotifications
     NSLog("APNs registration failed: \(error.localizedDescription)")
   }
 
-  // Show reminders as a banner even when the app is in the foreground.
+  // Show reminders as a banner even when the app is in the foreground, and
+  // forward the payload so Dart can add it to the in-app notifications list.
   override func userNotificationCenter(
     _ center: UNUserNotificationCenter,
     willPresent notification: UNNotification,
     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
   ) {
+    let payload = tapPayload(from: notification.request.content.userInfo)
+    if let channel = pushChannel {
+      channel.invokeMethod("onNotificationReceived", arguments: payload)
+    }
     completionHandler([.banner, .sound])
   }
 
