@@ -169,11 +169,25 @@ export class PortalService {
   // Toggles a customer's portal access on/off. Turning it off also blocks
   // login (login checks portalActive).
   async setPortalActive(customerId: string, active: boolean) {
-    const customer = await this.customerModel
-      .findByIdAndUpdate(customerId, { portalActive: active }, { new: true })
-      .exec();
-    if (!customer) throw new NotFoundException(`Customer ${customerId} not found`);
-    return { portalActive: customer.portalActive ?? false };
+    const before = await this.customerModel.findById(customerId).exec();
+    if (!before) throw new NotFoundException(`Customer ${customerId} not found`);
+    const wasActive = before.portalActive ?? false;
+    before.portalActive = active;
+    await before.save();
+    // Email the customer the first time access is switched on (best-effort —
+    // a missing PORTAL_ENABLED template mustn't block the toggle).
+    if (active && !wasActive && before.email) {
+      try {
+        await this.settings.sendTemplatedEmail(
+          EmailTrigger.PORTAL_ENABLED,
+          before.email,
+          { customer_name: before.name ?? '' },
+        );
+      } catch (err) {
+        console.error(`Failed to send portal-enabled email to ${before.email}:`, err);
+      }
+    }
+    return { portalActive: active };
   }
 
   // Staff "Password reset" button: emails this customer a reset code.

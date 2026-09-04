@@ -579,7 +579,8 @@ export type EmailTrigger =
   | 'form'
   | 'deposit_request'
   | 'portal_login_code'
-  | 'portal_password_reset';
+  | 'portal_password_reset'
+  | 'portal_enabled';
 
 export interface EmailTemplate {
   trigger: EmailTrigger;

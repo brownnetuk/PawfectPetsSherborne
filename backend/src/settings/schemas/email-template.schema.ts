@@ -23,6 +23,8 @@ export enum EmailTrigger {
   // Customer portal: first-time login code and password-reset code.
   PORTAL_LOGIN_CODE = 'portal_login_code',
   PORTAL_PASSWORD_RESET = 'portal_password_reset',
+  // Sent to a customer when staff switch on their Customer Portal access.
+  PORTAL_ENABLED = 'portal_enabled',
 }
 
 // One document per trigger (enforced via the unique index below) -- avoids

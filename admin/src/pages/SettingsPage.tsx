@@ -1976,6 +1976,11 @@ export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: 
     label: 'Portal Password Reset',
     description: 'Sent when a customer app user (or staff via the Customer Portal card) requests a password reset — a 6-digit code.',
   },
+  {
+    value: 'portal_enabled',
+    label: 'Customer Portal Enabled',
+    description: 'Sent to a customer when staff switch on their Customer Portal access (Customer Defaults > Customer Portal).',
+  },
 ];
 
 // Every trigger is edited as raw HTML (RichTextEditor) and sent through as-is
@@ -1995,6 +2000,12 @@ function EmailTemplatesTab() {
   const [deleting, setDeleting] = useState<EmailTrigger | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Optional A–Z sort by the "Used for" label or the template Name column.
+  const [sort, setSort] = useState<{ col: 'usedFor' | 'name'; asc: boolean } | null>(null);
+
+  function toggleSort(col: 'usedFor' | 'name') {
+    setSort((s) => (s && s.col === col ? { col, asc: !s.asc } : { col, asc: true }));
+  }
 
   function refresh() {
     api.listEmailTemplates().then(setTemplates).catch((err) => setError(err.message));
@@ -2021,20 +2032,43 @@ function EmailTemplatesTab() {
 
   const byTrigger = new Map(templates.map((t) => [t.trigger, t]));
 
+  const rows = [...EMAIL_TRIGGERS];
+  if (sort) {
+    rows.sort((a, b) => {
+      const av = sort.col === 'usedFor' ? a.label : byTrigger.get(a.value)?.name ?? '';
+      const bv = sort.col === 'usedFor' ? b.label : byTrigger.get(b.value)?.name ?? '';
+      const cmp = av.toLowerCase().localeCompare(bv.toLowerCase());
+      return sort.asc ? cmp : -cmp;
+    });
+  }
+  const arrow = (col: 'usedFor' | 'name') => (sort?.col === col ? (sort.asc ? ' ▲' : ' ▼') : '');
+
   return (
     <div>
       <div className="card" style={{ padding: 0 }}>
         <table>
           <thead>
             <tr>
-              <th>Used for</th>
-              <th>Name</th>
+              <th
+                onClick={() => toggleSort('usedFor')}
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                title="Sort by Used for"
+              >
+                Used for{arrow('usedFor')}
+              </th>
+              <th
+                onClick={() => toggleSort('name')}
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                title="Sort by Name"
+              >
+                Name{arrow('name')}
+              </th>
               <th>Subject</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {EMAIL_TRIGGERS.map((trigger) => {
+            {rows.map((trigger) => {
               const template = byTrigger.get(trigger.value);
               return (
                 <tr key={trigger.value}>
@@ -2239,6 +2273,10 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
   portal_password_reset: [
     { key: 'customer_name', hint: "the customer's name" },
     { key: 'code', hint: 'the 6-digit reset code (valid for 48 hours)' },
+    ...BUSINESS_PLACEHOLDERS,
+  ],
+  portal_enabled: [
+    { key: 'customer_name', hint: "the customer's name" },
     ...BUSINESS_PLACEHOLDERS,
   ],
 };
