@@ -780,7 +780,7 @@ export function listEmailTemplates(): Promise<EmailTemplate[]> {
 }
 export function saveEmailTemplate(
   trigger: EmailTrigger,
-  patch: { name: string; subject: string; body: string },
+  patch: { name: string; subject: string; body: string; label?: string },
 ): Promise<EmailTemplate> {
   return request(`/settings/email-templates/${trigger}`, { method: 'PUT', body: JSON.stringify(patch) });
 }

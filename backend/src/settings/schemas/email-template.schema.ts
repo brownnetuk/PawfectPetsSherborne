@@ -34,6 +34,11 @@ export class EmailTemplate extends Document {
   @Prop({ type: String, enum: EmailTrigger, required: true, unique: true })
   trigger: EmailTrigger;
 
+  // Staff-editable "Used for" title shown in the admin templates list. Optional
+  // — falls back to the built-in label for the trigger when unset.
+  @Prop()
+  label?: string;
+
   @Prop({ required: true })
   name: string;
 

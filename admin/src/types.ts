@@ -584,6 +584,7 @@ export type EmailTrigger =
 
 export interface EmailTemplate {
   trigger: EmailTrigger;
+  label?: string;
   name: string;
   subject: string;
   body: string;

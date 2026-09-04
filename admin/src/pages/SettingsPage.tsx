@@ -2035,8 +2035,8 @@ function EmailTemplatesTab() {
   const rows = [...EMAIL_TRIGGERS];
   if (sort) {
     rows.sort((a, b) => {
-      const av = sort.col === 'usedFor' ? a.label : byTrigger.get(a.value)?.name ?? '';
-      const bv = sort.col === 'usedFor' ? b.label : byTrigger.get(b.value)?.name ?? '';
+      const av = sort.col === 'usedFor' ? byTrigger.get(a.value)?.label ?? a.label : byTrigger.get(a.value)?.name ?? '';
+      const bv = sort.col === 'usedFor' ? byTrigger.get(b.value)?.label ?? b.label : byTrigger.get(b.value)?.name ?? '';
       const cmp = av.toLowerCase().localeCompare(bv.toLowerCase());
       return sort.asc ? cmp : -cmp;
     });
@@ -2073,7 +2073,7 @@ function EmailTemplatesTab() {
               return (
                 <tr key={trigger.value}>
                   <td>
-                    <div>{trigger.label}</div>
+                    <div>{template?.label ?? trigger.label}</div>
                     <div style={{ color: 'var(--muted)', fontSize: '0.78rem', marginTop: 2 }}>
                       {trigger.description}
                     </div>
@@ -2353,6 +2353,7 @@ function EditTemplateModal({
   onSaved: () => void;
 }) {
   const meta = EMAIL_TRIGGERS.find((t) => t.value === trigger)!;
+  const [label, setLabel] = useState(template?.label ?? meta.label);
   const [name, setName] = useState(template?.name ?? (isHtmlBodyTrigger(trigger) ? meta.label : ''));
   const [subject, setSubject] = useState(
     template?.subject ?? (isHtmlBodyTrigger(trigger) ? `Your ${trigger} from {{businessName}}` : ''),
@@ -2412,7 +2413,7 @@ function EditTemplateModal({
     setSubmitting(true);
     setError(null);
     try {
-      await api.saveEmailTemplate(trigger, { name, subject, body });
+      await api.saveEmailTemplate(trigger, { name, subject, body, label: label.trim() || undefined });
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save template');
@@ -2426,6 +2427,15 @@ function EditTemplateModal({
       <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: -6 }}>{meta.description}</p>
       {error && <div className="error-banner">{error}</div>}
       <form onSubmit={handleSubmit}>
+        <div className="field">
+          <label>Used for (title)</label>
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder={meta.label}
+          />
+        </div>
         <div className="field">
           <label>Template name</label>
           <input
