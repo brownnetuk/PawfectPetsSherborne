@@ -806,6 +806,9 @@ export function createForm(input: FormInput): Promise<FormRecord> {
 export function updateForm(id: string, input: FormInput): Promise<FormRecord> {
   return request(`/forms/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
 }
+export function setFormVisible(id: string, customerVisible: boolean): Promise<FormRecord> {
+  return request(`/forms/${id}`, { method: 'PATCH', body: JSON.stringify({ customerVisible }) });
+}
 export function deleteForm(id: string): Promise<void> {
   return request(`/forms/${id}`, { method: 'DELETE' });
 }

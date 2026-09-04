@@ -1413,11 +1413,13 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <select className="select-inline" value={pickedFormId} onChange={(e) => setPickedFormId(e.target.value)}>
             <option value="">Choose a form…</option>
-            {forms.map((f) => (
-              <option key={f._id} value={f._id}>
-                {f.name}
-              </option>
-            ))}
+            {forms
+              .filter((f) => f.customerVisible !== false)
+              .map((f) => (
+                <option key={f._id} value={f._id}>
+                  {f.name}
+                </option>
+              ))}
           </select>
           <button
             className="btn btn-primary btn-sm"

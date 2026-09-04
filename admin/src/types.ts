@@ -703,6 +703,7 @@ export interface FormRecord {
   _id: string;
   name: string;
   description?: string;
+  customerVisible?: boolean;
   fields: FormField[];
   createdAt: string;
 }

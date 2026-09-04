@@ -41,6 +41,22 @@ export default function FormsListCard({ onEdit }: Props) {
     return form.fields.reduce((sum, f) => sum + 1 + (f.type === 'group' ? f.fields.length : 0), 0);
   }
 
+  // Toggle whether a form shows in the per-customer "Choose a form" picker.
+  async function toggleVisible(form: FormRecord) {
+    const next = !(form.customerVisible ?? true);
+    setForms((prev) =>
+      (prev ?? []).map((f) => (f._id === form._id ? { ...f, customerVisible: next } : f)),
+    );
+    try {
+      await api.setFormVisible(form._id, next);
+    } catch (err) {
+      setForms((prev) =>
+        (prev ?? []).map((f) => (f._id === form._id ? { ...f, customerVisible: !next } : f)),
+      );
+      setError(err instanceof Error ? err.message : 'Failed to update visibility');
+    }
+  }
+
   return (
     <div className="card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
@@ -65,15 +81,52 @@ export default function FormsListCard({ onEdit }: Props) {
               <th>Name</th>
               <th>Description</th>
               <th>Fields</th>
+              <th>Visible</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {forms.map((form) => (
+            {forms.map((form) => {
+              const visible = form.customerVisible ?? true;
+              return (
               <tr key={form._id}>
                 <td>{form.name}</td>
                 <td>{form.description || '—'}</td>
                 <td>{countFields(form)}</td>
+                <td>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={visible}
+                    title={visible ? 'Visible to customers — click to hide' : 'Hidden — click to show'}
+                    onClick={() => toggleVisible(form)}
+                    style={{
+                      position: 'relative',
+                      width: 40,
+                      height: 22,
+                      borderRadius: 999,
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: visible ? 'var(--brand-green)' : 'var(--border)',
+                      transition: 'background 0.15s ease',
+                      padding: 0,
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: 2,
+                        left: visible ? 20 : 2,
+                        width: 18,
+                        height: 18,
+                        borderRadius: '50%',
+                        background: '#fff',
+                        transition: 'left 0.15s ease',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
+                      }}
+                    />
+                  </button>
+                </td>
                 <td>
                   <div style={{ display: 'flex', gap: 2 }}>
                     <button className="icon-btn" title="Send" onClick={() => setSending(form)}>
@@ -88,7 +141,8 @@ export default function FormsListCard({ onEdit }: Props) {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       )}

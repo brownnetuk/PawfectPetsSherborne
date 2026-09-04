@@ -100,6 +100,27 @@ export class NotificationService {
     );
   }
 
+  // Pushes a customer when one of their (already-sent) invoices changes status.
+  async notifyCustomerInvoiceStatus(
+    customerId: string,
+    invoiceNumber: string,
+    status: 'paid' | 'overdue' | 'cancelled',
+  ): Promise<void> {
+    const map = {
+      paid: { title: 'Invoice paid', body: `Invoice ${invoiceNumber} is now marked as paid. Thank you!` },
+      overdue: { title: 'Invoice overdue', body: `Invoice ${invoiceNumber} is now overdue.` },
+      cancelled: { title: 'Invoice cancelled', body: `Invoice ${invoiceNumber} has been cancelled.` },
+    } as const;
+    const m = map[status];
+    await this.customerNotifications.record(
+      customerId,
+      m.title,
+      m.body,
+      `invoice${status[0].toUpperCase()}${status.slice(1)}`,
+      invoiceNumber,
+    );
+  }
+
   private pad(n: number): string {
     return n.toString().padStart(2, '0');
   }
