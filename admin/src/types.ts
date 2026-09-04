@@ -615,6 +615,7 @@ export interface PushMessageRecipient {
   customer: { _id: string; name: string; email: string } | string;
   status: 'received' | 'not_received';
   reason?: string;
+  acknowledgedAt?: string;
 }
 
 export interface PushMessage {
@@ -622,6 +623,7 @@ export interface PushMessage {
   title: string;
   body: string;
   recipients: PushMessageRecipient[];
+  acknowledgementRequired?: boolean;
   sentBy?: { _id: string; name: string } | string;
   createdAt: string;
 }

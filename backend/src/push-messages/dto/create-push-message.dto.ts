@@ -1,4 +1,12 @@
-import { ArrayNotEmpty, IsArray, IsMongoId, IsNotEmpty, IsString } from 'class-validator';
+import {
+  ArrayNotEmpty,
+  IsArray,
+  IsBoolean,
+  IsMongoId,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class CreatePushMessageDto {
   @IsNotEmpty()
@@ -13,4 +21,8 @@ export class CreatePushMessageDto {
   @ArrayNotEmpty()
   @IsMongoId({ each: true })
   customerIds: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  acknowledgementRequired?: boolean;
 }

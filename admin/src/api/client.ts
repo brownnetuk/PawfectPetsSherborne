@@ -218,6 +218,7 @@ export interface SendPushMessageInput {
   title: string;
   body: string;
   customerIds: string[];
+  acknowledgementRequired?: boolean;
 }
 export function sendPushMessage(input: SendPushMessageInput): Promise<PushMessage> {
   return request('/push-messages', { method: 'POST', body: JSON.stringify(input) });

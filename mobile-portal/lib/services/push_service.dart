@@ -68,9 +68,16 @@ class PushService {
     final data = args.map((k, v) => MapEntry(k.toString(), v));
     final title = data['title']?.toString() ?? 'Notification';
     final body = data['body']?.toString() ?? '';
+    final pushMessageId = data['pushMessageId']?.toString();
+    // Prefer stable ids so the same push isn't stored twice (foreground receipt
+    // + later tap): the server notification id, else the push-message id.
     final id = (data['notificationId']?.toString().isNotEmpty ?? false)
         ? data['notificationId'].toString()
-        : DateTime.now().microsecondsSinceEpoch.toString();
+        : (pushMessageId?.isNotEmpty ?? false)
+            ? pushMessageId!
+            : DateTime.now().microsecondsSinceEpoch.toString();
+    final ackRaw = data['ackRequired'];
+    final ackRequired = ackRaw == true || ackRaw?.toString() == 'true';
     await _store.add(LocalNotification(
       id: id,
       title: title,
@@ -78,6 +85,8 @@ class PushService {
       type: data['type']?.toString(),
       reference: data['reference']?.toString(),
       timestamp: DateTime.now(),
+      pushMessageId: pushMessageId,
+      ackRequired: ackRequired,
     ));
     inbound.value++;
     return data;

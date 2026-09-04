@@ -12,6 +12,10 @@ class LocalNotification {
   final String? type;
   final String? reference;
   final DateTime timestamp;
+  // Broadcast push-messages that require acknowledgement carry these.
+  final String? pushMessageId;
+  final bool ackRequired;
+  final bool acknowledged;
 
   LocalNotification({
     required this.id,
@@ -20,9 +24,25 @@ class LocalNotification {
     this.type,
     this.reference,
     required this.timestamp,
+    this.pushMessageId,
+    this.ackRequired = false,
+    this.acknowledged = false,
   });
 
   bool get isMessage => type == 'message';
+  bool get needsAck => ackRequired && pushMessageId != null && !acknowledged;
+
+  LocalNotification copyWith({bool? acknowledged}) => LocalNotification(
+        id: id,
+        title: title,
+        body: body,
+        type: type,
+        reference: reference,
+        timestamp: timestamp,
+        pushMessageId: pushMessageId,
+        ackRequired: ackRequired,
+        acknowledged: acknowledged ?? this.acknowledged,
+      );
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -31,6 +51,9 @@ class LocalNotification {
         'type': type,
         'reference': reference,
         'timestamp': timestamp.toIso8601String(),
+        'pushMessageId': pushMessageId,
+        'ackRequired': ackRequired,
+        'acknowledged': acknowledged,
       };
 
   factory LocalNotification.fromJson(Map<String, dynamic> j) => LocalNotification(
@@ -40,6 +63,9 @@ class LocalNotification {
         type: j['type'] as String?,
         reference: j['reference'] as String?,
         timestamp: DateTime.parse(j['timestamp'] as String),
+        pushMessageId: j['pushMessageId'] as String?,
+        ackRequired: j['ackRequired'] as bool? ?? false,
+        acknowledged: j['acknowledged'] as bool? ?? false,
       );
 
   factory LocalNotification.fromServer(PortalNotification n) => LocalNotification(
@@ -79,6 +105,23 @@ class NotificationStore {
     items.insert(0, n);
     final capped = items.take(_max).toList();
     await _storage.write(key: _key, value: jsonEncode(capped.map((e) => e.toJson()).toList()));
+  }
+
+  // Marks a stored notification acknowledged (persists so the button doesn't
+  // reappear).
+  Future<void> markAcknowledged(String id) async {
+    final items = await all();
+    var changed = false;
+    final updated = items.map((n) {
+      if (n.id == id && !n.acknowledged) {
+        changed = true;
+        return n.copyWith(acknowledged: true);
+      }
+      return n;
+    }).toList();
+    if (changed) {
+      await _storage.write(key: _key, value: jsonEncode(updated.map((e) => e.toJson()).toList()));
+    }
   }
 
   Future<DateTime?> lastReadAt() async {

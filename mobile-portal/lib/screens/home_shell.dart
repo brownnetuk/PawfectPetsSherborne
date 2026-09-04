@@ -5,6 +5,7 @@ import '../api/repository.dart';
 import '../services/notification_store.dart';
 import '../services/push_service.dart';
 import '../state/auth_provider.dart';
+import '../theme.dart';
 import 'bookings_screen.dart';
 import 'details_screen.dart';
 import 'invoices_screen.dart';
@@ -63,7 +64,8 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   // Handle an OS notification tap: a 'message' goes to the Messages tab, and
-  // anything else is shown in a modal.
+  // anything else is shown in a modal (with an Acknowledge button when the
+  // broadcast requires it).
   void _onPushTap() {
     final push = context.read<PushService>();
     final data = push.tappedNotification.value;
@@ -73,26 +75,65 @@ class _HomeShellState extends State<HomeShell> {
     if (type == 'message') {
       setState(() => _index = _messagesTab);
     } else {
-      _showNotificationModal(
-        data['title']?.toString() ?? 'Notification',
-        data['body']?.toString() ?? '',
-      );
+      final pushMessageId = data['pushMessageId']?.toString();
+      final ackRaw = data['ackRequired'];
+      _showNotification(LocalNotification(
+        id: pushMessageId ?? data['notificationId']?.toString() ?? '${DateTime.now().microsecondsSinceEpoch}',
+        title: data['title']?.toString() ?? 'Notification',
+        body: data['body']?.toString() ?? '',
+        type: type,
+        timestamp: DateTime.now(),
+        pushMessageId: pushMessageId,
+        ackRequired: ackRaw == true || ackRaw?.toString() == 'true',
+      ));
     }
     _refreshUnread();
   }
 
-  void _showNotificationModal(String title, String body) {
+  void _showNotification(LocalNotification n) {
     if (!mounted) return;
     showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(title),
-        content: Text(body),
+      builder: (dialogContext) => AlertDialog(
+        title: Text(n.title),
+        content: Text(n.body),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Close'),
+          ),
+          if (n.needsAck)
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: brandGreen,
+                foregroundColor: Colors.white,
+              ),
+              icon: const Icon(Icons.check),
+              label: const Text('Acknowledge'),
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                await _acknowledge(n);
+              },
+            ),
         ],
       ),
     );
+  }
+
+  Future<void> _acknowledge(LocalNotification n) async {
+    final id = n.pushMessageId;
+    if (id == null) return;
+    final repo = context.read<Repository>();
+    final store = context.read<NotificationStore>();
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await repo.acknowledgePushMessage(id);
+      await store.markAcknowledged(n.id);
+      messenger.showSnackBar(const SnackBar(content: Text('Acknowledged.')));
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(content: Text('Could not acknowledge. Try again.')));
+    }
+    _refreshUnread();
   }
 
   Future<void> _openNotifications() async {
@@ -106,7 +147,7 @@ class _HomeShellState extends State<HomeShell> {
     if (selected.isMessage) {
       setState(() => _index = _messagesTab);
     } else {
-      _showNotificationModal(selected.title, selected.body);
+      _showNotification(selected);
     }
   }
 

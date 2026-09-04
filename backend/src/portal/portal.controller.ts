@@ -237,4 +237,15 @@ export class PortalController {
   async markNotificationsRead(@CurrentCustomer() customer: CurrentCustomerData) {
     return this.portal.markNotificationsRead(customer.customerId);
   }
+
+  // Acknowledge a broadcast push-message that required it.
+  @UseGuards(PortalJwtGuard)
+  @Post('push-messages/:id/acknowledge')
+  @HttpCode(200)
+  async acknowledgePushMessage(
+    @CurrentCustomer() customer: CurrentCustomerData,
+    @Param('id') id: string,
+  ) {
+    return this.portal.acknowledgePushMessage(customer.customerId, id);
+  }
 }

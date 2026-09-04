@@ -516,6 +516,7 @@ function PushMessagesTab() {
                       <tr>
                         <th>Customer</th>
                         <th>Status</th>
+                        {s.acknowledgementRequired && <th>Acknowledged</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -536,6 +537,20 @@ function PushMessagesTab() {
                               <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}> — {r.reason}</span>
                             )}
                           </td>
+                          {s.acknowledgementRequired && (
+                            <td>
+                              {r.acknowledgedAt ? (
+                                <span
+                                  style={{ color: 'var(--brand-green)', fontWeight: 700 }}
+                                  title={`Acknowledged ${new Date(r.acknowledgedAt).toLocaleString('en-GB')}`}
+                                >
+                                  ✓
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--muted)' }}>—</span>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -582,6 +597,7 @@ function SendPushModal({ onClose, onSent }: { onClose: () => void; onSent: () =>
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [ackRequired, setAckRequired] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<PushMessage | null>(null);
@@ -634,6 +650,7 @@ function SendPushModal({ onClose, onSent }: { onClose: () => void; onSent: () =>
         title: title.trim(),
         body: body.trim(),
         customerIds: Array.from(selected),
+        acknowledgementRequired: ackRequired,
       });
       setResult(sent);
     } catch (err) {
@@ -671,6 +688,12 @@ function SendPushModal({ onClose, onSent }: { onClose: () => void; onSent: () =>
         <div className="field">
           <label>Title</label>
           <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. We're closed Monday" required />
+        </div>
+        <div className="field">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400, cursor: 'pointer' }}>
+            <input type="checkbox" checked={ackRequired} onChange={(e) => setAckRequired(e.target.checked)} style={{ width: 'auto' }} />
+            Acknowledgement required
+          </label>
         </div>
         <div className="field">
           <label>Message</label>

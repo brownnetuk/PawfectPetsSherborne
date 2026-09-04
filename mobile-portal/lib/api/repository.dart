@@ -108,6 +108,9 @@ class Repository {
 
   Future<void> markNotificationsRead() => client.post('/portal/notifications/read');
 
+  Future<void> acknowledgePushMessage(String pushMessageId) =>
+      client.post('/portal/push-messages/$pushMessageId/acknowledge');
+
   // --- push ---
 
   Future<void> registerPushToken(String token) =>

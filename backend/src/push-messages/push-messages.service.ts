@@ -26,9 +26,29 @@ export class PushMessagesService {
   // received/not-received row from PushService's own delivery result before
   // persisting the whole send as one task.
   async send(dto: CreatePushMessageDto, staffId: string): Promise<PushMessage> {
-    const recipients: { customer: string; status: 'received' | 'not_received'; reason?: string }[] = [];
+    const ackRequired = dto.acknowledgementRequired ?? false;
+    // Build the doc first so its id can travel in the push payload (the app
+    // acknowledges against it).
+    const message = new this.pushMessageModel({
+      title: dto.title,
+      body: dto.body,
+      recipients: [],
+      acknowledgementRequired: ackRequired,
+      sentBy: staffId,
+    });
+    const recipients: {
+      customer: string;
+      status: 'received' | 'not_received';
+      reason?: string;
+    }[] = [];
     for (const customerId of dto.customerIds) {
-      const result = await this.push.sendToCustomer(customerId, dto.title, dto.body, { type: 'broadcast' });
+      const result = await this.push.sendToCustomer(customerId, dto.title, dto.body, {
+        type: 'broadcast',
+        pushMessageId: String(message._id),
+        ackRequired,
+        title: dto.title,
+        body: dto.body,
+      });
       if (result.sent > 0) {
         recipients.push({ customer: customerId, status: 'received' });
       } else if (result.total === 0) {
@@ -41,13 +61,21 @@ export class PushMessagesService {
         });
       }
     }
-    const created = await this.pushMessageModel.create({
-      title: dto.title,
-      body: dto.body,
-      recipients,
-      sentBy: staffId,
-    });
-    return created.populate(POPULATE);
+    message.recipients = recipients as unknown as PushMessage['recipients'];
+    await message.save();
+    return message.populate(POPULATE);
+  }
+
+  // Marks a recipient's acknowledgedAt when the customer taps "Acknowledge".
+  async acknowledge(id: string, customerId: string): Promise<{ ok: boolean }> {
+    const message = await this.pushMessageModel.findById(id).exec();
+    if (!message) throw new NotFoundException(`Push message ${id} not found`);
+    const recipient = message.recipients.find((r) => String(r.customer) === customerId);
+    if (recipient && !recipient.acknowledgedAt) {
+      recipient.acknowledgedAt = new Date();
+      await message.save();
+    }
+    return { ok: true };
   }
 
   // Removes a past send from the history list -- doesn't unsend the actual

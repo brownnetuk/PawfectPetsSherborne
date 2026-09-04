@@ -23,6 +23,7 @@ import { NotificationService } from '../notifications/notification.service';
 import { PushService } from '../push/push.service';
 import { MessagesService } from '../messages/messages.service';
 import { CustomerNotificationsService } from '../customer-notifications/customer-notifications.service';
+import { PushMessagesService } from '../push-messages/push-messages.service';
 import { SettingsService } from '../settings/settings.service';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { portalJwtSecret, PORTAL_TOKEN_TTL } from './portal-jwt.util';
@@ -49,7 +50,13 @@ export class PortalService {
     private readonly push: PushService,
     private readonly messages: MessagesService,
     private readonly customerNotifications: CustomerNotificationsService,
+    private readonly pushMessages: PushMessagesService,
   ) {}
+
+  // A broadcast push-message the customer is acknowledging from the app.
+  acknowledgePushMessage(customerId: string, pushMessageId: string) {
+    return this.pushMessages.acknowledge(pushMessageId, customerId);
+  }
 
   // --- notifications (the customer app's bell feed) ---
 

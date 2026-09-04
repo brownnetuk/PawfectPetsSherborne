@@ -14,6 +14,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { PushModule } from '../push/push.module';
 import { MessagesModule } from '../messages/messages.module';
 import { CustomerNotificationsModule } from '../customer-notifications/customer-notifications.module';
+import { PushMessagesModule } from '../push-messages/push-messages.module';
 import { SettingsModule } from '../settings/settings.module';
 import { PortalController } from './portal.controller';
 import { PortalAdminController } from './portal-admin.controller';
@@ -36,6 +37,7 @@ import { PortalJwtStrategy } from './portal-jwt.strategy';
     PushModule,
     MessagesModule,
     CustomerNotificationsModule,
+    PushMessagesModule,
     SettingsModule,
     MongooseModule.forFeature([
       { name: DayBooking.name, schema: DayBookingSchema },
