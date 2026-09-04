@@ -87,7 +87,7 @@ export default function AddAppointmentModal({
           </div>
           <div className="field">
             <label>Time</label>
-            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
+            <input type="time" lang="en-GB" value={time} onChange={(e) => setTime(e.target.value)} required />
           </div>
         </div>
         <div className="modal-actions">
