@@ -134,6 +134,7 @@ export default function BookingsPage() {
   // sections -- both default on, so nothing changes until staff toggle one off.
   const [showWalks, setShowWalks] = useState(true);
   const [showVisits, setShowVisits] = useState(true);
+  const [showAppointments, setShowAppointments] = useState(true);
   const [showGenerateInvoices, setShowGenerateInvoices] = useState(false);
   const [showAddAppointment, setShowAddAppointment] = useState(false);
 
@@ -249,12 +250,14 @@ export default function BookingsPage() {
         }
       }
     }
-    const appointmentBadges: Badge[] = appointmentsForDay(date).map((a) => ({
-      key: `appt-${a._id}`,
-      label: customerLabel(a.customer),
-      kind: 'appointment',
-      invoiced: false,
-    }));
+    const appointmentBadges: Badge[] = showAppointments
+      ? appointmentsForDay(date).map((a) => ({
+          key: `appt-${a._id}`,
+          label: customerLabel(a.customer),
+          kind: 'appointment',
+          invoiced: false,
+        }))
+      : [];
     return [...amVisitBadges, ...walkBadges, ...pmVisitBadges, ...appointmentBadges];
   }
 
@@ -377,6 +380,22 @@ export default function BookingsPage() {
               }}
             >
               Visits
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAppointments((v) => !v)}
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: 20,
+                padding: '4px 12px',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: showAppointments ? '#dbeafe' : 'transparent',
+                color: showAppointments ? '#1d4ed8' : 'var(--muted)',
+              }}
+            >
+              Appointments
             </button>
           </div>
         </div>
@@ -543,7 +562,7 @@ export default function BookingsPage() {
           <DayDetailPanel
             date={selectedDate}
             dayBookings={bookingsForDay(selectedDate)}
-            appointments={appointmentsForDay(selectedDate)}
+            appointments={showAppointments ? appointmentsForDay(selectedDate) : []}
             animals={animals}
             customers={customers}
             products={products}
