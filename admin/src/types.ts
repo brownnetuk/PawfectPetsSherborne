@@ -609,6 +609,23 @@ export interface Conversation {
   unread: number;
 }
 
+// --- Push Messages (Communications > Push Messages) ---
+
+export interface PushMessageRecipient {
+  customer: { _id: string; name: string; email: string } | string;
+  status: 'received' | 'not_received';
+  reason?: string;
+}
+
+export interface PushMessage {
+  _id: string;
+  title: string;
+  body: string;
+  recipients: PushMessageRecipient[];
+  sentBy?: { _id: string; name: string } | string;
+  createdAt: string;
+}
+
 // --- Forms builder (Settings > Forms) ---
 
 export type FieldTarget = 'customer' | 'animal';

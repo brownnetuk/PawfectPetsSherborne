@@ -29,6 +29,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ProductsModule } from './products/products.module';
 import { PushModule } from './push/push.module';
+import { PushMessagesModule } from './push-messages/push-messages.module';
 import { PortalModule } from './portal/portal.module';
 import { MessagesModule } from './messages/messages.module';
 import { CrmModule } from './crm/crm.module';
@@ -60,6 +61,7 @@ import { StaffModule } from './staff/staff.module';
     AppointmentsModule,
     AuditLogModule,
     PushModule,
+    PushMessagesModule,
     NotificationsModule,
     CustomersModule,
     AnimalsModule,

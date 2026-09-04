@@ -35,6 +35,7 @@ import type {
   PaymentMethod,
   Product,
   ProductAvailability,
+  PushMessage,
   Quote,
   Role,
   Staff,
@@ -207,6 +208,19 @@ export function messagesUnreadCount(): Promise<{ count: number }> {
 }
 export function deleteMessage(customerId: string, messageId: string): Promise<{ ok: boolean }> {
   return request(`/messages/${customerId}/${messageId}`, { method: 'DELETE' });
+}
+
+// --- push messages (Communications > Push Messages, bulk/individual customer pushes) ---
+export function listPushMessages(): Promise<PushMessage[]> {
+  return request('/push-messages');
+}
+export interface SendPushMessageInput {
+  title: string;
+  body: string;
+  customerIds: string[];
+}
+export function sendPushMessage(input: SendPushMessageInput): Promise<PushMessage> {
+  return request('/push-messages', { method: 'POST', body: JSON.stringify(input) });
 }
 export function logFormSnapshot(
   id: string,

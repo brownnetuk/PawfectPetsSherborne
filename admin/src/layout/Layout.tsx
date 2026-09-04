@@ -99,9 +99,9 @@ export default function Layout() {
             <FinancialIcon />
             Financial
           </NavLink>
-          <NavLink to="/messages" className={({ isActive }) => (isActive ? 'active' : '')}>
+          <NavLink to="/communications" className={({ isActive }) => (isActive ? 'active' : '')}>
             <MessagesIcon />
-            Messages
+            Communications
             {unreadMessages > 0 && (
               <span
                 style={{
