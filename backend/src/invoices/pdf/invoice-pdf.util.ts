@@ -183,6 +183,28 @@ function substitute(content: string, vars: Record<string, string>): string {
   return content.replace(/\{\{(\w+)\}\}/g, (m, key: string) => vars[key] ?? m);
 }
 
+// Belt-and-braces for quote exports: even if the saved template predates quote
+// support (literal "Invoice" wording, un-flagged Balance Due / Payment Made
+// rows), a quote should never show invoice-only money or invoice wording.
+function isInvoiceOnlyMoneyEl(el: PdfTemplateElement): boolean {
+  if (el.type !== 'text' && el.type !== 'qrcode') return false;
+  return /\{\{\s*(balanceDue|amountPaid)\s*\}\}/.test(el.content);
+}
+function quotifyWording(s: string): string {
+  return s
+    .replace(/Invoice Date/gi, 'Quote Date')
+    .replace(/Due Date/gi, 'Valid Until')
+    .replace(/Invoice#/gi, 'Quote#')
+    .replace(/\bInvoices\b/g, 'Quotes')
+    .replace(/\bInvoice\b/g, 'Quote');
+}
+function prepareForKind(template: PdfTemplateElement[], kind: PdfKind): PdfTemplateElement[] {
+  if (kind !== 'quote') return template;
+  return template
+    .filter((el) => !isInvoiceOnlyMoneyEl(el))
+    .map((el) => (el.type === 'text' ? { ...el, content: quotifyWording(el.content) } : el));
+}
+
 function isVisible(el: PdfTemplateElement, isPaid: boolean, kind: PdfKind): boolean {
   if (!el.visibleWhen || el.visibleWhen === 'always') return true;
   if (el.visibleWhen === 'invoice-only') return kind === 'invoice';
@@ -724,9 +746,10 @@ export async function buildInvoicePdfBuffer(
   kind: PdfKind = 'invoice',
 ): Promise<Buffer> {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-  const template = businessInfo.invoicePdfTemplate?.length
+  const rawTemplate = businessInfo.invoicePdfTemplate?.length
     ? (businessInfo.invoicePdfTemplate as unknown as PdfTemplateElement[])
     : DEFAULT_INVOICE_TEMPLATE;
+  const template = prepareForKind(rawTemplate, kind);
   const vars = buildPdfVars(record, businessInfo, kind);
   const isPaid = kind === 'invoice' && record.status === 'paid';
   const visibleElements = template.filter((el) => isVisible(el, isPaid, kind));
