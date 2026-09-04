@@ -8,6 +8,6 @@ void main() {
   testWidgets('App boots', (WidgetTester tester) async {
     await tester.pumpWidget(const PawfectPetsPortalApp());
     await tester.pump();
-    expect(find.text('Customer Portal'), findsOneWidget);
+    expect(find.text('Customer App'), findsOneWidget);
   });
 }

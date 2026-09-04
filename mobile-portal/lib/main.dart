@@ -36,7 +36,7 @@ class PawfectPetsPortalApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Pawfect Pets Portal',
+      title: 'Pawfect Pets Customer',
       debugShowCheckedModeBanner: false,
       theme: appTheme,
       home: Consumer<AuthProvider>(
