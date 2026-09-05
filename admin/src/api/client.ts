@@ -300,6 +300,11 @@ export interface DayBookingInput {
   quantity?: number;
   invoice?: string | null;
   visitTime?: 'AM' | 'PM' | null;
+  dropOffPeriod?: 'AM' | 'PM' | null;
+  dropOffTime?: string | null;
+  collectionPeriod?: 'AM' | 'PM' | null;
+  collectionTime?: string | null;
+  pickUpTime?: string | null;
 }
 export function createDayBooking(input: DayBookingInput): Promise<DayBooking> {
   return request('/day-bookings', { method: 'POST', body: JSON.stringify(input) });

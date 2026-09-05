@@ -8,7 +8,7 @@ import ProductAvailabilityWarningModal from '../components/ProductAvailabilityWa
 import { PlusCircleIcon, TrashIcon } from '../components/icons';
 import { annualLeaveOn } from '../utils/annualLeave';
 import { availabilityMismatch } from '../utils/productAvailability';
-import { isVisitProduct, visitCountForProduct } from '../utils/visitMapping';
+import { isBoardingProduct, isDayCareProduct, isVisitProduct, visitCountForProduct } from '../utils/visitMapping';
 import type { Animal, AnnualLeave, Appointment, BankHoliday, Customer, DayBooking, Product, VisitMapping } from '../types';
 
 type ViewMode = 'week' | 'month';
@@ -113,6 +113,14 @@ function groupByAnimal(bookings: DayBooking[]): DayBooking[][] {
 
 const MAX_BADGES = 3;
 
+const BADGE_COLORS: Record<'walk' | 'visit' | 'daycare' | 'boarding' | 'appointment', { bg: string; fg: string }> = {
+  walk: { bg: 'var(--sage-badge, #d9f2e3)', fg: 'var(--brand-green)' },
+  visit: { bg: '#fff4cc', fg: '#8a6d00' },
+  daycare: { bg: '#ede9fe', fg: '#6d28d9' },
+  boarding: { bg: '#ccfbf1', fg: '#0f766e' },
+  appointment: { bg: '#dbeafe', fg: '#1d4ed8' },
+};
+
 export default function BookingsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [anchorDate, setAnchorDate] = useState(new Date());
@@ -134,6 +142,8 @@ export default function BookingsPage() {
   // sections -- both default on, so nothing changes until staff toggle one off.
   const [showWalks, setShowWalks] = useState(true);
   const [showVisits, setShowVisits] = useState(true);
+  const [showDayCare, setShowDayCare] = useState(true);
+  const [showBoarding, setShowBoarding] = useState(true);
   const [showAppointments, setShowAppointments] = useState(true);
   const [showGenerateInvoices, setShowGenerateInvoices] = useState(false);
   const [showAddAppointment, setShowAddAppointment] = useState(false);
@@ -214,7 +224,9 @@ export default function BookingsPage() {
   // (worked out the same start/end/regular way as the day panel), or both
   // "Name - AM" and "Name - PM" for a 2-visit day -- the PM one is a display
   // placeholder only, not a second underlying booking.
-  function badgesForDay(date: Date): { key: string; label: string; kind: 'walk' | 'visit' | 'appointment'; invoiced: boolean }[] {
+  function badgesForDay(
+    date: Date,
+  ): { key: string; label: string; kind: 'walk' | 'visit' | 'daycare' | 'boarding' | 'appointment'; invoiced: boolean }[] {
     const byAnimal = new Map<string, DayBooking[]>();
     for (const b of bookingsForDay(date)) {
       const aid = animalId(b.animal);
@@ -225,14 +237,20 @@ export default function BookingsPage() {
     // Three passes (not one loop pushing per animal) so ordering reflects
     // the actual time of day across every animal -- AM visits first, then
     // walks, then PM visits -- not just each animal's own badges together.
-    type Badge = { key: string; label: string; kind: 'walk' | 'visit' | 'appointment'; invoiced: boolean };
+    type Badge = { key: string; label: string; kind: 'walk' | 'visit' | 'daycare' | 'boarding' | 'appointment'; invoiced: boolean };
     const amVisitBadges: Badge[] = [];
     const walkBadges: Badge[] = [];
     const pmVisitBadges: Badge[] = [];
+    const dayCareBadges: Badge[] = [];
+    const boardingBadges: Badge[] = [];
     for (const [aid, entries] of byAnimal) {
       const name = animalLabel(entries[0].animal);
-      const walkEntries = entries.filter((b) => !visitMapping || !isVisitProduct(visitMapping, productId(b.product)));
+      const dayCareEntries = entries.filter((b) => visitMapping && isDayCareProduct(visitMapping, productId(b.product)));
+      const boardingEntries = entries.filter((b) => visitMapping && isBoardingProduct(visitMapping, productId(b.product)));
       const visitEntries = entries.filter((b) => visitMapping && isVisitProduct(visitMapping, productId(b.product)));
+      const walkEntries = entries.filter(
+        (b) => !dayCareEntries.includes(b) && !boardingEntries.includes(b) && !visitEntries.includes(b),
+      );
       if (showWalks && walkEntries.length > 0) {
         walkBadges.push({ key: `${aid}-walk`, label: name, kind: 'walk', invoiced: walkEntries.every((b) => !!b.invoice) });
       }
@@ -249,6 +267,22 @@ export default function BookingsPage() {
           else pmVisitBadges.push(badge);
         }
       }
+      if (showDayCare && dayCareEntries.length > 0) {
+        dayCareBadges.push({
+          key: `${aid}-daycare`,
+          label: name,
+          kind: 'daycare',
+          invoiced: dayCareEntries.every((b) => !!b.invoice),
+        });
+      }
+      if (showBoarding && boardingEntries.length > 0) {
+        boardingBadges.push({
+          key: `${aid}-boarding`,
+          label: name,
+          kind: 'boarding',
+          invoiced: boardingEntries.every((b) => !!b.invoice),
+        });
+      }
     }
     const appointmentBadges: Badge[] = showAppointments
       ? appointmentsForDay(date).map((a) => ({
@@ -258,7 +292,7 @@ export default function BookingsPage() {
           invoiced: false,
         }))
       : [];
-    return [...amVisitBadges, ...walkBadges, ...pmVisitBadges, ...appointmentBadges];
+    return [...amVisitBadges, ...walkBadges, ...pmVisitBadges, ...dayCareBadges, ...boardingBadges, ...appointmentBadges];
   }
 
   // Clicked an animal in the Visits section: walk outward from that day
@@ -380,6 +414,38 @@ export default function BookingsPage() {
               }}
             >
               Visits
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDayCare((v) => !v)}
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: 20,
+                padding: '4px 12px',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: showDayCare ? '#ede9fe' : 'transparent',
+                color: showDayCare ? '#6d28d9' : 'var(--muted)',
+              }}
+            >
+              Day Care
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowBoarding((v) => !v)}
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: 20,
+                padding: '4px 12px',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: showBoarding ? '#ccfbf1' : 'transparent',
+                color: showBoarding ? '#0f766e' : 'var(--muted)',
+              }}
+            >
+              Boarding
             </button>
             <button
               type="button"
@@ -521,18 +587,8 @@ export default function BookingsPage() {
                           key={badge.key}
                           title={badge.invoiced ? 'Invoiced' : undefined}
                           style={{
-                            background:
-                              badge.kind === 'appointment'
-                                ? '#dbeafe'
-                                : badge.kind === 'visit'
-                                  ? '#fff4cc'
-                                  : 'var(--sage-badge, #d9f2e3)',
-                            color:
-                              badge.kind === 'appointment'
-                                ? '#1d4ed8'
-                                : badge.kind === 'visit'
-                                  ? '#8a6d00'
-                                  : 'var(--brand-green)',
+                            background: BADGE_COLORS[badge.kind].bg,
+                            color: BADGE_COLORS[badge.kind].fg,
                             fontSize: '0.75rem',
                             borderRadius: 4,
                             padding: '2px 6px',
@@ -571,6 +627,8 @@ export default function BookingsPage() {
             visitMapping={visitMapping}
             showWalks={showWalks}
             showVisits={showVisits}
+            showDayCare={showDayCare}
+            showBoarding={showBoarding}
             onClose={() => setSelectedDate(null)}
             onChange={refreshDayBookings}
             onEditAnimal={handleEditAnimalBooking}
@@ -593,6 +651,8 @@ function DayDetailPanel({
   visitMapping,
   showWalks,
   showVisits,
+  showDayCare,
+  showBoarding,
   onClose,
   onChange,
   onEditAnimal,
@@ -608,6 +668,8 @@ function DayDetailPanel({
   visitMapping: VisitMapping | null;
   showWalks: boolean;
   showVisits: boolean;
+  showDayCare: boolean;
+  showBoarding: boolean;
   onClose: () => void;
   onChange: () => void;
   onEditAnimal: (animalId: string, date: Date) => void;
@@ -651,8 +713,18 @@ function DayDetailPanel({
     );
   }
 
-  const walkBookings = showWalks ? dayBookings.filter((b) => !visitMapping || !isVisitProduct(visitMapping, productId(b.product))) : [];
   const visitBookings = showVisits ? dayBookings.filter((b) => visitMapping && isVisitProduct(visitMapping, productId(b.product))) : [];
+  const dayCareBookings = showDayCare ? dayBookings.filter((b) => visitMapping && isDayCareProduct(visitMapping, productId(b.product))) : [];
+  const boardingBookings = showBoarding ? dayBookings.filter((b) => visitMapping && isBoardingProduct(visitMapping, productId(b.product))) : [];
+  const walkBookings = showWalks
+    ? dayBookings.filter(
+        (b) =>
+          !visitMapping ||
+          (!isVisitProduct(visitMapping, productId(b.product)) &&
+            !isDayCareProduct(visitMapping, productId(b.product)) &&
+            !isBoardingProduct(visitMapping, productId(b.product))),
+      )
+    : [];
 
   const weekdayKey = WEEKDAY_KEYS[date.getDay()];
   const recommended = animals.filter((a) => {
@@ -999,6 +1071,132 @@ function DayDetailPanel({
                 </div>
               );
             })}
+          </div>
+        </>
+      )}
+
+      {dayCareBookings.length > 0 && (
+        <>
+          <div className="section-title">Day Care</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
+            {dayCareBookings.map((b) => (
+              <div
+                key={b._id}
+                style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, background: 'var(--card, #fff)' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {animalLabel(b.animal)}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--muted)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 1,
+                    }}
+                  >
+                    {customerLabel(b.customer)}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                  <span
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      fontSize: '0.8rem',
+                      color: 'var(--muted)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {productLabel(b.product)}
+                    {b.dropOffTime ? ` · Drop Off ${b.dropOffPeriod} ${b.dropOffTime}` : ''}
+                    {b.collectionTime ? ` · Collection ${b.collectionPeriod} ${b.collectionTime}` : ''}
+                  </span>
+                  {b.invoice && (
+                    <span title="Invoiced" style={{ color: 'var(--brand-green)', fontSize: '0.85rem', flexShrink: 0 }}>
+                      ✓
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="icon-btn icon-btn-danger"
+                    title="Remove"
+                    style={{ flexShrink: 0 }}
+                    onClick={() => handleRemove(b)}
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {boardingBookings.length > 0 && (
+        <>
+          <div className="section-title">Boarding</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
+            {boardingBookings.map((b) => (
+              <div
+                key={b._id}
+                style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, background: 'var(--card, #fff)' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {animalLabel(b.animal)}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--muted)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 1,
+                    }}
+                  >
+                    {customerLabel(b.customer)}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                  <span
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      fontSize: '0.8rem',
+                      color: 'var(--muted)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {productLabel(b.product)}
+                    {b.dropOffTime ? ` · Drop Off ${b.dropOffTime}` : ''}
+                    {b.pickUpTime ? ` · Pick Up ${b.pickUpTime}` : ''}
+                  </span>
+                  {b.invoice && (
+                    <span title="Invoiced" style={{ color: 'var(--brand-green)', fontSize: '0.85rem', flexShrink: 0 }}>
+                      ✓
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="icon-btn icon-btn-danger"
+                    title="Remove"
+                    style={{ flexShrink: 0 }}
+                    onClick={() => handleRemove(b)}
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </>
       )}

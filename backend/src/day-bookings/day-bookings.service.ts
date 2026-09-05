@@ -40,6 +40,11 @@ export class DayBookingsService {
       product: dto.product,
       quantity: dto.quantity ?? 1,
       visitTime: dto.visitTime ?? undefined,
+      dropOffPeriod: dto.dropOffPeriod ?? undefined,
+      dropOffTime: dto.dropOffTime ?? undefined,
+      collectionPeriod: dto.collectionPeriod ?? undefined,
+      collectionTime: dto.collectionTime ?? undefined,
+      pickUpTime: dto.pickUpTime ?? undefined,
     }).save();
     return created.populate([
       { path: 'animal', select: 'name species' },

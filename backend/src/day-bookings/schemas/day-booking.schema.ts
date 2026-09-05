@@ -43,6 +43,28 @@ export class DayBooking extends Document {
   // PM) rather than every booking needing this filled in.
   @Prop({ type: String, enum: ['AM', 'PM'] })
   visitTime?: 'AM' | 'PM';
+
+  // Day Care (single-day) -- drop-off/collection are both same-day. The
+  // period pair also decides which Day Care product (Half/Full Day, see
+  // Settings > Bookings) New Booking auto-selects: AM drop-off + PM
+  // collection = Full Day, anything else = Half Day.
+  @Prop({ type: String, enum: ['AM', 'PM'] })
+  dropOffPeriod?: 'AM' | 'PM';
+
+  @Prop()
+  dropOffTime?: string;
+
+  @Prop({ type: String, enum: ['AM', 'PM'] })
+  collectionPeriod?: 'AM' | 'PM';
+
+  @Prop()
+  collectionTime?: string;
+
+  // Boarding (multi-day) -- dropOffTime above doubles as the first day's
+  // drop-off time; pickUpTime is the last day's collection time. Middle days
+  // have neither set.
+  @Prop()
+  pickUpTime?: string;
 }
 
 export const DayBookingSchema = SchemaFactory.createForClass(DayBooking);

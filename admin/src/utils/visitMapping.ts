@@ -29,3 +29,24 @@ export function visitCountForProduct(mapping: VisitMapping, productId: string): 
   if (twoVisitProductIds(mapping).has(productId)) return 2;
   return null;
 }
+
+export function isDayCareProduct(mapping: VisitMapping, productId: string): boolean {
+  return productId === mapping.dayCareHalfDayProduct || productId === mapping.dayCareFullDayProduct;
+}
+
+export function isBoardingProduct(mapping: VisitMapping, productId: string): boolean {
+  return productId === mapping.boardingPerDayProduct;
+}
+
+// AM drop-off + PM collection is the only combination that means the dog is
+// there across midday -- anything else (AM/AM, PM/AM, PM/PM) is a shorter
+// stay, so Half Day covers it. Returns the configured product id, or null if
+// that slot has no product set in Settings > Bookings > Day Care.
+export function dayCareProductFor(
+  mapping: VisitMapping,
+  dropOffPeriod: 'AM' | 'PM',
+  collectionPeriod: 'AM' | 'PM',
+): string | null {
+  const isFullDay = dropOffPeriod === 'AM' && collectionPeriod === 'PM';
+  return (isFullDay ? mapping.dayCareFullDayProduct : mapping.dayCareHalfDayProduct) ?? null;
+}

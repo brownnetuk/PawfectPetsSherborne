@@ -176,6 +176,12 @@ export interface DayBooking {
   quantity: number;
   invoice?: { _id: string; invoiceNumber: string } | string | null;
   visitTime?: 'AM' | 'PM' | null;
+  // Day Care (single-day) and Boarding (first/last day) fields.
+  dropOffPeriod?: 'AM' | 'PM' | null;
+  dropOffTime?: string | null;
+  collectionPeriod?: 'AM' | 'PM' | null;
+  collectionTime?: string | null;
+  pickUpTime?: string | null;
   createdAt: string;
 }
 
