@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import * as api from '../api/client';
+import { DateReadout, TimeReadout } from './DateTimeReadout';
 import Modal from './Modal';
 import { annualLeaveOn } from '../utils/annualLeave';
 import { parseYmd } from '../utils/visitPlan';
@@ -84,10 +85,12 @@ export default function AddAppointmentModal({
           <div className="field">
             <label>Date</label>
             <input type="date" lang="en-GB" value={date} onChange={(e) => setDate(e.target.value)} required />
+            <DateReadout value={date} />
           </div>
           <div className="field">
             <label>Time</label>
             <input type="time" lang="en-GB" value={time} onChange={(e) => setTime(e.target.value)} required />
+            <TimeReadout value={time} />
           </div>
         </div>
         <div className="modal-actions">

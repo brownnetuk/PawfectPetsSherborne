@@ -129,6 +129,13 @@ h2 {
   margin-top: 4px;
 }
 
+.date-readout {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 .toggle-row {
   display: flex;
   align-items: center;

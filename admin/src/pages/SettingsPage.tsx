@@ -4,6 +4,7 @@ import { API_URL } from '../api/client';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import BankAccountModal from '../components/BankAccountModal';
+import { DateReadout, TimeReadout } from '../components/DateTimeReadout';
 import FormBuilder from '../components/FormBuilder';
 import FormsListCard from '../components/FormsListCard';
 import Modal from '../components/Modal';
@@ -3743,7 +3744,8 @@ function EditBankHolidayModal({
         </div>
         <div className="field">
           <label>Date</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          <input type="date" lang="en-GB" value={date} onChange={(e) => setDate(e.target.value)} required />
+          <DateReadout value={date} />
         </div>
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
@@ -3927,10 +3929,12 @@ function EditAnnualLeaveModal({
           <div className="field">
             <label>Start Date</label>
             <input type="date" lang="en-GB" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+            <DateReadout value={startDate} />
           </div>
           <div className="field">
             <label>End Date</label>
             <input type="date" lang="en-GB" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+            <DateReadout value={endDate} />
           </div>
         </div>
         <div className="modal-actions">
@@ -4441,9 +4445,11 @@ function NotificationsSettingsTab() {
           <div style={{ marginTop: 8, marginLeft: 24 }}>
             <input
               type="time"
+              lang="en-GB"
               value={settings.dailyDigestTime}
               onChange={(e) => save({ dailyDigestTime: e.target.value })}
             />
+            <TimeReadout value={settings.dailyDigestTime} />
           </div>
         ) : null,
       )}

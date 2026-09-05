@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { FormField, GroupFormField, VisibilityRule } from '../types';
+import { DateReadout } from './DateTimeReadout';
 import Modal from './Modal';
 
 interface Props {
@@ -190,7 +191,8 @@ function PreviewField({
       return (
         <div className="field">
           {label}
-          <input type="date" value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />
+          <input type="date" lang="en-GB" value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />
+          <DateReadout value={value as string} />
         </div>
       );
     case 'today':

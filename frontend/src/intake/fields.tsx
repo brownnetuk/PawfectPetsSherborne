@@ -9,6 +9,24 @@ interface TextFieldProps {
   placeholder?: string;
 }
 
+// A native <input type="date">'s own displayed text follows the browser/OS
+// locale -- Chrome respects lang="en-GB", but Safari and Firefox always use
+// the device's own region setting and ignore the page entirely. Rather than
+// fight that per-browser, this renders a small always-correct label
+// alongside it, computed from the input's own value (a date input's value is
+// always 'YYYY-MM-DD' regardless of how the widget itself displays it).
+function DateReadout({ value }: { value: string }) {
+  if (!value) return null;
+  const [y, m, d] = value.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  const label = new Date(y, m - 1, d).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+  return <span className="date-readout">{label}</span>;
+}
+
 export function TextField({
   label,
   value,
@@ -29,11 +47,13 @@ export function TextField({
       ) : (
         <input
           type={type}
+          lang={type === 'date' ? 'en-GB' : undefined}
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
         />
       )}
+      {type === 'date' && <DateReadout value={value} />}
       {hint && <div className="field-hint">{hint}</div>}
     </div>
   );

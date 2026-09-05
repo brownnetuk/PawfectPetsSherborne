@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import * as api from '../api/client';
+import { DateReadout, TimeReadout } from './DateTimeReadout';
 import Modal from './Modal';
 import { addDays, buildVisitPlan, dateKey, parseYmd } from '../utils/visitPlan';
 import type { VisitCount, VisitTime } from '../utils/visitPlan';
@@ -467,6 +468,7 @@ export default function NewBookingModal({
               <div className="field">
                 <label style={ROW_LABEL_STYLE}>Start Date</label>
                 <input type="date" lang="en-GB" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+                <DateReadout value={startDate} />
               </div>
               <div className="field">
                 <label style={ROW_LABEL_STYLE}>Visits on First Date</label>
@@ -492,6 +494,7 @@ export default function NewBookingModal({
               <div className="field">
                 <label style={ROW_LABEL_STYLE}>End Date</label>
                 <input type="date" lang="en-GB" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+                <DateReadout value={endDate} />
               </div>
               <div className="field">
                 <label style={ROW_LABEL_STYLE}>Visits on End Date</label>
@@ -520,6 +523,7 @@ export default function NewBookingModal({
             <div className="field">
               <label>Date</label>
               <input type="date" lang="en-GB" value={dayCareDate} onChange={(e) => setDayCareDate(e.target.value)} required />
+              <DateReadout value={dayCareDate} />
             </div>
             <div className="field-row">
               <div className="field">
@@ -532,6 +536,7 @@ export default function NewBookingModal({
               <div className="field">
                 <label>Drop Off Time</label>
                 <input type="time" lang="en-GB" value={dropOffTime} onChange={(e) => setDropOffTime(e.target.value)} required />
+                <TimeReadout value={dropOffTime} />
               </div>
             </div>
             <div className="field-row">
@@ -545,6 +550,7 @@ export default function NewBookingModal({
               <div className="field">
                 <label>Collection Time</label>
                 <input type="time" lang="en-GB" value={collectionTime} onChange={(e) => setCollectionTime(e.target.value)} required />
+                <TimeReadout value={collectionTime} />
               </div>
             </div>
           </>
@@ -561,6 +567,7 @@ export default function NewBookingModal({
                   onChange={(e) => setBoardingStartDate(e.target.value)}
                   required
                 />
+                <DateReadout value={boardingStartDate} />
               </div>
               <div className="field">
                 <label>Drop Off Time</label>
@@ -571,6 +578,7 @@ export default function NewBookingModal({
                   onChange={(e) => setBoardingDropOffTime(e.target.value)}
                   required
                 />
+                <TimeReadout value={boardingDropOffTime} />
               </div>
             </div>
             <div className="field-row">
@@ -583,6 +591,7 @@ export default function NewBookingModal({
                   onChange={(e) => setBoardingEndDate(e.target.value)}
                   required
                 />
+                <DateReadout value={boardingEndDate} />
               </div>
               <div className="field">
                 <label>Pick Up Time</label>
@@ -593,6 +602,7 @@ export default function NewBookingModal({
                   onChange={(e) => setBoardingPickUpTime(e.target.value)}
                   required
                 />
+                <TimeReadout value={boardingPickUpTime} />
               </div>
             </div>
           </>

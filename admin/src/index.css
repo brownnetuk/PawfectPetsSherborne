@@ -458,6 +458,14 @@ tbody tr:last-child td {
   min-height: 70px;
   resize: vertical;
 }
+/* Always-correct dd/mm/yyyy or 24h readout next to a native date/time input
+   -- see components/DateTimeReadout.tsx for why this exists. */
+.date-readout {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
 .select-inline {
   width: auto;
   padding: 8px 30px 8px 12px;

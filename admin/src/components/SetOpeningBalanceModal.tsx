@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import * as api from '../api/client';
+import { DateReadout } from './DateTimeReadout';
 import Modal from './Modal';
 import type { BankAccount } from '../types';
 
@@ -47,7 +48,8 @@ export default function SetOpeningBalanceModal({ account, onClose, onSaved }: Pr
         <div className="field-row">
           <div className="field">
             <label>Date *</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required autoFocus />
+            <input type="date" lang="en-GB" value={date} onChange={(e) => setDate(e.target.value)} required autoFocus />
+            <DateReadout value={date} />
           </div>
           <div className="field">
             <label>Balance (£) *</label>

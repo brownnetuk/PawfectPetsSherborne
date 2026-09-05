@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import * as api from '../api/client';
+import { DateReadout } from './DateTimeReadout';
 import MedicationEntriesField from './MedicationEntriesField';
 import Modal from './Modal';
 import type { Animal, MedicationEntry, NeuteredStatus, Sex, Species, TriState } from '../types';
@@ -198,7 +199,8 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
           </div>
           <div className="field">
             <label>Date of birth</label>
-            <input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} />
+            <input type="date" lang="en-GB" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} />
+            <DateReadout value={dateOfBirth} />
           </div>
         </div>
         <div className="field-row">
@@ -238,9 +240,11 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
             <label>End date of last season?</label>
             <input
               type="date"
+              lang="en-GB"
               value={lastSeasonEndDate}
               onChange={(e) => setLastSeasonEndDate(e.target.value)}
             />
+            <DateReadout value={lastSeasonEndDate} />
           </div>
         )}
         <div className="field">
@@ -301,10 +305,12 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
             <label>Vaccine expiry date</label>
             <input
               type="date"
+              lang="en-GB"
               value={vaccineExpiryDate}
               onChange={(e) => setVaccineExpiryDate(e.target.value)}
               required
             />
+            <DateReadout value={vaccineExpiryDate} />
           </div>
         )}
         <div className="field">
