@@ -2673,6 +2673,19 @@ function BookingsSettingsTab() {
   return (
     <div>
       <VisitsCard />
+      <ProductMappingCard
+        title="Day Care"
+        description="Maps each Day Care option to the product used for it."
+        fields={[
+          { key: 'dayCareHalfDayProduct', label: 'Half Day' },
+          { key: 'dayCareFullDayProduct', label: 'Full Day' },
+        ]}
+      />
+      <ProductMappingCard
+        title="Boarding"
+        description="Maps the Boarding option to the product used for it."
+        fields={[{ key: 'boardingPerDayProduct', label: 'Per Day' }]}
+      />
     </div>
   );
 }
@@ -2687,6 +2700,27 @@ const VISIT_MAPPING_FIELDS: { key: keyof VisitMapping; label: string }[] = [
 ];
 
 function VisitsCard() {
+  return (
+    <ProductMappingCard
+      title="Visits"
+      description="Maps each visit count and day type to the product used for it."
+      fields={VISIT_MAPPING_FIELDS}
+    />
+  );
+}
+
+// Shared by Visits/Day Care/Boarding -- all three are just a different subset
+// of fields on the same VisitMapping singleton, each mapping a service option
+// to the catalog Product used for it.
+function ProductMappingCard({
+  title,
+  description,
+  fields,
+}: {
+  title: string;
+  description: string;
+  fields: { key: keyof VisitMapping; label: string }[];
+}) {
   const [products, setProducts] = useState<Product[]>([]);
   const [mapping, setMapping] = useState<VisitMapping | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -2699,10 +2733,11 @@ function VisitsCard() {
       .getVisitMapping()
       .then((m) => {
         setMapping(m);
-        setValues(Object.fromEntries(VISIT_MAPPING_FIELDS.map(({ key }) => [key, m[key] ?? ''])));
+        setValues(Object.fromEntries(fields.map(({ key }) => [key, m[key] ?? ''])));
       })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load visit mapping'));
+      .catch((err) => setError(err instanceof Error ? err.message : `Failed to load ${title.toLowerCase()}`));
   }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(refresh, []);
   useEffect(() => {
     api.listProducts().then(setProducts).catch(() => {});
@@ -2714,12 +2749,12 @@ function VisitsCard() {
     setError(null);
     setSaved(false);
     try {
-      const patch = Object.fromEntries(VISIT_MAPPING_FIELDS.map(({ key }) => [key, values[key] || null]));
+      const patch = Object.fromEntries(fields.map(({ key }) => [key, values[key] || null]));
       await api.updateVisitMapping(patch);
       setSaved(true);
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save visit mapping');
+      setError(err instanceof Error ? err.message : `Failed to save ${title.toLowerCase()}`);
     } finally {
       setSaving(false);
     }
@@ -2735,13 +2770,11 @@ function VisitsCard() {
 
   return (
     <div className="card">
-      <h2>Visits</h2>
-      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
-        Maps each visit count and day type to the product used for it.
-      </p>
+      <h2>{title}</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>{description}</p>
       {error && <div className="error-banner">{error}</div>}
       <form onSubmit={handleSubmit}>
-        {VISIT_MAPPING_FIELDS.map(({ key, label }) => (
+        {fields.map(({ key, label }) => (
           <div className="field" key={key}>
             <label>{label}</label>
             <select value={values[key] ?? ''} onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))}>

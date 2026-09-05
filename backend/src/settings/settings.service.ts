@@ -337,6 +337,9 @@ export class SettingsService {
       twoVisitWeekdayProduct: doc?.twoVisitWeekdayProduct?.toString() ?? null,
       twoVisitWeekendProduct: doc?.twoVisitWeekendProduct?.toString() ?? null,
       twoVisitBankHolidayProduct: doc?.twoVisitBankHolidayProduct?.toString() ?? null,
+      dayCareHalfDayProduct: doc?.dayCareHalfDayProduct?.toString() ?? null,
+      dayCareFullDayProduct: doc?.dayCareFullDayProduct?.toString() ?? null,
+      boardingPerDayProduct: doc?.boardingPerDayProduct?.toString() ?? null,
     };
   }
 
@@ -348,6 +351,9 @@ export class SettingsService {
     if (dto.twoVisitWeekdayProduct !== undefined) update.twoVisitWeekdayProduct = dto.twoVisitWeekdayProduct;
     if (dto.twoVisitWeekendProduct !== undefined) update.twoVisitWeekendProduct = dto.twoVisitWeekendProduct;
     if (dto.twoVisitBankHolidayProduct !== undefined) update.twoVisitBankHolidayProduct = dto.twoVisitBankHolidayProduct;
+    if (dto.dayCareHalfDayProduct !== undefined) update.dayCareHalfDayProduct = dto.dayCareHalfDayProduct;
+    if (dto.dayCareFullDayProduct !== undefined) update.dayCareFullDayProduct = dto.dayCareFullDayProduct;
+    if (dto.boardingPerDayProduct !== undefined) update.boardingPerDayProduct = dto.boardingPerDayProduct;
     await this.visitMappingModel.findOneAndUpdate({}, update, { upsert: true }).exec();
     return this.getVisitMapping();
   }

@@ -25,6 +25,17 @@ export class VisitMapping extends Document {
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
   twoVisitBankHolidayProduct?: Types.ObjectId;
+
+  // Settings > Bookings > Day Care / Boarding cards -- same singleton,
+  // separate service types from Visits' per-day-type mapping above.
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  dayCareHalfDayProduct?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  dayCareFullDayProduct?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  boardingPerDayProduct?: Types.ObjectId;
 }
 
 export const VisitMappingSchema = SchemaFactory.createForClass(VisitMapping);

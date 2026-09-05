@@ -464,6 +464,9 @@ export interface VisitMapping {
   twoVisitWeekdayProduct: string | null;
   twoVisitWeekendProduct: string | null;
   twoVisitBankHolidayProduct: string | null;
+  dayCareHalfDayProduct: string | null;
+  dayCareFullDayProduct: string | null;
+  boardingPerDayProduct: string | null;
 }
 
 export interface BusinessInfo {

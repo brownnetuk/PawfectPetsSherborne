@@ -33,4 +33,19 @@ export class UpdateVisitMappingDto {
   @ValidateIf((_, v) => v !== null)
   @IsMongoId()
   twoVisitBankHolidayProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  dayCareHalfDayProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  dayCareFullDayProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  boardingPerDayProduct?: string | null;
 }
