@@ -57,6 +57,16 @@ function ConversationsTab() {
     return () => clearInterval(t);
   }, []);
 
+  // Open straight into the most recent conversation instead of the empty
+  // "select a conversation" placeholder -- only while nothing's selected yet,
+  // so this doesn't fight a staff member's own pick on every 10s poll.
+  useEffect(() => {
+    if (!active && conversations.length > 0) {
+      const first = conversations[0];
+      setActive({ customerId: first.customerId, name: first.name, email: first.email });
+    }
+  }, [conversations, active]);
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
@@ -65,7 +75,7 @@ function ConversationsTab() {
         </button>
       </div>
       {error && <div className="error-banner">{error}</div>}
-      <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', minHeight: 480 }}>
+      <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', height: 600 }}>
         <div className="card" style={{ width: 320, flexShrink: 0, padding: 0, overflow: 'hidden' }}>
           <ConversationList
             conversations={conversations}
