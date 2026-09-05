@@ -4,12 +4,13 @@ import * as api from '../api/client';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import RegistrationLinkModal from '../components/RegistrationLinkModal';
+import SortableTh from '../components/SortableTh';
 import type { Animal, Customer } from '../types';
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
 
 type Tab = 'active' | 'inactive';
-type SortDirection = 'asc' | 'desc';
+type SortKey = 'name' | 'email' | 'phoneNumber' | 'status' | 'createdAt';
 
 export default function CustomersPage() {
   const navigate = useNavigate();
@@ -17,9 +18,19 @@ export default function CustomersPage() {
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [tab, setTab] = useState<Tab>('active');
   const [showNewModal, setShowNewModal] = useState(false);
+
+  function toggleSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
 
   function refresh() {
     api
@@ -41,7 +52,12 @@ export default function CustomersPage() {
       if (c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)) return true;
       return animals.some((a) => a.customer === c._id && a.name.toLowerCase().includes(q));
     })
-    .sort((a, b) => (sortDirection === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)));
+    .sort((a, b) => {
+      const av = (a[sortKey] ?? '').toString().toLowerCase();
+      const bv = (b[sortKey] ?? '').toString().toLowerCase();
+      const cmp = av.localeCompare(bv);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
 
   return (
     <div>
@@ -54,23 +70,13 @@ export default function CustomersPage() {
 
       {error && <div className="error-banner">{error}</div>}
 
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div className="field" style={{ flex: '1 1 600px', maxWidth: 640, marginBottom: 0 }}>
-          <input
-            type="text"
-            placeholder="Search by name, email, or pet…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <select
-          className="select-inline"
-          value={sortDirection}
-          onChange={(e) => setSortDirection(e.target.value as SortDirection)}
-        >
-          <option value="asc">Sort: A-Z</option>
-          <option value="desc">Sort: Z-A</option>
-        </select>
+      <div className="field" style={{ maxWidth: 640, marginBottom: 0 }}>
+        <input
+          type="text"
+          placeholder="Search by name, email, or pet…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
       <div className="tabs">
@@ -91,11 +97,11 @@ export default function CustomersPage() {
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Phone number</th>
-                <th>Status</th>
-                <th>Created</th>
+                <SortableTh label="Name" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Email" sortKey="email" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Phone number" sortKey="phoneNumber" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Created" sortKey="createdAt" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
               </tr>
             </thead>
             <tbody>

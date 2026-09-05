@@ -12,7 +12,8 @@ import PdfTemplateDesigner from '../components/PdfTemplateDesigner';
 import RichTextEditor from '../components/RichTextEditor';
 import type { RichTextEditorHandle } from '../components/RichTextEditor';
 import ViewBankAccountModal from '../components/ViewBankAccountModal';
-import { PencilIcon, SortIcon, TrashIcon } from '../components/icons';
+import { PencilIcon, TrashIcon } from '../components/icons';
+import SortableTh from '../components/SortableTh';
 import { bankAccountTypeLabel } from '../utils/bankAccountType';
 import { buildItemsTableHtml, escapeHtml, interpolateBody, interpolateSubject } from '../utils/emailTemplate';
 import { PERMISSION_CATALOG } from '../utils/permissionCatalog';
@@ -3278,27 +3279,6 @@ function EditInvoiceTermModal({
         </div>
       </form>
     </Modal>
-  );
-}
-
-function SortableTh<K extends string>({
-  label,
-  sortKey,
-  activeKey,
-  dir,
-  onSort,
-}: {
-  label: string;
-  sortKey: K;
-  activeKey: K;
-  dir: 'asc' | 'desc';
-  onSort: (key: K) => void;
-}) {
-  return (
-    <th onClick={() => onSort(sortKey)} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
-      {label}
-      <SortIcon direction={activeKey === sortKey ? dir : null} />
-    </th>
   );
 }
 
