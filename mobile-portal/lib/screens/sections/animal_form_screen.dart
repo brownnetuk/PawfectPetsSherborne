@@ -176,25 +176,67 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
     return !(widget.isEdit && wasOffLead);
   }
 
-  String? _validate() {
-    if (_name.text.trim().isEmpty) return 'Enter your pet\'s name.';
-    if (_breed.text.trim().isEmpty) return 'Enter the breed.';
+  // Every unmet requirement, phrased as a "please do X" line, so the submit
+  // modal can list them all at once rather than surfacing one at a time.
+  List<String> _validationIssues() {
+    final issues = <String>[];
+    if (_name.text.trim().isEmpty) issues.add('Enter your pet\'s name.');
+    if (_breed.text.trim().isEmpty) issues.add('Enter the breed.');
     final age = int.tryParse(_age.text.trim());
-    if (age == null || age < 0) return 'Enter a valid age (whole number).';
+    if (age == null || age < 0) issues.add('Enter a valid age (a whole number of years).');
     if (_vaccinated && (_vaccineExpiry == null || _vaccineExpiry!.isEmpty)) {
-      return 'Enter the vaccine expiry date.';
+      issues.add('Enter the vaccine expiry date.');
     }
     if (_allergyStatus != 'no' && _allergyDetails.text.trim().isEmpty) {
-      return 'Add allergy details.';
+      issues.add('Add allergy details.');
     }
     if (_onMedication) {
-      if (_meds.isEmpty) return 'Add at least one medication, or turn off "On medication".';
-      if (_meds.any((m) => m.name.text.trim().isEmpty)) return 'Every medication needs a name.';
+      if (_meds.isEmpty) {
+        issues.add('Add at least one medication, or turn off "On medication".');
+      } else if (_meds.any((m) => m.name.text.trim().isEmpty)) {
+        issues.add('Give every medication a name.');
+      }
     }
     if (_isDog && _offLeadMode == 'off_lead' && _sig.isEmpty && _needsNewSignature) {
-      return 'Please sign to consent to off-lead walking.';
+      issues.add('Sign to consent to off-lead walking.');
     }
-    return null;
+    return issues;
+  }
+
+  Future<void> _showValidationDialog(List<String> issues) {
+    return showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Some details are missing'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Please complete the following before saving:'),
+              const SizedBox(height: 12),
+              for (final issue in issues)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('•  '),
+                      Expanded(child: Text(issue)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<Map<String, dynamic>> _buildBody() async {
@@ -259,9 +301,10 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
   }
 
   Future<void> _save() async {
-    final err = _validate();
-    if (err != null) {
-      setState(() => _error = err);
+    final issues = _validationIssues();
+    if (issues.isNotEmpty) {
+      setState(() => _error = null);
+      await _showValidationDialog(issues);
       return;
     }
     setState(() {
