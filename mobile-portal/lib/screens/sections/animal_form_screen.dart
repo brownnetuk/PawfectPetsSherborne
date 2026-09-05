@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:signature/signature.dart';
@@ -75,6 +76,9 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
   String _sex = 'male';
   bool _vaccinated = false;
   String? _vaccineExpiry; // yyyy-MM-dd
+  String? _vaccineRecordPhoto; // base64 data URI to send
+  Uint8List? _vaccinationCardBytes; // decoded for on-screen preview
+  final _picker = ImagePicker();
   String _neutered = ''; // '', neutered, spayed, no
   bool _insured = false;
   bool _aggPeople = false;
@@ -113,6 +117,10 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
       _sex = a.sex;
       _vaccinated = a.vaccinated;
       _vaccineExpiry = a.vaccineExpiryDate;
+      if ((a.vaccineRecordPhoto ?? '').isNotEmpty) {
+        _vaccineRecordPhoto = a.vaccineRecordPhoto;
+        _vaccinationCardBytes = _decodeDataUri(a.vaccineRecordPhoto!);
+      }
       _neutered = a.neuteredStatus ?? '';
       _insured = a.insured;
       _insurer.text = a.insurer ?? '';
@@ -165,6 +173,45 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
     if (picked != null) {
       setState(() => _vaccineExpiry = DateFormat('yyyy-MM-dd').format(picked));
     }
+  }
+
+  Future<void> _pickVaccinationCard() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from library'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    final file = await _picker.pickImage(source: source, maxWidth: 1600, imageQuality: 80);
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _vaccinationCardBytes = bytes;
+      _vaccineRecordPhoto = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+    });
+  }
+
+  void _removeVaccinationCard() {
+    setState(() {
+      _vaccinationCardBytes = null;
+      _vaccineRecordPhoto = null;
+    });
   }
 
   // Whether an off-lead signature must be captured now (new pet, or switching
@@ -259,6 +306,12 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
       },
     };
     if (_vaccinated && _vaccineExpiry != null) body['vaccineExpiryDate'] = _vaccineExpiry;
+    if (_vaccineRecordPhoto != null && _vaccineRecordPhoto!.isNotEmpty) {
+      body['vaccineRecordPhoto'] = _vaccineRecordPhoto;
+    } else if (widget.isEdit) {
+      // Persist a removal when editing (omit on create -- there's nothing to clear).
+      body['vaccineRecordPhoto'] = '';
+    }
     if (_colour.text.trim().isNotEmpty) body['colourMarkings'] = _colour.text.trim();
     if (_microchip.text.trim().isNotEmpty) body['microchipNumber'] = _microchip.text.trim();
     if (_insured && _insurer.text.trim().isNotEmpty) body['insurer'] = _insurer.text.trim();
@@ -352,7 +405,7 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
           value: _vaccinated,
           onChanged: (v) => setState(() => _vaccinated = v),
         ),
-        if (_vaccinated)
+        if (_vaccinated) ...[
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Vaccine expiry'),
@@ -360,6 +413,8 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
             trailing: const Icon(Icons.calendar_today, size: 18),
             onTap: _pickExpiry,
           ),
+          _vaccinationCardField(),
+        ],
         _dropdown('Neutered / spayed', _neutered, const {
           '': 'Not specified',
           'neutered': 'Neutered',
@@ -546,6 +601,53 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
     ];
   }
 
+  Widget _vaccinationCardField() {
+    final bytes = _vaccinationCardBytes;
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Vaccination card', style: TextStyle(fontWeight: FontWeight.w600)),
+          const Text(
+            'A photo of your pet\'s vaccination card or record (optional).',
+            style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+          ),
+          const SizedBox(height: 8),
+          if (bytes != null)
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.memory(bytes, height: 180, width: double.infinity, fit: BoxFit.cover),
+                ),
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Material(
+                    color: Colors.black54,
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white, size: 18),
+                      onPressed: _removeVaccinationCard,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _pickVaccinationCard,
+              icon: Icon(bytes != null ? Icons.edit_outlined : Icons.add_a_photo_outlined),
+              label: Text(bytes != null ? 'Replace photo' : 'Add photo'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _numberField(String label, TextEditingController c) => Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: TextField(
@@ -567,5 +669,16 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
         onChanged: (v) => onChanged(v ?? value),
       ),
     );
+  }
+}
+
+/// Decodes a base64 data URI (or bare base64) to bytes for on-screen preview.
+Uint8List? _decodeDataUri(String s) {
+  final comma = s.indexOf(',');
+  final b64 = comma >= 0 ? s.substring(comma + 1) : s;
+  try {
+    return base64Decode(b64);
+  } catch (_) {
+    return null;
   }
 }

@@ -199,6 +199,7 @@ class Animal {
   final int age;
   final bool vaccinated;
   final String? vaccineExpiryDate; // ISO date (yyyy-MM-dd)
+  final String? vaccineRecordPhoto; // base64 data URI, optional
   final String? colourMarkings;
   final String? microchipNumber;
   final bool insured;
@@ -227,6 +228,7 @@ class Animal {
     required this.age,
     required this.vaccinated,
     this.vaccineExpiryDate,
+    this.vaccineRecordPhoto,
     this.colourMarkings,
     this.microchipNumber,
     this.insured = false,
@@ -261,6 +263,7 @@ class Animal {
       age: (j['age'] as num?)?.toInt() ?? 0,
       vaccinated: j['vaccinated'] as bool? ?? false,
       vaccineExpiryDate: j['vaccineExpiryDate'] == null ? null : isoDate(j['vaccineExpiryDate']),
+      vaccineRecordPhoto: j['vaccineRecordPhoto'] as String?,
       colourMarkings: j['colourMarkings'] as String?,
       microchipNumber: j['microchipNumber'] as String?,
       insured: j['insured'] as bool? ?? false,

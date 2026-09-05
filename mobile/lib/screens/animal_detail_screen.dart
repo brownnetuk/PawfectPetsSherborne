@@ -133,6 +133,8 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen> {
           _row('Vaccinated', _yesNo(animal.vaccinated)),
           if (animal.vaccineExpiryDate != null)
             _row('Vaccine expiry', _dateFmt.format(animal.vaccineExpiryDate!)),
+          if ((animal.vaccineRecordPhoto ?? '').isNotEmpty)
+            _vaccinationCard(animal.vaccineRecordPhoto!),
           if (animal.neuteredStatus != null) _row('Neutered', _neutered(animal.neuteredStatus!)),
           if (animal.neuteredStatus == 'spayed' && animal.lastSeasonEndDate != null)
             _row('Last season ended', _dateFmt.format(animal.lastSeasonEndDate!)),
@@ -195,6 +197,34 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen> {
           ),
         ),
       );
+
+  /// The vaccination-card photo, shown under the vaccine rows. Tap to view
+  /// full-screen (its own viewer, so it doesn't clash with the top gallery's
+  /// Hero tags).
+  Widget _vaccinationCard(String dataUri) {
+    final bytes = _decodeDataUri(dataUri);
+    if (bytes == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Vaccination card', style: TextStyle(color: Colors.grey.shade600)),
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              fullscreenDialog: true,
+              builder: (_) => _SingleImageScreen(bytes: bytes),
+            )),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.memory(bytes, width: double.infinity, height: 200, fit: BoxFit.cover),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _section(String title) => Padding(
         padding: const EdgeInsets.only(top: 20, bottom: 8),
@@ -271,6 +301,34 @@ class _PhotoGalleryScreenState extends State<_PhotoGalleryScreen> {
               child: Image.memory(widget.photos[i], fit: BoxFit.contain),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Minimal full-screen, pinch-to-zoom viewer for a single image (the
+/// vaccination card). Separate from _PhotoGalleryScreen to avoid Hero-tag
+/// collisions with the pet-photo gallery on the detail screen.
+class _SingleImageScreen extends StatelessWidget {
+  final Uint8List bytes;
+  const _SingleImageScreen({required this.bytes});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: const Text('Vaccination card'),
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          minScale: 1,
+          maxScale: 5,
+          child: Image.memory(bytes, fit: BoxFit.contain),
         ),
       ),
     );

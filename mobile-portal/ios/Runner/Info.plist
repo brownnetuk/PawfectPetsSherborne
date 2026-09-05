@@ -12,6 +12,10 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Use Face ID to sign in with your saved login.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose a photo of your pet's vaccination card to attach to their record.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Take a photo of your pet's vaccination card to attach to their record.</string>
 	<key>CFBundleDisplayName</key>
 	<string>Pawfect Pets Customer</string>
 	<key>CFBundleExecutable</key>

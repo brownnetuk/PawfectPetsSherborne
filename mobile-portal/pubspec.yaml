@@ -2,7 +2,7 @@ name: pawfectpets_portal
 description: "Pawfect Pets Sherborne — customer portal app."
 publish_to: 'none'
 
-version: 1.0.0+15
+version: 1.0.0+17
 
 environment:
   sdk: ^3.13.1
@@ -22,6 +22,7 @@ dependencies:
   flutter_widget_from_html_core: ^0.16.0
   signature: ^5.5.0
   local_auth: ^3.0.2
+  image_picker: ^1.2.3
 
 dev_dependencies:
   flutter_test:

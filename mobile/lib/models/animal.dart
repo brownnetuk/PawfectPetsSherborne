@@ -10,6 +10,7 @@ class Animal {
   final DateTime? dateOfBirth;
   final bool vaccinated;
   final DateTime? vaccineExpiryDate;
+  final String? vaccineRecordPhoto;
   final List<String> photos;
   final String? colourMarkings;
   final String? microchipNumber;
@@ -39,6 +40,7 @@ class Animal {
     this.dateOfBirth,
     required this.vaccinated,
     this.vaccineExpiryDate,
+    this.vaccineRecordPhoto,
     this.photos = const [],
     this.colourMarkings,
     this.microchipNumber,
@@ -69,6 +71,7 @@ class Animal {
         dateOfBirth: _tryDate(json['dateOfBirth']),
         vaccinated: json['vaccinated'] as bool? ?? false,
         vaccineExpiryDate: _tryDate(json['vaccineExpiryDate']),
+        vaccineRecordPhoto: json['vaccineRecordPhoto'] as String?,
         photos: (json['photos'] as List<dynamic>? ?? []).whereType<String>().toList(),
         colourMarkings: json['colourMarkings'] as String?,
         microchipNumber: json['microchipNumber'] as String?,
