@@ -7,7 +7,7 @@ const TOKEN_KEY = 'pawfectpets_admin_token';
 interface AuthContextValue {
   staff: Staff | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => void;
 }
 
@@ -40,8 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  async function login(username: string, password: string) {
-    const { accessToken, staff } = await api.login(username, password);
+  async function login(username: string, password: string, rememberMe = false) {
+    const { accessToken, staff } = await api.login(username, password, rememberMe);
     localStorage.setItem(TOKEN_KEY, accessToken);
     api.setAuthToken(accessToken);
     setStaff(staff);

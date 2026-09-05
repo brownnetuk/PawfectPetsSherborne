@@ -19,6 +19,11 @@ export class PushMessageRecipient {
 
   @Prop()
   reason?: string;
+
+  // Set when the customer taps "Acknowledge" in the app (only relevant when the
+  // parent message has acknowledgementRequired).
+  @Prop()
+  acknowledgedAt?: Date;
 }
 export const PushMessageRecipientSchema = SchemaFactory.createForClass(PushMessageRecipient);
 
@@ -35,6 +40,11 @@ export class PushMessage extends Document {
 
   @Prop({ type: [PushMessageRecipientSchema], required: true })
   recipients: PushMessageRecipient[];
+
+  // When true, the customer app shows an "Acknowledge" button and staff see an
+  // Acknowledged column against each recipient.
+  @Prop({ default: false })
+  acknowledgementRequired: boolean;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Staff.name })
   sentBy?: Types.ObjectId;

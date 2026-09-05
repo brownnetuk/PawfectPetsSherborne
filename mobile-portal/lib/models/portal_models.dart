@@ -285,6 +285,40 @@ class Animal {
   }
 }
 
+/// A bell-feed notification (GET /portal/notifications) — a persisted copy of a
+/// push sent to this customer.
+class PortalNotification {
+  final String id;
+  final String title;
+  final String body;
+  final String? type; // invoiceReceived | ... | message | test
+  final String? reference;
+  final bool read;
+  final DateTime createdAt;
+
+  PortalNotification({
+    required this.id,
+    required this.title,
+    required this.body,
+    this.type,
+    this.reference,
+    required this.read,
+    required this.createdAt,
+  });
+
+  bool get isMessage => type == 'message';
+
+  factory PortalNotification.fromJson(Map<String, dynamic> j) => PortalNotification(
+        id: j['_id'] as String,
+        title: j['title'] as String? ?? '',
+        body: j['body'] as String? ?? '',
+        type: j['type'] as String?,
+        reference: j['reference'] as String?,
+        read: j['read'] as bool? ?? false,
+        createdAt: DateTime.parse(j['createdAt'] as String).toLocal(),
+      );
+}
+
 /// One message in the staff <-> customer thread (GET /portal/messages).
 class PortalMessage {
   final String id;

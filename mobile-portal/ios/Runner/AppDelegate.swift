@@ -9,6 +9,9 @@ import UserNotifications
   // ("start"). Set up defensively so nothing here can block app launch.
   private var pushChannel: FlutterMethodChannel?
   private var pendingToken: String?
+  // A notification tap that arrived before the Flutter channel was ready
+  // (e.g. a cold start from tapping a push) — flushed once the engine attaches.
+  private var pendingTap: [String: Any]?
 
   override func application(
     _ application: UIApplication,
@@ -40,6 +43,28 @@ import UserNotifications
       channel.invokeMethod("onToken", arguments: token)
       pendingToken = nil
     }
+    if let tap = pendingTap {
+      channel.invokeMethod("onNotificationTap", arguments: tap)
+      pendingTap = nil
+    }
+  }
+
+  // Extract our custom data keys (type/reference/title/body) from a
+  // notification's payload, dropping the reserved "aps" dictionary. Falls back
+  // to the aps alert's title/body so the in-app modal always has text, even for
+  // pushes that didn't duplicate them into the data payload.
+  private func tapPayload(from userInfo: [AnyHashable: Any]) -> [String: Any] {
+    var out: [String: Any] = [:]
+    for (key, value) in userInfo {
+      guard let k = key as? String, k != "aps" else { continue }
+      out[k] = value
+    }
+    if let aps = userInfo["aps"] as? [String: Any],
+       let alert = aps["alert"] as? [String: Any] {
+      if out["title"] == nil, let title = alert["title"] { out["title"] = title }
+      if out["body"] == nil, let body = alert["body"] { out["body"] = body }
+    }
+    return out
   }
 
   private func requestAndRegister() {
@@ -70,12 +95,34 @@ import UserNotifications
     NSLog("APNs registration failed: \(error.localizedDescription)")
   }
 
-  // Show reminders as a banner even when the app is in the foreground.
+  // Show reminders as a banner even when the app is in the foreground, and
+  // forward the payload so Dart can add it to the in-app notifications list.
   override func userNotificationCenter(
     _ center: UNUserNotificationCenter,
     willPresent notification: UNNotification,
     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
   ) {
+    let payload = tapPayload(from: notification.request.content.userInfo)
+    if let channel = pushChannel {
+      channel.invokeMethod("onNotificationReceived", arguments: payload)
+    }
     completionHandler([.banner, .sound])
+  }
+
+  // The user tapped a notification (foreground banner or from the lock/home
+  // screen, including a cold start) — forward its payload to Dart so the app
+  // can route to Messages or show it in a modal.
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse,
+    withCompletionHandler completionHandler: @escaping () -> Void
+  ) {
+    let payload = tapPayload(from: response.notification.request.content.userInfo)
+    if let channel = pushChannel {
+      channel.invokeMethod("onNotificationTap", arguments: payload)
+    } else {
+      pendingTap = payload
+    }
+    completionHandler()
   }
 }

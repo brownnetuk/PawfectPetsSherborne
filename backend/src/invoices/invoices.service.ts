@@ -105,18 +105,8 @@ export class InvoicesService {
       undefined,
       created._id,
     );
-    // Push the owning customer's portal app about the new invoice. Done here
-    // (not just the controller) so every creation path is covered -- the
-    // Generate Invoices flow and quote acceptance also call create(). No-op
-    // unless the customer has the app and the customer APNs topic is set.
-    if (created.customer) {
-      await this.notificationService.notifyCustomerDocument(
-        String(created.customer),
-        'invoice',
-        created.invoiceNumber,
-        'new',
-      );
-    }
+    // No customer push on create: new invoices start as DRAFT. The customer is
+    // notified only once the invoice becomes SENT (see update()).
     return created;
   }
 
@@ -130,12 +120,25 @@ export class InvoicesService {
   @Cron(CronExpression.EVERY_HOUR)
   private async markOverdue(): Promise<void> {
     const filter = { status: InvoiceStatus.SENT, dueDate: { $lt: new Date() } };
-    // Count what's about to flip so we only push when something actually goes
-    // overdue (this also runs on every list fetch, and re-runs find nothing).
-    const flipping = await this.invoiceModel.countDocuments(filter).exec();
-    if (flipping === 0) return;
+    // Fetch the ones about to flip so we can push each owning customer (and
+    // only notify staff when something actually goes overdue — this also runs
+    // on every list fetch and usually finds nothing).
+    const flipping = await this.invoiceModel
+      .find(filter)
+      .select('customer invoiceNumber')
+      .exec();
+    if (flipping.length === 0) return;
     await this.invoiceModel.updateMany(filter, { status: InvoiceStatus.OVERDUE }).exec();
-    await this.notificationService.notifyInvoicesOverdue(flipping);
+    await this.notificationService.notifyInvoicesOverdue(flipping.length);
+    for (const inv of flipping) {
+      if (inv.customer) {
+        await this.notificationService.notifyCustomerInvoiceStatus(
+          String(inv.customer),
+          inv.invoiceNumber,
+          'overdue',
+        );
+      }
+    }
   }
 
   async findAll(customerId?: string): Promise<Invoice[]> {
@@ -177,6 +180,9 @@ export class InvoicesService {
     dto: UpdateInvoiceDto,
     actor = 'System',
   ): Promise<Invoice> {
+    // Prior status, to decide whether to notify the customer (see below).
+    const prior = await this.invoiceModel.findById(id).select('status').exec();
+    const wasSent = prior?.status === InvoiceStatus.SENT;
     const update: Record<string, unknown> = { ...dto };
     if (dto.lineItems) {
       update.lineItems = dto.lineItems;
@@ -219,6 +225,32 @@ export class InvoicesService {
         undefined,
         id,
       );
+    }
+    // Customer push (never for drafts):
+    //  - becoming sent (e.g. draft -> sent on Send) -> "New invoice"
+    //  - an edit to an already-sent invoice -> "Invoice updated"
+    //  - a sent invoice moving to paid / overdue / cancelled -> a status push
+    if (customerId) {
+      const cid = String(customerId);
+      if (invoice.status === InvoiceStatus.SENT) {
+        await this.notificationService.notifyCustomerDocument(
+          cid,
+          'invoice',
+          invoice.invoiceNumber,
+          wasSent ? 'updated' : 'new',
+        );
+      } else if (
+        wasSent &&
+        (invoice.status === InvoiceStatus.PAID ||
+          invoice.status === InvoiceStatus.OVERDUE ||
+          invoice.status === InvoiceStatus.CANCELLED)
+      ) {
+        await this.notificationService.notifyCustomerInvoiceStatus(
+          cid,
+          invoice.invoiceNumber,
+          invoice.status,
+        );
+      }
     }
     return invoice;
   }
@@ -426,6 +458,7 @@ export class InvoicesService {
     }
     const amountPaid = (invoice.amountPaid ?? 0) + amount;
     const update: Record<string, unknown> = { amountPaid };
+    const justPaid = invoice.status !== InvoiceStatus.PAID && amountPaid >= invoice.total;
     if (amountPaid >= invoice.total) {
       update.status = InvoiceStatus.PAID;
       update.paidAt = new Date();
@@ -434,6 +467,16 @@ export class InvoicesService {
       .findByIdAndUpdate(id, update, { new: true })
       .populate('customer', 'name email address phoneNumber')
       .exec();
+    if (justPaid && updated) {
+      const cid = (updated.customer as unknown as { _id?: unknown })?._id ?? updated.customer;
+      if (cid) {
+        await this.notificationService.notifyCustomerInvoiceStatus(
+          String(cid),
+          updated.invoiceNumber,
+          'paid',
+        );
+      }
+    }
     return updated!;
   }
 

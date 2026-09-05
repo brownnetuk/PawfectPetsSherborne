@@ -579,10 +579,12 @@ export type EmailTrigger =
   | 'form'
   | 'deposit_request'
   | 'portal_login_code'
-  | 'portal_password_reset';
+  | 'portal_password_reset'
+  | 'portal_enabled';
 
 export interface EmailTemplate {
   trigger: EmailTrigger;
+  label?: string;
   name: string;
   subject: string;
   body: string;
@@ -615,6 +617,7 @@ export interface PushMessageRecipient {
   customer: { _id: string; name: string; email: string } | string;
   status: 'received' | 'not_received';
   reason?: string;
+  acknowledgedAt?: string;
 }
 
 export interface PushMessage {
@@ -622,6 +625,7 @@ export interface PushMessage {
   title: string;
   body: string;
   recipients: PushMessageRecipient[];
+  acknowledgementRequired?: boolean;
   sentBy?: { _id: string; name: string } | string;
   createdAt: string;
 }
@@ -699,6 +703,7 @@ export interface FormRecord {
   _id: string;
   name: string;
   description?: string;
+  customerVisible?: boolean;
   fields: FormField[];
   createdAt: string;
 }

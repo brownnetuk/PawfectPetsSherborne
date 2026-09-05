@@ -5,6 +5,7 @@ import { Model } from 'mongoose';
 import { Appointment } from '../appointments/schemas/appointment.schema';
 import { DayBooking } from '../day-bookings/schemas/day-booking.schema';
 import { PushService } from '../push/push.service';
+import { CustomerNotificationsService } from '../customer-notifications/customer-notifications.service';
 import { NotificationSettingsService } from './notification-settings.service';
 import { NotificationItem } from './schemas/notification-item.schema';
 
@@ -17,6 +18,7 @@ export class NotificationService {
   constructor(
     private readonly push: PushService,
     private readonly settings: NotificationSettingsService,
+    private readonly customerNotifications: CustomerNotificationsService,
     @InjectModel(DayBooking.name) private readonly dayBookingModel: Model<DayBooking>,
     @InjectModel(Appointment.name) private readonly appointmentModel: Model<Appointment>,
     @InjectModel(NotificationItem.name) private readonly itemModel: Model<NotificationItem>,
@@ -88,10 +90,35 @@ export class NotificationService {
       event === 'new'
         ? `You've received ${noun} ${reference}.`
         : `Your ${noun} ${reference} has been updated.`;
-    await this.push.sendToCustomer(customerId, title, body, {
-      type: `${kind}${event === 'new' ? 'Received' : 'Updated'}`,
+    // Persist to the customer app's bell feed and push in one step.
+    await this.customerNotifications.record(
+      customerId,
+      title,
+      body,
+      `${kind}${event === 'new' ? 'Received' : 'Updated'}`,
       reference,
-    });
+    );
+  }
+
+  // Pushes a customer when one of their (already-sent) invoices changes status.
+  async notifyCustomerInvoiceStatus(
+    customerId: string,
+    invoiceNumber: string,
+    status: 'paid' | 'overdue' | 'cancelled',
+  ): Promise<void> {
+    const map = {
+      paid: { title: 'Invoice paid', body: `Invoice ${invoiceNumber} is now marked as paid. Thank you!` },
+      overdue: { title: 'Invoice overdue', body: `Invoice ${invoiceNumber} is now overdue.` },
+      cancelled: { title: 'Invoice cancelled', body: `Invoice ${invoiceNumber} has been cancelled.` },
+    } as const;
+    const m = map[status];
+    await this.customerNotifications.record(
+      customerId,
+      m.title,
+      m.body,
+      `invoice${status[0].toUpperCase()}${status.slice(1)}`,
+      invoiceNumber,
+    );
   }
 
   private pad(n: number): string {

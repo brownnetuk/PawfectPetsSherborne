@@ -66,8 +66,11 @@ export class CreateQuoteDto {
   @IsDateString()
   issueDate: string;
 
+  // Ignored on create — quotes are always valid for 7 days from the issue date
+  // (set in QuotesService.create). Optional so clients needn't send it.
+  @IsOptional()
   @IsDateString()
-  validUntil: string;
+  validUntil?: string;
 
   @IsOptional()
   @IsString()

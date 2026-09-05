@@ -89,8 +89,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 // --- auth ---
-export function login(username: string, password: string): Promise<{ accessToken: string; staff: Staff }> {
-  return request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) });
+export function login(
+  username: string,
+  password: string,
+  rememberMe = false,
+): Promise<{ accessToken: string; staff: Staff }> {
+  return request('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password, rememberMe }),
+  });
 }
 export function me(): Promise<Staff> {
   return request('/auth/me');
@@ -218,6 +225,7 @@ export interface SendPushMessageInput {
   title: string;
   body: string;
   customerIds: string[];
+  acknowledgementRequired?: boolean;
 }
 export function sendPushMessage(input: SendPushMessageInput): Promise<PushMessage> {
   return request('/push-messages', { method: 'POST', body: JSON.stringify(input) });
@@ -772,7 +780,7 @@ export function listEmailTemplates(): Promise<EmailTemplate[]> {
 }
 export function saveEmailTemplate(
   trigger: EmailTrigger,
-  patch: { name: string; subject: string; body: string },
+  patch: { name: string; subject: string; body: string; label?: string },
 ): Promise<EmailTemplate> {
   return request(`/settings/email-templates/${trigger}`, { method: 'PUT', body: JSON.stringify(patch) });
 }
@@ -797,6 +805,9 @@ export function createForm(input: FormInput): Promise<FormRecord> {
 }
 export function updateForm(id: string, input: FormInput): Promise<FormRecord> {
   return request(`/forms/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function setFormVisible(id: string, customerVisible: boolean): Promise<FormRecord> {
+  return request(`/forms/${id}`, { method: 'PATCH', body: JSON.stringify({ customerVisible }) });
 }
 export function deleteForm(id: string): Promise<void> {
   return request(`/forms/${id}`, { method: 'DELETE' });

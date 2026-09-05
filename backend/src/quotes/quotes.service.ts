@@ -90,8 +90,12 @@ export class QuotesService {
     }
     const totals = this.calculateTotals(dto.lineItems);
     const quoteNumber = await this.nextQuoteNumber();
+    // Quotes are always valid for 7 days from the issue date.
+    const validUntil = new Date(dto.issueDate);
+    validUntil.setDate(validUntil.getDate() + 7);
     const created = await new this.quoteModel({
       ...dto,
+      validUntil,
       quoteNumber,
       ...totals,
       status: QuoteStatus.DRAFT,

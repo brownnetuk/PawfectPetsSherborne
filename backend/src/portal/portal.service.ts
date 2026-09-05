@@ -22,6 +22,8 @@ import { DayBooking } from '../day-bookings/schemas/day-booking.schema';
 import { NotificationService } from '../notifications/notification.service';
 import { PushService } from '../push/push.service';
 import { MessagesService } from '../messages/messages.service';
+import { CustomerNotificationsService } from '../customer-notifications/customer-notifications.service';
+import { PushMessagesService } from '../push-messages/push-messages.service';
 import { SettingsService } from '../settings/settings.service';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { portalJwtSecret, PORTAL_TOKEN_TTL } from './portal-jwt.util';
@@ -47,7 +49,28 @@ export class PortalService {
     private readonly notifications: NotificationService,
     private readonly push: PushService,
     private readonly messages: MessagesService,
+    private readonly customerNotifications: CustomerNotificationsService,
+    private readonly pushMessages: PushMessagesService,
   ) {}
+
+  // A broadcast push-message the customer is acknowledging from the app.
+  acknowledgePushMessage(customerId: string, pushMessageId: string) {
+    return this.pushMessages.acknowledge(pushMessageId, customerId);
+  }
+
+  // --- notifications (the customer app's bell feed) ---
+
+  listNotifications(customerId: string) {
+    return this.customerNotifications.list(customerId);
+  }
+
+  async notificationsUnread(customerId: string) {
+    return { count: await this.customerNotifications.unread(customerId) };
+  }
+
+  markNotificationsRead(customerId: string) {
+    return this.customerNotifications.markAllRead(customerId);
+  }
 
   // --- messages (customer side of the staff <-> customer thread) ---
 
@@ -146,11 +169,31 @@ export class PortalService {
   // Toggles a customer's portal access on/off. Turning it off also blocks
   // login (login checks portalActive).
   async setPortalActive(customerId: string, active: boolean) {
-    const customer = await this.customerModel
-      .findByIdAndUpdate(customerId, { portalActive: active }, { new: true })
-      .exec();
-    if (!customer) throw new NotFoundException(`Customer ${customerId} not found`);
-    return { portalActive: customer.portalActive ?? false };
+    const before = await this.customerModel.findById(customerId).exec();
+    if (!before) throw new NotFoundException(`Customer ${customerId} not found`);
+    const wasActive = before.portalActive ?? false;
+    before.portalActive = active;
+    await before.save();
+    // Disabling revokes access immediately: the portal guard re-checks
+    // portalActive on every request (so existing sessions 401 and the app logs
+    // out), and we drop their device tokens so no more pushes reach them.
+    if (!active && wasActive) {
+      await this.push.removeCustomerTokens(customerId);
+    }
+    // Email the customer the first time access is switched on (best-effort —
+    // a missing PORTAL_ENABLED template mustn't block the toggle).
+    if (active && !wasActive && before.email) {
+      try {
+        await this.settings.sendTemplatedEmail(
+          EmailTrigger.PORTAL_ENABLED,
+          before.email,
+          { customer_name: before.name ?? '' },
+        );
+      } catch (err) {
+        console.error(`Failed to send portal-enabled email to ${before.email}:`, err);
+      }
+    }
+    return { portalActive: active };
   }
 
   // Staff "Password reset" button: emails this customer a reset code.
@@ -179,9 +222,13 @@ export class PortalService {
     const customer = await this.customerModel.findById(customerId).exec();
     if (!customer) throw new NotFoundException(`Customer ${customerId} not found`);
     const text = (message ?? '').trim() || 'This is a test notification from Pawfect Pets.';
-    const result = await this.push.sendToCustomer(customerId, 'Pawfect Pets', text, {
-      type: 'test',
-    });
+    // Records to the customer's bell feed and pushes; returns the push summary.
+    const result = await this.customerNotifications.record(
+      customerId,
+      'Pawfect Pets',
+      text,
+      'test',
+    );
     return {
       ...result,
       // Surface whether the customer APNs topic is even configured, so a 0/0

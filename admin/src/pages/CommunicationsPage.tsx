@@ -516,6 +516,7 @@ function PushMessagesTab() {
                       <tr>
                         <th>Customer</th>
                         <th>Status</th>
+                        {s.acknowledgementRequired && <th>Acknowledged</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -536,6 +537,20 @@ function PushMessagesTab() {
                               <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}> — {r.reason}</span>
                             )}
                           </td>
+                          {s.acknowledgementRequired && (
+                            <td>
+                              {r.acknowledgedAt ? (
+                                <span
+                                  style={{ color: 'var(--brand-green)', fontWeight: 700 }}
+                                  title={`Acknowledged ${new Date(r.acknowledgedAt).toLocaleString('en-GB')}`}
+                                >
+                                  ✓
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--muted)' }}>—</span>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -576,15 +591,58 @@ function PushMessagesTab() {
   );
 }
 
+// A small curated set for quick insertion — no extra dependency needed.
+const PUSH_EMOJIS = [
+  '🐶', '🐱', '🐾', '🦴', '🐕', '🐈', '🐰', '🎾',
+  '☀️', '🌧️', '⛈️', '❄️', '🌬️', '🌡️', '📅', '🕐',
+  '🎉', '✅', '⚠️', '❗', '📢', '💚', '👍', '🙏',
+  '😊', '🚗', '🏠', '💊',
+];
+
 function SendPushModal({ onClose, onSent }: { onClose: () => void; onSent: () => void }) {
   const [customers, setCustomers] = useState<Customer[] | null>(null);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [ackRequired, setAckRequired] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<PushMessage | null>(null);
+  const [showEmoji, setShowEmoji] = useState(false);
+  // Which field an inserted emoji goes into (the last one focused).
+  const [activeField, setActiveField] = useState<'title' | 'body'>('title');
+  const titleRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+
+  function insertEmoji(emoji: string) {
+    if (activeField === 'body') {
+      const el = bodyRef.current;
+      const start = el?.selectionStart ?? body.length;
+      const end = el?.selectionEnd ?? body.length;
+      const next = body.slice(0, start) + emoji + body.slice(end);
+      setBody(next);
+      requestAnimationFrame(() => {
+        if (el) {
+          el.focus();
+          el.selectionStart = el.selectionEnd = start + emoji.length;
+        }
+      });
+    } else {
+      const el = titleRef.current;
+      const start = el?.selectionStart ?? title.length;
+      const end = el?.selectionEnd ?? title.length;
+      const next = title.slice(0, start) + emoji + title.slice(end);
+      setTitle(next);
+      requestAnimationFrame(() => {
+        if (el) {
+          el.focus();
+          el.selectionStart = el.selectionEnd = start + emoji.length;
+        }
+      });
+    }
+    setShowEmoji(false);
+  }
 
   useEffect(() => {
     api
@@ -634,6 +692,7 @@ function SendPushModal({ onClose, onSent }: { onClose: () => void; onSent: () =>
         title: title.trim(),
         body: body.trim(),
         customerIds: Array.from(selected),
+        acknowledgementRequired: ackRequired,
       });
       setResult(sent);
     } catch (err) {
@@ -670,11 +729,85 @@ function SendPushModal({ onClose, onSent }: { onClose: () => void; onSent: () =>
         {error && <div className="error-banner">{error}</div>}
         <div className="field">
           <label>Title</label>
-          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. We're closed Monday" required />
+          <div style={{ position: 'relative', display: 'flex', gap: 6, alignItems: 'center' }}>
+            <input
+              ref={titleRef}
+              type="text"
+              value={title}
+              onFocus={() => setActiveField('title')}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. We're closed Monday"
+              required
+              style={{ flex: 1 }}
+            />
+            <button
+              type="button"
+              className="icon-btn"
+              title="Insert emoji"
+              onClick={() => setShowEmoji((v) => !v)}
+              style={{ width: 'auto', padding: '4px 8px', fontSize: '1.1rem', flexShrink: 0 }}
+            >
+              🙂
+            </button>
+            {showEmoji && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  zIndex: 10,
+                  marginTop: 4,
+                  background: '#fff',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                  padding: 8,
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(8, 1fr)',
+                  gap: 2,
+                  width: 296,
+                }}
+              >
+                {PUSH_EMOJIS.map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    onClick={() => insertEmoji(e)}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      fontSize: '1.25rem',
+                      cursor: 'pointer',
+                      padding: 4,
+                      borderRadius: 6,
+                    }}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{ color: 'var(--muted)', fontSize: '0.78rem', marginTop: 4 }}>
+            Emoji insert into whichever field you last clicked (Title or Message).
+          </div>
+        </div>
+        <div className="field">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400, cursor: 'pointer' }}>
+            <input type="checkbox" checked={ackRequired} onChange={(e) => setAckRequired(e.target.checked)} style={{ width: 'auto' }} />
+            Acknowledgement required
+          </label>
         </div>
         <div className="field">
           <label>Message</label>
-          <textarea rows={3} value={body} onChange={(e) => setBody(e.target.value)} required />
+          <textarea
+            ref={bodyRef}
+            rows={3}
+            value={body}
+            onFocus={() => setActiveField('body')}
+            onChange={(e) => setBody(e.target.value)}
+            required
+          />
         </div>
         <div className="field">
           <label>

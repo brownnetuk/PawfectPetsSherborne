@@ -83,22 +83,6 @@ export default function Layout() {
             <EnquiriesIcon />
             Enquiries
           </NavLink>
-          <NavLink to="/customers" className={({ isActive }) => (isActive ? 'active' : '')}>
-            <CustomersIcon />
-            Customers
-          </NavLink>
-          <NavLink to="/bookings" className={({ isActive }) => (isActive ? 'active' : '')}>
-            <BookingsIcon />
-            Bookings
-          </NavLink>
-          <NavLink to="/invoices" className={({ isActive }) => (isActive ? 'active' : '')}>
-            <InvoicesIcon />
-            Invoices &amp; Quotes
-          </NavLink>
-          <NavLink to="/financial" className={({ isActive }) => (isActive ? 'active' : '')}>
-            <FinancialIcon />
-            Financial
-          </NavLink>
           <NavLink to="/communications" className={({ isActive }) => (isActive ? 'active' : '')}>
             <MessagesIcon />
             Communications
@@ -117,6 +101,22 @@ export default function Layout() {
                 {unreadMessages}
               </span>
             )}
+          </NavLink>
+          <NavLink to="/customers" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <CustomersIcon />
+            Customers
+          </NavLink>
+          <NavLink to="/bookings" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <BookingsIcon />
+            Bookings
+          </NavLink>
+          <NavLink to="/invoices" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <InvoicesIcon />
+            Invoices &amp; Quotes
+          </NavLink>
+          <NavLink to="/financial" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <FinancialIcon />
+            Financial
           </NavLink>
           <NavLink to="/reports" className={({ isActive }) => (isActive ? 'active' : '')}>
             <ReportsIcon />

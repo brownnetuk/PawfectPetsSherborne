@@ -1977,6 +1977,11 @@ export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: 
     label: 'Portal Password Reset',
     description: 'Sent when a customer app user (or staff via the Customer Portal card) requests a password reset — a 6-digit code.',
   },
+  {
+    value: 'portal_enabled',
+    label: 'Customer Portal Enabled',
+    description: 'Sent to a customer when staff switch on their Customer Portal access (Customer Defaults > Customer Portal).',
+  },
 ];
 
 // Every trigger is edited as raw HTML (RichTextEditor) and sent through as-is
@@ -1996,6 +2001,12 @@ function EmailTemplatesTab() {
   const [deleting, setDeleting] = useState<EmailTrigger | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Optional A–Z sort by the "Used for" label or the template Name column.
+  const [sort, setSort] = useState<{ col: 'usedFor' | 'name'; asc: boolean } | null>(null);
+
+  function toggleSort(col: 'usedFor' | 'name') {
+    setSort((s) => (s && s.col === col ? { col, asc: !s.asc } : { col, asc: true }));
+  }
 
   function refresh() {
     api.listEmailTemplates().then(setTemplates).catch((err) => setError(err.message));
@@ -2022,25 +2033,48 @@ function EmailTemplatesTab() {
 
   const byTrigger = new Map(templates.map((t) => [t.trigger, t]));
 
+  const rows = [...EMAIL_TRIGGERS];
+  if (sort) {
+    rows.sort((a, b) => {
+      const av = sort.col === 'usedFor' ? byTrigger.get(a.value)?.label ?? a.label : byTrigger.get(a.value)?.name ?? '';
+      const bv = sort.col === 'usedFor' ? byTrigger.get(b.value)?.label ?? b.label : byTrigger.get(b.value)?.name ?? '';
+      const cmp = av.toLowerCase().localeCompare(bv.toLowerCase());
+      return sort.asc ? cmp : -cmp;
+    });
+  }
+  const arrow = (col: 'usedFor' | 'name') => (sort?.col === col ? (sort.asc ? ' ▲' : ' ▼') : '');
+
   return (
     <div>
       <div className="card" style={{ padding: 0 }}>
         <table>
           <thead>
             <tr>
-              <th>Used for</th>
-              <th>Name</th>
+              <th
+                onClick={() => toggleSort('usedFor')}
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                title="Sort by Used for"
+              >
+                Used for{arrow('usedFor')}
+              </th>
+              <th
+                onClick={() => toggleSort('name')}
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                title="Sort by Name"
+              >
+                Name{arrow('name')}
+              </th>
               <th>Subject</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {EMAIL_TRIGGERS.map((trigger) => {
+            {rows.map((trigger) => {
               const template = byTrigger.get(trigger.value);
               return (
                 <tr key={trigger.value}>
                   <td>
-                    <div>{trigger.label}</div>
+                    <div>{template?.label ?? trigger.label}</div>
                     <div style={{ color: 'var(--muted)', fontSize: '0.78rem', marginTop: 2 }}>
                       {trigger.description}
                     </div>
@@ -2242,6 +2276,10 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
     { key: 'code', hint: 'the 6-digit reset code (valid for 48 hours)' },
     ...BUSINESS_PLACEHOLDERS,
   ],
+  portal_enabled: [
+    { key: 'customer_name', hint: "the customer's name" },
+    ...BUSINESS_PLACEHOLDERS,
+  ],
 };
 
 // Prefilled the first time staff "Set up" the Invoice/Quote template, so
@@ -2316,6 +2354,7 @@ function EditTemplateModal({
   onSaved: () => void;
 }) {
   const meta = EMAIL_TRIGGERS.find((t) => t.value === trigger)!;
+  const [label, setLabel] = useState(template?.label ?? meta.label);
   const [name, setName] = useState(template?.name ?? (isHtmlBodyTrigger(trigger) ? meta.label : ''));
   const [subject, setSubject] = useState(
     template?.subject ?? (isHtmlBodyTrigger(trigger) ? `Your ${trigger} from {{businessName}}` : ''),
@@ -2375,7 +2414,7 @@ function EditTemplateModal({
     setSubmitting(true);
     setError(null);
     try {
-      await api.saveEmailTemplate(trigger, { name, subject, body });
+      await api.saveEmailTemplate(trigger, { name, subject, body, label: label.trim() || undefined });
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save template');
@@ -2389,6 +2428,15 @@ function EditTemplateModal({
       <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: -6 }}>{meta.description}</p>
       {error && <div className="error-banner">{error}</div>}
       <form onSubmit={handleSubmit}>
+        <div className="field">
+          <label>Used for (title)</label>
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder={meta.label}
+          />
+        </div>
         <div className="field">
           <label>Template name</label>
           <input

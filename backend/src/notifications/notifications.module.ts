@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Appointment, AppointmentSchema } from '../appointments/schemas/appointment.schema';
 import { DayBooking, DayBookingSchema } from '../day-bookings/schemas/day-booking.schema';
 import { PushModule } from '../push/push.module';
+import { CustomerNotificationsModule } from '../customer-notifications/customer-notifications.module';
 import { NotificationFeedController } from './notification-feed.controller';
 import { NotificationSettingsController } from './notification-settings.controller';
 import { NotificationSettingsService } from './notification-settings.service';
@@ -13,6 +14,7 @@ import { NotificationSettings, NotificationSettingsSchema } from './schemas/noti
 @Module({
   imports: [
     PushModule,
+    CustomerNotificationsModule,
     MongooseModule.forFeature([
       { name: NotificationSettings.name, schema: NotificationSettingsSchema },
       { name: NotificationItem.name, schema: NotificationItemSchema },

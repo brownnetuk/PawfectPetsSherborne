@@ -12,5 +12,6 @@ import { PushMessage, PushMessageSchema } from './schemas/push-message.schema';
   ],
   controllers: [PushMessagesController],
   providers: [PushMessagesService],
+  exports: [PushMessagesService],
 })
 export class PushMessagesModule {}

@@ -43,6 +43,11 @@ function addDays(date: Date, days: number): Date {
   return d;
 }
 
+/** Quotes are always valid for 7 days from their issue date (enforced server-side). */
+function quoteValidUntil(issueDateStr: string): string {
+  return issueDateStr ? formatYmd(addDays(parseYmd(issueDateStr), 7)) : '';
+}
+
 /** Due date/valid-until date implied by a payment term, or null if the term doesn't set one. */
 function calculateDueDate(issueDateStr: string, term: InvoiceTerm | undefined): string | null {
   if (!issueDateStr || !term) return null;
@@ -407,7 +412,11 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
     existing ? existing.issueDate.slice(0, 10) : new Date().toISOString().slice(0, 10),
   );
   const [dateValue, setDateValue] = useState(
-    existing ? ('dueDate' in existing ? existing.dueDate : existing.validUntil).slice(0, 10) : '',
+    existing
+      ? ('dueDate' in existing ? existing.dueDate : existing.validUntil).slice(0, 10)
+      : kind === 'quote'
+        ? quoteValidUntil(new Date().toISOString().slice(0, 10))
+        : '',
   );
   const [subject, setSubject] = useState(existing?.subject ?? '');
   const [termId, setTermId] = useState('');
@@ -447,8 +456,11 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
         const defaultTerm = loaded.find((t) => t.isDefault);
         if (defaultTerm) {
           setTermId(defaultTerm._id);
-          const computed = calculateDueDate(issueDate, defaultTerm);
-          if (computed) setDateValue(computed);
+          // Quotes ignore payment terms for their date -- always +7 days.
+          if (kind === 'invoice') {
+            const computed = calculateDueDate(issueDate, defaultTerm);
+            if (computed) setDateValue(computed);
+          }
         }
       }
     }).catch(() => {});
@@ -492,6 +504,11 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
   }
   function handleIssueDateChange(value: string) {
     setIssueDate(value);
+    if (kind === 'quote') {
+      // Quotes are always valid for 7 days from the issue date.
+      setDateValue(quoteValidUntil(value));
+      return;
+    }
     const computed = calculateDueDate(value, terms.find((t) => t._id === termId));
     if (computed) setDateValue(computed);
   }
@@ -755,8 +772,15 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
               </select>
             </div>
             <div className="field">
-              <label>{dateLabel}</label>
-              <input type="date" value={dateValue} onChange={(e) => setDateValue(e.target.value)} required />
+              <label>{isInvoice ? dateLabel : `${dateLabel} (7 days)`}</label>
+              <input
+                type="date"
+                value={dateValue}
+                onChange={(e) => setDateValue(e.target.value)}
+                readOnly={!isInvoice}
+                disabled={!isInvoice}
+                required
+              />
             </div>
           </div>
           <div className="field">
