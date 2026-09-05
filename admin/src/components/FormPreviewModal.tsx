@@ -217,6 +217,14 @@ function PreviewField({
         </label>
       );
     case 'choice':
+      if (field.optionsSource === 'customerPets') {
+        return (
+          <div className="field">
+            {label}
+            <div className="empty-state">🐾 Will list whichever customer this is sent to's own pets</div>
+          </div>
+        );
+      }
       return (
         <div className="field">
           {label}
@@ -231,6 +239,14 @@ function PreviewField({
         </div>
       );
     case 'multichoice': {
+      if (field.optionsSource === 'customerPets') {
+        return (
+          <div className="field">
+            {label}
+            <div className="empty-state">🐾 Will list whichever customer this is sent to's own pets</div>
+          </div>
+        );
+      }
       const selected = Array.isArray(value) ? (value as string[]) : [];
       return (
         <div className="field">

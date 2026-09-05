@@ -5,6 +5,20 @@ import Modal from './Modal';
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
 
+// True if any field (including inside a repeatable group) uses a
+// {{placeholder}} in its label or sources its options from the customer's
+// own pets -- both only resolve once this submission is tied to a real
+// customer (see backend/src/forms/form-placeholders.util.ts), so it's worth
+// flagging when staff haven't picked one.
+function usesCustomerData(fields: FormRecord['fields']): boolean {
+  return fields.some((f) => {
+    if (/\{\{\w+\}\}/.test(f.label)) return true;
+    if ((f.type === 'choice' || f.type === 'multichoice') && f.optionsSource === 'customerPets') return true;
+    if (f.type === 'group') return usesCustomerData(f.fields);
+    return false;
+  });
+}
+
 interface Props {
   form: FormRecord;
   /** Pre-fills the recipient when sent from a customer's own "Forms" tab. */
@@ -136,6 +150,12 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
               </option>
             ))}
           </select>
+          {!customerId && usesCustomerData(form.fields) && (
+            <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+              This form has placeholders or a "customer's pets" dropdown that only fill in once
+              sent to an existing customer — pick one above for those to work.
+            </div>
+          )}
         </div>
       )}
       <div className="field">

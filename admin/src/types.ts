@@ -690,9 +690,16 @@ export type FileFormField = FormFieldBase & {
   maxFiles?: number;
 };
 
+// `optionsSource` defaults to 'static' (the plain `options` list, editable
+// below) when absent. 'customerPets' resolves `options` server-side, at the
+// point a specific customer's link is opened, to that customer's own pet
+// names -- see backend/src/forms/form-placeholders.util.ts. Only meaningful
+// once the submission is tied to a known customer (SendFormModal already
+// captures one whenever staff pick an existing customer from the list).
 export type ChoiceFormField = FormFieldBase & {
   type: 'choice' | 'multichoice';
   options: string[];
+  optionsSource?: 'static' | 'customerPets';
 };
 
 // Repeatable group -- nested fields map only to target: 'animal'; each

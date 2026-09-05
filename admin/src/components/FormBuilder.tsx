@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import * as api from '../api/client';
 import type {
   ChoiceFormField,
@@ -10,6 +10,7 @@ import type {
   VisibilityRule,
 } from '../types';
 import { mappingTargetsFor } from '../utils/formFieldCatalog';
+import { FORM_PLACEHOLDERS } from '../utils/formPlaceholders';
 import FormPreviewModal from './FormPreviewModal';
 import { PencilIcon, PlusIcon, TrashIcon } from './icons';
 
@@ -286,6 +287,24 @@ function typeLabel(type: FormField['type']): string {
 function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, onSelect, onUpdate, onRemove, onMove, onAddField }: RowProps) {
   const isSelected = selectedId === field.id;
   const target: FieldTarget = parentGroupId ? 'animal' : 'customer';
+  const labelRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+
+  // Splices a {{token}} into the label/free-text editor at its current
+  // cursor position -- same shape as SettingsPage.tsx's plain-<textarea>
+  // "Insert variable" handling for the email-template body, just against
+  // whichever of the two label editors (input vs textarea) is showing.
+  function insertPlaceholder(token: string) {
+    const el = labelRef.current;
+    const current = field.label;
+    const start = el?.selectionStart ?? current.length;
+    const end = el?.selectionEnd ?? current.length;
+    const next = current.slice(0, start) + token + current.slice(end);
+    onUpdate(field.id, (f) => ({ ...f, label: next }));
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(start + token.length, start + token.length);
+    });
+  }
 
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px' }}>
@@ -339,20 +358,45 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
       {isSelected && (
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
           <div className="field">
-            <label>{field.type === 'display' ? 'Text' : 'Label'}</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+              <label>{field.type === 'display' ? 'Text' : 'Label'}</label>
+              <select
+                className="insert-var-select"
+                defaultValue=""
+                onChange={(e) => {
+                  if (e.target.value) insertPlaceholder(e.target.value);
+                  e.target.value = '';
+                }}
+              >
+                <option value="" disabled>
+                  Insert placeholder…
+                </option>
+                {FORM_PLACEHOLDERS.map((p) => (
+                  <option key={p.key} value={`{{${p.key}}}`}>
+                    {`{{${p.key}}}`} — {p.hint}
+                  </option>
+                ))}
+              </select>
+            </div>
             {field.type === 'display' ? (
               <textarea
+                ref={labelRef as React.RefObject<HTMLTextAreaElement>}
                 rows={3}
                 value={field.label}
                 onChange={(e) => onUpdate(field.id, (f) => ({ ...f, label: e.target.value }))}
               />
             ) : (
               <input
+                ref={labelRef as React.RefObject<HTMLInputElement>}
                 type="text"
                 value={field.label}
                 onChange={(e) => onUpdate(field.id, (f) => ({ ...f, label: e.target.value }))}
               />
             )}
+            <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+              Placeholders only fill in once this form is sent to a known customer -- they show as
+              literal text otherwise.
+            </div>
           </div>
           {field.type !== 'group' && field.type !== 'display' && field.type !== 'today' && field.type !== 'datetime' && (
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
@@ -372,10 +416,41 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
           )}
 
           {(field.type === 'choice' || field.type === 'multichoice') && (
-            <OptionsEditor
-              options={field.options}
-              onChange={(options) => onUpdate(field.id, (f) => (f.type === 'choice' || f.type === 'multichoice' ? { ...f, options } : f))}
-            />
+            <div className="field">
+              <label>Options</label>
+              <select
+                value={field.optionsSource ?? 'static'}
+                onChange={(e) => {
+                  const source = e.target.value as 'static' | 'customerPets';
+                  onUpdate(field.id, (f) =>
+                    f.type === 'choice' || f.type === 'multichoice'
+                      ? { ...f, optionsSource: source, mapping: source === 'customerPets' ? undefined : f.mapping }
+                      : f,
+                  );
+                }}
+                style={{ marginBottom: 10 }}
+              >
+                <option value="static">A fixed list I type in below</option>
+                <option value="customerPets">The customer's own pets, automatically</option>
+              </select>
+            </div>
+          )}
+
+          {(field.type === 'choice' || field.type === 'multichoice') &&
+            (field.optionsSource ?? 'static') === 'static' && (
+              <OptionsEditor
+                options={field.options}
+                onChange={(options) => onUpdate(field.id, (f) => (f.type === 'choice' || f.type === 'multichoice' ? { ...f, options } : f))}
+              />
+            )}
+
+          {(field.type === 'choice' || field.type === 'multichoice') && field.optionsSource === 'customerPets' && (
+            <p className="hint">
+              The options shown will be whichever customer this form is sent to's own pets, by
+              name -- only resolved once it's sent to a known customer (empty otherwise). This
+              answer is captured as extra info on the submission and can't be mapped to a
+              customer/pet field below.
+            </p>
           )}
 
           {field.type === 'file' && (
@@ -444,16 +519,20 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
             />
           )}
 
-          {field.type !== 'group' && field.type !== 'display' && field.type !== 'today' && field.type !== 'datetime' && (
-            <MappingPicker
-              target={target}
-              fieldType={field.type}
-              value={field.mapping?.path}
-              onChange={(path) =>
-                onUpdate(field.id, (f) => ({ ...f, mapping: path ? { target, path } : undefined }))
-              }
-            />
-          )}
+          {field.type !== 'group' &&
+            field.type !== 'display' &&
+            field.type !== 'today' &&
+            field.type !== 'datetime' &&
+            !((field.type === 'choice' || field.type === 'multichoice') && field.optionsSource === 'customerPets') && (
+              <MappingPicker
+                target={target}
+                fieldType={field.type}
+                value={field.mapping?.path}
+                onChange={(path) =>
+                  onUpdate(field.id, (f) => ({ ...f, mapping: path ? { target, path } : undefined }))
+                }
+              />
+            )}
         </div>
       )}
 

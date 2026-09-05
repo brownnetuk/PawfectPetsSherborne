@@ -18,6 +18,7 @@ import { CustomersService } from '../customers/customers.service';
 import { CreateCustomerDto } from '../customers/dto/create-customer.dto';
 import { UpdateCustomerDto } from '../customers/dto/update-customer.dto';
 import { FormField } from '../forms/form-field.types';
+import { buildCustomerPlaceholders, interpolatePlaceholders } from '../forms/form-placeholders.util';
 import { FormsService } from '../forms/forms.service';
 import { CreateFormSubmissionDto } from './dto/create-form-submission.dto';
 import { UpdateFormSubmissionDto } from './dto/update-form-submission.dto';
@@ -54,19 +55,38 @@ function flattenValidationErrors(errors: ValidationError[]): string {
     : 'This submission is incomplete or invalid.';
 }
 
-// Strips internal field-mapping details before returning a form's shape to an
-// unauthenticated caller -- not a hard security boundary (submit() re-validates
-// everything server-side regardless), just no reason to leak Customer/Animal
-// DB path names to the public.
-function stripMappings(fields: FormField[]): Omit<FormField, 'mapping'>[] {
+// Prepares a form's field snapshot for the unauthenticated fill page: strips
+// internal field-mapping details (not a hard security boundary -- submit()
+// re-validates everything server-side regardless, just no reason to leak
+// Customer/Animal DB path names to the public), substitutes {{token}}
+// placeholders into every field's label (form-placeholders.util.ts -- same
+// idea as the intake form's {{petName}} substitution, just with more
+// tokens), and resolves a 'customerPets' choice/multichoice field's
+// `options` to the recipient's real pet names. `placeholders`/`petNames` are
+// both empty when the submission has no known customer yet (a brand-new
+// lead), which resolves every token to '' and every dynamic dropdown to no
+// options -- an accepted limitation of sending a form ahead of picking a
+// real customer, same tradeoff email templates already have for {{name}}
+// etc. on an unaddressed send.
+function resolveFieldsForRecipient(
+  fields: FormField[],
+  placeholders: Record<string, string>,
+  petNames: string[],
+): Omit<FormField, 'mapping' | 'optionsSource'>[] {
   return fields.map((field) => {
     const copy = { ...field } as Record<string, unknown>;
     delete copy.mapping;
-    if (field.type === 'group') {
-      copy.fields = stripMappings(field.fields);
-      return copy as unknown as Omit<FormField, 'mapping'>;
+    delete copy.optionsSource;
+    copy.label = interpolatePlaceholders(field.label, placeholders);
+    if (field.type === 'choice' || field.type === 'multichoice') {
+      if (field.optionsSource === 'customerPets') {
+        copy.options = petNames;
+      }
     }
-    return copy as unknown as Omit<FormField, 'mapping'>;
+    if (field.type === 'group') {
+      copy.fields = resolveFieldsForRecipient(field.fields, placeholders, petNames);
+    }
+    return copy as unknown as Omit<FormField, 'mapping' | 'optionsSource'>;
   });
 }
 
@@ -141,12 +161,32 @@ export class FormSubmissionsService {
 
   async findOnePublic(id: string) {
     const submission = await this.findOne(id);
+
+    // Both stay empty for a submission not yet tied to a real customer (a
+    // brand-new lead sent by typed name/email only) -- see
+    // resolveFieldsForRecipient's comment for what that means downstream.
+    let placeholders: Record<string, string> = {};
+    let petNames: string[] = [];
+    if (submission.customer) {
+      const customerId = submission.customer.toString();
+      const [customer, animals] = await Promise.all([
+        this.customersService.findOne(customerId).catch(() => null),
+        this.animalsService.findAll(customerId),
+      ]);
+      petNames = animals.map((a) => a.name);
+      if (customer) {
+        placeholders = buildCustomerPlaceholders(customer, petNames);
+      }
+    }
+
     return {
       _id: submission._id.toString(),
       formName: submission.formName,
       formDescription: submission.formDescription,
-      fields: stripMappings(
+      fields: resolveFieldsForRecipient(
         submission.formFieldsSnapshot as unknown as FormField[],
+        placeholders,
+        petNames,
       ),
       status: submission.status,
       recipientName: submission.recipientName,
