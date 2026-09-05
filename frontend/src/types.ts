@@ -33,6 +33,7 @@ export interface AnimalRecord {
   dateOfBirth?: string;
   vaccinated: boolean;
   vaccineExpiryDate?: string;
+  vaccineRecordPhoto?: string;
   photos?: string[];
   colourMarkings?: string;
   microchipNumber?: string;
@@ -168,6 +169,7 @@ export interface PetDetails {
   // so there's no meaningful "unanswered" state to represent or validate.
   vaccinated: boolean;
   vaccineExpiryDate?: string;
+  vaccineRecordPhoto?: string;
   photos?: string[];
   colourMarkings?: string;
   microchipNumber?: string;

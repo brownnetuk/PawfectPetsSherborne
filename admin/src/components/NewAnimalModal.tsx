@@ -24,6 +24,8 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [vaccinated, setVaccinated] = useState(false);
   const [vaccineExpiryDate, setVaccineExpiryDate] = useState('');
+  const [vaccineRecordPhoto, setVaccineRecordPhoto] = useState('');
+  const [vaccineRecordPhotoError, setVaccineRecordPhotoError] = useState<string | null>(null);
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [colourMarkings, setColourMarkings] = useState('');
@@ -62,6 +64,21 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
     const reader = new FileReader();
     reader.onload = () => setPhotos((prev) => [...prev, reader.result as string]);
     reader.onerror = () => setPhotoError('Failed to read that file.');
+    reader.readAsDataURL(file);
+  }
+
+  function handleVaccineRecordPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setVaccineRecordPhotoError(null);
+    if (file.size > MAX_PET_PHOTO_BYTES) {
+      setVaccineRecordPhotoError('That photo is too large — please use one under 4MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setVaccineRecordPhoto(reader.result as string);
+    reader.onerror = () => setVaccineRecordPhotoError('Failed to read that file.');
     reader.readAsDataURL(file);
   }
 
@@ -108,6 +125,7 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
         dateOfBirth: dateOfBirth || undefined,
         vaccinated,
         vaccineExpiryDate: vaccinated ? vaccineExpiryDate : undefined,
+        vaccineRecordPhoto: vaccineRecordPhoto || undefined,
         photos: photos.length ? photos : undefined,
         colourMarkings: colourMarkings || undefined,
         microchipNumber: microchipNumber || undefined,
@@ -282,6 +300,30 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
               required
             />
             <DateReadout value={vaccineExpiryDate} />
+          </div>
+        )}
+        {vaccinated && (
+          <div className="field">
+            <label>Vaccination record</label>
+            {vaccineRecordPhoto ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10, alignItems: 'flex-start' }}>
+                <img
+                  src={vaccineRecordPhoto}
+                  alt="Vaccination record"
+                  style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+                />
+                <button type="button" className="btn-link" onClick={() => setVaccineRecordPhoto('')}>
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <input type="file" accept="image/*" onChange={handleVaccineRecordPhotoChange} />
+            )}
+            {vaccineRecordPhotoError && (
+              <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--error)', marginTop: 4 }}>
+                {vaccineRecordPhotoError}
+              </div>
+            )}
           </div>
         )}
         <div className="field">

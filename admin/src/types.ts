@@ -121,6 +121,7 @@ export interface Animal {
   dateOfBirth?: string;
   vaccinated: boolean;
   vaccineExpiryDate?: string;
+  vaccineRecordPhoto?: string;
   photos?: string[];
   colourMarkings?: string;
   microchipNumber?: string;

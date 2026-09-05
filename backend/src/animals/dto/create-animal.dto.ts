@@ -112,6 +112,10 @@ export class CreateAnimalDto {
   vaccineExpiryDate?: string;
 
   @IsOptional()
+  @IsString()
+  vaccineRecordPhoto?: string;
+
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(2)
   @IsString({ each: true })

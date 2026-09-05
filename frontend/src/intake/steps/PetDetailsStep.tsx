@@ -4,6 +4,7 @@ import { ChoiceGroup, SelectField, TextField, ToggleField } from '../fields';
 import MedicationEntriesField from '../MedicationEntriesField';
 import PhotoUpload from '../PhotoUpload';
 import SignaturePad from '../SignaturePad';
+import VaccineRecordUpload from '../VaccineRecordUpload';
 import type { PetDetails, Species } from '../../types';
 
 const DEFAULT_OFF_LEAD_CONSENT_TEXT =
@@ -105,6 +106,12 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
           value={value.vaccineExpiryDate ?? ''}
           onChange={(v) => set('vaccineExpiryDate', v)}
           required
+        />
+      )}
+      {value.vaccinated && (
+        <VaccineRecordUpload
+          value={value.vaccineRecordPhoto}
+          onChange={(v) => set('vaccineRecordPhoto', v)}
         />
       )}
 

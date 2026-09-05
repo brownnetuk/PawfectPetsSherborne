@@ -135,6 +135,12 @@ export class Animal extends Document {
   @Prop()
   vaccineExpiryDate?: Date;
 
+  // A photo of the vaccination record/certificate -- base64 data URI, same
+  // storage approach as `photos` below. Optional even when vaccinated=true:
+  // this is offered as a convenience, not required to register the pet.
+  @Prop()
+  vaccineRecordPhoto?: string;
+
   // Base64 data URIs, same storage approach as Customer.agreement.signatureImage
   // and BusinessInfo.logoImage -- no filesystem/blob storage needed. Capped at
   // 2 photos, enforced in CreateAnimalDto.

@@ -54,6 +54,26 @@ export default function ViewAnimalModal({ animal, onClose }: Props) {
                     ? `Yes${animal.vaccineExpiryDate ? ` (expires ${new Date(animal.vaccineExpiryDate).toLocaleDateString('en-GB')})` : ''}`
                     : 'No'}
                 </dd>
+                {animal.vaccinated && animal.vaccineRecordPhoto && (
+                  <>
+                    <dt>Vaccination record</dt>
+                    <dd>
+                      <img
+                        src={animal.vaccineRecordPhoto}
+                        alt="Vaccination record"
+                        onClick={() => setZoomedPhoto(animal.vaccineRecordPhoto!)}
+                        style={{
+                          width: 80,
+                          height: 80,
+                          objectFit: 'cover',
+                          borderRadius: 8,
+                          border: '1px solid var(--border)',
+                          cursor: 'zoom-in',
+                        }}
+                      />
+                    </dd>
+                  </>
+                )}
                 <dt>Colour / markings</dt>
                 <dd>{animal.colourMarkings || '—'}</dd>
                 <dt>Microchip number</dt>

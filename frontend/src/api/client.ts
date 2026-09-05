@@ -147,6 +147,10 @@ function animalPayload(pet: PetDetails) {
     dateOfBirth: pet.dateOfBirth || undefined,
     vaccinated: pet.vaccinated,
     vaccineExpiryDate: pet.vaccinated ? pet.vaccineExpiryDate : undefined,
+    // Sent as-is (including empty string), same reasoning as photos below --
+    // omitting it when blank would mean "leave whatever's stored alone",
+    // which would silently un-delete a photo the customer just removed.
+    vaccineRecordPhoto: pet.vaccineRecordPhoto || '',
     // Sent as-is, including empty -- for updateAnimal() specifically, omitting
     // it when empty would mean "leave the stored photos alone", which would
     // silently un-delete a photo the customer just removed while reviewing.
