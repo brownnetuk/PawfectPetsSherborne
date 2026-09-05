@@ -34,88 +34,84 @@ export default function ViewAnimalModal({ animal, onClose }: Props) {
     <>
       <Modal title={animal.name} onClose={onClose} wide className="modal-olive">
         <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="section-title">Details</div>
-              <dl className="kv-grid">
-                <dt>Species</dt>
-                <dd style={{ textTransform: 'capitalize' }}>{animal.species}</dd>
-                <dt>{isDog || isCat ? 'Breed' : 'Type of animal'}</dt>
-                <dd>{animal.breed}</dd>
-                <dt>Sex</dt>
-                <dd style={{ textTransform: 'capitalize' }}>{animal.sex}</dd>
-                <dt>Age</dt>
-                <dd>{animal.age}</dd>
-                <dt>Date of birth</dt>
-                <dd>{animal.dateOfBirth ? new Date(animal.dateOfBirth).toLocaleDateString('en-GB') : '—'}</dd>
-                <dt>Vaccinated</dt>
-                <dd>
-                  {animal.vaccinated
-                    ? `Yes${animal.vaccineExpiryDate ? ` (expires ${new Date(animal.vaccineExpiryDate).toLocaleDateString('en-GB')})` : ''}`
-                    : 'No'}
-                </dd>
-                {animal.vaccinated && animal.vaccineRecordPhoto && (
-                  <>
-                    <dt>Vaccination record</dt>
-                    <dd>
-                      <img
-                        src={animal.vaccineRecordPhoto}
-                        alt="Vaccination record"
-                        onClick={() => setZoomedPhoto(animal.vaccineRecordPhoto!)}
-                        style={{
-                          width: 80,
-                          height: 80,
-                          objectFit: 'cover',
-                          borderRadius: 8,
-                          border: '1px solid var(--border)',
-                          cursor: 'zoom-in',
-                        }}
-                      />
-                    </dd>
-                  </>
-                )}
-                <dt>Colour / markings</dt>
-                <dd>{animal.colourMarkings || '—'}</dd>
-                <dt>Microchip number</dt>
-                <dd>{animal.microchipNumber || '—'}</dd>
-                <dt>Insured</dt>
-                <dd>{animal.insured ? `Yes — ${animal.insurer || '—'}` : 'No'}</dd>
-                <dt>Spayed/Neutered</dt>
-                <dd>
-                  {animal.neuteredStatus === 'neutered' && 'Neutered (Boy)'}
-                  {animal.neuteredStatus === 'spayed' && 'Spayed (Girl)'}
-                  {(!animal.neuteredStatus || animal.neuteredStatus === 'no') &&
-                    `No${
-                      animal.lastSeasonEndDate
-                        ? ` — last season ended ${new Date(animal.lastSeasonEndDate).toLocaleDateString('en-GB')}`
-                        : ''
-                    }`}
-                </dd>
-                <dt>Temperament notes</dt>
-                <dd>{animal.temperamentNotes || '—'}</dd>
-              </dl>
+          <div className="section-title">Details</div>
+          {animal.photos && animal.photos.length > 0 && (
+            <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+              {animal.photos.map((p, i) => (
+                <img
+                  key={i}
+                  src={p}
+                  alt={animal.name}
+                  onClick={() => setZoomedPhoto(p)}
+                  style={{
+                    width: 140,
+                    height: 140,
+                    objectFit: 'cover',
+                    borderRadius: 8,
+                    border: '1px solid var(--border)',
+                    cursor: 'zoom-in',
+                  }}
+                />
+              ))}
             </div>
-            {animal.photos && animal.photos.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0 }}>
-                {animal.photos.map((p, i) => (
+          )}
+          <dl className="kv-grid">
+            <dt>Species</dt>
+            <dd style={{ textTransform: 'capitalize' }}>{animal.species}</dd>
+            <dt>{isDog || isCat ? 'Breed' : 'Type of animal'}</dt>
+            <dd>{animal.breed}</dd>
+            <dt>Sex</dt>
+            <dd style={{ textTransform: 'capitalize' }}>{animal.sex}</dd>
+            <dt>Age</dt>
+            <dd>{animal.age}</dd>
+            <dt>Date of birth</dt>
+            <dd>{animal.dateOfBirth ? new Date(animal.dateOfBirth).toLocaleDateString('en-GB') : '—'}</dd>
+            <dt>Vaccinated</dt>
+            <dd>
+              {animal.vaccinated
+                ? `Yes${animal.vaccineExpiryDate ? ` (expires ${new Date(animal.vaccineExpiryDate).toLocaleDateString('en-GB')})` : ''}`
+                : 'No'}
+            </dd>
+            {animal.vaccinated && animal.vaccineRecordPhoto && (
+              <>
+                <dt>Vaccination record</dt>
+                <dd>
                   <img
-                    key={i}
-                    src={p}
-                    alt={animal.name}
-                    onClick={() => setZoomedPhoto(p)}
+                    src={animal.vaccineRecordPhoto}
+                    alt="Vaccination record"
+                    onClick={() => setZoomedPhoto(animal.vaccineRecordPhoto!)}
                     style={{
-                      width: 200,
-                      height: animal.photos!.length > 1 ? 140 : 200,
+                      width: 80,
+                      height: 80,
                       objectFit: 'cover',
                       borderRadius: 8,
                       border: '1px solid var(--border)',
                       cursor: 'zoom-in',
                     }}
                   />
-                ))}
-              </div>
+                </dd>
+              </>
             )}
-          </div>
+            <dt>Colour / markings</dt>
+            <dd>{animal.colourMarkings || '—'}</dd>
+            <dt>Microchip number</dt>
+            <dd>{animal.microchipNumber || '—'}</dd>
+            <dt>Insured</dt>
+            <dd>{animal.insured ? `Yes — ${animal.insurer || '—'}` : 'No'}</dd>
+            <dt>Spayed/Neutered</dt>
+            <dd>
+              {animal.neuteredStatus === 'neutered' && 'Neutered (Boy)'}
+              {animal.neuteredStatus === 'spayed' && 'Spayed (Girl)'}
+              {(!animal.neuteredStatus || animal.neuteredStatus === 'no') &&
+                `No${
+                  animal.lastSeasonEndDate
+                    ? ` — last season ended ${new Date(animal.lastSeasonEndDate).toLocaleDateString('en-GB')}`
+                    : ''
+                }`}
+            </dd>
+            <dt>Temperament notes</dt>
+            <dd>{animal.temperamentNotes || '—'}</dd>
+          </dl>
         </div>
 
         <div className="card" style={{ marginBottom: 16 }}>
