@@ -55,12 +55,26 @@ export interface BoardingEditInitial {
   pickUpTime: string; // HH:mm
 }
 
+// Reopens this modal to edit an existing day-care booking (its dog-name link).
+// Save deletes the booking (by stayId, incl. any travel row) and recreates it.
+export interface DayCareEditInitial {
+  stayId: string;
+  customerId: string;
+  animalId: string;
+  date: string; // yyyy-MM-dd
+  dropOffPeriod: VisitTime;
+  dropOffTime: string; // HH:mm
+  collectionPeriod: VisitTime;
+  collectionTime: string; // HH:mm
+}
+
 export default function NewBookingModal({
   animals,
   customers,
   annualLeave = [],
   initial,
   boardingInitial,
+  dayCareInitial,
   initialCustomerId,
   onClose,
   onCreated,
@@ -70,6 +84,7 @@ export default function NewBookingModal({
   annualLeave?: AnnualLeave[];
   initial?: NewBookingInitial;
   boardingInitial?: BoardingEditInitial;
+  dayCareInitial?: DayCareEditInitial;
   // Pre-selects the customer without the full edit machinery `initial`
   // needs -- used by the Customer Detail page's Bookings tab, which already
   // knows the customer and just wants this modal opened ready to go.
@@ -77,12 +92,18 @@ export default function NewBookingModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [custId, setCustId] = useState(initial?.customerId ?? boardingInitial?.customerId ?? initialCustomerId ?? '');
+  const [custId, setCustId] = useState(
+    initial?.customerId ?? boardingInitial?.customerId ?? dayCareInitial?.customerId ?? initialCustomerId ?? '',
+  );
   // The Service picker only appears for a brand-new booking -- reopening this
-  // modal to edit an existing range (`initial`/`boardingInitial`) is locked to
-  // that service rather than exposing a selector that doesn't do anything there.
-  const [service, setService] = useState<Service>(boardingInitial ? 'boarding' : 'visits');
-  const [animalIds, setAnimalIds] = useState<string[]>(initial?.animalIds ?? boardingInitial?.animalIds ?? []);
+  // modal to edit an existing booking (`initial`/`boardingInitial`/`dayCareInitial`)
+  // is locked to that service rather than exposing a selector that does nothing.
+  const [service, setService] = useState<Service>(
+    boardingInitial ? 'boarding' : dayCareInitial ? 'daycare' : 'visits',
+  );
+  const [animalIds, setAnimalIds] = useState<string[]>(
+    initial?.animalIds ?? boardingInitial?.animalIds ?? (dayCareInitial ? [dayCareInitial.animalId] : []),
+  );
   const [visitsPerDay, setVisitsPerDay] = useState<VisitCount>(initial?.visitsPerDay ?? '1');
   const [startDate, setStartDate] = useState(initial?.startDate ?? '');
   const [visitsFirstDay, setVisitsFirstDay] = useState<VisitCount>(initial?.visitsFirstDay ?? '1');
@@ -91,19 +112,20 @@ export default function NewBookingModal({
   const [visitsLastDay, setVisitsLastDay] = useState<VisitCount>(initial?.visitsLastDay ?? '1');
   const [amPmLastDay, setAmPmLastDay] = useState<VisitTime>(initial?.amPmLastDay ?? 'AM');
   // Day Care -- single day, same-day drop off/collection.
-  const [dayCareDate, setDayCareDate] = useState('');
-  const [dropOffPeriod, setDropOffPeriod] = useState<VisitTime>('AM');
-  const [dropOffTime, setDropOffTime] = useState('');
-  const [collectionPeriod, setCollectionPeriod] = useState<VisitTime>('PM');
-  const [collectionTime, setCollectionTime] = useState('');
+  const [dayCareDate, setDayCareDate] = useState(dayCareInitial?.date ?? '');
+  const [dropOffPeriod, setDropOffPeriod] = useState<VisitTime>(dayCareInitial?.dropOffPeriod ?? 'AM');
+  const [dropOffTime, setDropOffTime] = useState(dayCareInitial?.dropOffTime ?? '');
+  const [collectionPeriod, setCollectionPeriod] = useState<VisitTime>(dayCareInitial?.collectionPeriod ?? 'PM');
+  const [collectionTime, setCollectionTime] = useState(dayCareInitial?.collectionTime ?? '');
   // Boarding -- date range, drop off on the first day and pick up on the last.
   const [boardingStartDate, setBoardingStartDate] = useState(boardingInitial?.startDate ?? '');
   const [boardingDropOffTime, setBoardingDropOffTime] = useState(boardingInitial?.dropOffTime ?? '');
   const [boardingEndDate, setBoardingEndDate] = useState(boardingInitial?.endDate ?? '');
   const [boardingPickUpTime, setBoardingPickUpTime] = useState(boardingInitial?.pickUpTime ?? '');
-  // Set when editing an existing stay -- submitBoarding deletes it first, then
+  // Set when editing an existing stay/booking -- submit deletes it first, then
   // recreates from the edited form.
   const editingStayId = boardingInitial?.stayId;
+  const editingDayCareStayId = dayCareInitial?.stayId;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
@@ -282,6 +304,10 @@ export default function NewBookingModal({
         return;
       }
 
+      // Editing a day-care booking = delete it first (incl. any travel row),
+      // then recreate. A shared stayId links the day-care row to its travel row.
+      if (editingDayCareStayId) await api.deleteStay(editingDayCareStayId);
+
       const existing = await api.listDayBookings(dateKey(date), dateKey(addDays(date, 1)));
       const existingByKey = new Map(existing.map((b) => [`${animalId(b.animal)}|${dateKey(new Date(b.date))}`, b]));
 
@@ -292,6 +318,7 @@ export default function NewBookingModal({
           skipped++;
           continue;
         }
+        const stayId = crypto.randomUUID();
         await api.createDayBooking({
           animal: id,
           date: dateKey(date),
@@ -301,11 +328,12 @@ export default function NewBookingModal({
           dropOffTime,
           collectionPeriod,
           collectionTime,
+          stayId,
         });
         created++;
         const travelProductId = travelProductFor(id);
         if (travelProductId && travelProductId !== productId) {
-          await api.createDayBooking({ animal: id, date: dateKey(date), product: travelProductId, quantity: 1 });
+          await api.createDayBooking({ animal: id, date: dateKey(date), product: travelProductId, quantity: 1, stayId });
           created++;
         }
       }
@@ -441,7 +469,7 @@ export default function NewBookingModal({
   }
 
   return (
-    <Modal title={initial || boardingInitial ? 'Update Booking' : 'New Booking'} onClose={onClose}>
+    <Modal title={initial || boardingInitial || dayCareInitial ? 'Update Booking' : 'New Booking'} onClose={onClose}>
       {error && <div className="error-banner">{error}</div>}
       {result && (
         <div className="error-banner" style={{ background: 'var(--sage-badge, #d9f2e3)', color: 'var(--brand-green)' }}>
@@ -470,7 +498,7 @@ export default function NewBookingModal({
             ))}
           </select>
         </div>
-        {!initial && !boardingInitial && (
+        {!initial && !boardingInitial && !dayCareInitial && (
           <div className="field">
             <label>Service</label>
             <select value={service} onChange={(e) => setService(e.target.value as Service)}>

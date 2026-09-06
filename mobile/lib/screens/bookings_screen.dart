@@ -1010,15 +1010,15 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final stayId = widget.booking.stayId;
-    // A single day of a boarding booking can't be removed on its own -- confirm,
-    // then delete the whole stay.
+    // A row that's part of a booking (a boarding stay, or a day care + its
+    // travel) can't be removed on its own -- confirm, then delete the whole booking.
     if (stayId != null) {
       final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Delete whole booking?'),
           content: const Text(
-              'This day is part of a boarding booking. Deleting it removes the whole booking — every day of the stay.'),
+              'This is part of a booking. Deleting it removes the whole booking — all its days and any travel.'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
             FilledButton(

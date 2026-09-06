@@ -3,7 +3,7 @@ import * as api from '../api/client';
 import AddAppointmentModal from '../components/AddAppointmentModal';
 import GenerateInvoicesModal from '../components/GenerateInvoicesModal';
 import NewBookingModal from '../components/NewBookingModal';
-import type { NewBookingInitial, BoardingEditInitial } from '../components/NewBookingModal';
+import type { NewBookingInitial, BoardingEditInitial, DayCareEditInitial } from '../components/NewBookingModal';
 import ProductAvailabilityWarningModal from '../components/ProductAvailabilityWarningModal';
 import { PlusCircleIcon, TrashIcon } from '../components/icons';
 import { annualLeaveOn } from '../utils/annualLeave';
@@ -174,6 +174,25 @@ export default function BookingsPage() {
     } catch {
       // Non-fatal -- leave the modal closed if the stay couldn't be loaded.
     }
+  }
+
+  // Set when editing a day-care booking (clicked its dog name). The card row
+  // already carries everything the edit form needs, so no fetch is required.
+  const [dayCareEdit, setDayCareEdit] = useState<DayCareEditInitial | null>(null);
+
+  function openDayCareEdit(b: DayBooking) {
+    if (!b.stayId) return;
+    const cust = b.customer;
+    setDayCareEdit({
+      stayId: b.stayId,
+      customerId: typeof cust === 'string' ? cust : cust._id,
+      animalId: animalId(b.animal),
+      date: dateKey(new Date(b.date)),
+      dropOffPeriod: b.dropOffPeriod ?? 'AM',
+      dropOffTime: b.dropOffTime ?? '',
+      collectionPeriod: b.collectionPeriod ?? 'PM',
+      collectionTime: b.collectionTime ?? '',
+    });
   }
   // Filters both the calendar grid's badges and the day panel's Walks/Visits
   // sections -- both default on, so nothing changes until staff toggle one off.
@@ -546,16 +565,18 @@ export default function BookingsPage() {
         />
       )}
 
-      {(bookingModal || boardingEdit) && (
+      {(bookingModal || boardingEdit || dayCareEdit) && (
         <NewBookingModal
           animals={animals}
           customers={customers}
           annualLeave={annualLeave}
           initial={bookingModal && bookingModal !== 'new' ? bookingModal : undefined}
           boardingInitial={boardingEdit ?? undefined}
+          dayCareInitial={dayCareEdit ?? undefined}
           onClose={() => {
             setBookingModal(null);
             setBoardingEdit(null);
+            setDayCareEdit(null);
           }}
           onCreated={() => {
             refreshDayBookings();
@@ -676,6 +697,7 @@ export default function BookingsPage() {
             onChange={refreshDayBookings}
             onEditAnimal={handleEditAnimalBooking}
             onEditBoardingStay={openBoardingEdit}
+            onEditDayCare={openDayCareEdit}
           />
         )}
       </div>
@@ -701,6 +723,7 @@ function DayDetailPanel({
   onChange,
   onEditAnimal,
   onEditBoardingStay,
+  onEditDayCare,
 }: {
   date: Date;
   dayBookings: DayBooking[];
@@ -719,6 +742,7 @@ function DayDetailPanel({
   onChange: () => void;
   onEditAnimal: (animalId: string, date: Date) => void;
   onEditBoardingStay: (stayId: string) => void;
+  onEditDayCare: (b: DayBooking) => void;
 }) {
   const [addAnimalId, setAddAnimalId] = useState('');
   const [addProductId, setAddProductId] = useState('');
@@ -893,10 +917,11 @@ function DayDetailPanel({
   async function handleRemove(booking: DayBooking) {
     setError(null);
     try {
-      // A single day of a boarding stay can't be removed on its own -- deleting
-      // any of its rows removes the whole booking (all its days), after asking.
+      // A row that's part of a booking (a boarding stay, or a day care + its
+      // travel) can't be removed on its own -- deleting any of its rows removes
+      // the whole booking, after asking.
       if (booking.stayId) {
-        if (!window.confirm('This day is part of a boarding booking. Delete the whole booking — every day of the stay?')) {
+        if (!window.confirm('This is part of a booking. Delete the whole booking (all its days and any travel)?')) {
           return;
         }
         await api.deleteStay(booking.stayId);
@@ -1140,9 +1165,21 @@ function DayDetailPanel({
                 style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, background: 'var(--card, #fff)' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                  <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {animalLabel(b.animal)}
-                  </span>
+                  {b.stayId ? (
+                    <button
+                      type="button"
+                      className="btn-link"
+                      title="Edit this day care booking"
+                      style={{ fontWeight: 700, padding: 0, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      onClick={() => onEditDayCare(b)}
+                    >
+                      {animalLabel(b.animal)}
+                    </button>
+                  ) : (
+                    <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {animalLabel(b.animal)}
+                    </span>
+                  )}
                   <span
                     style={{
                       fontSize: '0.75rem',
