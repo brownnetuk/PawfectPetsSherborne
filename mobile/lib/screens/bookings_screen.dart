@@ -41,6 +41,26 @@ class _BookingsScreenState extends State<BookingsScreen> {
   DateTime _day = _dateOnly(DateTime.now());
   _BookingView _view = _BookingView.day;
 
+  // Booking-type filters (all on by default) -- gate what shows on the calendar.
+  bool _showWalks = true;
+  bool _showVisits = true;
+  bool _showDayCare = true;
+  bool _showBoarding = true;
+  bool _showAppointments = true;
+
+  // Service classification (a boarding-stay row is always boarding; day care and
+  // visits only when not part of a boarding stay; everything else is a walk).
+  bool _isBoarding(DayBooking b) => b.boardingStay || _visitMapping.isBoardingProduct(b.productId);
+  bool _isDayCare(DayBooking b) => !b.boardingStay && _visitMapping.isDayCareProduct(b.productId);
+  bool _isVisit(DayBooking b) => !b.boardingStay && _visitMapping.isVisitProduct(b.productId);
+  bool _isWalk(DayBooking b) => !_isBoarding(b) && !_isDayCare(b) && !_isVisit(b);
+  bool _typeVisible(DayBooking b) {
+    if (_isBoarding(b)) return _showBoarding;
+    if (_isDayCare(b)) return _showDayCare;
+    if (_isVisit(b)) return _showVisits;
+    return _showWalks;
+  }
+
   // Loaded once, reused across day changes.
   List<Customer>? _customers;
   List<AnimalRef>? _animals;
@@ -410,6 +430,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
       body: Column(
         children: [
           _viewToggle(),
+          _typeFilters(),
           _dateNavigator(),
           const Divider(height: 1),
           Expanded(
@@ -452,6 +473,36 @@ class _BookingsScreenState extends State<BookingsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _typeFilters() {
+    Widget chip(String label, bool selected, Color colour, ValueChanged<bool> onChanged) => Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: FilterChip(
+            label: Text(label),
+            selected: selected,
+            onSelected: onChanged,
+            visualDensity: VisualDensity.compact,
+            avatar: CircleAvatar(backgroundColor: colour, radius: 6),
+            selectedColor: colour.withValues(alpha: 0.18),
+            checkmarkColor: colour,
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            chip('Walks', _showWalks, Colors.green.shade600, (v) => setState(() => _showWalks = v)),
+            chip('Visits', _showVisits, Colors.amber.shade800, (v) => setState(() => _showVisits = v)),
+            chip('Day Care', _showDayCare, Colors.deepPurple.shade400, (v) => setState(() => _showDayCare = v)),
+            chip('Boarding', _showBoarding, Colors.teal.shade600, (v) => setState(() => _showBoarding = v)),
+            chip('Appts', _showAppointments, Colors.blue.shade600, (v) => setState(() => _showAppointments = v)),
+          ],
+        ),
       ),
     );
   }
@@ -510,17 +561,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
   Widget _dayBody(List<DayBooking> all, List<Appointment> allAppointments) {
     final leave = _leaveOn(_day);
     final dayItems = all.where((b) => _sameDay(b.date, _day)).toList();
-    final dayAppointments = allAppointments.where((a) => _sameDay(a.date, _day)).toList();
-    // A boarding-stay row (or a Boarding product) is boarding; day care and
-    // visits only when not part of a boarding stay; everything else is a walk.
-    bool isBoarding(DayBooking b) => b.boardingStay || _visitMapping.isBoardingProduct(b.productId);
-    bool isDayCare(DayBooking b) => !b.boardingStay && _visitMapping.isDayCareProduct(b.productId);
-    bool isVisit(DayBooking b) => !b.boardingStay && _visitMapping.isVisitProduct(b.productId);
-    final boardingGroups = _groupByAnimal(dayItems.where(isBoarding).toList());
-    final dayCareGroups = _groupByAnimal(dayItems.where(isDayCare).toList());
-    final visitGroups = _groupByAnimal(dayItems.where(isVisit).toList());
-    final walkGroups = _groupByAnimal(
-        dayItems.where((b) => !isBoarding(b) && !isDayCare(b) && !isVisit(b)).toList());
+    final dayAppointments =
+        _showAppointments ? allAppointments.where((a) => _sameDay(a.date, _day)).toList() : <Appointment>[];
+    // Each service section is gated by its type filter (chips at the top).
+    final boardingGroups = _showBoarding ? _groupByAnimal(dayItems.where(_isBoarding).toList()) : <List<DayBooking>>[];
+    final dayCareGroups = _showDayCare ? _groupByAnimal(dayItems.where(_isDayCare).toList()) : <List<DayBooking>>[];
+    final visitGroups = _showVisits ? _groupByAnimal(dayItems.where(_isVisit).toList()) : <List<DayBooking>>[];
+    final walkGroups = _showWalks ? _groupByAnimal(dayItems.where(_isWalk).toList()) : <List<DayBooking>>[];
     final addedIds = dayItems.map((b) => b.animalId).toSet();
     final weekdayKey = _weekdayKeys[_day.weekday - 1];
     // No recommendations on a leave day — nothing can be booked.
@@ -622,9 +669,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
     return null;
   }
 
-  Widget _weekBody(List<DayBooking> all, List<Appointment> allAppointments) {
+  Widget _weekBody(List<DayBooking> allUnfiltered, List<Appointment> allAppointments) {
     final start = _weekStart;
     final today = _dateOnly(DateTime.now());
+    // Apply the booking-type filters (chips) to the week's counts/totals too.
+    final all = allUnfiltered.where(_typeVisible).toList();
+    final appts = _showAppointments ? allAppointments : const <Appointment>[];
     // Sum only the visible week (the fetched list is padded ±1 day for AM/PM).
     var weekTotal = 0.0;
     for (int i = 0; i < 7; i++) {
@@ -635,7 +685,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     for (int i = 0; i < 7; i++) {
       final date = DateTime(start.year, start.month, start.day + i);
       final dayItems = all.where((b) => _sameDay(b.date, date)).toList();
-      final dayAppointments = allAppointments.where((a) => _sameDay(a.date, date)).toList();
+      final dayAppointments = appts.where((a) => _sameDay(a.date, date)).toList();
       final groups = _groupByAnimal(dayItems);
       final dayTotal = dayItems.fold<double>(0, (s, b) => s + b.lineTotal);
       final isToday = today == date;
