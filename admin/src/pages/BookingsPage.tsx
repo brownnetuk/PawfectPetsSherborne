@@ -97,6 +97,20 @@ function productLabel(product: DayBooking['product']): string {
   return typeof product === 'string' ? product : product.name;
 }
 
+// Booking-aware service classification. A row flagged `boardingStay` (any part
+// of a boarding stay -- boarding days, attached day care, or the pick-up
+// placeholder) always counts as boarding, so the whole stay reads as one
+// boarding block on the calendar; such rows are never treated as day care/visit.
+function bookingIsBoarding(mapping: VisitMapping | null, b: DayBooking): boolean {
+  return !!b.boardingStay || (!!mapping && isBoardingProduct(mapping, productId(b.product)));
+}
+function bookingIsDayCare(mapping: VisitMapping | null, b: DayBooking): boolean {
+  return !b.boardingStay && !!mapping && isDayCareProduct(mapping, productId(b.product));
+}
+function bookingIsVisit(mapping: VisitMapping | null, b: DayBooking): boolean {
+  return !b.boardingStay && !!mapping && isVisitProduct(mapping, productId(b.product));
+}
+
 // Groups a day's bookings by dog, preserving first-seen order, so a dog
 // with e.g. a walk plus an auto-added travel line renders as one card
 // with both rows rather than two separate cards.
@@ -206,7 +220,7 @@ export default function BookingsPage() {
   function hasVisitEntryOn(targetDate: Date, aid: string): boolean {
     if (!visitMapping) return false;
     return (dayBookings ?? []).some(
-      (b) => animalId(b.animal) === aid && isSameDay(new Date(b.date), targetDate) && isVisitProduct(visitMapping, productId(b.product)),
+      (b) => animalId(b.animal) === aid && isSameDay(new Date(b.date), targetDate) && bookingIsVisit(visitMapping, b),
     );
   }
 
@@ -245,9 +259,9 @@ export default function BookingsPage() {
     const boardingBadges: Badge[] = [];
     for (const [aid, entries] of byAnimal) {
       const name = animalLabel(entries[0].animal);
-      const dayCareEntries = entries.filter((b) => visitMapping && isDayCareProduct(visitMapping, productId(b.product)));
-      const boardingEntries = entries.filter((b) => visitMapping && isBoardingProduct(visitMapping, productId(b.product)));
-      const visitEntries = entries.filter((b) => visitMapping && isVisitProduct(visitMapping, productId(b.product)));
+      const dayCareEntries = entries.filter((b) => visitMapping && bookingIsDayCare(visitMapping, b));
+      const boardingEntries = entries.filter((b) => visitMapping && bookingIsBoarding(visitMapping, b));
+      const visitEntries = entries.filter((b) => visitMapping && bookingIsVisit(visitMapping, b));
       const walkEntries = entries.filter(
         (b) => !dayCareEntries.includes(b) && !boardingEntries.includes(b) && !visitEntries.includes(b),
       );
@@ -314,7 +328,7 @@ export default function BookingsPage() {
     }
     const byDate = new Map(
       all
-        .filter((b) => animalId(b.animal) === aid && isVisitProduct(visitMapping, productId(b.product)))
+        .filter((b) => animalId(b.animal) === aid && bookingIsVisit(visitMapping, b))
         .map((b) => [dateKey(new Date(b.date)), b]),
     );
     if (!byDate.has(dateKey(fromDate))) return;
@@ -711,20 +725,20 @@ function DayDetailPanel({
     if (!visitMapping) return false;
     const key = dateKey(targetDate);
     return adjacentBookings.some(
-      (b) => animalId(b.animal) === aid && dateKey(new Date(b.date)) === key && isVisitProduct(visitMapping, productId(b.product)),
+      (b) => animalId(b.animal) === aid && dateKey(new Date(b.date)) === key && bookingIsVisit(visitMapping, b),
     );
   }
 
-  const visitBookings = showVisits ? dayBookings.filter((b) => visitMapping && isVisitProduct(visitMapping, productId(b.product))) : [];
-  const dayCareBookings = showDayCare ? dayBookings.filter((b) => visitMapping && isDayCareProduct(visitMapping, productId(b.product))) : [];
-  const boardingBookings = showBoarding ? dayBookings.filter((b) => visitMapping && isBoardingProduct(visitMapping, productId(b.product))) : [];
+  const visitBookings = showVisits ? dayBookings.filter((b) => visitMapping && bookingIsVisit(visitMapping, b)) : [];
+  const dayCareBookings = showDayCare ? dayBookings.filter((b) => visitMapping && bookingIsDayCare(visitMapping, b)) : [];
+  const boardingBookings = showBoarding ? dayBookings.filter((b) => visitMapping && bookingIsBoarding(visitMapping, b)) : [];
   const walkBookings = showWalks
     ? dayBookings.filter(
         (b) =>
           !visitMapping ||
-          (!isVisitProduct(visitMapping, productId(b.product)) &&
-            !isDayCareProduct(visitMapping, productId(b.product)) &&
-            !isBoardingProduct(visitMapping, productId(b.product))),
+          (!bookingIsVisit(visitMapping, b) &&
+            !bookingIsDayCare(visitMapping, b) &&
+            !bookingIsBoarding(visitMapping, b)),
       )
     : [];
 

@@ -72,6 +72,13 @@ export class DayBooking extends Document {
   // it still classifies/renders as a boarding entry.
   @Prop({ default: false })
   placeholder?: boolean;
+
+  // Set on every row created as part of a boarding stay -- the boarding days,
+  // any attached Half/Full Day Care (the before/after part), and the pick-up
+  // placeholder. Lets the calendar colour/group the whole stay as boarding even
+  // though the day-care days carry a day-care product.
+  @Prop({ default: false })
+  boardingStay?: boolean;
 }
 
 export const DayBookingSchema = SchemaFactory.createForClass(DayBooking);

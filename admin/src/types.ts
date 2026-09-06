@@ -185,6 +185,9 @@ export interface DayBooking {
   pickUpTime?: string | null;
   // Presence-only boarding pick-up-day row -- shown on the calendar, never billed.
   placeholder?: boolean;
+  // Part of a boarding stay (boarding day / attached day care / placeholder) --
+  // the calendar colours the whole stay as boarding.
+  boardingStay?: boolean;
   createdAt: string;
 }
 

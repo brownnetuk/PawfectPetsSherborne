@@ -135,6 +135,7 @@ export class DayBookingsService {
       collectionTime: dto.collectionTime ?? undefined,
       pickUpTime: dto.pickUpTime ?? undefined,
       placeholder: dto.placeholder ?? false,
+      boardingStay: dto.boardingStay ?? false,
     }).save();
     return created.populate([
       { path: 'animal', select: 'name species' },

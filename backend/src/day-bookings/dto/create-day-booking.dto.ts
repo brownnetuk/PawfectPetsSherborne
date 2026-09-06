@@ -65,4 +65,10 @@ export class CreateDayBookingDto {
   @IsOptional()
   @IsBoolean()
   placeholder?: boolean;
+
+  // Part of a boarding stay (boarding day, attached day care, or placeholder) --
+  // lets the calendar colour the whole stay as boarding. See the DayBooking schema.
+  @IsOptional()
+  @IsBoolean()
+  boardingStay?: boolean;
 }

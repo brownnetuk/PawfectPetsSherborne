@@ -328,6 +328,7 @@ export interface DayBookingInput {
   collectionTime?: string | null;
   pickUpTime?: string | null;
   placeholder?: boolean;
+  boardingStay?: boolean;
 }
 export function createDayBooking(input: DayBookingInput): Promise<DayBooking> {
   return request('/day-bookings', { method: 'POST', body: JSON.stringify(input) });

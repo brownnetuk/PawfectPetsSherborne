@@ -371,6 +371,7 @@ export default function NewBookingModal({
           dropOffTime: line.dayOffset === 0 ? boardingDropOffTime : undefined,
           pickUpTime: line.dayOffset === maxOffset ? boardingPickUpTime : undefined,
           placeholder: line.placeholder,
+          boardingStay: true,
         });
         created++;
         // No travel charge on a presence-only pick-up-day placeholder.
