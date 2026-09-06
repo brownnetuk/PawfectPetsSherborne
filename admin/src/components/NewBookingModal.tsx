@@ -370,9 +370,11 @@ export default function NewBookingModal({
           quantity: 1,
           dropOffTime: line.dayOffset === 0 ? boardingDropOffTime : undefined,
           pickUpTime: line.dayOffset === maxOffset ? boardingPickUpTime : undefined,
+          placeholder: line.placeholder,
         });
         created++;
-        const travelProductId = travelProductFor(id);
+        // No travel charge on a presence-only pick-up-day placeholder.
+        const travelProductId = line.placeholder ? null : travelProductFor(id);
         if (travelProductId && travelProductId !== line.productId) {
           await api.createDayBooking({ animal: id, date: dateKey(date), product: travelProductId, quantity: 1 });
           created++;

@@ -280,7 +280,9 @@ export default function BookingsPage() {
           key: `${aid}-boarding`,
           label: name,
           kind: 'boarding',
-          invoiced: boardingEntries.every((b) => !!b.invoice),
+          // Placeholder pick-up rows are never billed -- ignore them so the
+          // badge doesn't read "uninvoiced" once the real days are invoiced.
+          invoiced: boardingEntries.filter((b) => !b.placeholder).every((b) => !!b.invoice),
         });
       }
     }
@@ -1176,7 +1178,7 @@ function DayDetailPanel({
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {productLabel(b.product)}
+                    {b.placeholder ? 'Pick-up (no charge)' : productLabel(b.product)}
                     {b.dropOffTime ? ` · Drop Off ${b.dropOffTime}` : ''}
                     {b.pickUpTime ? ` · Pick Up ${b.pickUpTime}` : ''}
                   </span>

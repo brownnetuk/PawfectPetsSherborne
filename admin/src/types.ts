@@ -183,6 +183,8 @@ export interface DayBooking {
   collectionPeriod?: 'AM' | 'PM' | null;
   collectionTime?: string | null;
   pickUpTime?: string | null;
+  // Presence-only boarding pick-up-day row -- shown on the calendar, never billed.
+  placeholder?: boolean;
   createdAt: string;
 }
 

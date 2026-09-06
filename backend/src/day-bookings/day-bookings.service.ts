@@ -15,6 +15,8 @@ export interface BoardingPlanLine {
   kind: BoardingLineKind;
   secondDog: boolean; // uses the 2nd-dog product rate
   productId: string | null; // resolved from the VisitMapping, null if unmapped
+  // Presence-only row (pick-up day of an exact-24h stay) -- shown but not billed.
+  placeholder?: boolean;
 }
 
 export interface BoardingPlan {
@@ -103,6 +105,12 @@ export class DayBookingsService {
           else missing.add(secondDog ? '2nd Dog Full Day' : 'Full Day');
         }
         lines.push({ dogIndex, dayOffset: boardingDays, kind, secondDog, productId });
+      } else if (boardingDays > 0) {
+        // Exact 24h multiple -- nothing billed on the pick-up day, so add a
+        // presence-only placeholder there (carries the boarding product so it
+        // still renders as boarding on the calendar) that's never invoiced.
+        const productId = secondDog ? products.boardingSecond : products.boarding;
+        lines.push({ dogIndex, dayOffset: boardingDays, kind: 'boarding', secondDog, productId, placeholder: true });
       }
     }
 
@@ -126,6 +134,7 @@ export class DayBookingsService {
       collectionPeriod: dto.collectionPeriod ?? undefined,
       collectionTime: dto.collectionTime ?? undefined,
       pickUpTime: dto.pickUpTime ?? undefined,
+      placeholder: dto.placeholder ?? false,
     }).save();
     return created.populate([
       { path: 'animal', select: 'name species' },

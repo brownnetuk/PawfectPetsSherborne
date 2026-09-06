@@ -72,8 +72,9 @@ export default function GenerateInvoicesModal({
       .listDayBookings(dateKey(monthStart), dateKey(monthEndExclusive))
       .then((bookings) => {
         // Only what hasn't already been invoiced -- repeat runs this month
-        // only pick up newly-added/changed bookings.
-        const billable = bookings.filter((b) => !b.invoice);
+        // only pick up newly-added/changed bookings. Placeholder rows (boarding
+        // pick-up-day presence markers) are never billed.
+        const billable = bookings.filter((b) => !b.invoice && !b.placeholder);
         const byCustomer = new Map<string, { bookings: DayBooking[] }>();
         for (const b of billable) {
           const cid = customerId(b.customer);

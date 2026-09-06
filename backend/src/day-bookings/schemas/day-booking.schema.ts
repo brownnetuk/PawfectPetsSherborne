@@ -65,6 +65,13 @@ export class DayBooking extends Document {
   // have neither set.
   @Prop()
   pickUpTime?: string;
+
+  // A presence-only row: shows the dog on the calendar for the pick-up day of
+  // an exact-24h-multiple boarding stay (which otherwise bills nothing that
+  // day), but is never itself invoiced. Carries the boarding product purely so
+  // it still classifies/renders as a boarding entry.
+  @Prop({ default: false })
+  placeholder?: boolean;
 }
 
 export const DayBookingSchema = SchemaFactory.createForClass(DayBooking);

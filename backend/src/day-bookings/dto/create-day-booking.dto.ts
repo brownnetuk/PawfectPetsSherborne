@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsIn, IsInt, IsMongoId, IsOptional, Matches, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsDateString, IsIn, IsInt, IsMongoId, IsOptional, Matches, Min, ValidateIf } from 'class-validator';
 
 const TIME_FORMAT = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -59,4 +59,10 @@ export class CreateDayBookingDto {
   @ValidateIf((_, v) => v !== null)
   @Matches(TIME_FORMAT, { message: 'pickUpTime must be in HH:mm format' })
   pickUpTime?: string | null;
+
+  // Presence-only row for a boarding pick-up day -- never invoiced. See the
+  // DayBooking schema.
+  @IsOptional()
+  @IsBoolean()
+  placeholder?: boolean;
 }

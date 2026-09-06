@@ -302,6 +302,7 @@ export interface BoardingPlanLine {
   kind: 'boarding' | 'halfDay' | 'fullDay';
   secondDog: boolean;
   productId: string | null;
+  placeholder?: boolean;
 }
 export interface BoardingPlan {
   boardingDays: number;
@@ -326,6 +327,7 @@ export interface DayBookingInput {
   collectionPeriod?: 'AM' | 'PM' | null;
   collectionTime?: string | null;
   pickUpTime?: string | null;
+  placeholder?: boolean;
 }
 export function createDayBooking(input: DayBookingInput): Promise<DayBooking> {
   return request('/day-bookings', { method: 'POST', body: JSON.stringify(input) });
