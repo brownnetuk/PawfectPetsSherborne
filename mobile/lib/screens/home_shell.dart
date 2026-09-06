@@ -17,6 +17,12 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+  // Which tabs have been opened. An IndexedStack builds all its children up
+  // front, so without this every tab's initState (and its data fetch) would
+  // fire at login -- a thundering herd that slows first paint. We render a
+  // placeholder for un-visited tabs so each one only loads when first opened;
+  // once visited it stays alive (IndexedStack keeps its state).
+  final Set<int> _visited = {0};
 
   @override
   void initState() {
@@ -39,10 +45,19 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _index, children: _screens),
+      body: IndexedStack(
+        index: _index,
+        children: List.generate(
+          _screens.length,
+          (i) => _visited.contains(i) ? _screens[i] : const SizedBox.shrink(),
+        ),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        onDestinationSelected: (i) => setState(() {
+          _index = i;
+          _visited.add(i);
+        }),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.people_outline), label: 'Customers'),
           NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Invoicing'),

@@ -26,6 +26,23 @@ class Repository {
   final ApiClient _client;
   Repository(this._client);
 
+  // Session cache for slowly-changing, read-only reference data (managed in the
+  // admin, never mutated here). Fetched once, then reused across screens so
+  // re-entering the bookings/invoice/quote screens doesn't refetch them every
+  // time. Pull-to-refresh calls refreshReferenceData() to force a reload.
+  List<Product>? _productsCache;
+  List<BankHoliday>? _bankHolidaysCache;
+  List<AnnualLeave>? _annualLeaveCache;
+  VisitMapping? _visitMappingCache;
+
+  /// Clears the reference-data cache so the next read refetches from the server.
+  void refreshReferenceData() {
+    _productsCache = null;
+    _bankHolidaysCache = null;
+    _annualLeaveCache = null;
+    _visitMappingCache = null;
+  }
+
   // --- auth ---
   Future<({String token, Staff staff})> login(String username, String password) async {
     final json = await _client.post('/auth/login', {'username': username, 'password': password});
@@ -190,7 +207,7 @@ class Repository {
 
   /// The Settings > Bookings > Visits product mapping (visit count × day-type).
   Future<VisitMapping> getVisitMapping() async =>
-      VisitMapping.fromJson(await _client.get('/settings/visits'));
+      _visitMappingCache ??= VisitMapping.fromJson(await _client.get('/settings/visits'));
 
   // --- appointments (standalone calendar entries, shown blue) ---
   Future<List<Appointment>> listAppointments({required DateTime from, required DateTime to}) async =>
@@ -240,15 +257,15 @@ class Repository {
 
   // --- products (invoice line-item catalogue) ---
   Future<List<Product>> listProducts() async =>
-      (await _client.getList('/products')).map((e) => Product.fromJson(e)).toList();
+      _productsCache ??= (await _client.getList('/products')).map((e) => Product.fromJson(e)).toList();
 
   /// Named bank-holiday dates, used to work out a date's day-type for product
   /// availability restrictions (Bookings + invoice/quote line items).
   Future<List<BankHoliday>> listBankHolidays() async =>
-      (await _client.getList('/bank-holidays')).map((e) => BankHoliday.fromJson(e)).toList();
+      _bankHolidaysCache ??= (await _client.getList('/bank-holidays')).map((e) => BankHoliday.fromJson(e)).toList();
 
   Future<List<AnnualLeave>> listAnnualLeave() async =>
-      (await _client.getList('/annual-leave')).map((e) => AnnualLeave.fromJson(e)).toList();
+      _annualLeaveCache ??= (await _client.getList('/annual-leave')).map((e) => AnnualLeave.fromJson(e)).toList();
 
   // --- invoices ---
   Future<List<Invoice>> listInvoices({String? customerId}) async => (await _client.getList(

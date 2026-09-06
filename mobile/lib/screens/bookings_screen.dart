@@ -104,6 +104,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
   void _reload() => setState(() => _future = _load());
 
   Future<void> _refresh() async {
+    // Pull-to-refresh forces a full reload: drop the screen's cached reference
+    // data and the repository's session cache so everything refetches fresh.
+    _customers = null;
+    context.read<Repository>().refreshReferenceData();
     _reload();
     await _future;
   }
