@@ -257,6 +257,12 @@ export class Customer extends Document {
   @Prop({ default: false })
   portalActive?: boolean;
 
+  // Last time the customer signed in to the app (set on login/set-password) --
+  // surfaced on the admin's Mobile App Access card. Stateless JWT means there's
+  // no live "session"; this is the honest signal of when they last logged in.
+  @Prop()
+  portalLastLoginAt?: Date;
+
   @Prop({ type: PortalCredentialsSchema, select: false })
   portalCredentials?: PortalCredentials;
 }

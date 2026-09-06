@@ -1653,6 +1653,14 @@ function CustomerPortalCard({ customer, onChange }: { customer: Customer; onChan
   // Enabling the portal emails the customer, so confirm first. Disabling is
   // immediate (it just signs them out).
   const [confirmEnable, setConfirmEnable] = useState(false);
+  // Login/usage status (set up? last login? registered devices?).
+  const [status, setStatus] = useState<api.PortalStatus | null>(null);
+
+  function refreshStatus() {
+    api.getCustomerPortalStatus(customer._id).then(setStatus).catch(() => {});
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(refreshStatus, [customer._id]);
 
   function handleToggle(value: boolean) {
     if (value) {
@@ -1672,6 +1680,7 @@ function CustomerPortalCard({ customer, onChange }: { customer: Customer; onChan
       await api.setCustomerPortalActive(customer._id, value);
       setNotice(value ? 'Portal enabled — welcome email sent to the customer.' : 'Portal disabled.');
       onChange();
+      refreshStatus();
     } catch (err) {
       setActive(!value); // revert
       setError(err instanceof Error ? err.message : 'Failed to update portal access');
@@ -1729,6 +1738,20 @@ function CustomerPortalCard({ customer, onChange }: { customer: Customer; onChan
           Portal Active
         </label>
       </div>
+      {status && (
+        <dl className="kv-grid" style={{ marginTop: -4 }}>
+          <dt>Set up</dt>
+          <dd>{status.setUp ? 'Yes — has logged in' : 'Not yet — never logged in'}</dd>
+          <dt>Last login</dt>
+          <dd>{status.lastLoginAt ? new Date(status.lastLoginAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</dd>
+          <dt>Devices</dt>
+          <dd>
+            {status.deviceCount === 0
+              ? 'None registered'
+              : `${status.deviceCount} registered${status.lastDeviceAt ? ` · last active ${new Date(status.lastDeviceAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}`}
+          </dd>
+        </dl>
+      )}
       {confirmEnable && (
         <Modal title="Enable app access?" onClose={() => setConfirmEnable(false)}>
           <p style={{ color: 'var(--muted)' }}>

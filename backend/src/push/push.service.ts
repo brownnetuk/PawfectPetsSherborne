@@ -54,6 +54,20 @@ export class PushService {
     return this.pushTokenModel.countDocuments().exec();
   }
 
+  // How many devices a customer has registered, and when the most recent one
+  // was last seen (token re-registered) -- a proxy for recent app use.
+  async customerTokenStats(customerId: string): Promise<{ count: number; lastAt: Date | null }> {
+    const tokens = await this.pushTokenModel
+      .find({ customer: customerId })
+      .select('updatedAt')
+      .sort({ updatedAt: -1 })
+      .exec();
+    return {
+      count: tokens.length,
+      lastAt: tokens.length ? ((tokens[0] as unknown as { updatedAt: Date }).updatedAt ?? null) : null,
+    };
+  }
+
   removeToken(token: string): Promise<unknown> {
     return this.pushTokenModel.deleteOne({ token }).exec();
   }

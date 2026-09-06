@@ -190,6 +190,16 @@ export function setCustomerPortalActive(
 export function sendCustomerPortalReset(id: string): Promise<{ ok: boolean }> {
   return request(`/customers/${id}/portal/reset`, { method: 'POST' });
 }
+export interface PortalStatus {
+  portalActive: boolean;
+  setUp: boolean;
+  lastLoginAt: string | null;
+  deviceCount: number;
+  lastDeviceAt: string | null;
+}
+export function getCustomerPortalStatus(id: string): Promise<PortalStatus> {
+  return request(`/customers/${id}/portal/status`);
+}
 export function sendCustomerPortalTestPush(
   id: string,
   message: string,

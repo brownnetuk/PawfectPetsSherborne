@@ -277,6 +277,7 @@ export class PortalService {
     // Replace the whole sub-doc so both codes are dropped (single-use) and only
     // the new password hash remains.
     customer.portalCredentials = { passwordHash: await bcrypt.hash(password, 10) };
+    customer.portalLastLoginAt = new Date();
     await customer.save();
     return { token: this.sign(customer) };
   }
@@ -287,7 +288,28 @@ export class PortalService {
     if (!customer || !hash || !(await bcrypt.compare(password, hash))) {
       throw new UnauthorizedException('Incorrect email or password.');
     }
+    customer.portalLastLoginAt = new Date();
+    await customer.save();
     return { token: this.sign(customer) };
+  }
+
+  // Login/usage status for the admin's Mobile App Access card. Stateless JWT
+  // means "still logged in" can't be known for certain -- setUp + lastLoginAt +
+  // a registered device (with its last-seen) are the honest signals.
+  async getPortalStatus(customerId: string) {
+    const customer = await this.customerModel
+      .findById(customerId)
+      .select('+portalCredentials portalActive portalLastLoginAt')
+      .exec();
+    if (!customer) throw new NotFoundException(`Customer ${customerId} not found`);
+    const devices = await this.push.customerTokenStats(customerId);
+    return {
+      portalActive: customer.portalActive ?? false,
+      setUp: !!customer.portalCredentials?.passwordHash,
+      lastLoginAt: customer.portalLastLoginAt ?? null,
+      deviceCount: devices.count,
+      lastDeviceAt: devices.lastAt,
+    };
   }
 
   // The curated profile the app shows on "My Details" and its sub-sections.

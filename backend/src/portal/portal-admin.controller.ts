@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import { PortalService } from './portal.service';
 import { SetPortalActiveDto, TestPushDto } from './dto/portal-auth.dto';
 
@@ -8,6 +8,12 @@ import { SetPortalActiveDto, TestPushDto } from './dto/portal-auth.dto';
 @Controller('customers/:id/portal')
 export class PortalAdminController {
   constructor(private readonly portal: PortalService) {}
+
+  // Login/usage status shown on the Mobile App Access card.
+  @Get('status')
+  async status(@Param('id') id: string) {
+    return this.portal.getPortalStatus(id);
+  }
 
   // Turn a customer's portal access on/off.
   @Patch()
