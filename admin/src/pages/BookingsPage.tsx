@@ -3,7 +3,7 @@ import * as api from '../api/client';
 import AddAppointmentModal from '../components/AddAppointmentModal';
 import GenerateInvoicesModal from '../components/GenerateInvoicesModal';
 import NewBookingModal from '../components/NewBookingModal';
-import type { NewBookingInitial } from '../components/NewBookingModal';
+import type { NewBookingInitial, BoardingEditInitial } from '../components/NewBookingModal';
 import ProductAvailabilityWarningModal from '../components/ProductAvailabilityWarningModal';
 import { PlusCircleIcon, TrashIcon } from '../components/icons';
 import { annualLeaveOn } from '../utils/annualLeave';
@@ -152,6 +152,29 @@ export default function BookingsPage() {
   // pre-filled for editing an existing animal's date range (clicked from the
   // Visits section below).
   const [bookingModal, setBookingModal] = useState<'new' | NewBookingInitial | null>(null);
+  // Set when editing a boarding stay (clicked a boarding card's dog name) --
+  // loaded from the stay's rows, opens NewBookingModal in boarding-edit mode.
+  const [boardingEdit, setBoardingEdit] = useState<BoardingEditInitial | null>(null);
+
+  async function openBoardingEdit(stayId: string) {
+    try {
+      const rows = await api.getBoardingStay(stayId);
+      if (rows.length === 0) return;
+      const byDate = [...rows].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const cust = byDate[0].customer;
+      setBoardingEdit({
+        stayId,
+        customerId: typeof cust === 'string' ? cust : cust._id,
+        animalIds: [...new Set(rows.map((r) => animalId(r.animal)))],
+        startDate: dateKey(new Date(byDate[0].date)),
+        endDate: dateKey(new Date(byDate[byDate.length - 1].date)),
+        dropOffTime: rows.find((r) => r.dropOffTime)?.dropOffTime ?? '',
+        pickUpTime: rows.find((r) => r.pickUpTime)?.pickUpTime ?? '',
+      });
+    } catch {
+      // Non-fatal -- leave the modal closed if the stay couldn't be loaded.
+    }
+  }
   // Filters both the calendar grid's badges and the day panel's Walks/Visits
   // sections -- both default on, so nothing changes until staff toggle one off.
   const [showWalks, setShowWalks] = useState(true);
@@ -523,13 +546,17 @@ export default function BookingsPage() {
         />
       )}
 
-      {bookingModal && (
+      {(bookingModal || boardingEdit) && (
         <NewBookingModal
           animals={animals}
           customers={customers}
           annualLeave={annualLeave}
-          initial={bookingModal === 'new' ? undefined : bookingModal}
-          onClose={() => setBookingModal(null)}
+          initial={bookingModal && bookingModal !== 'new' ? bookingModal : undefined}
+          boardingInitial={boardingEdit ?? undefined}
+          onClose={() => {
+            setBookingModal(null);
+            setBoardingEdit(null);
+          }}
           onCreated={() => {
             refreshDayBookings();
           }}
@@ -648,6 +675,7 @@ export default function BookingsPage() {
             onClose={() => setSelectedDate(null)}
             onChange={refreshDayBookings}
             onEditAnimal={handleEditAnimalBooking}
+            onEditBoardingStay={openBoardingEdit}
           />
         )}
       </div>
@@ -672,6 +700,7 @@ function DayDetailPanel({
   onClose,
   onChange,
   onEditAnimal,
+  onEditBoardingStay,
 }: {
   date: Date;
   dayBookings: DayBooking[];
@@ -689,6 +718,7 @@ function DayDetailPanel({
   onClose: () => void;
   onChange: () => void;
   onEditAnimal: (animalId: string, date: Date) => void;
+  onEditBoardingStay: (stayId: string) => void;
 }) {
   const [addAnimalId, setAddAnimalId] = useState('');
   const [addProductId, setAddProductId] = useState('');
@@ -1164,9 +1194,21 @@ function DayDetailPanel({
                 style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, background: 'var(--card, #fff)' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                  <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {animalLabel(b.animal)}
-                  </span>
+                  {b.stayId ? (
+                    <button
+                      type="button"
+                      className="btn-link"
+                      title="Edit this boarding stay"
+                      style={{ fontWeight: 700, padding: 0, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      onClick={() => onEditBoardingStay(b.stayId!)}
+                    >
+                      {animalLabel(b.animal)}
+                    </button>
+                  ) : (
+                    <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {animalLabel(b.animal)}
+                    </span>
+                  )}
                   <span
                     style={{
                       fontSize: '0.75rem',

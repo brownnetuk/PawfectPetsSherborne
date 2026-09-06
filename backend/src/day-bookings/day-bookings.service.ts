@@ -136,6 +136,7 @@ export class DayBookingsService {
       pickUpTime: dto.pickUpTime ?? undefined,
       placeholder: dto.placeholder ?? false,
       boardingStay: dto.boardingStay ?? false,
+      stayId: dto.stayId ?? undefined,
     }).save();
     return created.populate([
       { path: 'animal', select: 'name species' },
@@ -194,5 +195,25 @@ export class DayBookingsService {
     if (!result) {
       throw new NotFoundException(`Day booking ${id} not found`);
     }
+  }
+
+  // Every row of one boarding stay (see stayId), so the admin can load a stay
+  // to edit it as a unit.
+  findStay(stayId: string): Promise<DayBooking[]> {
+    return this.dayBookingModel
+      .find({ stayId })
+      .populate('animal', 'name species')
+      .populate('customer', 'name')
+      .populate('product', 'name price')
+      .populate('invoice', 'invoiceNumber')
+      .sort({ date: 1 })
+      .exec();
+  }
+
+  // Deletes a whole boarding stay in one go -- used when editing a stay
+  // (delete then recreate) and to remove it cleanly rather than row by row.
+  async removeStay(stayId: string): Promise<{ deleted: number }> {
+    const result = await this.dayBookingModel.deleteMany({ stayId }).exec();
+    return { deleted: result.deletedCount ?? 0 };
   }
 }

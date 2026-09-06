@@ -42,11 +42,25 @@ export interface NewBookingInitial {
   editEntries: { date: string; bookingId: string }[];
 }
 
+// Reopens this modal to edit an existing boarding stay (see the calendar's
+// boarding card). Save deletes the stay (by stayId) and recreates it from the
+// edited dates/times/dogs.
+export interface BoardingEditInitial {
+  stayId: string;
+  customerId: string;
+  animalIds: string[];
+  startDate: string; // yyyy-MM-dd
+  dropOffTime: string; // HH:mm
+  endDate: string; // yyyy-MM-dd
+  pickUpTime: string; // HH:mm
+}
+
 export default function NewBookingModal({
   animals,
   customers,
   annualLeave = [],
   initial,
+  boardingInitial,
   initialCustomerId,
   onClose,
   onCreated,
@@ -55,6 +69,7 @@ export default function NewBookingModal({
   customers: Customer[];
   annualLeave?: AnnualLeave[];
   initial?: NewBookingInitial;
+  boardingInitial?: BoardingEditInitial;
   // Pre-selects the customer without the full edit machinery `initial`
   // needs -- used by the Customer Detail page's Bookings tab, which already
   // knows the customer and just wants this modal opened ready to go.
@@ -62,13 +77,12 @@ export default function NewBookingModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [custId, setCustId] = useState(initial?.customerId ?? initialCustomerId ?? '');
+  const [custId, setCustId] = useState(initial?.customerId ?? boardingInitial?.customerId ?? initialCustomerId ?? '');
   // The Service picker only appears for a brand-new booking -- reopening this
-  // modal to edit an existing range (`initial`) is Visits-only today, so
-  // that flow stays locked to 'visits' rather than exposing a selector that
-  // doesn't do anything there.
-  const [service, setService] = useState<Service>('visits');
-  const [animalIds, setAnimalIds] = useState<string[]>(initial?.animalIds ?? []);
+  // modal to edit an existing range (`initial`/`boardingInitial`) is locked to
+  // that service rather than exposing a selector that doesn't do anything there.
+  const [service, setService] = useState<Service>(boardingInitial ? 'boarding' : 'visits');
+  const [animalIds, setAnimalIds] = useState<string[]>(initial?.animalIds ?? boardingInitial?.animalIds ?? []);
   const [visitsPerDay, setVisitsPerDay] = useState<VisitCount>(initial?.visitsPerDay ?? '1');
   const [startDate, setStartDate] = useState(initial?.startDate ?? '');
   const [visitsFirstDay, setVisitsFirstDay] = useState<VisitCount>(initial?.visitsFirstDay ?? '1');
@@ -83,10 +97,13 @@ export default function NewBookingModal({
   const [collectionPeriod, setCollectionPeriod] = useState<VisitTime>('PM');
   const [collectionTime, setCollectionTime] = useState('');
   // Boarding -- date range, drop off on the first day and pick up on the last.
-  const [boardingStartDate, setBoardingStartDate] = useState('');
-  const [boardingDropOffTime, setBoardingDropOffTime] = useState('');
-  const [boardingEndDate, setBoardingEndDate] = useState('');
-  const [boardingPickUpTime, setBoardingPickUpTime] = useState('');
+  const [boardingStartDate, setBoardingStartDate] = useState(boardingInitial?.startDate ?? '');
+  const [boardingDropOffTime, setBoardingDropOffTime] = useState(boardingInitial?.dropOffTime ?? '');
+  const [boardingEndDate, setBoardingEndDate] = useState(boardingInitial?.endDate ?? '');
+  const [boardingPickUpTime, setBoardingPickUpTime] = useState(boardingInitial?.pickUpTime ?? '');
+  // Set when editing an existing stay -- submitBoarding deletes it first, then
+  // recreates from the edited form.
+  const editingStayId = boardingInitial?.stayId;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
@@ -347,6 +364,11 @@ export default function NewBookingModal({
         return;
       }
 
+      // Editing an existing stay = delete its rows first, then recreate. A
+      // shared stayId links every row of this stay for later edit/delete.
+      if (editingStayId) await api.deleteStay(editingStayId);
+      const stayId = crypto.randomUUID();
+
       const existing = await api.listDayBookings(dateKey(start), dateKey(addDays(end, 1)));
       const existingByKey = new Map(existing.map((b) => [`${animalId(b.animal)}|${dateKey(new Date(b.date))}`, b]));
 
@@ -372,12 +394,20 @@ export default function NewBookingModal({
           pickUpTime: line.dayOffset === maxOffset ? boardingPickUpTime : undefined,
           placeholder: line.placeholder,
           boardingStay: true,
+          stayId,
         });
         created++;
         // No travel charge on a presence-only pick-up-day placeholder.
         const travelProductId = line.placeholder ? null : travelProductFor(id);
         if (travelProductId && travelProductId !== line.productId) {
-          await api.createDayBooking({ animal: id, date: dateKey(date), product: travelProductId, quantity: 1 });
+          await api.createDayBooking({
+            animal: id,
+            date: dateKey(date),
+            product: travelProductId,
+            quantity: 1,
+            boardingStay: true,
+            stayId,
+          });
           created++;
         }
       }
@@ -411,7 +441,7 @@ export default function NewBookingModal({
   }
 
   return (
-    <Modal title={initial ? 'Update Booking' : 'New Booking'} onClose={onClose}>
+    <Modal title={initial || boardingInitial ? 'Update Booking' : 'New Booking'} onClose={onClose}>
       {error && <div className="error-banner">{error}</div>}
       {result && (
         <div className="error-banner" style={{ background: 'var(--sage-badge, #d9f2e3)', color: 'var(--brand-green)' }}>
@@ -440,7 +470,7 @@ export default function NewBookingModal({
             ))}
           </select>
         </div>
-        {!initial && (
+        {!initial && !boardingInitial && (
           <div className="field">
             <label>Service</label>
             <select value={service} onChange={(e) => setService(e.target.value as Service)}>

@@ -39,6 +39,19 @@ export class DayBookingsController {
     return this.dayBookingsService.computeBoardingPlan(start, end, Number(dogCount) || 1);
   }
 
+  // Every row of one boarding stay -- the admin loads this to edit the stay.
+  @Get('stay/:stayId')
+  findStay(@Param('stayId') stayId: string) {
+    return this.dayBookingsService.findStay(stayId);
+  }
+
+  // Deletes a whole boarding stay (used by the admin's edit = delete + recreate).
+  @RequirePermission('bookings.manage')
+  @Delete('stay/:stayId')
+  removeStay(@Param('stayId') stayId: string) {
+    return this.dayBookingsService.removeStay(stayId);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateDayBookingDto) {
     return this.dayBookingsService.update(id, dto);

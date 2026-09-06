@@ -18,6 +18,10 @@ class DayBooking {
   // Explicit AM/PM override for a single-visit day ('AM' | 'PM'); null means
   // fall back to inferring it from the run's start/end.
   final String? visitTime;
+  // True for any row that's part of a boarding stay (boarding day, attached
+  // day care, or the pick-up placeholder) -- the calendar groups these under
+  // Boarding regardless of which product they carry.
+  final bool boardingStay;
 
   DayBooking({
     required this.id,
@@ -33,6 +37,7 @@ class DayBooking {
     required this.quantity,
     this.invoiceId,
     this.visitTime,
+    this.boardingStay = false,
   });
 
   double get lineTotal => productPrice * quantity;
@@ -62,6 +67,7 @@ class DayBooking {
           ? null
           : (invoice is Map<String, dynamic> ? invoice['_id'] as String? : invoice as String?),
       visitTime: json['visitTime'] as String?,
+      boardingStay: json['boardingStay'] as bool? ?? false,
     );
   }
 }

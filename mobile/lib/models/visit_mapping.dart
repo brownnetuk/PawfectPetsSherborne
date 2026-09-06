@@ -8,6 +8,14 @@ class VisitMapping {
   final String? twoVisitWeekday;
   final String? twoVisitWeekend;
   final String? twoVisitBankHoliday;
+  // Day Care / Boarding product slots (Settings > Bookings), used to tell those
+  // day bookings apart from Visits/Walks on the calendar.
+  final String? dayCareHalfDay;
+  final String? dayCareFullDay;
+  final String? dayCareSecondDogHalfDay;
+  final String? dayCareSecondDogFullDay;
+  final String? boardingPerDay;
+  final String? boardingSecondDogPerDay;
 
   VisitMapping({
     this.oneVisitWeekday,
@@ -16,6 +24,12 @@ class VisitMapping {
     this.twoVisitWeekday,
     this.twoVisitWeekend,
     this.twoVisitBankHoliday,
+    this.dayCareHalfDay,
+    this.dayCareFullDay,
+    this.dayCareSecondDogHalfDay,
+    this.dayCareSecondDogFullDay,
+    this.boardingPerDay,
+    this.boardingSecondDogPerDay,
   });
 
   static String? _id(dynamic v) =>
@@ -28,16 +42,36 @@ class VisitMapping {
         twoVisitWeekday: _id(json['twoVisitWeekdayProduct']),
         twoVisitWeekend: _id(json['twoVisitWeekendProduct']),
         twoVisitBankHoliday: _id(json['twoVisitBankHolidayProduct']),
+        dayCareHalfDay: _id(json['dayCareHalfDayProduct']),
+        dayCareFullDay: _id(json['dayCareFullDayProduct']),
+        dayCareSecondDogHalfDay: _id(json['dayCareSecondDogHalfDayProduct']),
+        dayCareSecondDogFullDay: _id(json['dayCareSecondDogFullDayProduct']),
+        boardingPerDay: _id(json['boardingPerDayProduct']),
+        boardingSecondDogPerDay: _id(json['boardingSecondDogPerDayProduct']),
       );
 
   Set<String> get _oneVisitIds =>
       {oneVisitWeekday, oneVisitWeekend, oneVisitBankHoliday}.whereType<String>().toSet();
   Set<String> get _twoVisitIds =>
       {twoVisitWeekday, twoVisitWeekend, twoVisitBankHoliday}.whereType<String>().toSet();
+  Set<String> get _dayCareIds => {
+        dayCareHalfDay,
+        dayCareFullDay,
+        dayCareSecondDogHalfDay,
+        dayCareSecondDogFullDay,
+      }.whereType<String>().toSet();
+  Set<String> get _boardingIds =>
+      {boardingPerDay, boardingSecondDogPerDay}.whereType<String>().toSet();
 
   /// True if [productId] is any of the six mapped visit products.
   bool isVisitProduct(String productId) =>
       _oneVisitIds.contains(productId) || _twoVisitIds.contains(productId);
+
+  /// True if [productId] is a Day Care product (Half/Full, incl. 2nd-dog rates).
+  bool isDayCareProduct(String productId) => _dayCareIds.contains(productId);
+
+  /// True if [productId] is a Boarding product (incl. the 2nd-dog rate).
+  bool isBoardingProduct(String productId) => _boardingIds.contains(productId);
 
   /// 1 or 2 if [productId] is a mapped visit product, else null (a Walk).
   int? visitCountForProduct(String productId) {

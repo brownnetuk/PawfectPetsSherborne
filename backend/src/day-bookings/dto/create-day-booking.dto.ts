@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDateString, IsIn, IsInt, IsMongoId, IsOptional, Matches, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsDateString, IsIn, IsInt, IsMongoId, IsOptional, IsString, Matches, Min, ValidateIf } from 'class-validator';
 
 const TIME_FORMAT = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -71,4 +71,9 @@ export class CreateDayBookingDto {
   @IsOptional()
   @IsBoolean()
   boardingStay?: boolean;
+
+  // Shared id linking every row of one boarding stay.
+  @IsOptional()
+  @IsString()
+  stayId?: string;
 }

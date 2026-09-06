@@ -511,8 +511,16 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final leave = _leaveOn(_day);
     final dayItems = all.where((b) => _sameDay(b.date, _day)).toList();
     final dayAppointments = allAppointments.where((a) => _sameDay(a.date, _day)).toList();
-    final walkGroups = _groupByAnimal(dayItems.where((b) => !_visitMapping.isVisitProduct(b.productId)).toList());
-    final visitGroups = _groupByAnimal(dayItems.where((b) => _visitMapping.isVisitProduct(b.productId)).toList());
+    // A boarding-stay row (or a Boarding product) is boarding; day care and
+    // visits only when not part of a boarding stay; everything else is a walk.
+    bool isBoarding(DayBooking b) => b.boardingStay || _visitMapping.isBoardingProduct(b.productId);
+    bool isDayCare(DayBooking b) => !b.boardingStay && _visitMapping.isDayCareProduct(b.productId);
+    bool isVisit(DayBooking b) => !b.boardingStay && _visitMapping.isVisitProduct(b.productId);
+    final boardingGroups = _groupByAnimal(dayItems.where(isBoarding).toList());
+    final dayCareGroups = _groupByAnimal(dayItems.where(isDayCare).toList());
+    final visitGroups = _groupByAnimal(dayItems.where(isVisit).toList());
+    final walkGroups = _groupByAnimal(
+        dayItems.where((b) => !isBoarding(b) && !isDayCare(b) && !isVisit(b)).toList());
     final addedIds = dayItems.map((b) => b.animalId).toSet();
     final weekdayKey = _weekdayKeys[_day.weekday - 1];
     // No recommendations on a leave day — nothing can be booked.
@@ -531,7 +539,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
       children: [
         if (leave != null) _annualLeaveBanner(leave),
         _revenueBanner('Day revenue', dayTotal),
-        if (walkGroups.isEmpty && visitGroups.isEmpty && dayAppointments.isEmpty)
+        if (walkGroups.isEmpty &&
+            visitGroups.isEmpty &&
+            dayCareGroups.isEmpty &&
+            boardingGroups.isEmpty &&
+            dayAppointments.isEmpty)
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Text('Nothing booked.'),
@@ -543,6 +555,14 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (visitGroups.isNotEmpty) ...[
           _sectionTitle('Visits'),
           for (final group in visitGroups) _animalCard(group, all),
+        ],
+        if (dayCareGroups.isNotEmpty) ...[
+          _sectionTitle('Day Care'),
+          for (final group in dayCareGroups) _animalCard(group, all),
+        ],
+        if (boardingGroups.isNotEmpty) ...[
+          _sectionTitle('Boarding'),
+          for (final group in boardingGroups) _animalCard(group, all),
         ],
         if (dayAppointments.isNotEmpty) ...[
           _sectionTitle('Appointments'),
@@ -711,13 +731,20 @@ class _BookingsScreenState extends State<BookingsScreen> {
   }
 
   Widget _entryRow(DayBooking b, List<DayBooking> all) {
-    final isVisit = _visitMapping.isVisitProduct(b.productId);
-    final colour = isVisit ? Colors.amber.shade800 : Colors.green.shade600;
+    final Color colour;
     final String subtitle;
-    if (isVisit) {
+    if (b.boardingStay || _visitMapping.isBoardingProduct(b.productId)) {
+      colour = Colors.teal.shade600;
+      subtitle = 'Boarding · Qty ${b.quantity}';
+    } else if (_visitMapping.isDayCareProduct(b.productId)) {
+      colour = Colors.deepPurple.shade400;
+      subtitle = 'Day Care · Qty ${b.quantity}';
+    } else if (_visitMapping.isVisitProduct(b.productId)) {
+      colour = Colors.amber.shade800;
       final time = _visitTime(b, all);
       subtitle = 'Visit${time != null ? ' · $time' : ''} · Qty ${b.quantity}';
     } else {
+      colour = Colors.green.shade600;
       subtitle = 'Walk · Qty ${b.quantity}';
     }
     return ListTile(

@@ -329,9 +329,18 @@ export interface DayBookingInput {
   pickUpTime?: string | null;
   placeholder?: boolean;
   boardingStay?: boolean;
+  stayId?: string;
 }
 export function createDayBooking(input: DayBookingInput): Promise<DayBooking> {
   return request('/day-bookings', { method: 'POST', body: JSON.stringify(input) });
+}
+// Every row of one boarding stay, for loading it into the edit modal.
+export function getBoardingStay(stayId: string): Promise<DayBooking[]> {
+  return request(`/day-bookings/stay/${stayId}`);
+}
+// Deletes a whole boarding stay (edit = delete + recreate).
+export function deleteStay(stayId: string): Promise<{ deleted: number }> {
+  return request(`/day-bookings/stay/${stayId}`, { method: 'DELETE' });
 }
 export function updateDayBooking(
   id: string,

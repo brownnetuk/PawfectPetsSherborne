@@ -188,6 +188,8 @@ export interface DayBooking {
   // Part of a boarding stay (boarding day / attached day care / placeholder) --
   // the calendar colours the whole stay as boarding.
   boardingStay?: boolean;
+  // Shared id across every row of one boarding stay (edit/delete as a unit).
+  stayId?: string;
   createdAt: string;
 }
 

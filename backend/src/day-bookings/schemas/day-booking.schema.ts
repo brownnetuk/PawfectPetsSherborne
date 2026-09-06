@@ -79,6 +79,11 @@ export class DayBooking extends Document {
   // though the day-care days carry a day-care product.
   @Prop({ default: false })
   boardingStay?: boolean;
+
+  // Shared id across every row of one boarding stay, so the whole stay can be
+  // loaded/edited/deleted as a unit (see the stay endpoints).
+  @Prop({ index: true })
+  stayId?: string;
 }
 
 export const DayBookingSchema = SchemaFactory.createForClass(DayBooking);
