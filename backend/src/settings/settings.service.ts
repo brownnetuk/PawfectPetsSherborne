@@ -10,7 +10,7 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { escapeHtml } from '../common/html.util';
-import { publicApiUrl, trackingPixelHtml } from '../common/tracking-pixel.util';
+import { publicApiUrl, publicFrontendUrl, trackingPixelHtml } from '../common/tracking-pixel.util';
 import { PreviewTermsDto } from './dto/preview-terms.dto';
 import { SendTestEmailDto } from './dto/send-test-email.dto';
 import { SendTriggeredEmailDto } from './dto/send-triggered-email.dto';
@@ -523,6 +523,14 @@ export class SettingsService {
   async sendTriggeredEmail(dto: SendTriggeredEmailDto): Promise<{ entryId?: string }> {
     let appendHtml = '';
     let entryId: string | undefined;
+    // The add-pet link is deterministic from the customer id, so build it from
+    // the trusted PUBLIC_INTAKE_URL here rather than trusting the caller's --
+    // otherwise a client that baked in the wrong base URL (e.g. the staff app
+    // pointing at the marketing site) would send a link to the wrong host.
+    const link =
+      dto.trigger === EmailTrigger.ADD_PET && dto.customerId
+        ? `${publicFrontendUrl()}/intake/${dto.customerId}/add-pet`
+        : dto.link;
     // A form send names the specific form (e.g. "Medication Authentication
     // form email sent") instead of the generic title -- there's no fixed
     // "the" form the way there's one registration flow, so the generic
@@ -550,7 +558,7 @@ export class SettingsService {
     await this.sendTemplatedEmail(
       dto.trigger,
       dto.to,
-      { name: dto.name, link: dto.link, form_name: dto.formName },
+      { name: dto.name, link, form_name: dto.formName },
       {},
       appendHtml,
     );
