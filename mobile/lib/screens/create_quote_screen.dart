@@ -10,7 +10,6 @@ import '../models/invoice.dart';
 import '../models/product.dart';
 import '../models/quote.dart';
 import '../models/visit_mapping.dart';
-import '../utils/product_availability.dart';
 import '../utils/visit_plan.dart';
 
 class _FormData {
@@ -539,8 +538,6 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
                 key: ObjectKey(entry.value),
                 entry: entry.value,
                 products: products,
-                issueDate: _issueDate,
-                bankHolidays: data.bankHolidays,
                 onChanged: () => setState(() {}),
                 onRemove: _items.length > 1 ? () => _confirmRemoveItem(entry.key) : null,
               ),
@@ -670,8 +667,6 @@ class _LineItemEntry {
 class _LineItemEditor extends StatelessWidget {
   final _LineItemEntry entry;
   final List<Product> products;
-  final DateTime issueDate;
-  final List<BankHoliday> bankHolidays;
   final VoidCallback onChanged;
   final VoidCallback? onRemove;
 
@@ -679,8 +674,6 @@ class _LineItemEditor extends StatelessWidget {
     super.key,
     required this.entry,
     required this.products,
-    required this.issueDate,
-    required this.bankHolidays,
     required this.onChanged,
     this.onRemove,
   });
@@ -689,15 +682,9 @@ class _LineItemEditor extends StatelessWidget {
   static void _dismissKeyboard(PointerDownEvent _) =>
       FocusManager.instance.primaryFocus?.unfocus();
 
-  // Applies the chosen product, first warning if it's restricted to a
-  // different day-type than the quote's issue date; a bumped [entry.rev]
-  // rebuilds the dropdown to reflect the decided value.
-  Future<void> _pickProduct(BuildContext context, Product? p) async {
-    if (p != null && !await confirmProductAvailability(context, p, issueDate, bankHolidays)) {
-      entry.rev++;
-      onChanged();
-      return;
-    }
+  // Applies the chosen product. Day-type availability restrictions only apply
+  // to bookings, not quotes, so there's no availability warning here.
+  void _pickProduct(Product? p) {
     entry.product = p;
     entry.rev++;
     onChanged();
@@ -722,7 +709,7 @@ class _LineItemEditor extends StatelessWidget {
               items: products
                   .map((p) => DropdownMenuItem(value: p, child: Text(p.name, overflow: TextOverflow.ellipsis)))
                   .toList(),
-              onChanged: (p) => _pickProduct(context, p),
+              onChanged: (p) => _pickProduct(p),
             ),
             const SizedBox(height: 6),
             Row(

@@ -8,7 +8,6 @@ import '../models/bank_holiday.dart';
 import '../models/customer.dart';
 import '../models/invoice.dart';
 import '../models/product.dart';
-import '../utils/product_availability.dart';
 
 /// Everything the form needs, loaded up front.
 class _FormData {
@@ -328,8 +327,6 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                 key: ObjectKey(entry.value),
                 entry: entry.value,
                 products: products,
-                issueDate: _issueDate,
-                bankHolidays: data.bankHolidays,
                 onChanged: () => setState(() {}),
                 onRemove: _items.length > 1 ? () => _confirmRemoveItem(entry.key) : null,
               ),
@@ -475,8 +472,6 @@ class _LineItemEntry {
 class _LineItemEditor extends StatelessWidget {
   final _LineItemEntry entry;
   final List<Product> products;
-  final DateTime issueDate;
-  final List<BankHoliday> bankHolidays;
   final VoidCallback onChanged;
   final VoidCallback? onRemove;
 
@@ -484,22 +479,13 @@ class _LineItemEditor extends StatelessWidget {
     super.key,
     required this.entry,
     required this.products,
-    required this.issueDate,
-    required this.bankHolidays,
     required this.onChanged,
     this.onRemove,
   });
 
-  // Applies the chosen product, first warning if it's restricted to a
-  // different day-type than the invoice's issue date. A bumped [entry.rev]
-  // rebuilds the dropdown so it reflects the decided value (including a revert
-  // when the user cancels the warning).
-  Future<void> _pickProduct(BuildContext context, Product? p) async {
-    if (p != null && !await confirmProductAvailability(context, p, issueDate, bankHolidays)) {
-      entry.rev++;
-      onChanged();
-      return;
-    }
+  // Applies the chosen product. Day-type availability restrictions only apply
+  // to bookings, not invoices, so there's no availability warning here.
+  void _pickProduct(Product? p) {
     entry.product = p;
     entry.rev++;
     onChanged();
@@ -531,7 +517,7 @@ class _LineItemEditor extends StatelessWidget {
                         child: Text(p.name, overflow: TextOverflow.ellipsis),
                       ))
                   .toList(),
-              onChanged: (p) => _pickProduct(context, p),
+              onChanged: (p) => _pickProduct(p),
             ),
             const SizedBox(height: 6),
             Row(

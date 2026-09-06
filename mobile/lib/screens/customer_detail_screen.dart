@@ -6,10 +6,8 @@ import '../api/repository.dart';
 import '../config.dart';
 import '../models/animal.dart';
 import '../models/customer.dart';
-import '../state/auth_provider.dart';
 import '../widgets/status_badge.dart';
 import 'animal_detail_screen.dart';
-import 'create_invoice_screen.dart';
 import 'customer_activity_screen.dart';
 
 class CustomerDetailScreen extends StatefulWidget {
@@ -227,25 +225,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                     )),
               const SizedBox(height: 12),
               OutlinedButton.icon(
-                onPressed: () => _showAddNoteSheet(context),
-                icon: const Icon(Icons.note_add_outlined),
-                label: const Text('Add activity note'),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => CreateInvoiceScreen(
-                      customerId: customer.id,
-                      customerName: customer.name,
-                    ),
-                  ),
-                ),
-                icon: const Icon(Icons.receipt_long_outlined),
-                label: const Text('Create invoice'),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => CustomerActivityScreen(
@@ -260,17 +239,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
             ],
           );
         },
-      ),
-    );
-  }
-
-  void _showAddNoteSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: _AddNoteSheet(customerId: widget.customerId),
       ),
     );
   }
@@ -352,88 +320,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
             .showSnackBar(const SnackBar(content: Text('Could not open the phone dialer.')));
       }
     }
-  }
-}
-
-class _AddNoteSheet extends StatefulWidget {
-  final String customerId;
-  const _AddNoteSheet({required this.customerId});
-
-  @override
-  State<_AddNoteSheet> createState() => _AddNoteSheetState();
-}
-
-class _AddNoteSheetState extends State<_AddNoteSheet> {
-  String _type = 'note';
-  final _subjectController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  bool _submitting = false;
-
-  Future<void> _submit() async {
-    if (_subjectController.text.trim().isEmpty) return;
-    setState(() => _submitting = true);
-    try {
-      final staffName = context.read<AuthProvider>().staff?.name ?? 'Staff';
-      await context.read<Repository>().createActivity(
-            customerId: widget.customerId,
-            type: _type,
-            subject: _subjectController.text.trim(),
-            description: _descriptionController.text.trim(),
-            createdBy: staffName,
-          );
-      if (mounted) Navigator.of(context).pop();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to add note: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _submitting = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Add activity', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _type,
-            decoration: const InputDecoration(labelText: 'Type'),
-            items: const [
-              DropdownMenuItem(value: 'note', child: Text('Note')),
-              DropdownMenuItem(value: 'call', child: Text('Call')),
-              DropdownMenuItem(value: 'email', child: Text('Email')),
-              DropdownMenuItem(value: 'task', child: Text('Task')),
-            ],
-            onChanged: (v) => setState(() => _type = v ?? 'note'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _subjectController,
-            decoration: const InputDecoration(labelText: 'Subject'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _descriptionController,
-            decoration: const InputDecoration(labelText: 'Description'),
-            maxLines: 3,
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _submitting ? null : _submit,
-              child: Text(_submitting ? 'Adding…' : 'Add'),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
