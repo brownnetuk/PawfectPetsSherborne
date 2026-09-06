@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import * as api from '../api/client';
+import CustomerPicker from './CustomerPicker';
 import { DateReadout, TimeReadout } from './DateTimeReadout';
 import Modal from './Modal';
 import { addDays, buildVisitPlan, dateKey, parseYmd } from '../utils/visitPlan';
@@ -489,14 +490,7 @@ export default function NewBookingModal({
       <form onSubmit={handleSubmit}>
         <div className="field">
           <label>Customer</label>
-          <select value={custId} onChange={(e) => handleCustomerChange(e.target.value)}>
-            <option value="">Select a customer…</option>
-            {customers.map((c) => (
-              <option key={c._id} value={c._id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <CustomerPicker customers={customers} value={custId} onChange={handleCustomerChange} />
         </div>
         {!initial && !boardingInitial && !dayCareInitial && (
           <div className="field">
