@@ -4,10 +4,8 @@ import { DateReadout } from './DateTimeReadout';
 import ManualCustomerModal from './ManualCustomerModal';
 import type { ManualCustomer } from './ManualCustomerModal';
 import Modal from './Modal';
-import ProductAvailabilityWarningModal from './ProductAvailabilityWarningModal';
 import SendPreviewModal from './SendPreviewModal';
 import { ChevronDownIcon } from './icons';
-import { availabilityMismatch } from '../utils/productAvailability';
 import { buildVisitPlan, parseYmd as parseVisitYmd } from '../utils/visitPlan';
 import type { VisitCount } from '../utils/visitPlan';
 import type { Animal, BankHoliday, Customer, Invoice, InvoiceTerm, LineItem, Product, Quote, VisitMapping } from '../types';
@@ -169,18 +167,13 @@ function ItemDescriptionInput({
 function ItemTable({
   lineItems,
   products,
-  issueDate,
-  bankHolidays,
   onChange,
 }: {
   lineItems: LineItem[];
   products: Product[];
-  issueDate: Date;
-  bankHolidays: BankHoliday[];
   onChange: (items: LineItem[]) => void;
 }) {
   const [pickerIndex, setPickerIndex] = useState<number | null>(null);
-  const [warning, setWarning] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
   function updateItem(i: number, patch: Partial<LineItem>) {
     onChange(lineItems.map((item, idx) => (idx === i ? { ...item, ...patch } : item)));
@@ -188,12 +181,9 @@ function ItemTable({
   function applyProduct(i: number, product: Product) {
     updateItem(i, { description: product.name, unitPrice: product.price });
   }
+  // Day-type availability restrictions only apply to bookings, not invoices or
+  // quotes, so the product is applied with no availability warning here.
   function selectProduct(i: number, product: Product) {
-    const mismatch = availabilityMismatch(product, issueDate, bankHolidays);
-    if (mismatch) {
-      setWarning({ message: mismatch, onConfirm: () => applyProduct(i, product) });
-      return;
-    }
     applyProduct(i, product);
   }
   function handleDescriptionChange(i: number, value: string) {
@@ -288,17 +278,6 @@ function ItemTable({
           products={products}
           onClose={() => setPickerIndex(null)}
           onSelect={(product) => selectProduct(pickerIndex, product)}
-        />
-      )}
-      {warning && (
-        <ProductAvailabilityWarningModal
-          message={warning.message}
-          onCancel={() => setWarning(null)}
-          onConfirm={() => {
-            const { onConfirm } = warning;
-            setWarning(null);
-            onConfirm();
-          }}
         />
       )}
     </div>
@@ -883,8 +862,6 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
           <ItemTable
             lineItems={lineItems}
             products={products}
-            issueDate={parseYmd(issueDate)}
-            bankHolidays={bankHolidays}
             onChange={setLineItems}
           />
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
