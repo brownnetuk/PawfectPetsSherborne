@@ -13,7 +13,6 @@ import '../models/payment.dart' as models;
 import '../models/crm_activity.dart';
 import '../models/customer.dart';
 import '../models/expense.dart';
-import '../models/form_summary.dart';
 import '../models/invoice.dart';
 import '../models/message.dart';
 import '../models/product.dart';
@@ -73,42 +72,21 @@ class Repository {
   /// still have pets/bookings/invoices/quotes/activity on file.
   Future<void> deleteCustomer(String id) => _client.delete('/customers/$id');
 
-  // --- forms (send a customer a fill-in link) ---
-  Future<List<FormSummary>> listForms() async =>
-      (await _client.getList('/forms')).map((e) => FormSummary.fromJson(e)).toList();
-
-  /// Creates a pending form submission and returns its id -- the public
-  /// /forms/:id link the customer fills in points at this.
-  Future<String> createFormSubmission({
-    required String formId,
-    required String customerId,
-    required String recipientEmail,
-    String? recipientName,
-  }) async {
-    final json = await _client.post('/form-submissions', {
-      'form': formId,
-      'customer': customerId,
-      'recipientEmail': recipientEmail,
-      if (recipientName != null && recipientName.isNotEmpty) 'recipientName': recipientName,
-    });
-    return json['_id'] as String;
-  }
-
-  /// Emails the customer the 'form' triggered email carrying the fill-in link.
-  Future<void> sendFormEmail({
+  /// Emails the customer the 'add_pet' triggered email carrying a link to the
+  /// public /intake/:customerId/add-pet flow -- mirrors the admin's
+  /// Customer > Pets > New pet > "Send a link to the customer".
+  Future<void> sendAddPetEmail({
     required String to,
     required String name,
     required String link,
     required String customerId,
-    required String formName,
   }) =>
       _client.post('/settings/email/send', {
-        'trigger': 'form',
+        'trigger': 'add_pet',
         'to': to,
         'name': name,
         'link': link,
         'customerId': customerId,
-        'formName': formName,
       });
 
   Future<Customer> updateCustomerStatus(String id, String status) async =>

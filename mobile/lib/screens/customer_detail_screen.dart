@@ -5,7 +5,6 @@ import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../config.dart';
 import '../models/animal.dart';
-import '../models/form_summary.dart';
 import '../models/customer.dart';
 import '../state/auth_provider.dart';
 import '../widgets/status_badge.dart';
@@ -201,8 +200,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                   IconButton(
                     icon: const Icon(Icons.add_circle_outline),
                     color: Theme.of(context).colorScheme.primary,
-                    tooltip: 'Send add/update pet form',
-                    onPressed: () => _showSendPetFormSheet(customer),
+                    tooltip: 'Add a pet',
+                    onPressed: () => _showAddPetSheet(customer),
                   ),
                 ],
               ),
@@ -276,13 +275,13 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     );
   }
 
-  void _showSendPetFormSheet(Customer customer) {
+  void _showAddPetSheet(Customer customer) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       builder: (_) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: _SendPetFormSheet(customer: customer),
+        child: _AddPetSheet(customer: customer),
       ),
     );
   }
@@ -438,58 +437,24 @@ class _AddNoteSheetState extends State<_AddNoteSheet> {
   }
 }
 
-/// Emails the customer a link to fill in a form (typically the add/update pet
-/// form) -- same flow as the admin's Send Form: pick a form, generate a
-/// submission, send its /forms/:id link.
-class _SendPetFormSheet extends StatefulWidget {
+/// Emails the customer a link to add their pet's details themselves -- the same
+/// 'add_pet' triggered email + /intake/:customerId/add-pet link the admin sends
+/// from Customer > Pets > New pet > "Send a link to the customer".
+class _AddPetSheet extends StatefulWidget {
   final Customer customer;
-  const _SendPetFormSheet({required this.customer});
+  const _AddPetSheet({required this.customer});
 
   @override
-  State<_SendPetFormSheet> createState() => _SendPetFormSheetState();
+  State<_AddPetSheet> createState() => _AddPetSheetState();
 }
 
-class _SendPetFormSheetState extends State<_SendPetFormSheet> {
-  List<FormSummary>? _forms;
-  String? _formId;
-  bool _loading = true;
+class _AddPetSheetState extends State<_AddPetSheet> {
   bool _sending = false;
   String? _error;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadForms();
-  }
-
-  Future<void> _loadForms() async {
-    try {
-      final all = await context.read<Repository>().listForms();
-      final visible = all.where((f) => f.customerVisible).toList()
-        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      // Default to a form whose name looks pet-related, else the first one.
-      final preferred = visible.firstWhere(
-        (f) => f.name.toLowerCase().contains('pet'),
-        orElse: () => visible.isNotEmpty ? visible.first : FormSummary(id: '', name: ''),
-      );
-      if (!mounted) return;
-      setState(() {
-        _forms = visible;
-        _formId = preferred.id.isEmpty ? null : preferred.id;
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e is ApiException ? e.message : 'Failed to load forms';
-        _loading = false;
-      });
-    }
-  }
+  String get _link => '$intakeBaseUrl/intake/${widget.customer.id}/add-pet';
 
   Future<void> _send() async {
-    final formId = _formId;
-    if (formId == null) return;
     final customer = widget.customer;
     if (customer.email.trim().isEmpty) {
       setState(() => _error = 'This customer has no email address on file.');
@@ -502,26 +467,18 @@ class _SendPetFormSheetState extends State<_SendPetFormSheet> {
     try {
       final repo = context.read<Repository>();
       final messenger = ScaffoldMessenger.of(context);
-      final form = _forms!.firstWhere((f) => f.id == formId);
-      final submissionId = await repo.createFormSubmission(
-        formId: formId,
-        customerId: customer.id,
-        recipientEmail: customer.email,
-        recipientName: customer.name,
-      );
-      await repo.sendFormEmail(
+      await repo.sendAddPetEmail(
         to: customer.email,
         name: customer.name,
-        link: '$intakeBaseUrl/forms/$submissionId',
+        link: _link,
         customerId: customer.id,
-        formName: form.name,
       );
       if (!mounted) return;
       Navigator.of(context).pop();
-      messenger.showSnackBar(SnackBar(content: Text('Sent "${form.name}" to ${customer.email}.')));
+      messenger.showSnackBar(SnackBar(content: Text('Add-a-pet link sent to ${customer.email}.')));
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e is ApiException ? e.message : 'Failed to send the form');
+      setState(() => _error = e is ApiException ? e.message : 'Failed to send the email');
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -536,49 +493,27 @@ class _SendPetFormSheetState extends State<_SendPetFormSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Send a form', style: Theme.of(context).textTheme.titleMedium),
+          Text('Add a pet', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           Text(
-            'Email ${customer.name} a link to fill in — e.g. the add/update pet form.',
+            'Email ${customer.name} a link to add their pet’s details themselves.',
             style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
           ),
           const SizedBox(height: 16),
-          if (_loading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (_forms == null || _forms!.isEmpty)
-            Text(
-              _error ?? 'No customer-visible forms are available. Create one in the admin first.',
-              style: const TextStyle(color: Color(0xFFC0392B)),
-            )
-          else ...[
-            DropdownButtonFormField<String>(
-              initialValue: _formId,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Form'),
-              items: _forms!
-                  .map((f) => DropdownMenuItem(value: f.id, child: Text(f.name, overflow: TextOverflow.ellipsis)))
-                  .toList(),
-              onChanged: _sending ? null : (v) => setState(() => _formId = v),
-            ),
+          Text('To: ${customer.email}', style: TextStyle(color: Colors.grey.shade700)),
+          if (_error != null) ...[
             const SizedBox(height: 12),
-            Text('To: ${customer.email}', style: TextStyle(color: Colors.grey.shade700)),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(_error!, style: const TextStyle(color: Color(0xFFC0392B))),
-            ],
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _sending || _formId == null ? null : _send,
-                icon: const Icon(Icons.send_outlined, size: 18),
-                label: Text(_sending ? 'Sending…' : 'Send form'),
-              ),
-            ),
+            Text(_error!, style: const TextStyle(color: Color(0xFFC0392B))),
           ],
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _sending ? null : _send,
+              icon: const Icon(Icons.send_outlined, size: 18),
+              label: Text(_sending ? 'Sending…' : 'Send email'),
+            ),
+          ),
         ],
       ),
     );
