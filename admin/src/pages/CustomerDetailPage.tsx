@@ -1650,15 +1650,27 @@ function CustomerPortalCard({ customer, onChange }: { customer: Customer; onChan
   const [notice, setNotice] = useState<string | null>(null);
   const [testMessage, setTestMessage] = useState('');
   const [pushing, setPushing] = useState(false);
+  // Enabling the portal emails the customer, so confirm first. Disabling is
+  // immediate (it just signs them out).
+  const [confirmEnable, setConfirmEnable] = useState(false);
 
-  async function handleToggle(value: boolean) {
+  function handleToggle(value: boolean) {
+    if (value) {
+      setConfirmEnable(true);
+    } else {
+      applyToggle(false);
+    }
+  }
+
+  async function applyToggle(value: boolean) {
+    setConfirmEnable(false);
     setSavingActive(true);
     setError(null);
     setNotice(null);
     setActive(value); // optimistic
     try {
       await api.setCustomerPortalActive(customer._id, value);
-      setNotice(value ? 'Portal enabled for this customer.' : 'Portal disabled.');
+      setNotice(value ? 'Portal enabled — welcome email sent to the customer.' : 'Portal disabled.');
       onChange();
     } catch (err) {
       setActive(!value); // revert
@@ -1717,6 +1729,21 @@ function CustomerPortalCard({ customer, onChange }: { customer: Customer; onChan
           Portal Active
         </label>
       </div>
+      {confirmEnable && (
+        <Modal title="Enable app access?" onClose={() => setConfirmEnable(false)}>
+          <p style={{ color: 'var(--muted)' }}>
+            Send email to customer ({customer.email}) and enable the portal?
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setConfirmEnable(false)}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" onClick={() => applyToggle(true)}>
+              Yes, send email
+            </button>
+          </div>
+        </Modal>
+      )}
       <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center', gap: 12 }}>
         <button
           className="btn btn-secondary"
