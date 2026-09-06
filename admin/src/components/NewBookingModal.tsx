@@ -317,6 +317,14 @@ export default function NewBookingModal({
       setError('Choose a drop off and pick up time.');
       return;
     }
+    // Full drop-off/pick-up datetimes drive the duration calc. Both use the
+    // same local, no-timezone format so their difference is offset-agnostic.
+    const startIso = `${boardingStartDate}T${boardingDropOffTime}:00`;
+    const endIso = `${boardingEndDate}T${boardingPickUpTime}:00`;
+    if (new Date(endIso) <= new Date(startIso)) {
+      setError('Pick up must be after drop off.');
+      return;
+    }
     if (rangeOverlapsAnnualLeave(start, end, annualLeave)) {
       setError('This date range overlaps a day marked as Annual Leave in Settings > Invoices. Bookings are blocked on those days.');
       return;
@@ -324,45 +332,50 @@ export default function NewBookingModal({
 
     setBusy(true);
     try {
-      const mapping = await api.getVisitMapping();
-      const productId = mapping.boardingPerDayProduct;
-      if (!productId) {
-        setError('No product is configured in Settings > Bookings > Boarding for Per Day.');
+      // Single source of truth for the product breakdown -- whole 24h boarding
+      // days + a leftover Half/Full Day Care day, with 2nd-dog rates for the
+      // 2nd dog (see backend DayBookingsService.computeBoardingPlan).
+      const plan = await api.getBoardingPlan(startIso, endIso, animalIds.length);
+      if (plan.missing.length > 0) {
+        setError(`No product is configured in Settings > Bookings for: ${plan.missing.join(', ')}.`);
+        setBusy(false);
+        return;
+      }
+      if (plan.lines.length === 0) {
+        setError('This stay is too short to book anything. Check the dates and times.');
         setBusy(false);
         return;
       }
 
-      const days: Date[] = [];
-      for (let d = start; d <= end; d = addDays(d, 1)) days.push(d);
-
       const existing = await api.listDayBookings(dateKey(start), dateKey(addDays(end, 1)));
       const existingByKey = new Map(existing.map((b) => [`${animalId(b.animal)}|${dateKey(new Date(b.date))}`, b]));
 
+      // Drop-off time goes on each dog's earliest row, pick-up on its latest.
+      const maxOffset = Math.max(...plan.lines.map((l) => l.dayOffset));
+
       let created = 0;
       let skipped = 0;
-      for (const id of animalIds) {
+      for (const line of plan.lines) {
+        const id = animalIds[line.dogIndex];
+        if (!id || !line.productId) continue;
+        const date = addDays(start, line.dayOffset);
+        if (existingByKey.has(`${id}|${dateKey(date)}`)) {
+          skipped++;
+          continue;
+        }
+        await api.createDayBooking({
+          animal: id,
+          date: dateKey(date),
+          product: line.productId,
+          quantity: 1,
+          dropOffTime: line.dayOffset === 0 ? boardingDropOffTime : undefined,
+          pickUpTime: line.dayOffset === maxOffset ? boardingPickUpTime : undefined,
+        });
+        created++;
         const travelProductId = travelProductFor(id);
-        for (let i = 0; i < days.length; i++) {
-          const date = days[i];
-          if (existingByKey.has(`${id}|${dateKey(date)}`)) {
-            skipped++;
-            continue;
-          }
-          const isFirst = i === 0;
-          const isLast = i === days.length - 1;
-          await api.createDayBooking({
-            animal: id,
-            date: dateKey(date),
-            product: productId,
-            quantity: 1,
-            dropOffTime: isFirst ? boardingDropOffTime : undefined,
-            pickUpTime: isLast ? boardingPickUpTime : undefined,
-          });
+        if (travelProductId && travelProductId !== line.productId) {
+          await api.createDayBooking({ animal: id, date: dateKey(date), product: travelProductId, quantity: 1 });
           created++;
-          if (travelProductId && travelProductId !== productId) {
-            await api.createDayBooking({ animal: id, date: dateKey(date), product: travelProductId, quantity: 1 });
-            created++;
-          }
         }
       }
 

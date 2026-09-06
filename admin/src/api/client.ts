@@ -293,6 +293,27 @@ export function listDayBookings(from: string, to: string): Promise<DayBooking[]>
 export function listDayBookingsForCustomer(customerId: string): Promise<DayBooking[]> {
   return request(`/day-bookings/by-customer/${customerId}`);
 }
+
+// The computed product breakdown for a boarding stay (see the backend's
+// DayBookingsService.computeBoardingPlan). start/end are ISO datetimes.
+export interface BoardingPlanLine {
+  dogIndex: number;
+  dayOffset: number;
+  kind: 'boarding' | 'halfDay' | 'fullDay';
+  secondDog: boolean;
+  productId: string | null;
+}
+export interface BoardingPlan {
+  boardingDays: number;
+  partial: 'none' | 'half' | 'full';
+  lines: BoardingPlanLine[];
+  missing: string[];
+}
+export function getBoardingPlan(start: string, end: string, dogCount: number): Promise<BoardingPlan> {
+  return request(
+    `/day-bookings/boarding-plan?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&dogCount=${dogCount}`,
+  );
+}
 export interface DayBookingInput {
   animal: string;
   date: string;

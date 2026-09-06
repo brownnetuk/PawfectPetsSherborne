@@ -2,9 +2,29 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Animal } from '../animals/schemas/animal.schema';
+import { VisitMapping } from '../settings/schemas/visit-mapping.schema';
 import { CreateDayBookingDto } from './dto/create-day-booking.dto';
 import { UpdateDayBookingDto } from './dto/update-day-booking.dto';
 import { DayBooking } from './schemas/day-booking.schema';
+
+export type BoardingLineKind = 'boarding' | 'halfDay' | 'fullDay';
+
+export interface BoardingPlanLine {
+  dogIndex: number; // 0-based position in the animals list
+  dayOffset: number; // 0 = start date
+  kind: BoardingLineKind;
+  secondDog: boolean; // uses the 2nd-dog product rate
+  productId: string | null; // resolved from the VisitMapping, null if unmapped
+}
+
+export interface BoardingPlan {
+  boardingDays: number;
+  partial: 'none' | 'half' | 'full';
+  lines: BoardingPlanLine[];
+  // Human labels of the product slots the plan needs but that aren't set in
+  // Settings > Bookings -- the admin blocks the booking and names these.
+  missing: string[];
+}
 
 // Truncates to local midnight so every entry on the same calendar day shares
 // one exact Date value, regardless of what time the request came in at. A
@@ -26,7 +46,68 @@ export class DayBookingsService {
   constructor(
     @InjectModel(DayBooking.name) private readonly dayBookingModel: Model<DayBooking>,
     @InjectModel(Animal.name) private readonly animalModel: Model<Animal>,
+    @InjectModel(VisitMapping.name) private readonly visitMappingModel: Model<VisitMapping>,
   ) {}
+
+  // Turns a boarding stay's start/end datetimes + dog count into the exact set
+  // of product lines to book, resolving each to the catalogue product configured
+  // in Settings > Bookings (Day Care / Boarding). Rules (confirmed with the
+  // business): whole 24h blocks = Boarding days; the leftover remainder is one
+  // Day Care day -- Half if <= 6h, Full if > 6h. Only the *2nd* dog uses the
+  // 2nd-dog product rates; the 1st and any 3rd+ dogs use the normal ones. The
+  // Half/Full Day Care lands on the pickup day (the day after the last full
+  // boarding day). Single source of truth -- the admin calls this, then creates
+  // the day bookings it returns.
+  async computeBoardingPlan(startIso: string, endIso: string, dogCount: number): Promise<BoardingPlan> {
+    const start = new Date(startIso);
+    const end = new Date(endIso);
+    const hours = (end.getTime() - start.getTime()) / 3_600_000;
+    const boardingDays = hours > 0 ? Math.floor(hours / 24) : 0;
+    const remainder = hours - boardingDays * 24;
+    const partial: 'none' | 'half' | 'full' = remainder <= 0 ? 'none' : remainder <= 6 ? 'half' : 'full';
+
+    const mapping = await this.visitMappingModel.findOne().exec();
+    const id = (v?: unknown): string | null => (v ? String(v) : null);
+    const products = {
+      boarding: id(mapping?.boardingPerDayProduct),
+      boardingSecond: id(mapping?.boardingSecondDogPerDayProduct),
+      half: id(mapping?.dayCareHalfDayProduct),
+      halfSecond: id(mapping?.dayCareSecondDogHalfDayProduct),
+      full: id(mapping?.dayCareFullDayProduct),
+      fullSecond: id(mapping?.dayCareSecondDogFullDayProduct),
+    };
+
+    const dogs = Math.max(1, Math.floor(dogCount) || 1);
+    const lines: BoardingPlanLine[] = [];
+    const missing = new Set<string>();
+
+    for (let dogIndex = 0; dogIndex < dogs; dogIndex++) {
+      const secondDog = dogIndex === 1; // only the 2nd dog gets 2nd-dog rates
+      for (let day = 0; day < boardingDays; day++) {
+        const productId = secondDog ? products.boardingSecond : products.boarding;
+        if (!productId) missing.add(secondDog ? '2nd Dog Per Day (Boarding)' : 'Per Day (Boarding)');
+        lines.push({ dogIndex, dayOffset: day, kind: 'boarding', secondDog, productId });
+      }
+      if (partial !== 'none') {
+        const kind: BoardingLineKind = partial === 'half' ? 'halfDay' : 'fullDay';
+        const productId =
+          partial === 'half'
+            ? secondDog
+              ? products.halfSecond
+              : products.half
+            : secondDog
+              ? products.fullSecond
+              : products.full;
+        if (!productId) {
+          if (partial === 'half') missing.add(secondDog ? '2nd Dog Half Day' : 'Half Day');
+          else missing.add(secondDog ? '2nd Dog Full Day' : 'Full Day');
+        }
+        lines.push({ dogIndex, dayOffset: boardingDays, kind, secondDog, productId });
+      }
+    }
+
+    return { boardingDays, partial, lines, missing: [...missing] };
+  }
 
   async create(dto: CreateDayBookingDto): Promise<DayBooking> {
     const animal = await this.animalModel.findById(dto.animal).exec();

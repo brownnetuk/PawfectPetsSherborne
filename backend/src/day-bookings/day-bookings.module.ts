@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Animal, AnimalSchema } from '../animals/schemas/animal.schema';
+import { VisitMapping, VisitMappingSchema } from '../settings/schemas/visit-mapping.schema';
 import { DayBookingsController } from './day-bookings.controller';
 import { DayBookingsService } from './day-bookings.service';
 import { DayBooking, DayBookingSchema } from './schemas/day-booking.schema';

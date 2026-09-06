@@ -27,6 +27,18 @@ export class DayBookingsController {
     return this.dayBookingsService.findForCustomer(customerId);
   }
 
+  // The product breakdown for a boarding stay (whole 24h boarding days + a
+  // leftover Half/Full Day Care day), resolved to the configured products --
+  // the admin's New Booking modal calls this, then creates the day bookings.
+  @Get('boarding-plan')
+  boardingPlan(
+    @Query('start') start: string,
+    @Query('end') end: string,
+    @Query('dogCount') dogCount: string,
+  ) {
+    return this.dayBookingsService.computeBoardingPlan(start, end, Number(dogCount) || 1);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateDayBookingDto) {
     return this.dayBookingsService.update(id, dto);
