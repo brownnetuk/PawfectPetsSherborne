@@ -6,6 +6,7 @@ import '../api/repository.dart';
 import '../config.dart';
 import '../models/animal.dart';
 import '../models/customer.dart';
+import '../models/form_summary.dart';
 import '../widgets/status_badge.dart';
 import 'animal_detail_screen.dart';
 import 'customer_activity_screen.dart';
@@ -236,9 +237,26 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 icon: const Icon(Icons.history),
                 label: const Text('Activity'),
               ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () => _showSendFormSheet(customer),
+                icon: const Icon(Icons.description_outlined),
+                label: const Text('Send form'),
+              ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  void _showSendFormSheet(Customer customer) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: _SendFormSheet(customer: customer),
       ),
     );
   }
@@ -400,6 +418,147 @@ class _AddPetSheetState extends State<_AddPetSheet> {
               label: Text(_sending ? 'Sending…' : 'Send email'),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Emails the customer a fill-in link for a chosen form (the customer-visible
+/// forms from Settings > Forms). Mirrors the admin's Send Form.
+class _SendFormSheet extends StatefulWidget {
+  final Customer customer;
+  const _SendFormSheet({required this.customer});
+
+  @override
+  State<_SendFormSheet> createState() => _SendFormSheetState();
+}
+
+class _SendFormSheetState extends State<_SendFormSheet> {
+  List<FormSummary>? _forms;
+  String? _formId;
+  bool _loading = true;
+  bool _sending = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadForms();
+  }
+
+  Future<void> _loadForms() async {
+    try {
+      final all = await context.read<Repository>().listForms();
+      final visible = all.where((f) => f.customerVisible).toList()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      if (!mounted) return;
+      setState(() {
+        _forms = visible;
+        _formId = visible.isNotEmpty ? visible.first.id : null;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e is ApiException ? e.message : 'Failed to load forms';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _send() async {
+    final formId = _formId;
+    if (formId == null) return;
+    final customer = widget.customer;
+    if (customer.email.trim().isEmpty) {
+      setState(() => _error = 'This customer has no email address on file.');
+      return;
+    }
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+    try {
+      final repo = context.read<Repository>();
+      final messenger = ScaffoldMessenger.of(context);
+      final form = _forms!.firstWhere((f) => f.id == formId);
+      final submissionId = await repo.createFormSubmission(
+        formId: formId,
+        customerId: customer.id,
+        recipientEmail: customer.email,
+        recipientName: customer.name,
+      );
+      await repo.sendFormEmail(
+        to: customer.email,
+        name: customer.name,
+        link: '$intakeBaseUrl/forms/$submissionId',
+        customerId: customer.id,
+        formName: form.name,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      messenger.showSnackBar(SnackBar(content: Text('Sent "${form.name}" to ${customer.email}.')));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e is ApiException ? e.message : 'Failed to send the form');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final customer = widget.customer;
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Send a form', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            'Email ${customer.name} a link to fill in one of your forms.',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_forms == null || _forms!.isEmpty)
+            Text(
+              _error ?? 'No customer-visible forms are available. Create one (and mark it visible) in Settings > Forms.',
+              style: const TextStyle(color: Color(0xFFC0392B)),
+            )
+          else ...[
+            DropdownButtonFormField<String>(
+              initialValue: _formId,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Form'),
+              items: _forms!
+                  .map((f) => DropdownMenuItem(value: f.id, child: Text(f.name, overflow: TextOverflow.ellipsis)))
+                  .toList(),
+              onChanged: _sending ? null : (v) => setState(() => _formId = v),
+            ),
+            const SizedBox(height: 12),
+            Text('To: ${customer.email}', style: TextStyle(color: Colors.grey.shade700)),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(_error!, style: const TextStyle(color: Color(0xFFC0392B))),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _sending || _formId == null ? null : _send,
+                icon: const Icon(Icons.send_outlined, size: 18),
+                label: Text(_sending ? 'Sending…' : 'Send form'),
+              ),
+            ),
+          ],
         ],
       ),
     );

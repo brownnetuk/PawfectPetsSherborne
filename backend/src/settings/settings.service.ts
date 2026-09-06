@@ -523,14 +523,21 @@ export class SettingsService {
   async sendTriggeredEmail(dto: SendTriggeredEmailDto): Promise<{ entryId?: string }> {
     let appendHtml = '';
     let entryId: string | undefined;
-    // The add-pet link is deterministic from the customer id, so build it from
-    // the trusted PUBLIC_INTAKE_URL here rather than trusting the caller's --
-    // otherwise a client that baked in the wrong base URL (e.g. the staff app
-    // pointing at the marketing site) would send a link to the wrong host.
-    const link =
-      dto.trigger === EmailTrigger.ADD_PET && dto.customerId
-        ? `${publicFrontendUrl()}/intake/${dto.customerId}/add-pet`
-        : dto.link;
+    // Intake links (add-pet, form fill) must point at the trusted
+    // PUBLIC_INTAKE_URL, not whatever base URL the caller baked in (the staff
+    // app pointed at the marketing site). Add-pet is deterministic from the
+    // customer id; for a form, keep the caller's /forms/:id path but swap the
+    // host.
+    let link = dto.link;
+    if (dto.trigger === EmailTrigger.ADD_PET && dto.customerId) {
+      link = `${publicFrontendUrl()}/intake/${dto.customerId}/add-pet`;
+    } else if (dto.trigger === EmailTrigger.FORM && dto.link) {
+      try {
+        link = `${publicFrontendUrl()}${new URL(dto.link).pathname}`;
+      } catch {
+        link = dto.link;
+      }
+    }
     // A form send names the specific form (e.g. "Medication Authentication
     // form email sent") instead of the generic title -- there's no fixed
     // "the" form the way there's one registration flow, so the generic
