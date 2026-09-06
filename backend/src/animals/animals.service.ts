@@ -90,8 +90,15 @@ export class AnimalsService {
   }
 
   findAll(customerId?: string): Promise<Animal[]> {
-    const filter = customerId ? { customer: customerId } : {};
-    return this.animalModel.find(filter).exec();
+    // A whole-collection fetch (no customer) is only ever used for pickers and
+    // labels -- the bookings calendar and customer-by-pet search -- so return a
+    // light projection without the heavy base64 image fields (photos,
+    // vaccineRecordPhoto). A customer-scoped fetch (the pet detail view) keeps
+    // the full document so it can render the images.
+    if (!customerId) {
+      return this.animalModel.find().select('name species customer').exec();
+    }
+    return this.animalModel.find({ customer: customerId }).exec();
   }
 
   async findOne(id: string): Promise<Animal> {

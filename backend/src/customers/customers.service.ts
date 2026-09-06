@@ -195,9 +195,14 @@ export class CustomersService {
   }
 
   findAll(): Promise<Customer[]> {
+    // The list is only used for tables/pickers, which never render the stored
+    // signatures -- exclude those base64 images (and the encrypted alarm code)
+    // so the payload stays small. The detail view (findOne) still returns them.
     return this.customerModel
       .find()
-      .select('-security.alarmInstructionsEncrypted')
+      .select(
+        '-security.alarmInstructionsEncrypted -agreement.signatureImage -emergencyVet.authorisation.signatureImage',
+      )
       .sort({ createdAt: -1 })
       .exec();
   }
