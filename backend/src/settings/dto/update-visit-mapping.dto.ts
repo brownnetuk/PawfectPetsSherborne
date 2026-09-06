@@ -47,5 +47,20 @@ export class UpdateVisitMappingDto {
   @IsOptional()
   @ValidateIf((_, v) => v !== null)
   @IsMongoId()
+  dayCareSecondDogHalfDayProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  dayCareSecondDogFullDayProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
   boardingPerDayProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  boardingSecondDogPerDayProduct?: string | null;
 }

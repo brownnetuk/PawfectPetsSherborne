@@ -2679,13 +2679,18 @@ function BookingsSettingsTab() {
         description="Maps each Day Care option to the product used for it."
         fields={[
           { key: 'dayCareHalfDayProduct', label: 'Half Day' },
+          { key: 'dayCareSecondDogHalfDayProduct', label: '2nd Dog Half Day' },
           { key: 'dayCareFullDayProduct', label: 'Full Day' },
+          { key: 'dayCareSecondDogFullDayProduct', label: '2nd Dog Full Day' },
         ]}
       />
       <ProductMappingCard
         title="Boarding"
-        description="Maps the Boarding option to the product used for it."
-        fields={[{ key: 'boardingPerDayProduct', label: 'Per Day' }]}
+        description="Maps each Boarding option to the product used for it."
+        fields={[
+          { key: 'boardingPerDayProduct', label: 'Per Day' },
+          { key: 'boardingSecondDogPerDayProduct', label: '2nd Dog Per Day' },
+        ]}
       />
     </div>
   );

@@ -34,8 +34,19 @@ export class VisitMapping extends Document {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
   dayCareFullDayProduct?: Types.ObjectId;
 
+  // 2nd-dog rates for the same options (used when a customer books more than
+  // one dog for the same day-care/boarding stay).
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  dayCareSecondDogHalfDayProduct?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  dayCareSecondDogFullDayProduct?: Types.ObjectId;
+
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
   boardingPerDayProduct?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  boardingSecondDogPerDayProduct?: Types.ObjectId;
 }
 
 export const VisitMappingSchema = SchemaFactory.createForClass(VisitMapping);

@@ -473,7 +473,10 @@ export interface VisitMapping {
   twoVisitBankHolidayProduct: string | null;
   dayCareHalfDayProduct: string | null;
   dayCareFullDayProduct: string | null;
+  dayCareSecondDogHalfDayProduct: string | null;
+  dayCareSecondDogFullDayProduct: string | null;
   boardingPerDayProduct: string | null;
+  boardingSecondDogPerDayProduct: string | null;
 }
 
 export interface BusinessInfo {

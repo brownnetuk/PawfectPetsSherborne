@@ -339,7 +339,10 @@ export class SettingsService {
       twoVisitBankHolidayProduct: doc?.twoVisitBankHolidayProduct?.toString() ?? null,
       dayCareHalfDayProduct: doc?.dayCareHalfDayProduct?.toString() ?? null,
       dayCareFullDayProduct: doc?.dayCareFullDayProduct?.toString() ?? null,
+      dayCareSecondDogHalfDayProduct: doc?.dayCareSecondDogHalfDayProduct?.toString() ?? null,
+      dayCareSecondDogFullDayProduct: doc?.dayCareSecondDogFullDayProduct?.toString() ?? null,
       boardingPerDayProduct: doc?.boardingPerDayProduct?.toString() ?? null,
+      boardingSecondDogPerDayProduct: doc?.boardingSecondDogPerDayProduct?.toString() ?? null,
     };
   }
 
@@ -353,7 +356,13 @@ export class SettingsService {
     if (dto.twoVisitBankHolidayProduct !== undefined) update.twoVisitBankHolidayProduct = dto.twoVisitBankHolidayProduct;
     if (dto.dayCareHalfDayProduct !== undefined) update.dayCareHalfDayProduct = dto.dayCareHalfDayProduct;
     if (dto.dayCareFullDayProduct !== undefined) update.dayCareFullDayProduct = dto.dayCareFullDayProduct;
+    if (dto.dayCareSecondDogHalfDayProduct !== undefined)
+      update.dayCareSecondDogHalfDayProduct = dto.dayCareSecondDogHalfDayProduct;
+    if (dto.dayCareSecondDogFullDayProduct !== undefined)
+      update.dayCareSecondDogFullDayProduct = dto.dayCareSecondDogFullDayProduct;
     if (dto.boardingPerDayProduct !== undefined) update.boardingPerDayProduct = dto.boardingPerDayProduct;
+    if (dto.boardingSecondDogPerDayProduct !== undefined)
+      update.boardingSecondDogPerDayProduct = dto.boardingSecondDogPerDayProduct;
     await this.visitMappingModel.findOneAndUpdate({}, update, { upsert: true }).exec();
     return this.getVisitMapping();
   }
