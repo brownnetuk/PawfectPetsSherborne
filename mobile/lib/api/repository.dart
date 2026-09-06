@@ -205,6 +205,10 @@ class Repository {
 
   Future<void> deleteDayBooking(String id) => _client.delete('/day-bookings/$id');
 
+  /// Deletes a whole boarding stay (every row sharing this stayId). Used when
+  /// removing any day of a boarding booking -- the stay goes as a unit.
+  Future<void> deleteStay(String stayId) => _client.delete('/day-bookings/stay/$stayId');
+
   /// The Settings > Bookings > Visits product mapping (visit count × day-type).
   Future<VisitMapping> getVisitMapping() async =>
       _visitMappingCache ??= VisitMapping.fromJson(await _client.get('/settings/visits'));

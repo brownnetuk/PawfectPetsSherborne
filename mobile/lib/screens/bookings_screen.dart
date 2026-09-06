@@ -1006,16 +1006,42 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
   }
 
   Future<void> _delete() async {
+    final repo = context.read<Repository>();
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final stayId = widget.booking.stayId;
+    // A single day of a boarding booking can't be removed on its own -- confirm,
+    // then delete the whole stay.
+    if (stayId != null) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Delete whole booking?'),
+          content: const Text(
+              'This day is part of a boarding booking. Deleting it removes the whole booking — every day of the stay.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Delete booking'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
     setState(() => _busy = true);
     try {
-      await context.read<Repository>().deleteDayBooking(widget.booking.id);
-      if (mounted) Navigator.of(context).pop(true);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : 'Failed to remove')));
-        setState(() => _busy = false);
+      if (stayId != null) {
+        await repo.deleteStay(stayId);
+      } else {
+        await repo.deleteDayBooking(widget.booking.id);
       }
+      navigator.pop(true);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e is ApiException ? e.message : 'Failed to remove')));
+      if (mounted) setState(() => _busy = false);
     }
   }
 

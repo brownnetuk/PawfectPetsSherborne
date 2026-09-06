@@ -22,6 +22,9 @@ class DayBooking {
   // day care, or the pick-up placeholder) -- the calendar groups these under
   // Boarding regardless of which product they carry.
   final bool boardingStay;
+  // Shared id across every row of one boarding stay -- deleting any row removes
+  // the whole stay.
+  final String? stayId;
 
   DayBooking({
     required this.id,
@@ -38,6 +41,7 @@ class DayBooking {
     this.invoiceId,
     this.visitTime,
     this.boardingStay = false,
+    this.stayId,
   });
 
   double get lineTotal => productPrice * quantity;
@@ -68,6 +72,7 @@ class DayBooking {
           : (invoice is Map<String, dynamic> ? invoice['_id'] as String? : invoice as String?),
       visitTime: json['visitTime'] as String?,
       boardingStay: json['boardingStay'] as bool? ?? false,
+      stayId: json['stayId'] as String?,
     );
   }
 }

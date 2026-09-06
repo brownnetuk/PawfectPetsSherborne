@@ -893,7 +893,16 @@ function DayDetailPanel({
   async function handleRemove(booking: DayBooking) {
     setError(null);
     try {
-      await api.deleteDayBooking(booking._id);
+      // A single day of a boarding stay can't be removed on its own -- deleting
+      // any of its rows removes the whole booking (all its days), after asking.
+      if (booking.stayId) {
+        if (!window.confirm('This day is part of a boarding booking. Delete the whole booking — every day of the stay?')) {
+          return;
+        }
+        await api.deleteStay(booking.stayId);
+      } else {
+        await api.deleteDayBooking(booking._id);
+      }
       onChange();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove this entry');
