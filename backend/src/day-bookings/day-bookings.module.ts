@@ -15,6 +15,9 @@ import { DayBooking, DayBookingSchema } from './schemas/day-booking.schema';
       // elsewhere in this codebase (e.g. BankAccountsModule) to avoid a real
       // circular module dependency.
       { name: Animal.name, schema: AnimalSchema },
+      // Read-only too -- computeBoardingPlan() resolves the boarding/day-care
+      // products from the single VisitMapping doc.
+      { name: VisitMapping.name, schema: VisitMappingSchema },
     ]),
   ],
   controllers: [DayBookingsController],
