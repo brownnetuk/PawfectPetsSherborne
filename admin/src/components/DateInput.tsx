@@ -115,7 +115,13 @@ export default function DateInput({
             tabIndex={-1}
             aria-hidden="true"
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => {
+              onChange(e.target.value);
+              // Chrome/Firefox close the picker on selection; Safari keeps it
+              // open until the input blurs, and this input is invisible so the
+              // user has no way to blur it themselves.
+              e.target.blur();
+            }}
           />
         </>
       )}
