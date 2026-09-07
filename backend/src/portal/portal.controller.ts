@@ -10,6 +10,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { Public } from '../auth/public.decorator';
 import { PortalService } from './portal.service';
@@ -36,7 +37,11 @@ import { SendMessageDto } from '../messages/dto/send-message.dto';
 export class PortalController {
   constructor(private readonly portal: PortalService) {}
 
+  // Much stricter than the app-wide default (app.module.ts) -- these are
+  // exactly the endpoints a script could hammer to spam a customer's inbox
+  // or brute-force their 6-digit code/password.
   // First-time login: email me a 6-digit code. Always 200 (see requestCode).
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('request-code')
   @HttpCode(200)
   async requestCode(@Body() dto: RequestCodeDto) {
@@ -45,6 +50,7 @@ export class PortalController {
   }
 
   // Forgotten password: email me a 6-digit reset code. Always 200.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('request-reset')
   @HttpCode(200)
   async requestReset(@Body() dto: RequestCodeDto) {
@@ -52,6 +58,7 @@ export class PortalController {
     return { ok: true };
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('verify-code')
   @HttpCode(200)
   async verifyCode(@Body() dto: VerifyCodeDto) {
@@ -65,6 +72,7 @@ export class PortalController {
     return this.portal.setPassword(dto.email, dto.code, dto.password);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('login')
   @HttpCode(200)
   async login(@Body() dto: LoginDto) {

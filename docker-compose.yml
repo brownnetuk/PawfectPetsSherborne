@@ -45,6 +45,10 @@ services:
       # Already used below for the admin build's VITE_INTAKE_URL; the backend
       # needs it too now, for {{invoice_link}}/{{quote_link}} in emails.
       PUBLIC_INTAKE_URL: ${PUBLIC_INTAKE_URL}
+      # The real deployed admin/intake URLs a browser is allowed to call this
+      # API from -- see backend/.env.example. Set in Portainer's stack env,
+      # e.g. https://admin.pawfectpetssherborne.co.uk,https://intake.pawfectpetssherborne.co.uk
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       # APNs credentials for appointment-reminder push (see the
       # appointment-push-setup notes). Leave unset to disable push -- the
       # backend then just logs and skips. APNS_KEY is the .p8 file's contents

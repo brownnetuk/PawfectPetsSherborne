@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { RequirePermission } from './require-permission.decorator';
 import { AuthService } from './auth.service';
@@ -12,6 +13,9 @@ import { Public } from './public.decorator';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  // Much stricter than the app-wide default (app.module.ts) -- this is
+  // exactly the endpoint a credential-stuffing/brute-force script would hit.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Public()
   @Post('login')
   login(@Body() dto: LoginDto, @Req() req: Request) {

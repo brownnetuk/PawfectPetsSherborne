@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AnnualLeaveModule } from './annual-leave/annual-leave.module';
 import { AppointmentsModule } from './appointments/appointments.module';
@@ -47,6 +48,15 @@ import { StaffModule } from './staff/staff.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
+    // A generous global default (every route gets some protection) -- the
+    // auth-sensitive routes that actually need to resist brute-forcing
+    // (auth.controller.ts's login, portal.controller.ts's login/request-code/
+    // request-reset/verify-code) override this with their own much stricter
+    // @Throttle() on top, same "global default + per-route override" shape
+    // as JwtAuthGuard/@Public() below.
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60_000, limit: 300 }],
+    }),
     MongooseModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
@@ -101,6 +111,9 @@ import { StaffModule } from './staff/staff.module';
     // Runs after JwtAuthGuard; a no-op on any route without
     // @RequirePermission() (see permissions.guard.ts).
     { provide: APP_GUARD, useClass: PermissionsGuard },
+    // Runs on every route, including @Public() ones -- rate limiting has
+    // nothing to do with who's logged in.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule {}
