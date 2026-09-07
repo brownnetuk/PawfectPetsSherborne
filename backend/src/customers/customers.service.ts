@@ -175,8 +175,11 @@ export class CustomersService {
    */
   async createLead(dto: CreateLeadDto): Promise<Customer> {
     await this.assertEmailNotTaken(dto.email);
+    const name = formatFullName(dto.firstName, dto.surname)!;
     const created = await new this.customerModel({
-      name: dto.name,
+      firstName: dto.firstName,
+      surname: dto.surname,
+      name,
       email: dto.email,
       status: CustomerStatus.PENDING,
     }).save();
@@ -184,7 +187,7 @@ export class CustomersService {
       await this.settingsService.sendTriggeredEmail({
         trigger: EmailTrigger.REGISTRATION,
         to: dto.email,
-        name: dto.name,
+        name,
         link: `${publicFrontendUrl()}/intake/${(created._id as { toString(): string }).toString()}`,
         customerId: (created._id as { toString(): string }).toString(),
       });

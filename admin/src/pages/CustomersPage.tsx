@@ -135,19 +135,20 @@ export default function CustomersPage() {
 }
 
 function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [surname, setSurname] = useState('');
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [created, setCreated] = useState<{ id: string; link: string } | null>(null);
+  const [created, setCreated] = useState<{ id: string; name: string; link: string } | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      const customer = await api.createLead(name, email);
-      setCreated({ id: customer._id, link: `${INTAKE_URL}/intake/${customer._id}` });
+      const customer = await api.createLead(firstName, surname, email);
+      setCreated({ id: customer._id, name: customer.name, link: `${INTAKE_URL}/intake/${customer._id}` });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create customer');
     } finally {
@@ -158,7 +159,7 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
   if (created) {
     return (
       <RegistrationLinkModal
-        name={name}
+        name={created.name}
         email={email}
         link={created.link}
         customerId={created.id}
@@ -172,9 +173,15 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
     <Modal title="New customer" onClose={onClose}>
       {error && <div className="error-banner">{error}</div>}
       <form onSubmit={handleSubmit}>
-        <div className="field">
-          <label>Name</label>
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+        <div className="field-row">
+          <div className="field">
+            <label>First name</label>
+            <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} required autoFocus />
+          </div>
+          <div className="field">
+            <label>Last name</label>
+            <input type="text" value={surname} onChange={(e) => setSurname(e.target.value)} />
+          </div>
         </div>
         <div className="field">
           <label>Email</label>

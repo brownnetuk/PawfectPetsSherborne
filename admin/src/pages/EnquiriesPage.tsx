@@ -65,7 +65,16 @@ export default function EnquiriesPage() {
     setConverting(true);
     setConvertError(null);
     try {
-      const customer = await api.createLead(viewingEnquiry.name, viewingEnquiry.email);
+      // Enquiry only ever stores one free-text `name` field (there's no
+      // first/last split at that stage) -- best-effort split on the first
+      // space to match CreateLeadDto's firstName/surname shape; a one-word
+      // name just becomes the whole first name with no surname.
+      const [enquiryFirstName, ...enquiryRest] = viewingEnquiry.name.trim().split(/\s+/);
+      const customer = await api.createLead(
+        enquiryFirstName,
+        enquiryRest.join(' ') || undefined,
+        viewingEnquiry.email,
+      );
       const patch: Record<string, unknown> = {};
       if (viewingEnquiry.address) patch.address1 = viewingEnquiry.address;
       if (viewingEnquiry.phone) patch.phoneNumber = viewingEnquiry.phone;
