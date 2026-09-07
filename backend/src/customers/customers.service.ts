@@ -29,6 +29,7 @@ import {
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { LogFormSnapshotDto } from './dto/log-form-snapshot.dto';
+import { SendRegistrationCopyDto } from './dto/send-registration-copy.dto';
 import { Customer, CustomerStatus } from './schemas/customer.schema';
 
 @Injectable()
@@ -429,6 +430,35 @@ export class CustomersService {
       undefined,
       actor,
       { data: dto.attachmentData, name: dto.attachmentName },
+    );
+  }
+
+  // "Send a copy by Email" on the intake form's own thank-you screen -- the
+  // customer emailing themselves the PDF (built client-side, same one
+  // logFormSnapshot above logs) they just submitted, via the
+  // 'post_registration' template. Unlike logFormSnapshot this actually needs
+  // the customer's email/name to send to, so it looks the record up first
+  // rather than treating a missing one as tolerable.
+  async sendRegistrationCopy(
+    id: string,
+    dto: SendRegistrationCopyDto,
+  ): Promise<void> {
+    const customer = await this.findOne(id);
+    await this.settingsService.sendTemplatedEmail(
+      EmailTrigger.POST_REGISTRATION,
+      customer.email,
+      { name: customer.name },
+      {},
+      '',
+      { data: dto.attachmentData, name: dto.attachmentName },
+    );
+    await this.auditLogService.record(
+      id,
+      AuditEventType.REGISTRATION_EMAIL_SENT,
+      'Registration copy emailed',
+      `${customer.name} emailed themselves a copy of their registration form`,
+      undefined,
+      'Customer',
     );
   }
 

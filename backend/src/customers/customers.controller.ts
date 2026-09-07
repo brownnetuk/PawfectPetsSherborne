@@ -8,6 +8,7 @@ import {
   Post,
   Req,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { actorFromRequest } from '../auth/actor.util';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -18,6 +19,7 @@ import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { LogFormSnapshotDto } from './dto/log-form-snapshot.dto';
+import { SendRegistrationCopyDto } from './dto/send-registration-copy.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { UpdateCustomerStatusDto } from './dto/update-customer-status.dto';
 
@@ -112,6 +114,22 @@ export class CustomersController {
     @Req() req: Request,
   ) {
     return this.customersService.logFormSnapshot(id, dto, actorFromRequest(req));
+  }
+
+  // Public: "Send a copy by Email" on the intake form's own thank-you screen,
+  // right after this same customer just submitted -- see
+  // CustomersService.sendRegistrationCopy. Throttled tighter than the app-wide
+  // default (app.module.ts) since the recipient is a real, already-on-file
+  // customer email, not something an attacker controls -- this only needs to
+  // stop it being spammed, not guard a secret.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Public()
+  @Post(':id/send-registration-copy')
+  sendRegistrationCopy(
+    @Param('id') id: string,
+    @Body() dto: SendRegistrationCopyDto,
+  ) {
+    return this.customersService.sendRegistrationCopy(id, dto);
   }
 
   @RequirePermission('customers.manage')

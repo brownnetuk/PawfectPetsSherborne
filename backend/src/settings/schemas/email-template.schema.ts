@@ -25,6 +25,11 @@ export enum EmailTrigger {
   PORTAL_PASSWORD_RESET = 'portal_password_reset',
   // Sent to a customer when staff switch on their Customer Portal access.
   PORTAL_ENABLED = 'portal_enabled',
+  // Sent on request from the intake form's own "Send a copy by Email"
+  // button on the thank-you screen, right after a customer completes their
+  // registration -- carries a PDF snapshot of what they just submitted as
+  // an attachment (see CustomersService.sendRegistrationCopy).
+  POST_REGISTRATION = 'post_registration',
 }
 
 // One document per trigger (enforced via the unique index below) -- avoids

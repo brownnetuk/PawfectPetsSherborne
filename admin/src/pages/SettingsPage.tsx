@@ -1984,6 +1984,12 @@ export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: 
     label: 'Customer Portal Enabled',
     description: 'Sent to a customer when staff switch on their Customer Portal access (Customer Defaults > Customer Portal).',
   },
+  {
+    value: 'post_registration',
+    label: 'Post Registration Email',
+    description:
+      'Sent when a customer clicks "Send a copy by Email" on the intake form\'s own thank-you screen, right after completing their registration -- carries a PDF of what they just submitted as an attachment.',
+  },
 ];
 
 // Every trigger is edited as raw HTML (RichTextEditor) and sent through as-is
@@ -2280,6 +2286,10 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
   ],
   portal_enabled: [
     { key: 'customer_name', hint: "the customer's name" },
+    ...BUSINESS_PLACEHOLDERS,
+  ],
+  post_registration: [
+    { key: 'name', hint: "the customer's name" },
     ...BUSINESS_PLACEHOLDERS,
   ],
 };

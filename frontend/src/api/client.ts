@@ -68,6 +68,20 @@ export function logCompletionSnapshot(
   });
 }
 
+// "Send a copy by Email" on the thank-you screen -- emails the same PDF
+// logCompletionSnapshot silently logs, using the 'post_registration'
+// template (Settings > Email Templates in the admin app).
+export function sendRegistrationCopy(
+  customerId: string,
+  attachmentData: string,
+  attachmentName: string,
+): Promise<void> {
+  return request(`/customers/${customerId}/send-registration-copy`, {
+    method: 'POST',
+    body: JSON.stringify({ attachmentData, attachmentName }),
+  });
+}
+
 export function submitCustomer(
   state: IntakeState,
 ): Promise<CustomerRecord> {

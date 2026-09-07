@@ -7,6 +7,7 @@ import {
   fetchTerms,
   fetchVetAuthorisationText,
   logCompletionSnapshot,
+  sendRegistrationCopy,
   submitAnimal,
   submitCustomer,
   updateAnimal,
@@ -123,6 +124,7 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submittedCustomerId, setSubmittedCustomerId] = useState<string | null>(null);
   const [showTermsWarning, setShowTermsWarning] = useState(false);
 
   useEffect(() => {
@@ -295,24 +297,45 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
     setStep((s) => Math.max(0, s - 1));
   }
 
+  // Shared by the silent audit snapshot below and the customer-triggered
+  // "Send a copy by Email" button on ThankYouStep -- both need the exact
+  // same PDF of what was just submitted.
+  async function buildSubmissionPdfAttachment(): Promise<{ data: string; name: string }> {
+    const [terms, vetText, offLeadText, declarationText] = await Promise.all([
+      fetchTerms().catch(() => ({ html: '' })),
+      fetchVetAuthorisationText().catch(() => ({ text: '' })),
+      fetchOffLeadConsentText().catch(() => ({ text: '' })),
+      fetchDeclarationText().catch(() => ({ text: '' })),
+    ]);
+    const doc = await buildCustomerFormPdf(state, terms.html, vetText.text, offLeadText.text, declarationText.text);
+    const fullName = [state.client.firstName, state.client.surname].filter(Boolean).join(' ') || 'customer';
+    const name = `${fullName}-registration-form.pdf`.replace(/[^a-z0-9.-]+/gi, '-');
+    return { data: doc.output('datauristring'), name };
+  }
+
   // Best-effort: a snapshot failing here is a nice-to-have on top of a
   // submission that already succeeded, so it never surfaces an error back to
   // the customer or blocks the thank-you screen.
   async function snapshotSubmittedForm(customerId: string) {
     try {
-      const [terms, vetText, offLeadText, declarationText] = await Promise.all([
-        fetchTerms().catch(() => ({ html: '' })),
-        fetchVetAuthorisationText().catch(() => ({ text: '' })),
-        fetchOffLeadConsentText().catch(() => ({ text: '' })),
-        fetchDeclarationText().catch(() => ({ text: '' })),
-      ]);
-      const doc = await buildCustomerFormPdf(state, terms.html, vetText.text, offLeadText.text, declarationText.text);
-      const attachmentData = doc.output('datauristring');
-      const fullName = [state.client.firstName, state.client.surname].filter(Boolean).join(' ') || 'customer';
-      const attachmentName = `${fullName}-registration-form.pdf`.replace(/[^a-z0-9.-]+/gi, '-');
-      await logCompletionSnapshot(customerId, 'Registration form submitted', attachmentData, attachmentName);
+      const { data, name } = await buildSubmissionPdfAttachment();
+      await logCompletionSnapshot(customerId, 'Registration form submitted', data, name);
     } catch {
       // See comment above -- never let this affect the submission itself.
+    }
+  }
+
+  const [sendCopyState, setSendCopyState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+
+  async function handleSendCopy() {
+    if (!submittedCustomerId) return;
+    setSendCopyState('sending');
+    try {
+      const { data, name } = await buildSubmissionPdfAttachment();
+      await sendRegistrationCopy(submittedCustomerId, data, name);
+      setSendCopyState('sent');
+    } catch {
+      setSendCopyState('error');
     }
   }
 
@@ -329,6 +352,7 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
         }
       }
       setSubmitted(true);
+      setSubmittedCustomerId(customer._id);
       snapshotSubmittedForm(customer._id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
@@ -357,7 +381,13 @@ export default function IntakeForm({ customerId }: { customerId: string | null }
   }
 
   if (submitted) {
-    return <ThankYouStep name={state.client.firstName} />;
+    return (
+      <ThankYouStep
+        name={state.client.firstName}
+        sendCopyState={sendCopyState}
+        onSendCopy={handleSendCopy}
+      />
+    );
   }
 
   const petIndex = petIndexForStep(step);

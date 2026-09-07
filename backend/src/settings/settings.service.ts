@@ -464,7 +464,28 @@ export class SettingsService {
     subject: string,
     content: string,
     contentType: 'Text' | 'HTML' = 'Text',
+    attachment?: { data: string; name: string },
   ) {
+    const message: Record<string, unknown> = {
+      subject,
+      body: { contentType, content },
+      toRecipients: [{ emailAddress: { address: to } }],
+      from: { emailAddress: { address: fromAddress } },
+    };
+    if (attachment) {
+      // `data` is a data: URI (e.g. from jsPDF's doc.output('datauristring'))
+      // -- Graph's fileAttachment wants just the base64 payload, not the
+      // "data:application/pdf;base64," prefix in front of it.
+      const contentBytes = attachment.data.replace(/^data:.*;base64,/, '');
+      message.attachments = [
+        {
+          '@odata.type': '#microsoft.graph.fileAttachment',
+          name: attachment.name,
+          contentType: 'application/pdf',
+          contentBytes,
+        },
+      ];
+    }
     const res = await fetch(
       `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromAddress)}/sendMail`,
       {
@@ -473,15 +494,7 @@ export class SettingsService {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          message: {
-            subject,
-            body: { contentType, content },
-            toRecipients: [{ emailAddress: { address: to } }],
-            from: { emailAddress: { address: fromAddress } },
-          },
-          saveToSentItems: true,
-        }),
+        body: JSON.stringify({ message, saveToSentItems: true }),
       },
     );
     if (!res.ok) {
@@ -586,6 +599,7 @@ export class SettingsService {
     vars: Record<string, string | undefined>,
     rawVars: Record<string, string> = {},
     appendHtml = '',
+    attachment?: { data: string; name: string },
   ): Promise<void> {
     const template = await this.emailTemplateModel.findOne({ trigger }).exec();
     if (!template) {
@@ -652,6 +666,7 @@ export class SettingsService {
       subject,
       body,
       'HTML',
+      attachment,
     );
   }
 }
