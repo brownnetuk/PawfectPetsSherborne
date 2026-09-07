@@ -69,6 +69,10 @@ function InvoicesTab() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [activityVersion, setActivityVersion] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkSendConfirm, setBulkSendConfirm] = useState(false);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   function refresh() {
     api.listInvoices().then(setInvoices).catch((err) => setError(err.message));
@@ -137,9 +141,70 @@ function InvoicesTab() {
     }
   }
 
+  const selectedInvoices = (invoices ?? []).filter((inv) => selectedIds.has(inv._id));
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleBulkSend() {
+    setBulkBusy(true);
+    setError(null);
+    try {
+      for (const inv of selectedInvoices) {
+        await api.sendInvoiceEmail(inv._id);
+      }
+      setBulkSendConfirm(false);
+      setSelectedIds(new Set());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed while sending invoices');
+    } finally {
+      setBulkBusy(false);
+      refresh();
+    }
+  }
+
+  async function handleBulkDelete() {
+    setBulkBusy(true);
+    setError(null);
+    try {
+      for (const inv of selectedInvoices) {
+        await api.deleteInvoice(inv._id);
+      }
+      setBulkDeleteConfirm(false);
+      setSelectedIds(new Set());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed while deleting invoices');
+    } finally {
+      setBulkBusy(false);
+      refresh();
+    }
+  }
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 12 }}>
+        <ActionsMenu
+          items={[
+            {
+              label: `Send${selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}`,
+              onClick: () => setBulkSendConfirm(true),
+              disabled: selectedIds.size === 0 || bulkBusy,
+            },
+            {
+              label: `Delete${selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}`,
+              onClick: () => setBulkDeleteConfirm(true),
+              disabled: selectedIds.size === 0 || bulkBusy,
+              danger: true,
+              dividerBefore: true,
+            },
+          ]}
+        />
         <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
           New invoice
         </button>
@@ -231,6 +296,14 @@ function InvoicesTab() {
           <table>
             <thead>
               <tr>
+                <th style={{ width: 34 }}>
+                  <input
+                    type="checkbox"
+                    checked={invoices.length > 0 && selectedIds.size === invoices.length}
+                    onChange={(e) => setSelectedIds(e.target.checked ? new Set(invoices.map((i) => i._id)) : new Set())}
+                    aria-label="Select all invoices"
+                  />
+                </th>
                 <th>Invoice Number</th>
                 <th>Customer</th>
                 <th>Invoice Date</th>
@@ -245,6 +318,14 @@ function InvoicesTab() {
             <tbody>
               {invoices.map((inv) => (
                 <tr key={inv._id} onClick={() => handleViewPdf(inv)} style={{ cursor: 'pointer' }}>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(inv._id)}
+                      onChange={() => toggleSelected(inv._id)}
+                      aria-label={`Select invoice ${inv.invoiceNumber}`}
+                    />
+                  </td>
                   <td>{inv.invoiceNumber}</td>
                   <td>{customerLabel(inv.customer)}</td>
                   <td>{new Date(inv.issueDate).toLocaleDateString('en-GB')}</td>
@@ -370,6 +451,40 @@ function InvoicesTab() {
             </button>
             <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
               {deleteBusy ? 'Deleting…' : 'Delete invoice'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {bulkSendConfirm && (
+        <Modal title={`Send ${selectedInvoices.length} invoice${selectedInvoices.length === 1 ? '' : 's'}?`} onClose={() => setBulkSendConfirm(false)}>
+          <p>
+            Each invoice is emailed to its customer:{' '}
+            <strong>{selectedInvoices.map((inv) => inv.invoiceNumber).join(', ')}</strong>.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setBulkSendConfirm(false)}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" onClick={handleBulkSend} disabled={bulkBusy}>
+              {bulkBusy ? 'Sending…' : 'Send invoices'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {bulkDeleteConfirm && (
+        <Modal title={`Delete ${selectedInvoices.length} invoice${selectedInvoices.length === 1 ? '' : 's'}?`} onClose={() => setBulkDeleteConfirm(false)}>
+          <p>
+            This permanently deletes{' '}
+            <strong>{selectedInvoices.map((inv) => inv.invoiceNumber).join(', ')}</strong>.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setBulkDeleteConfirm(false)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleBulkDelete} disabled={bulkBusy}>
+              {bulkBusy ? 'Deleting…' : 'Delete invoices'}
             </button>
           </div>
         </Modal>
