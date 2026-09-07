@@ -458,13 +458,52 @@ tbody tr:last-child td {
   min-height: 70px;
   resize: vertical;
 }
-/* Always-correct dd/mm/yyyy or 24h readout next to a native date/time input
+/* Always-correct 24h readout next to a native time input
    -- see components/DateTimeReadout.tsx for why this exists. */
 .date-readout {
   display: inline-block;
   margin-top: 4px;
   font-size: 0.78rem;
   color: var(--muted);
+}
+/* dd/mm/yyyy text field with a hidden native picker behind the calendar
+   button -- see components/DateInput.tsx for why this exists. */
+.date-input {
+  position: relative;
+}
+.date-input input[type='text'] {
+  padding-right: 36px;
+}
+.date-input-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.date-input-btn:hover {
+  color: var(--ink);
+}
+.date-input-native {
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  border: none;
+  padding: 0;
 }
 .select-inline {
   width: auto;

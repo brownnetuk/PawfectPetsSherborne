@@ -4,7 +4,8 @@ import { API_URL } from '../api/client';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import BankAccountModal from '../components/BankAccountModal';
-import { DateReadout, TimeReadout } from '../components/DateTimeReadout';
+import DateInput from '../components/DateInput';
+import { TimeReadout } from '../components/DateTimeReadout';
 import FormBuilder from '../components/FormBuilder';
 import FormsListCard from '../components/FormsListCard';
 import Modal from '../components/Modal';
@@ -3749,8 +3750,7 @@ function EditBankHolidayModal({
         </div>
         <div className="field">
           <label>Date</label>
-          <input type="date" lang="en-GB" value={date} onChange={(e) => setDate(e.target.value)} required />
-          <DateReadout value={date} />
+          <DateInput value={date} onChange={setDate} required />
         </div>
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
@@ -3933,13 +3933,11 @@ function EditAnnualLeaveModal({
         <div className="field-row">
           <div className="field">
             <label>Start Date</label>
-            <input type="date" lang="en-GB" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
-            <DateReadout value={startDate} />
+            <DateInput value={startDate} onChange={setStartDate} required />
           </div>
           <div className="field">
             <label>End Date</label>
-            <input type="date" lang="en-GB" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
-            <DateReadout value={endDate} />
+            <DateInput value={endDate} onChange={setEndDate} required />
           </div>
         </div>
         <div className="modal-actions">

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
-import { DateReadout } from './DateTimeReadout';
+import DateInput from './DateInput';
 import CustomerPicker from './CustomerPicker';
 import ManualCustomerModal from './ManualCustomerModal';
 import type { ManualCustomer } from './ManualCustomerModal';
@@ -730,8 +730,7 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
           <div className="field-row">
             <div className="field">
               <label>Issue date</label>
-              <input type="date" lang="en-GB" value={issueDate} onChange={(e) => handleIssueDateChange(e.target.value)} required />
-              <DateReadout value={issueDate} />
+              <DateInput value={issueDate} onChange={handleIssueDateChange} required />
             </div>
             <div className="field">
               <label>Terms</label>
@@ -746,16 +745,7 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
             </div>
             <div className="field">
               <label>{isInvoice ? dateLabel : `${dateLabel} (7 days)`}</label>
-              <input
-                type="date"
-                lang="en-GB"
-                value={dateValue}
-                onChange={(e) => setDateValue(e.target.value)}
-                readOnly={!isInvoice}
-                disabled={!isInvoice}
-                required
-              />
-              <DateReadout value={dateValue} />
+              <DateInput value={dateValue} onChange={setDateValue} readOnly={!isInvoice} disabled={!isInvoice} required />
             </div>
           </div>
           <div className="field">
@@ -811,8 +801,7 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
             <div className="field-row">
               <div className="field">
                 <label>Start Date</label>
-                <input type="date" lang="en-GB" value={visitStartDate} onChange={(e) => setVisitStartDate(e.target.value)} />
-                <DateReadout value={visitStartDate} />
+                <DateInput value={visitStartDate} onChange={setVisitStartDate} />
               </div>
               <div className="field">
                 <label>Visits on First Date</label>
@@ -825,8 +814,7 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
             <div className="field-row">
               <div className="field">
                 <label>End Date</label>
-                <input type="date" lang="en-GB" value={visitEndDate} onChange={(e) => setVisitEndDate(e.target.value)} />
-                <DateReadout value={visitEndDate} />
+                <DateInput value={visitEndDate} onChange={setVisitEndDate} />
               </div>
               <div className="field">
                 <label>Visits on End Date</label>

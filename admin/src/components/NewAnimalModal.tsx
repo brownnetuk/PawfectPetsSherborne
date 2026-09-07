@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import * as api from '../api/client';
-import { DateReadout } from './DateTimeReadout';
+import DateInput from './DateInput';
 import MedicationEntriesField from './MedicationEntriesField';
 import Modal from './Modal';
 import type { LeadMode, MedicationEntry, NeuteredStatus, Sex, Species, TriState } from '../types';
@@ -197,8 +197,7 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
           </div>
           <div className="field">
             <label>Date of birth</label>
-            <input type="date" lang="en-GB" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} />
-            <DateReadout value={dateOfBirth} />
+            <DateInput value={dateOfBirth} onChange={setDateOfBirth} />
           </div>
         </div>
         <div className="field-row">
@@ -236,13 +235,7 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
         {neuteredStatus === 'no' && sex === 'female' && (
           <div className="field">
             <label>End date of last season?</label>
-            <input
-              type="date"
-              lang="en-GB"
-              value={lastSeasonEndDate}
-              onChange={(e) => setLastSeasonEndDate(e.target.value)}
-            />
-            <DateReadout value={lastSeasonEndDate} />
+            <DateInput value={lastSeasonEndDate} onChange={setLastSeasonEndDate} />
           </div>
         )}
         <div className="field">
@@ -292,14 +285,7 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
         {vaccinated && (
           <div className="field">
             <label>Vaccine expiry date</label>
-            <input
-              type="date"
-              lang="en-GB"
-              value={vaccineExpiryDate}
-              onChange={(e) => setVaccineExpiryDate(e.target.value)}
-              required
-            />
-            <DateReadout value={vaccineExpiryDate} />
+            <DateInput value={vaccineExpiryDate} onChange={setVaccineExpiryDate} required />
           </div>
         )}
         {vaccinated && (

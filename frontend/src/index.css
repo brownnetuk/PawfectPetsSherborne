@@ -129,11 +129,44 @@ h2 {
   margin-top: 4px;
 }
 
-.date-readout {
-  display: inline-block;
-  margin-top: 4px;
-  font-size: 0.8rem;
+/* dd/mm/yyyy text field with a hidden native picker behind the calendar
+   button -- see components/DateInput.tsx for why this exists. */
+.date-input {
+  position: relative;
+}
+.date-input input[type='text'] {
+  padding-right: 40px;
+}
+.date-input-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  background: none;
   color: var(--muted);
+  cursor: pointer;
+  border-radius: 8px;
+}
+.date-input-btn:hover {
+  color: var(--ink);
+}
+.date-input-native {
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  border: none;
+  padding: 0;
 }
 
 .toggle-row {

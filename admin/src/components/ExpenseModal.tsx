@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
-import { DateReadout } from './DateTimeReadout';
+import DateInput from './DateInput';
 import Modal from './Modal';
 import type { BankAccount, Expense, ExpenseCategoryOption, PaymentMethod, VendorOption } from '../types';
 import { bankAccountTypeLabel } from '../utils/bankAccountType';
@@ -118,8 +118,7 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
         <div className="field-row">
           <div className="field">
             <label>Date *</label>
-            <input type="date" lang="en-GB" value={date} onChange={(e) => setDate(e.target.value)} required autoFocus />
-            <DateReadout value={date} />
+            <DateInput value={date} onChange={setDate} required autoFocus />
           </div>
           <div className="field">
             <label>Category *</label>
