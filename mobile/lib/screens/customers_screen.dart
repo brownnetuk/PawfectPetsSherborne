@@ -140,26 +140,22 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   onChanged: (v) => setState(() => _search = v.toLowerCase()),
                 ),
                 const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Wrap(
-                    spacing: 8,
-                    children: [
-                      for (final f in const [
-                        ('active', 'Active'),
-                        ('pending', 'Pending'),
-                        ('update_info', 'Update'),
-                        ('inactive', 'Inactive'),
-                      ])
-                        ChoiceChip(
-                          label: Text(f.$2),
-                          selected: _statusFilter == f.$1,
-                          onSelected: (v) {
-                            if (v) setState(() => _statusFilter = f.$1);
-                          },
-                        ),
-                    ],
+                DropdownButtonFormField<String>(
+                  initialValue: _statusFilter,
+                  isDense: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Status',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   ),
+                  items: const [
+                    DropdownMenuItem(value: 'active', child: Text('Active')),
+                    DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                    DropdownMenuItem(value: 'update_info', child: Text('Update info')),
+                    DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
+                  ],
+                  onChanged: (v) => setState(() => _statusFilter = v ?? 'active'),
                 ),
               ],
             ),
