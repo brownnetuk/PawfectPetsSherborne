@@ -375,13 +375,14 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
   // Quote-only: lets staff populate the line items from a date range of
   // visits (same Settings > Bookings > Visits mapping the Bookings page's
   // New Booking modal uses) instead of typing them by hand.
-  const [showVisits, setShowVisits] = useState(false);
-  const [visitAnimalIds, setVisitAnimalIds] = useState<string[]>([]);
-  const [visitsPerDay, setVisitsPerDay] = useState<VisitCount>('1');
-  const [visitStartDate, setVisitStartDate] = useState('');
-  const [visitsFirstDay, setVisitsFirstDay] = useState<VisitCount>('1');
-  const [visitEndDate, setVisitEndDate] = useState('');
-  const [visitsLastDay, setVisitsLastDay] = useState<VisitCount>('1');
+  const existingVisitPlan = kind === 'quote' && existing ? (existing as Quote).visitPlan : undefined;
+  const [showVisits, setShowVisits] = useState(!!existingVisitPlan);
+  const [visitAnimalIds, setVisitAnimalIds] = useState<string[]>(existingVisitPlan?.animals ?? []);
+  const [visitsPerDay, setVisitsPerDay] = useState<VisitCount>(existingVisitPlan?.visitsPerDay ?? '1');
+  const [visitStartDate, setVisitStartDate] = useState(existingVisitPlan?.startDate ?? '');
+  const [visitsFirstDay, setVisitsFirstDay] = useState<VisitCount>(existingVisitPlan?.visitsFirstDay ?? '1');
+  const [visitEndDate, setVisitEndDate] = useState(existingVisitPlan?.endDate ?? '');
+  const [visitsLastDay, setVisitsLastDay] = useState<VisitCount>(existingVisitPlan?.visitsLastDay ?? '1');
   const [visitError, setVisitError] = useState<string | null>(null);
   const [visitSaved, setVisitSaved] = useState(false);
 
@@ -590,6 +591,19 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
         };
         saved = existing ? await api.updateInvoice(existing._id, payload) : await api.createInvoice(payload);
       } else {
+        // Persisted so accepting the quote can create these visits as real
+        // bookings on the calendar; null clears a plan staff have emptied out.
+        const visitPlan =
+          visitAnimalIds.length > 0 && visitStartDate && visitEndDate
+            ? {
+                animals: visitAnimalIds,
+                startDate: visitStartDate,
+                endDate: visitEndDate,
+                visitsPerDay,
+                visitsFirstDay,
+                visitsLastDay,
+              }
+            : null;
         const payload = {
           ...(manualCustomer
             ? { manualCustomerName: manualCustomer.name, manualCustomerEmail: manualCustomer.email }
@@ -599,6 +613,7 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
           validUntil: dateValue,
           paymentTerms,
           subject: subject || undefined,
+          visitPlan,
         };
         saved = existing ? await api.updateQuote(existing._id, payload) : await api.createQuote(payload);
       }
@@ -763,7 +778,8 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
           <div className="card">
             <div className="section-title">Visits</div>
             <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
-              Populates the line items below from a date range, using Settings &gt; Bookings &gt; Visits.
+              Populates the line items below from a date range, using Settings &gt; Bookings &gt; Visits. When the
+              customer accepts the quote, these visits are booked on the calendar automatically.
             </p>
             {visitError && <div className="error-banner">{visitError}</div>}
             <div className="field">

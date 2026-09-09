@@ -37,6 +37,7 @@ import type {
   ProductAvailability,
   PushMessage,
   Quote,
+  QuoteVisitPlan,
   Role,
   Staff,
   VendorOption,
@@ -433,6 +434,7 @@ export interface CreateQuoteInput {
   validUntil: string;
   paymentTerms?: string;
   subject?: string;
+  visitPlan?: QuoteVisitPlan | null;
 }
 export function createQuote(input: CreateQuoteInput): Promise<Quote> {
   return request('/quotes', { method: 'POST', body: JSON.stringify(input) });

@@ -6,8 +6,12 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { Animal } from '../animals/schemas/animal.schema';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
+import { BankHoliday } from '../bank-holidays/schemas/bank-holiday.schema';
+import { DayBooking } from '../day-bookings/schemas/day-booking.schema';
+import { VisitMapping } from '../settings/schemas/visit-mapping.schema';
 import {
   buildItemsTableHtml,
   formatUkDate,
@@ -46,6 +50,10 @@ export class QuotesService {
     private readonly businessInfoModel: Model<BusinessInfo>,
     @InjectModel(Customer.name) private readonly customerModel: Model<Customer>,
     @InjectModel(InvoiceTerm.name) private readonly invoiceTermModel: Model<InvoiceTerm>,
+    @InjectModel(DayBooking.name) private readonly dayBookingModel: Model<DayBooking>,
+    @InjectModel(Animal.name) private readonly animalModel: Model<Animal>,
+    @InjectModel(VisitMapping.name) private readonly visitMappingModel: Model<VisitMapping>,
+    @InjectModel(BankHoliday.name) private readonly bankHolidayModel: Model<BankHoliday>,
     private readonly settingsService: SettingsService,
     private readonly auditLogService: AuditLogService,
     private readonly invoicesService: InvoicesService,
@@ -341,15 +349,101 @@ export class QuotesService {
   }
 
   /**
+   * Turns an accepted quote's persisted Visits section into real DayBookings
+   * on the calendar -- a server-side port of the admin's buildVisitPlan()
+   * (admin/src/utils/visitPlan.ts): first/last day use their own visit
+   * counts, days between use visitsPerDay, and each (count, day type)
+   * combination resolves to the product configured in Settings > Bookings >
+   * Visits. Single-visit boundary days default to PM arrival / AM departure,
+   * the same defaults buildVisitPlan uses when staff give no override (the
+   * quote form collects none). Every booking is linked to the invoice the
+   * acceptance created, so these visits are already covered billing-wise and
+   * Generate Invoices skips them.
+   */
+  private async createBookingsFromVisitPlan(quote: Quote, invoiceId: string): Promise<void> {
+    const plan = quote.visitPlan;
+    if (!plan) return;
+    const mapping = await this.visitMappingModel.findOne().exec();
+    if (!mapping) {
+      console.error(`Quote ${quote.quoteNumber}: no Visits product mapping configured; skipping booking creation.`);
+      return;
+    }
+    const localKey = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const holidays = await this.bankHolidayModel.find().exec();
+    const holidayKeys = new Set(holidays.map((h) => localKey(new Date(h.date))));
+
+    const animals = await this.animalModel.find({ _id: { $in: plan.animals } }).exec();
+
+    const parseYmd = (s: string) => {
+      const [y, m, d] = s.slice(0, 10).split('-').map(Number);
+      return new Date(y, m - 1, d);
+    };
+    const start = parseYmd(plan.startDate);
+    const end = parseYmd(plan.endDate);
+    const days: Date[] = [];
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) days.push(new Date(d));
+
+    const mappingKey: Record<string, Record<string, keyof VisitMapping>> = {
+      '1': {
+        weekday: 'oneVisitWeekdayProduct',
+        weekend: 'oneVisitWeekendProduct',
+        bank_holiday: 'oneVisitBankHolidayProduct',
+      },
+      '2': {
+        weekday: 'twoVisitWeekdayProduct',
+        weekend: 'twoVisitWeekendProduct',
+        bank_holiday: 'twoVisitBankHolidayProduct',
+      },
+    };
+
+    for (const [i, date] of days.entries()) {
+      const isFirst = i === 0;
+      const isLast = i === days.length - 1;
+      const visits =
+        days.length === 1 ? plan.visitsFirstDay : isFirst ? plan.visitsFirstDay : isLast ? plan.visitsLastDay : plan.visitsPerDay;
+      const dayType = holidayKeys.has(localKey(date))
+        ? 'bank_holiday'
+        : date.getDay() === 0 || date.getDay() === 6
+          ? 'weekend'
+          : 'weekday';
+      const productId = mapping[mappingKey[visits][dayType]] as Types.ObjectId | undefined;
+      if (!productId) {
+        console.error(
+          `Quote ${quote.quoteNumber}: no product configured for ${visits} visit(s) on a ${dayType}; skipping ${localKey(date)}.`,
+        );
+        continue;
+      }
+      let visitTime: 'AM' | 'PM' | undefined;
+      if (visits === '1') {
+        if (days.length === 1 || isFirst) visitTime = 'PM';
+        else if (isLast) visitTime = 'AM';
+      }
+      for (const animal of animals) {
+        await new this.dayBookingModel({
+          animal: animal._id,
+          customer: animal.customer,
+          date,
+          product: productId,
+          quantity: 1,
+          visitTime,
+          invoice: invoiceId,
+        }).save();
+      }
+    }
+  }
+
+  /**
    * Called from the public quote page's "Accept" button. Marks the quote
    * accepted (resolving/creating a real Customer first if it was still a
    * manual-customer quote -- see resolveOrCreateCustomer(), reused via
-   * update()), converts it into a real Invoice with the same line items, and
-   * immediately requests a deposit on that new invoice using Settings >
-   * Deposit's configured percentage. Idempotent: re-accepting an
-   * already-converted quote (e.g. a page refresh) returns the existing
-   * invoice instead of creating a second one, and doesn't re-send the
-   * deposit request.
+   * update()), converts it into a real Invoice with the same line items,
+   * creates the calendar bookings for a quote carrying a Visits plan (see
+   * createBookingsFromVisitPlan() above), and immediately requests a deposit
+   * on that new invoice using Settings > Deposit's configured percentage.
+   * Idempotent: re-accepting an already-converted quote (e.g. a page
+   * refresh) returns the existing invoice instead of creating a second one,
+   * and doesn't re-send the deposit request or re-create bookings.
    */
   async acceptAndConvert(
     id: string,
@@ -390,6 +484,15 @@ export class QuotesService {
       'Customer',
     );
     await this.quoteModel.updateOne({ _id: id }, { invoice: invoice._id }).exec();
+    // Bookings are best-effort for the same reason as the deposit email
+    // below: the invoice already exists, so a booking-creation failure (e.g.
+    // an animal deleted since the quote was written) shouldn't make the
+    // customer's Accept click appear to fail.
+    try {
+      await this.createBookingsFromVisitPlan(updated, (invoice._id as { toString(): string }).toString());
+    } catch (err) {
+      console.error(`Failed to create bookings from quote ${id}'s visit plan:`, err);
+    }
     // The quote-to-invoice conversion above is what actually matters to the
     // customer clicking "Accept" -- if the deposit-request email fails to
     // send (e.g. a misconfigured mail provider), that shouldn't make the

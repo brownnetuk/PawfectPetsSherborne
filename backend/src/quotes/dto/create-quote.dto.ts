@@ -4,6 +4,7 @@ import {
   IsArray,
   IsDateString,
   IsEmail,
+  IsIn,
   IsMongoId,
   IsNotEmpty,
   IsNumber,
@@ -11,6 +12,7 @@ import {
   IsString,
   Max,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -35,6 +37,31 @@ export class LineItemDto {
   @Min(0)
   @Max(100)
   discountPercent?: number;
+}
+
+// See QuoteVisitPlan in ../schemas/quote.schema.ts -- the Visits section of
+// the admin quote form, persisted so accepting the quote can create the
+// matching DayBookings.
+export class QuoteVisitPlanDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsMongoId({ each: true })
+  animals: string[];
+
+  @IsDateString()
+  startDate: string;
+
+  @IsDateString()
+  endDate: string;
+
+  @IsIn(['1', '2'])
+  visitsPerDay: string;
+
+  @IsIn(['1', '2'])
+  visitsFirstDay: string;
+
+  @IsIn(['1', '2'])
+  visitsLastDay: string;
 }
 
 export class CreateQuoteDto {
@@ -79,4 +106,12 @@ export class CreateQuoteDto {
   @IsOptional()
   @IsString()
   subject?: string;
+
+  // null explicitly clears a previously-saved plan (e.g. staff emptied the
+  // Visits section while editing the quote).
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @ValidateNested()
+  @Type(() => QuoteVisitPlanDto)
+  visitPlan?: QuoteVisitPlanDto | null;
 }

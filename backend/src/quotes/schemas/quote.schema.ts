@@ -28,6 +28,32 @@ class LineItem {
 }
 const LineItemSchema = SchemaFactory.createForClass(LineItem);
 
+// The exact inputs of the quote form's Visits section, mirroring what the
+// admin's New Booking modal collects for a Visits booking -- enough to replay
+// buildVisitPlan() server-side when the quote is accepted. Dates are plain
+// 'YYYY-MM-DD' strings (not Dates) so no timezone can shift the calendar day.
+@Schema({ _id: false })
+export class QuoteVisitPlan {
+  @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'Animal', required: true })
+  animals: Types.ObjectId[];
+
+  @Prop({ required: true })
+  startDate: string;
+
+  @Prop({ required: true })
+  endDate: string;
+
+  @Prop({ required: true, enum: ['1', '2'] })
+  visitsPerDay: string;
+
+  @Prop({ required: true, enum: ['1', '2'] })
+  visitsFirstDay: string;
+
+  @Prop({ required: true, enum: ['1', '2'] })
+  visitsLastDay: string;
+}
+const QuoteVisitPlanSchema = SchemaFactory.createForClass(QuoteVisitPlan);
+
 // Mirrors Invoice (../../invoices/schemas/invoice.schema.ts) field-for-field
 // except dueDate -> validUntil -- a quote hasn't been billed yet, so "due" has
 // no meaning; "valid until" does.
@@ -92,6 +118,13 @@ export class Quote extends Document {
   // duplicate.
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Invoice.name })
   invoice?: Types.ObjectId;
+
+  // The Visits section of the admin quote form (animals + date range + visit
+  // counts). The form only ever used it to derive line items; it's persisted
+  // here too so acceptAndConvert() can create the matching DayBookings on the
+  // calendar the moment the quote is accepted.
+  @Prop({ type: QuoteVisitPlanSchema })
+  visitPlan?: QuoteVisitPlan;
 }
 
 export const QuoteSchema = SchemaFactory.createForClass(Quote);

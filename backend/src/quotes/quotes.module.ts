@@ -1,10 +1,14 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { Animal, AnimalSchema } from '../animals/schemas/animal.schema';
 import { AuditLogModule } from '../audit-log/audit-log.module';
+import { BankHoliday, BankHolidaySchema } from '../bank-holidays/schemas/bank-holiday.schema';
 import { Customer, CustomerSchema } from '../customers/schemas/customer.schema';
+import { DayBooking, DayBookingSchema } from '../day-bookings/schemas/day-booking.schema';
 import { InvoiceTerm, InvoiceTermSchema } from '../invoice-terms/schemas/invoice-term.schema';
 import { InvoicesModule } from '../invoices/invoices.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { VisitMapping, VisitMappingSchema } from '../settings/schemas/visit-mapping.schema';
 import {
   BusinessInfo,
   BusinessInfoSchema,
@@ -28,6 +32,14 @@ import { Quote, QuoteSchema } from './schemas/quote.schema';
       // due-date rule without importing InvoiceTermsModule (which exports
       // nothing today) just for that.
       { name: InvoiceTerm.name, schema: InvoiceTermSchema },
+      // For acceptAndConvert() turning a persisted visit plan into calendar
+      // bookings -- registered directly (same pattern as Customer above)
+      // rather than importing DayBookingsModule and friends just for their
+      // models.
+      { name: DayBooking.name, schema: DayBookingSchema },
+      { name: Animal.name, schema: AnimalSchema },
+      { name: VisitMapping.name, schema: VisitMappingSchema },
+      { name: BankHoliday.name, schema: BankHolidaySchema },
     ]),
     SettingsModule,
     AuditLogModule,

@@ -387,6 +387,17 @@ export interface ExpenseCategoryTotal {
   total: number;
 }
 
+// The quote form's Visits section, persisted on the quote so accepting it
+// creates the matching bookings server-side (see backend QuoteVisitPlan).
+export interface QuoteVisitPlan {
+  animals: string[];
+  startDate: string;
+  endDate: string;
+  visitsPerDay: '1' | '2';
+  visitsFirstDay: '1' | '2';
+  visitsLastDay: '1' | '2';
+}
+
 export interface Quote {
   _id: string;
   // Absent for a quote raised against a "Manual Customer" placeholder that
@@ -407,6 +418,7 @@ export interface Quote {
   subject?: string;
   openedAt?: string;
   createdAt: string;
+  visitPlan?: QuoteVisitPlan | null;
 }
 
 export interface CrmActivity {
