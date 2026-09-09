@@ -20,7 +20,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
   late Future<(List<Customer>, Map<String, List<String>>)> _future;
   final _searchController = TextEditingController();
   String _search = '';
-  // Mutually-exclusive status filter: 'active', 'pending' or 'update_info'.
+  // Mutually-exclusive status filter: 'active', 'pending', 'update_info' or 'inactive'.
   String _statusFilter = 'active';
 
   @override
@@ -149,6 +149,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                         ('active', 'Active'),
                         ('pending', 'Pending'),
                         ('update_info', 'Update'),
+                        ('inactive', 'Inactive'),
                       ])
                         ChoiceChip(
                           label: Text(f.$2),
@@ -194,7 +195,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   pets.any((p) => p.toLowerCase().contains(_search));
             }).toList();
             if (customers.isEmpty) {
-              const labels = {'active': 'active', 'pending': 'pending', 'update_info': 'update-info'};
+              const labels = {
+                'active': 'active',
+                'pending': 'pending',
+                'update_info': 'update-info',
+                'inactive': 'inactive',
+              };
               final empty =
                   _search.isNotEmpty ? 'No matches.' : 'No ${labels[_statusFilter]} customers.';
               return ListView(
