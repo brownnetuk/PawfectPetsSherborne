@@ -32,6 +32,17 @@ export class CrmActivity extends Document {
 
   @Prop({ required: true })
   createdBy: string;
+
+  // Base64 data-URL images (scans/photos) attached to the note. Stripped
+  // from list responses (see CrmService.findAll) so note lists stay light;
+  // fetched via GET /crm/activities/:id when a note is opened.
+  @Prop({ type: [String], default: undefined })
+  attachments?: string[];
+
+  // Maintained alongside `attachments` on create/update so lists can show a
+  // paperclip without carrying the image payloads themselves.
+  @Prop({ default: 0 })
+  attachmentCount: number;
 }
 
 export const CrmActivitySchema = SchemaFactory.createForClass(CrmActivity);

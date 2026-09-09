@@ -73,7 +73,15 @@ export class QuotesController {
     @Body() dto: UpdateQuoteDto,
     @CurrentUser() user: CurrentUserShape,
   ) {
-    const quote = await this.quotesService.update(id, dto, user.name);
+    let quote = await this.quotesService.update(id, dto, user.name);
+    // An admin flipping the status to accepted converts the quote exactly
+    // like the customer's public Accept button: same invoice, same visit-plan
+    // bookings, same deposit request. acceptAndConvert() is idempotent, so a
+    // quote that was already converted just keeps its existing invoice.
+    if (dto.status === 'accepted' && !quote.invoice) {
+      await this.quotesService.acceptAndConvert(id);
+      quote = await this.quotesService.findOne(id);
+    }
     const customerId = customerIdOf(quote);
     if (customerId) {
       await this.notificationService.notifyCustomerDocument(

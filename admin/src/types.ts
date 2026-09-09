@@ -430,6 +430,10 @@ export interface CrmActivity {
   dueDate?: string;
   completed: boolean;
   createdBy: string;
+  // Base64 data-URL images. Absent in list responses (the backend strips
+  // them so lists stay light); fetch the single activity to get them.
+  attachments?: string[];
+  attachmentCount?: number;
   createdAt: string;
 }
 

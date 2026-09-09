@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsBoolean,
   IsDateString,
   IsEnum,
@@ -35,4 +36,10 @@ export class CreateCrmActivityDto {
   @IsNotEmpty()
   @IsString()
   createdBy: string;
+
+  // Base64 data-URL images (scans/photos) attached to the note.
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  attachments?: string[];
 }

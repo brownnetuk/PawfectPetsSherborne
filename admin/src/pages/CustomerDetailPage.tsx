@@ -1052,8 +1052,23 @@ function ActivityTab({
   const [type, setType] = useState('note');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
+  const [attachments, setAttachments] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function handleAttachmentChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) {
+      setError('Each image must be under 4 MB.');
+      return;
+    }
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = () => setAttachments((prev) => [...prev, reader.result as string]);
+    reader.readAsDataURL(file);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -1067,9 +1082,11 @@ function ActivityTab({
         subject,
         description: description || undefined,
         createdBy: staff?.name ?? 'Staff',
+        attachments: attachments.length > 0 ? attachments : undefined,
       });
       setSubject('');
       setDescription('');
+      setAttachments([]);
       onChange();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add note');
@@ -1103,6 +1120,32 @@ function ActivityTab({
             <label>Description</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
+          <div className="field">
+            <label>Attachments</label>
+            {attachments.length > 0 && (
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+                {attachments.map((a, i) => (
+                  <div key={i} style={{ position: 'relative' }}>
+                    <img
+                      src={a}
+                      alt=""
+                      style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+                    />
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      title="Remove"
+                      onClick={() => setAttachments(attachments.filter((_, j) => j !== i))}
+                      style={{ position: 'absolute', top: -8, right: -8, background: 'white', borderRadius: '50%', border: '1px solid var(--border)' }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <input type="file" accept="image/*" onChange={handleAttachmentChange} />
+          </div>
           <button className="btn btn-primary btn-sm" type="submit" disabled={submitting}>
             {submitting ? 'Adding…' : 'Add note'}
           </button>
@@ -1125,6 +1168,21 @@ function ActivityTab({
 function ActivityItem({ activity, onChange }: { activity: CrmActivity; onChange: () => void }) {
   const [editing, setEditing] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [viewing, setViewing] = useState<CrmActivity | null>(null);
+
+  // The list is served without attachment images (they'd bloat every page
+  // load) -- fetch the full note only when it's opened.
+  async function handleOpen() {
+    if (activity.attachmentCount) {
+      try {
+        setViewing(await api.getActivity(activity._id));
+        return;
+      } catch {
+        // fall through to showing what we have
+      }
+    }
+    setViewing(activity);
+  }
   const [type, setType] = useState(activity.type);
   const [subject, setSubject] = useState(activity.subject);
   const [description, setDescription] = useState(activity.description ?? '');
@@ -1193,7 +1251,9 @@ function ActivityItem({ activity, onChange }: { activity: CrmActivity; onChange:
   return (
     <div style={{ padding: '10px 0', borderBottom: '1px solid #eef1f2' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <strong>{activity.subject}</strong>
+        <strong style={{ cursor: 'pointer' }} onClick={handleOpen}>
+          {activity.subject}
+        </strong>
         <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <span style={{ fontSize: '0.8rem', color: 'var(--muted)', marginRight: 6 }}>
             {new Date(activity.createdAt).toLocaleString()}
@@ -1208,8 +1268,35 @@ function ActivityItem({ activity, onChange }: { activity: CrmActivity; onChange:
       </div>
       <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
         {activity.type} · {activity.createdBy}
+        {(activity.attachmentCount ?? 0) > 0 &&
+          ` · ${activity.attachmentCount} attachment${activity.attachmentCount === 1 ? '' : 's'}`}
       </div>
-      {activity.description && <div style={{ marginTop: 4 }}>{activity.description}</div>}
+      {activity.description && (
+        <div style={{ marginTop: 4, cursor: 'pointer' }} onClick={handleOpen}>
+          {activity.description}
+        </div>
+      )}
+
+      {viewing && (
+        <Modal title={viewing.subject} onClose={() => setViewing(null)}>
+          <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: 8 }}>
+            {viewing.type} · {viewing.createdBy} · {new Date(viewing.createdAt).toLocaleString()}
+          </div>
+          {viewing.description && <p style={{ whiteSpace: 'pre-wrap' }}>{viewing.description}</p>}
+          {(viewing.attachments ?? []).length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {viewing.attachments!.map((a, i) => (
+                <img key={i} src={a} alt={`Attachment ${i + 1}`} style={{ maxWidth: '100%', borderRadius: 8, border: '1px solid var(--border)' }} />
+              ))}
+            </div>
+          )}
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setViewing(null)}>
+              Close
+            </button>
+          </div>
+        </Modal>
+      )}
 
       {showDelete && (
         <Modal title="Delete note?" onClose={() => setShowDelete(false)}>

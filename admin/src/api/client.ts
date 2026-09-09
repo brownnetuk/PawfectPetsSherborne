@@ -747,6 +747,11 @@ export interface CreateActivityInput {
   description?: string;
   dueDate?: string;
   createdBy: string;
+  attachments?: string[];
+}
+// The list endpoint strips attachment images -- this returns them in full.
+export function getActivity(id: string): Promise<CrmActivity> {
+  return request(`/crm/activities/${id}`);
 }
 export function createActivity(input: CreateActivityInput): Promise<CrmActivity> {
   return request('/crm/activities', { method: 'POST', body: JSON.stringify(input) });
