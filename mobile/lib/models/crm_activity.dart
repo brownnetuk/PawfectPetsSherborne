@@ -9,6 +9,11 @@ class CrmActivity {
   final String createdBy;
   final DateTime createdAt;
 
+  /// Base64 data-URL images. Absent in list responses (the backend strips
+  /// them so lists stay light); fetch the single note to get them.
+  final List<String>? attachments;
+  final int attachmentCount;
+
   CrmActivity({
     required this.id,
     required this.customer,
@@ -17,6 +22,8 @@ class CrmActivity {
     this.description,
     required this.createdBy,
     required this.createdAt,
+    this.attachments,
+    this.attachmentCount = 0,
   });
 
   factory CrmActivity.fromJson(Map<String, dynamic> json) => CrmActivity(
@@ -27,5 +34,7 @@ class CrmActivity {
         description: json['description'] as String?,
         createdBy: json['createdBy'] as String? ?? '',
         createdAt: DateTime.parse(json['createdAt'] as String),
+        attachments: (json['attachments'] as List?)?.cast<String>(),
+        attachmentCount: json['attachmentCount'] as int? ?? 0,
       );
 }

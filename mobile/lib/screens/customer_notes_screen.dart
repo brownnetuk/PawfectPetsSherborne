@@ -1,10 +1,27 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:cunning_document_scanner/cunning_document_scanner.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/crm_activity.dart';
 import '../state/auth_provider.dart';
+
+/// Downscales an attachment to at most 1600px wide and re-encodes it as JPEG
+/// (quality 70) so the base64 payload stays well under the API's body-size
+/// limit -- same treatment the expense receipt scanner applies. Runs in a
+/// background isolate via `compute`.
+Uint8List _compressAttachment(Uint8List input) {
+  final decoded = img.decodeImage(input);
+  if (decoded == null) return input;
+  final resized = decoded.width > 1600 ? img.copyResize(decoded, width: 1600) : decoded;
+  return Uint8List.fromList(img.encodeJpg(resized, quality: 70));
+}
 
 /// The customer's CRM notes (notes/calls/emails/tasks) — the same records the
 /// admin app shows and adds on Customer Detail's Activity tab, via the shared
@@ -30,6 +47,21 @@ class _CustomerNotesScreenState extends State<CustomerNotesScreen> {
 
   void _load() {
     _future = context.read<Repository>().listActivities(customerId: widget.customerId);
+  }
+
+  /// The list is served without attachment images (they'd bloat every
+  /// refresh) -- fetch the full note only when it's opened.
+  Future<void> _openNote(CrmActivity note) async {
+    var full = note;
+    if (note.attachmentCount > 0) {
+      try {
+        full = await context.read<Repository>().getActivity(note.id);
+      } catch (_) {
+        // Open with what we have; the sheet just won't show the images.
+      }
+    }
+    if (!mounted) return;
+    await _showNoteSheet(existing: full);
   }
 
   Future<void> _showNoteSheet({CrmActivity? existing}) async {
@@ -105,7 +137,12 @@ class _CustomerNotesScreenState extends State<CustomerNotesScreen> {
               final n = notes[i];
               final detail = [
                 if ((n.description ?? '').isNotEmpty) n.description!,
-                '${_fmt.format(n.createdAt.toLocal())} · ${n.createdBy}',
+                [
+                  _fmt.format(n.createdAt.toLocal()),
+                  n.createdBy,
+                  if (n.attachmentCount > 0)
+                    '${n.attachmentCount} attachment${n.attachmentCount == 1 ? '' : 's'}',
+                ].join(' · '),
               ].join('\n');
               return ListTile(
                 leading: CircleAvatar(
@@ -115,10 +152,10 @@ class _CustomerNotesScreenState extends State<CustomerNotesScreen> {
                 title: Text(n.subject),
                 subtitle: Text(detail),
                 isThreeLine: (n.description ?? '').isNotEmpty,
-                onTap: () => _showNoteSheet(existing: n),
+                onTap: () => _openNote(n),
                 trailing: PopupMenuButton<String>(
                   onSelected: (v) {
-                    if (v == 'edit') _showNoteSheet(existing: n);
+                    if (v == 'edit') _openNote(n);
                     if (v == 'delete') _confirmDelete(n);
                   },
                   itemBuilder: (_) => [
@@ -160,8 +197,38 @@ class _NoteSheetState extends State<_NoteSheet> {
   late final _subjectController = TextEditingController(text: widget.existing?.subject ?? '');
   late final _descriptionController = TextEditingController(text: widget.existing?.description ?? '');
   late String _type = widget.existing?.type ?? 'note';
+  late final List<String> _attachments = List.of(widget.existing?.attachments ?? const []);
   bool _submitting = false;
   String? _error;
+
+  void _addAttachment(Uint8List bytes) {
+    setState(() => _attachments.add('data:image/jpeg;base64,${base64Encode(bytes)}'));
+  }
+
+  Future<void> _scan() async {
+    try {
+      final paths = await CunningDocumentScanner.getPictures();
+      if (paths == null || paths.isEmpty) return;
+      for (final path in paths) {
+        // The scanner returns full-resolution images; downscale/re-encode off
+        // the UI thread so the base64 payload stays small.
+        final raw = await File(path).readAsBytes();
+        _addAttachment(await compute(_compressAttachment, raw));
+      }
+    } catch (_) {
+      setState(() => _error = 'Could not scan the document.');
+    }
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final file = await ImagePicker().pickImage(source: source, imageQuality: 70, maxWidth: 1600);
+      if (file == null) return;
+      _addAttachment(await file.readAsBytes());
+    } catch (_) {
+      setState(() => _error = 'Could not attach the image.');
+    }
+  }
 
   @override
   void dispose() {
@@ -188,6 +255,7 @@ class _NoteSheetState extends State<_NoteSheet> {
           type: _type,
           subject: subject,
           description: _descriptionController.text.trim(),
+          attachments: _attachments,
         );
       } else {
         await repo.createActivity(
@@ -196,6 +264,7 @@ class _NoteSheetState extends State<_NoteSheet> {
           subject: subject,
           description: _descriptionController.text.trim(),
           createdBy: context.read<AuthProvider>().staff?.name ?? 'Staff',
+          attachments: _attachments,
         );
       }
       if (mounted) Navigator.of(context).pop(true);
@@ -241,6 +310,65 @@ class _NoteSheetState extends State<_NoteSheet> {
             textCapitalization: TextCapitalization.sentences,
             maxLines: 3,
             decoration: const InputDecoration(labelText: 'Description (optional)'),
+          ),
+          const SizedBox(height: 16),
+          Text('Attachments', style: Theme.of(context).textTheme.labelLarge),
+          if (_attachments.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (var i = 0; i < _attachments.length; i++)
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.memory(
+                          base64Decode(_attachments[i].split(',').last),
+                          width: 72,
+                          height: 72,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Positioned(
+                        top: -10,
+                        right: -10,
+                        child: IconButton(
+                          icon: const Icon(Icons.cancel, size: 20),
+                          color: Colors.red.shade600,
+                          visualDensity: VisualDensity.compact,
+                          tooltip: 'Remove',
+                          onPressed: () => setState(() => _attachments.removeAt(i)),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _scan,
+                icon: const Icon(Icons.document_scanner_outlined, size: 18),
+                label: const Text('Scan'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _pickImage(ImageSource.camera),
+                icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                label: const Text('Camera'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _pickImage(ImageSource.gallery),
+                icon: const Icon(Icons.photo_library_outlined, size: 18),
+                label: const Text('Library'),
+              ),
+            ],
           ),
           if (_error != null) ...[
             const SizedBox(height: 12),

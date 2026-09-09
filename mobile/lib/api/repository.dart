@@ -587,12 +587,17 @@ class Repository {
         if (receipt != null && receipt.isNotEmpty) 'receipt': receipt,
       }));
 
+  /// The list endpoint strips attachment images -- this returns them in full.
+  Future<CrmActivity> getActivity(String id) async =>
+      CrmActivity.fromJson(await _client.get('/crm/activities/$id'));
+
   Future<CrmActivity> createActivity({
     required String customerId,
     required String type,
     required String subject,
     String? description,
     required String createdBy,
+    List<String>? attachments,
   }) async =>
       CrmActivity.fromJson(await _client.post('/crm/activities', {
         'customer': customerId,
@@ -600,6 +605,7 @@ class Repository {
         'subject': subject,
         if (description != null && description.isNotEmpty) 'description': description,
         'createdBy': createdBy,
+        if (attachments != null && attachments.isNotEmpty) 'attachments': attachments,
       }));
 
   Future<CrmActivity> updateActivity({
@@ -607,11 +613,14 @@ class Repository {
     required String type,
     required String subject,
     String? description,
+    List<String>? attachments,
   }) async =>
       CrmActivity.fromJson(await _client.patch('/crm/activities/$id', {
         'type': type,
         'subject': subject,
         'description': (description == null || description.isEmpty) ? null : description,
+        // Always sent (even empty) so removing every attachment persists.
+        if (attachments != null) 'attachments': attachments,
       }));
 
   Future<void> deleteActivity(String id) => _client.delete('/crm/activities/$id');
