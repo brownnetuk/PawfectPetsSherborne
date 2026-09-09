@@ -384,6 +384,7 @@ export class QuotesService {
     const days: Date[] = [];
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) days.push(new Date(d));
 
+    let created = 0;
     const mappingKey: Record<string, Record<string, keyof VisitMapping>> = {
       '1': {
         weekday: 'oneVisitWeekdayProduct',
@@ -429,7 +430,20 @@ export class QuotesService {
           visitTime,
           invoice: invoiceId,
         }).save();
+        created++;
       }
+    }
+    // Visible confirmation in the customer's Activity feed that acceptance
+    // actually booked the visits (and how many).
+    if (created > 0 && animals.length > 0) {
+      await this.auditLogService.record(
+        animals[0].customer as unknown as string,
+        AuditEventType.BOOKING_CREATED,
+        'Bookings created',
+        `${created} visit booking${created === 1 ? '' : 's'} created from accepted quote ${quote.quoteNumber}`,
+        undefined,
+        'Customer',
+      );
     }
   }
 
