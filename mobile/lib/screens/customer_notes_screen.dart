@@ -32,16 +32,44 @@ class _CustomerNotesScreenState extends State<CustomerNotesScreen> {
     _future = context.read<Repository>().listActivities(customerId: widget.customerId);
   }
 
-  Future<void> _showAddNoteSheet() async {
-    final added = await showModalBottomSheet<bool>(
+  Future<void> _showNoteSheet({CrmActivity? existing}) async {
+    final changed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       builder: (_) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: _NewNoteSheet(customerId: widget.customerId),
+        child: _NoteSheet(customerId: widget.customerId, existing: existing),
       ),
     );
-    if (added == true && mounted) setState(_load);
+    if (changed == true && mounted) setState(_load);
+  }
+
+  Future<void> _confirmDelete(CrmActivity note) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete note?'),
+        content: Text('This permanently deletes "${note.subject}".'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('Delete', style: TextStyle(color: Colors.red.shade700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await context.read<Repository>().deleteActivity(note.id);
+      if (mounted) setState(_load);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e is ApiException ? e.message : 'Failed to delete the note')),
+        );
+      }
+    }
   }
 
   @override
@@ -49,7 +77,7 @@ class _CustomerNotesScreenState extends State<CustomerNotesScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Notes')),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAddNoteSheet,
+        onPressed: () => _showNoteSheet(),
         icon: const Icon(Icons.add),
         label: const Text('New note'),
       ),
@@ -87,6 +115,20 @@ class _CustomerNotesScreenState extends State<CustomerNotesScreen> {
                 title: Text(n.subject),
                 subtitle: Text(detail),
                 isThreeLine: (n.description ?? '').isNotEmpty,
+                onTap: () => _showNoteSheet(existing: n),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (v) {
+                    if (v == 'edit') _showNoteSheet(existing: n);
+                    if (v == 'delete') _confirmDelete(n);
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Delete', style: TextStyle(color: Colors.red.shade700)),
+                    ),
+                  ],
+                ),
               );
             },
           );
@@ -103,20 +145,21 @@ class _CustomerNotesScreenState extends State<CustomerNotesScreen> {
       };
 }
 
-/// Add-note sheet mirroring the admin's "Add note" form: type, subject and an
-/// optional description.
-class _NewNoteSheet extends StatefulWidget {
+/// Add/edit-note sheet mirroring the admin's note form: type, subject and an
+/// optional description. Pass [existing] to edit that note in place.
+class _NoteSheet extends StatefulWidget {
   final String customerId;
-  const _NewNoteSheet({required this.customerId});
+  final CrmActivity? existing;
+  const _NoteSheet({required this.customerId, this.existing});
 
   @override
-  State<_NewNoteSheet> createState() => _NewNoteSheetState();
+  State<_NoteSheet> createState() => _NoteSheetState();
 }
 
-class _NewNoteSheetState extends State<_NewNoteSheet> {
-  final _subjectController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  String _type = 'note';
+class _NoteSheetState extends State<_NoteSheet> {
+  late final _subjectController = TextEditingController(text: widget.existing?.subject ?? '');
+  late final _descriptionController = TextEditingController(text: widget.existing?.description ?? '');
+  late String _type = widget.existing?.type ?? 'note';
   bool _submitting = false;
   String? _error;
 
@@ -138,17 +181,27 @@ class _NewNoteSheetState extends State<_NewNoteSheet> {
       _submitting = true;
     });
     try {
-      await context.read<Repository>().createActivity(
-            customerId: widget.customerId,
-            type: _type,
-            subject: subject,
-            description: _descriptionController.text.trim(),
-            createdBy: context.read<AuthProvider>().staff?.name ?? 'Staff',
-          );
+      final repo = context.read<Repository>();
+      if (widget.existing != null) {
+        await repo.updateActivity(
+          id: widget.existing!.id,
+          type: _type,
+          subject: subject,
+          description: _descriptionController.text.trim(),
+        );
+      } else {
+        await repo.createActivity(
+          customerId: widget.customerId,
+          type: _type,
+          subject: subject,
+          description: _descriptionController.text.trim(),
+          createdBy: context.read<AuthProvider>().staff?.name ?? 'Staff',
+        );
+      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
-        setState(() => _error = e is ApiException ? e.message : 'Failed to add the note');
+        setState(() => _error = e is ApiException ? e.message : 'Failed to save the note');
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -163,7 +216,7 @@ class _NewNoteSheetState extends State<_NewNoteSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('New note', style: Theme.of(context).textTheme.titleMedium),
+          Text(widget.existing != null ? 'Edit note' : 'New note', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
             initialValue: _type,
@@ -207,7 +260,13 @@ class _NewNoteSheetState extends State<_NewNoteSheet> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _submitting ? null : _submit,
-              child: Text(_submitting ? 'Adding…' : 'Add note'),
+              child: Text(
+                _submitting
+                    ? 'Saving…'
+                    : widget.existing != null
+                        ? 'Save note'
+                        : 'Add note',
+              ),
             ),
           ),
         ],

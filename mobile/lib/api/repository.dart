@@ -601,4 +601,18 @@ class Repository {
         if (description != null && description.isNotEmpty) 'description': description,
         'createdBy': createdBy,
       }));
+
+  Future<CrmActivity> updateActivity({
+    required String id,
+    required String type,
+    required String subject,
+    String? description,
+  }) async =>
+      CrmActivity.fromJson(await _client.patch('/crm/activities/$id', {
+        'type': type,
+        'subject': subject,
+        'description': (description == null || description.isEmpty) ? null : description,
+      }));
+
+  Future<void> deleteActivity(String id) => _client.delete('/crm/activities/$id');
 }
