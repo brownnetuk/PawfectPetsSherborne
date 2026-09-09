@@ -10,6 +10,7 @@ import '../models/form_summary.dart';
 import '../widgets/status_badge.dart';
 import 'animal_detail_screen.dart';
 import 'customer_activity_screen.dart';
+import 'customer_notes_screen.dart';
 
 class CustomerDetailScreen extends StatefulWidget {
   final String customerId;
@@ -236,6 +237,19 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 ),
                 icon: const Icon(Icons.history),
                 label: const Text('Activity'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CustomerNotesScreen(
+                      customerId: customer.id,
+                      customerName: customer.name,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.sticky_note_2_outlined),
+                label: const Text('Notes'),
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
