@@ -147,24 +147,21 @@ h2 {
   justify-content: center;
   width: 30px;
   height: 30px;
-  padding: 0;
-  border: none;
-  background: none;
   color: var(--muted);
-  cursor: pointer;
-  border-radius: 8px;
+  pointer-events: none; /* decorative -- the invisible native input on top takes the tap */
 }
-.date-input-btn:hover {
-  color: var(--ink);
-}
+/* Invisible but tappable, covering the calendar icon -- a tap here is a
+   direct tap on a real date input, which is the only thing that reliably
+   opens the native picker on iOS. */
 .date-input-native {
   position: absolute;
-  right: 8px;
-  bottom: 0;
-  width: 1px;
-  height: 1px;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
   opacity: 0;
-  pointer-events: none;
+  cursor: pointer;
   border: none;
   padding: 0;
 }
