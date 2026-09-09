@@ -11,7 +11,8 @@ class _FakeRepository extends Repository {
   _FakeRepository() : super(ApiClient());
 
   int createCalls = 0;
-  String? capturedName;
+  String? capturedFirstName;
+  String? capturedSurname;
   String? capturedEmail;
 
   @override
@@ -21,16 +22,17 @@ class _FakeRepository extends Repository {
   Future<Map<String, List<String>>> petNamesByCustomer() async => {};
 
   @override
-  Future<Customer> createLead({required String name, required String email}) async {
+  Future<Customer> createLead({required String firstName, String? surname, required String email}) async {
     createCalls++;
-    capturedName = name;
+    capturedFirstName = firstName;
+    capturedSurname = surname;
     capturedEmail = email;
-    return Customer(id: 'c1', name: name, email: email, status: 'pending');
+    return Customer(id: 'c1', name: '$firstName $surname', email: email, status: 'pending');
   }
 }
 
 void main() {
-  testWidgets('New customer button creates a lead from name + email', (tester) async {
+  testWidgets('New customer button creates a lead from first/last name + email', (tester) async {
     await tester.binding.setSurfaceSize(const Size(600, 1200));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -46,16 +48,18 @@ void main() {
     await tester.tap(find.text('New customer')); // the FAB
     await tester.pumpAndSettle();
 
-    // Fields in tree order: [0] AppBar search, [1] name, [2] email.
+    // Fields in tree order: [0] AppBar search, [1] first name, [2] last name, [3] email.
     final fields = find.byType(TextField);
-    await tester.enterText(fields.at(1), 'Jane Doe');
-    await tester.enterText(fields.at(2), 'jane@example.com');
+    await tester.enterText(fields.at(1), 'Jane');
+    await tester.enterText(fields.at(2), 'Doe');
+    await tester.enterText(fields.at(3), 'jane@example.com');
 
     await tester.tap(find.text('Add customer'));
     await tester.pumpAndSettle();
 
     expect(repo.createCalls, 1);
-    expect(repo.capturedName, 'Jane Doe');
+    expect(repo.capturedFirstName, 'Jane');
+    expect(repo.capturedSurname, 'Doe');
     expect(repo.capturedEmail, 'jane@example.com');
   });
 
@@ -75,8 +79,8 @@ void main() {
     await tester.pumpAndSettle();
 
     final fields = find.byType(TextField);
-    await tester.enterText(fields.at(1), 'Jane Doe');
-    await tester.enterText(fields.at(2), 'not-an-email');
+    await tester.enterText(fields.at(1), 'Jane');
+    await tester.enterText(fields.at(3), 'not-an-email');
     await tester.tap(find.text('Add customer'));
     await tester.pumpAndSettle();
 

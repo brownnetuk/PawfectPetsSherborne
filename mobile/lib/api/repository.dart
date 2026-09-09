@@ -80,11 +80,15 @@ class Repository {
   Future<Customer> getCustomer(String id) async =>
       Customer.fromJson(await _client.get('/customers/$id'));
 
-  /// Creates a minimal "lead" customer (name + email, status pending) — the
-  /// same quick-add the admin app uses; full details come later via the
-  /// intake form.
-  Future<Customer> createLead({required String name, required String email}) async =>
-      Customer.fromJson(await _client.post('/customers/leads', {'name': name, 'email': email}));
+  /// Creates a minimal "lead" customer (first/last name + email, status
+  /// pending) — the same quick-add the admin app uses; full details come
+  /// later via the intake form.
+  Future<Customer> createLead({required String firstName, String? surname, required String email}) async =>
+      Customer.fromJson(await _client.post('/customers/leads', {
+        'firstName': firstName,
+        if (surname != null && surname.isNotEmpty) 'surname': surname,
+        'email': email,
+      }));
 
   /// Permanently deletes a customer. The server rejects this (409) if they
   /// still have pets/bookings/invoices/quotes/activity on file.

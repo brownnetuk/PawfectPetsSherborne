@@ -241,8 +241,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
   }
 }
 
-/// Quick "add customer" prompt: creates a lead (name + email), matching the
-/// admin app. Full details are captured later via the intake form.
+/// Quick "add customer" prompt: creates a lead (first/last name + email),
+/// matching the admin app. Full details are captured later via the intake form.
 class _NewCustomerSheet extends StatefulWidget {
   const _NewCustomerSheet();
 
@@ -251,23 +251,26 @@ class _NewCustomerSheet extends StatefulWidget {
 }
 
 class _NewCustomerSheetState extends State<_NewCustomerSheet> {
-  final _nameController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   bool _submitting = false;
   String? _error;
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
-    final name = _nameController.text.trim();
+    final firstName = _firstNameController.text.trim();
+    final surname = _lastNameController.text.trim();
     final email = _emailController.text.trim();
-    if (name.isEmpty) {
-      setState(() => _error = 'Enter a name.');
+    if (firstName.isEmpty) {
+      setState(() => _error = 'Enter a first name.');
       return;
     }
     if (!email.contains('@') || !email.contains('.')) {
@@ -279,7 +282,7 @@ class _NewCustomerSheetState extends State<_NewCustomerSheet> {
       _submitting = true;
     });
     try {
-      await context.read<Repository>().createLead(name: name, email: email);
+      await context.read<Repository>().createLead(firstName: firstName, surname: surname, email: email);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       // Shown inline (not a snackbar) so it isn't hidden behind the sheet --
@@ -308,10 +311,24 @@ class _NewCustomerSheetState extends State<_NewCustomerSheet> {
             style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
           ),
           const SizedBox(height: 16),
-          TextField(
-            controller: _nameController,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Name'),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _firstNameController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(labelText: 'First name'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _lastNameController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(labelText: 'Last name'),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           TextField(
