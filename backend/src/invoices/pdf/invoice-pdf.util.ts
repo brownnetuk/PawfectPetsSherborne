@@ -771,6 +771,41 @@ function resolveLayout(
  * elements marked visibleWhen: 'invoice-only' (Payment Made, Balance Due)
  * hidden.
  */
+// Saved templates can carry a literal notes message instead of the {{notes}}
+// token (the token path appends the schedule into the message itself) -- for
+// those, inject the schedule as its own text element just below the notes
+// body (or the lowest text element), and let the layout resolver reflow
+// anything underneath it.
+export function injectVisitSchedule(
+  template: PdfTemplateElement[],
+  plan: PdfInvoice['visitPlan'],
+): PdfTemplateElement[] {
+  const scheduleText = visitScheduleText(plan);
+  if (!scheduleText) return template;
+  if (template.some((el) => el.type === 'text' && el.content.includes('{{notes}}'))) return template;
+  const texts = template
+    .filter((el): el is Extract<PdfTemplateElement, { type: 'text' }> => el.type === 'text')
+    .sort((a, b) => a.y - b.y);
+  const anchor = texts.find((el) => el.id === 'notes-body') ?? texts[texts.length - 1];
+  if (!anchor) return template;
+  return [
+    ...template,
+    {
+      id: 'visit-schedule',
+      type: 'text',
+      x: anchor.x,
+      y: anchor.y + anchor.height + 8,
+      width: Math.max(anchor.width, 300),
+      height: 12,
+      content: scheduleText,
+      fontSize: 9,
+      fontWeight: 'normal',
+      color: '#6f7d72',
+      align: 'left',
+    },
+  ];
+}
+
 export async function buildInvoicePdfBuffer(
   record: PdfInvoice,
   businessInfo: PdfBusinessInfo,
@@ -780,7 +815,7 @@ export async function buildInvoicePdfBuffer(
   const rawTemplate = businessInfo.invoicePdfTemplate?.length
     ? (businessInfo.invoicePdfTemplate as unknown as PdfTemplateElement[])
     : DEFAULT_INVOICE_TEMPLATE;
-  const template = prepareForKind(rawTemplate, kind);
+  const template = injectVisitSchedule(prepareForKind(rawTemplate, kind), record.visitPlan);
   const vars = buildPdfVars(record, businessInfo, kind);
   const isPaid = kind === 'invoice' && record.status === 'paid';
   const visibleElements = template.filter((el) => isVisible(el, isPaid, kind));
