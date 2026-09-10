@@ -55,6 +55,9 @@ interface CustomerGroup {
   bookingIds: string[];
   lineItems: LineItem[];
   total: number;
+  // The customer's latest booked date this month -- the generated invoice
+  // falls due on the last day of what it covers.
+  lastDate: string;
   // This customer's non-cancelled invoices, offered for matching instead of
   // creating a new one.
   invoices: Invoice[];
@@ -117,6 +120,10 @@ export default function GenerateInvoicesModal({
             discountPercent: 0,
           }));
           const total = lineItems.reduce((sum, li) => sum + li.quantity * li.unitPrice, 0);
+          const lastDate = custBookings
+            .map((b) => dateKey(new Date(b.date)))
+            .sort()
+            .at(-1)!;
           const custInvoices = invoices.filter(
             (inv) => invoiceCustomerId(inv.customer) === cid && inv.status !== 'cancelled'
           );
@@ -138,6 +145,7 @@ export default function GenerateInvoicesModal({
             bookingIds: custBookings.map((b) => b._id),
             lineItems,
             total,
+            lastDate,
             invoices: custInvoices,
             paidInvoice,
           });
@@ -166,6 +174,8 @@ export default function GenerateInvoicesModal({
         const terms = await api.listInvoiceTerms();
         const defaultTerm = terms.find((t: InvoiceTerm) => t.isDefault);
         const issueDate = formatYmd(new Date());
+        // Fallback only -- each invoice normally falls due on the last date
+        // of the bookings it covers.
         let dueDate = issueDate;
         if (defaultTerm?.endOfMonth) dueDate = formatYmd(lastWorkingDayOfMonth(new Date()));
         else if (typeof defaultTerm?.plusDays === 'number') dueDate = formatYmd(addDays(new Date(), defaultTerm.plusDays));
@@ -175,7 +185,7 @@ export default function GenerateInvoicesModal({
             customer: group.customerId,
             lineItems: group.lineItems,
             issueDate,
-            dueDate,
+            dueDate: group.lastDate || dueDate,
             paymentTerms: defaultTerm?.text,
             subject: `Bookings for ${monthLabel}`,
           });

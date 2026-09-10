@@ -479,7 +479,10 @@ export class QuotesService {
       throw new BadRequestException('Could not resolve a customer for this quote.');
     }
     const issueDate = new Date();
-    const dueDate = await this.computeDefaultDueDate(issueDate);
+    // A quote carrying a visit plan is billed for the stay itself, so the
+    // invoice falls due on the booking's last day; anything else uses the
+    // default payment term.
+    const dueDate = updated.visitPlan?.endDate ?? (await this.computeDefaultDueDate(issueDate));
     const invoice = await this.invoicesService.create(
       {
         customer: (customer._id as { toString(): string }).toString(),
