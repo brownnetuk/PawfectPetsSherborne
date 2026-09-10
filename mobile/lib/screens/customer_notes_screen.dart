@@ -51,15 +51,32 @@ class _CustomerNotesScreenState extends State<CustomerNotesScreen> {
 
   /// The list is served without attachment images (they'd bloat every
   /// refresh) -- fetch the full note only when it's opened.
-  Future<void> _openNote(CrmActivity note) async {
-    var full = note;
-    if (note.attachmentCount > 0) {
-      try {
-        full = await context.read<Repository>().getActivity(note.id);
-      } catch (_) {
-        // Open with what we have; the sheet just won't show the images.
-      }
+  Future<CrmActivity> _fullNote(CrmActivity note) async {
+    if (note.attachmentCount == 0) return note;
+    try {
+      return await context.read<Repository>().getActivity(note.id);
+    } catch (_) {
+      // Open with what we have; the sheet just won't show the images.
+      return note;
     }
+  }
+
+  /// Tapping a note shows it read-only; its Edit button hands over to the
+  /// edit sheet with the same already-fetched attachments.
+  Future<void> _viewNote(CrmActivity note) async {
+    final full = await _fullNote(note);
+    if (!mounted) return;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _NoteViewSheet(note: full),
+    );
+    if (!mounted) return;
+    if (action == 'edit') await _showNoteSheet(existing: full);
+  }
+
+  Future<void> _editNote(CrmActivity note) async {
+    final full = await _fullNote(note);
     if (!mounted) return;
     await _showNoteSheet(existing: full);
   }
@@ -152,10 +169,10 @@ class _CustomerNotesScreenState extends State<CustomerNotesScreen> {
                 title: Text(n.subject),
                 subtitle: Text(detail),
                 isThreeLine: (n.description ?? '').isNotEmpty,
-                onTap: () => _openNote(n),
+                onTap: () => _viewNote(n),
                 trailing: PopupMenuButton<String>(
                   onSelected: (v) {
-                    if (v == 'edit') _openNote(n);
+                    if (v == 'edit') _editNote(n);
                     if (v == 'delete') _confirmDelete(n);
                   },
                   itemBuilder: (_) => [
@@ -180,6 +197,70 @@ class _CustomerNotesScreenState extends State<CustomerNotesScreen> {
         'task' => Icons.task_alt_outlined,
         _ => Icons.sticky_note_2_outlined,
       };
+}
+
+/// Read-only view of a note (subject, meta, description, attachment images),
+/// mirroring the admin's note modal. Pops 'edit' when the Edit button is
+/// tapped so the caller can open the edit sheet.
+class _NoteViewSheet extends StatelessWidget {
+  final CrmActivity note;
+  const _NoteViewSheet({required this.note});
+
+  static final _fmt = DateFormat('d MMM yyyy, HH:mm');
+
+  @override
+  Widget build(BuildContext context) {
+    final attachments = note.attachments ?? const <String>[];
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(note.subject, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            '${note.type} · ${note.createdBy} · ${_fmt.format(note.createdAt.toLocal())}',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+          ),
+          if ((note.description ?? '').isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(note.description!),
+          ],
+          if (attachments.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            for (final a in attachments)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.memory(base64Decode(a.split(',').last), width: double.infinity, fit: BoxFit.contain),
+                ),
+              ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Close'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.of(context).pop('edit'),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('Edit'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Add/edit-note sheet mirroring the admin's note form: type, subject and an
