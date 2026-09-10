@@ -410,10 +410,17 @@ export interface PdfItemTableElement extends PdfElementBase {
   type: 'itemTable';
 }
 
+export interface PdfVisitTableElement extends PdfElementBase {
+  type: 'visitTable';
+  title: string;
+  rows: [string, string][];
+}
+
 export type PdfTemplateElement =
   | PdfTextElement
   | PdfImageElement
   | PdfLineElement
   | PdfRectElement
   | PdfQrElement
-  | PdfItemTableElement;
+  | PdfItemTableElement
+  | PdfVisitTableElement;

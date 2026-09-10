@@ -53,6 +53,10 @@ function defaultElement(type: PdfElementType): PdfTemplateElement {
       return { ...base, type, width: 64, height: 64, content: '{{bankName}} {{sortCode}} {{accountNumber}}' };
     case 'itemTable':
       return { ...base, type, width: 400, height: 140 };
+    // Render-time only (injected per-document by the PDF builders); not in
+    // ADD_TYPES, so this is just exhaustiveness for the compiler.
+    case 'visitTable':
+      return { ...base, type, width: 280, height: 68, title: 'Visit Schedule', rows: [] };
   }
 }
 

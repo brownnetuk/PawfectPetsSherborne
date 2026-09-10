@@ -59,13 +59,19 @@ interface PdfQrElement extends PdfElementBase {
 interface PdfItemTableElement extends PdfElementBase {
   type: 'itemTable';
 }
+interface PdfVisitTableElement extends PdfElementBase {
+  type: 'visitTable';
+  title: string;
+  rows: [string, string][];
+}
 export type PdfTemplateElement =
   | PdfTextElement
   | PdfImageElement
   | PdfLineElement
   | PdfRectElement
   | PdfQrElement
-  | PdfItemTableElement;
+  | PdfItemTableElement
+  | PdfVisitTableElement;
 
 // --- data shapes the renderer reads (JSON-serialized invoice + business) ---
 export interface PdfLineItem {
@@ -108,19 +114,25 @@ export interface PdfInvoice {
 
 // A compact label/value block appended to the notes so any template placing
 // {{notes}} shows the visit schedule, matching the bank-details styling.
-export function visitScheduleText(plan?: PdfInvoice['visitPlan']): string {
-  if (!plan) return '';
+function visitScheduleRows(plan: PdfInvoice['visitPlan']): [string, string][] {
+  if (!plan) return [];
   const uk = (s: string) => s.slice(0, 10).split('-').reverse().join('/');
   const names = (plan.animals ?? [])
     .map((a) => (typeof a === 'string' ? null : a?.name))
-    .filter((n): n is string => !!n);
-  const lines = [
-    'Visit Schedule',
-    `Dates :   ${uk(plan.startDate)} - ${uk(plan.endDate)}`,
-    `Visits :   ${plan.visitsPerDay} per day (first day ${plan.visitsFirstDay}, last day ${plan.visitsLastDay})`,
+    .filter((n): n is string => !!n)
+    .join(', ');
+  const rows: [string, string][] = [
+    ['Dates', `${uk(plan.startDate)} - ${uk(plan.endDate)}`],
+    ['Visits', `${plan.visitsPerDay} per day (first day ${plan.visitsFirstDay}, last day ${plan.visitsLastDay})`],
   ];
-  if (names.length > 0) lines.push(`Pets :   ${names.join(', ')}`);
-  return lines.join('\n');
+  if (names) rows.push(['Pets', names]);
+  return rows;
+}
+
+export function visitScheduleText(plan?: PdfInvoice['visitPlan']): string {
+  const rows = visitScheduleRows(plan);
+  if (rows.length === 0) return '';
+  return ['Visit Schedule', ...rows.map(([label, value]) => `${label} :   ${value}`)].join('\n');
 }
 export interface PdfBusinessInfo {
   name?: string;
@@ -752,6 +764,8 @@ function resolveLayout(
     } else if (el.type === 'itemTable') {
       const rows = measureTableRows(doc, lineItems, el.width);
       natural = Math.max(el.height, TABLE_HEADER_HEIGHT + rows.reduce((sum, r) => sum + r.height, 0));
+    } else if (el.type === 'visitTable') {
+      natural = Math.max(el.height, VISIT_TITLE_H + el.rows.length * VISIT_ROW_H);
     }
     naturalHeight.set(el.id, natural);
 
@@ -771,6 +785,35 @@ function resolveLayout(
  * elements marked visibleWhen: 'invoice-only' (Payment Made, Balance Due)
  * hidden.
  */
+
+// Draws the injected visit-schedule mini table (see injectVisitSchedule):
+// a bold title, then bordered label/value rows mirroring the on-screen
+// VisitScheduleTable component.
+const VISIT_TITLE_H = 14;
+const VISIT_ROW_H = 18;
+const VISIT_LABEL_W = 60;
+function drawVisitTable(doc: jsPDF, el: PdfVisitTableElement): void {
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...hexToRgb('#232c26'));
+  doc.text(el.title, el.x, el.y + 9);
+  const tableY = el.y + VISIT_TITLE_H;
+  doc.setDrawColor(...hexToRgb(BORDER));
+  doc.setLineWidth(0.5);
+  el.rows.forEach(([label, value], i) => {
+    const ry = tableY + i * VISIT_ROW_H;
+    doc.rect(el.x, ry, VISIT_LABEL_W, VISIT_ROW_H);
+    doc.rect(el.x + VISIT_LABEL_W, ry, el.width - VISIT_LABEL_W, VISIT_ROW_H);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...hexToRgb('#232c26'));
+    doc.text(label, el.x + 6, ry + 12);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...hexToRgb('#6f7d72'));
+    doc.text(value, el.x + VISIT_LABEL_W + 6, ry + 12);
+  });
+}
+
 // Saved templates can carry a literal notes message instead of the {{notes}}
 // token (the token path appends the schedule into the message itself) -- for
 // those, inject the schedule as its own text element just below the notes
@@ -792,16 +835,15 @@ export function injectVisitSchedule(
     ...template,
     {
       id: 'visit-schedule',
-      type: 'text',
+      type: 'visitTable',
       x: anchor.x,
       y: anchor.y + anchor.height + 8,
-      width: Math.max(anchor.width, 300),
+      width: 280,
+      // Deliberately smaller than the drawn size -- the layout resolver's
+      // natural-height overflow is what pushes everything below down.
       height: 12,
-      content: scheduleText,
-      fontSize: 9,
-      fontWeight: 'normal',
-      color: '#6f7d72',
-      align: 'left',
+      title: 'Visit Schedule',
+      rows: visitScheduleRows(plan),
     },
   ];
 }
@@ -836,6 +878,7 @@ export async function buildInvoicePdfBuffer(
     else if (el.type === 'rect') drawRect(doc, el);
     else if (el.type === 'image') drawImage(doc, el, logo);
     else if (el.type === 'qrcode') drawQr(doc, el, qrDataUrls.get(el.id) ?? null);
+    else if (el.type === 'visitTable') drawVisitTable(doc, el);
   };
 
   const bottomLimit = PAGE_HEIGHT - BOTTOM_MARGIN;
