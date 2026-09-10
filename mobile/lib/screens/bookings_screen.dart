@@ -776,11 +776,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
     // Green tick bottom-right once everything on the card has been invoiced.
     final invoiced = group.every((b) => b.invoiceId != null && b.invoiceId!.isNotEmpty);
     return Card(
-      margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
       child: Stack(
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -832,9 +832,16 @@ class _BookingsScreenState extends State<BookingsScreen> {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       dense: true,
+      visualDensity: const VisualDensity(vertical: -3),
+      minVerticalPadding: 2,
       leading: Icon(Icons.circle, size: 12, color: colour),
-      title: Text(b.productName.isEmpty ? '(product)' : b.productName),
-      subtitle: Text(subtitle),
+      title: Text(
+        b.productName.isEmpty ? '(product)' : b.productName,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 13.5),
+      ),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
       trailing: Text(_money.format(b.lineTotal), style: const TextStyle(fontWeight: FontWeight.w600)),
       onTap: () => _editEntry(b),
     );
@@ -846,11 +853,28 @@ class _BookingsScreenState extends State<BookingsScreen> {
       if (a.reason.isNotEmpty) a.reason,
     ];
     return ListTile(
-      leading: Icon(Icons.event_note, color: Colors.blue.shade600),
-      title: Text(a.customerName.isEmpty ? (a.reason.isEmpty ? 'Appointment' : a.reason) : a.customerName),
-      subtitle: subtitleParts.isEmpty ? null : Text(subtitleParts.join(' · ')),
+      dense: true,
+      visualDensity: const VisualDensity(vertical: -3),
+      contentPadding: const EdgeInsets.only(left: 16, right: 8),
+      leading: Icon(Icons.event_note, size: 20, color: Colors.blue.shade600),
+      title: Text.rich(
+        TextSpan(
+          text: a.customerName.isEmpty ? (a.reason.isEmpty ? 'Appointment' : a.reason) : a.customerName,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+          children: [
+            if (subtitleParts.isNotEmpty)
+              TextSpan(
+                text: '  ·  ${subtitleParts.join(' · ')}',
+                style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w400),
+              ),
+          ],
+        ),
+        overflow: TextOverflow.ellipsis,
+      ),
       trailing: IconButton(
-        icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
+        icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade400),
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
         tooltip: 'Delete',
         onPressed: () => _confirmDeleteAppointment(a),
       ),
