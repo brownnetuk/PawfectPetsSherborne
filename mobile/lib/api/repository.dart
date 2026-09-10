@@ -350,6 +350,9 @@ class Repository {
     required DateTime validUntil,
     String? subject,
     String? paymentTerms,
+    // The Visits section's inputs, persisted on the quote so accepting it
+    // creates the matching calendar bookings server-side.
+    Map<String, dynamic>? visitPlan,
   }) async =>
       Quote.fromJson(await _client.post('/quotes', {
         if (customerId != null && customerId.isNotEmpty) 'customer': customerId,
@@ -362,6 +365,7 @@ class Repository {
         'validUntil': validUntil.toIso8601String(),
         if (subject != null && subject.isNotEmpty) 'subject': subject,
         if (paymentTerms != null && paymentTerms.isNotEmpty) 'paymentTerms': paymentTerms,
+        if (visitPlan != null) 'visitPlan': visitPlan,
       }));
 
   /// Accepts a quote and converts it into an invoice (server also emails a

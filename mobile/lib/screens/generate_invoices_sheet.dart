@@ -13,7 +13,11 @@ class _CustomerGroup {
   final List<String> bookingIds;
   final List<InvoiceLineItem> lineItems;
   final double total;
-  _CustomerGroup(this.customerId, this.customerName, this.bookingIds, this.lineItems, this.total);
+
+  /// The customer's latest booked date this month -- the generated invoice
+  /// falls due on the last day of what it covers.
+  final DateTime lastDate;
+  _CustomerGroup(this.customerId, this.customerName, this.bookingIds, this.lineItems, this.total, this.lastDate);
 }
 
 /// Generates one invoice per customer covering every not-yet-invoiced Walk and
@@ -71,12 +75,14 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
             .map((p) => InvoiceLineItem(description: p.name, quantity: p.qty.toDouble(), unitPrice: p.price))
             .toList();
         final total = lineItems.fold<double>(0, (s, li) => s + li.quantity * li.unitPrice);
+        final lastDate = custBookings.map((b) => b.date).reduce((a, b) => a.isAfter(b) ? a : b);
         groups.add(_CustomerGroup(
           cid,
           custBookings.first.customerName,
           custBookings.map((b) => b.id).toList(),
           lineItems,
           total,
+          lastDate,
         ));
       });
       groups.sort((a, b) => a.customerName.toLowerCase().compareTo(b.customerName.toLowerCase()));
@@ -92,16 +98,6 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
     }
   }
 
-  DateTime _lastWorkingDayOfMonth(DateTime date) {
-    var last = DateTime(date.year, date.month + 1, 0);
-    if (last.weekday == DateTime.sunday) {
-      last = DateTime(last.year, last.month, last.day - 2);
-    } else if (last.weekday == DateTime.saturday) {
-      last = DateTime(last.year, last.month, last.day - 1);
-    }
-    return last;
-  }
-
   Future<void> _confirm() async {
     setState(() {
       _busy = true;
@@ -115,12 +111,6 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
         if (t.isDefault) defaultTerm = t;
       }
       final issueDate = DateTime.now();
-      var dueDate = issueDate;
-      if (defaultTerm?.endOfMonth ?? false) {
-        dueDate = _lastWorkingDayOfMonth(issueDate);
-      } else if (defaultTerm?.plusDays != null) {
-        dueDate = DateTime(issueDate.year, issueDate.month, issueDate.day + defaultTerm!.plusDays!);
-      }
 
       var count = 0;
       for (final group in _groups) {
@@ -128,7 +118,7 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
           customerId: group.customerId,
           lineItems: group.lineItems,
           issueDate: issueDate,
-          dueDate: dueDate,
+          dueDate: group.lastDate,
           subject: 'Bookings for $_monthLabel',
           paymentTerms: defaultTerm?.text,
         );

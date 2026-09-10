@@ -424,6 +424,26 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
     setState(() => _submitting = true);
     try {
       final lineItems = _items.where((i) => i.isValid).map((i) => i.toLineItem()).toList();
+      // The Visits inputs, when complete, ride along on the quote so
+      // accepting it books those visits on the calendar -- same plan the
+      // admin's quote form persists. Omitted (not nulled) when empty so an
+      // edit here can't wipe a plan saved elsewhere.
+      String ymd(DateTime d) =>
+          '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      Map<String, dynamic>? visitPlan;
+      if (_visitAnimalIds.isNotEmpty &&
+          _visitStart != null &&
+          _visitEnd != null &&
+          !_visitEnd!.isBefore(_visitStart!)) {
+        visitPlan = {
+          'animals': _visitAnimalIds.toList(),
+          'startDate': ymd(_visitStart!),
+          'endDate': ymd(_visitEnd!),
+          'visitsPerDay': '$_visitsPerDay',
+          'visitsFirstDay': '$_visitsFirstDay',
+          'visitsLastDay': '$_visitsLastDay',
+        };
+      }
       final Quote quote;
       if (widget.isEditing) {
         quote = await repo.updateQuote(widget.quote!.id, {
@@ -432,6 +452,7 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
           'validUntil': _validUntil.toIso8601String(),
           'subject': _subjectController.text.trim(),
           'paymentTerms': _selectedTerm?.text ?? '',
+          if (visitPlan != null) 'visitPlan': visitPlan,
         });
       } else {
         quote = await repo.createQuote(
@@ -443,6 +464,7 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
           validUntil: _validUntil,
           subject: _subjectController.text.trim(),
           paymentTerms: _selectedTerm?.text ?? '',
+          visitPlan: visitPlan,
         );
         if (send) await repo.sendQuoteEmail(quote.id);
       }
