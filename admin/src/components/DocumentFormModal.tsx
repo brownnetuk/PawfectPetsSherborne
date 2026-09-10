@@ -377,7 +377,11 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
   // New Booking modal uses) instead of typing them by hand.
   const existingVisitPlan = kind === 'quote' && existing ? (existing as Quote).visitPlan : undefined;
   const [showVisits, setShowVisits] = useState(!!existingVisitPlan);
-  const [visitAnimalIds, setVisitAnimalIds] = useState<string[]>(existingVisitPlan?.animals ?? []);
+  const [visitAnimalIds, setVisitAnimalIds] = useState<string[]>(
+    // Reads back populated {_id, name} refs; the form (and the save payload)
+    // works in bare ids.
+    (existingVisitPlan?.animals ?? []).map((a) => (typeof a === 'string' ? a : a._id)),
+  );
   const [visitsPerDay, setVisitsPerDay] = useState<VisitCount>(existingVisitPlan?.visitsPerDay ?? '1');
   const [visitStartDate, setVisitStartDate] = useState(existingVisitPlan?.startDate ?? '');
   const [visitsFirstDay, setVisitsFirstDay] = useState<VisitCount>(existingVisitPlan?.visitsFirstDay ?? '1');

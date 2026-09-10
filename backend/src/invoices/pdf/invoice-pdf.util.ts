@@ -94,6 +94,33 @@ export interface PdfInvoice {
   manualCustomerName?: string;
   manualCustomerEmail?: string;
   lineItems: PdfLineItem[];
+  // Present on quotes with a Visits section and on invoices converted from
+  // them -- rendered as a small schedule table inside the {{notes}} block.
+  visitPlan?: {
+    animals?: (string | { name?: string })[];
+    startDate: string;
+    endDate: string;
+    visitsPerDay: string;
+    visitsFirstDay: string;
+    visitsLastDay: string;
+  };
+}
+
+// A compact label/value block appended to the notes so any template placing
+// {{notes}} shows the visit schedule, matching the bank-details styling.
+export function visitScheduleText(plan?: PdfInvoice['visitPlan']): string {
+  if (!plan) return '';
+  const uk = (s: string) => s.slice(0, 10).split('-').reverse().join('/');
+  const names = (plan.animals ?? [])
+    .map((a) => (typeof a === 'string' ? null : a?.name))
+    .filter((n): n is string => !!n);
+  const lines = [
+    'Visit Schedule',
+    `Dates :   ${uk(plan.startDate)} - ${uk(plan.endDate)}`,
+    `Visits :   ${plan.visitsPerDay} per day (first day ${plan.visitsFirstDay}, last day ${plan.visitsLastDay})`,
+  ];
+  if (names.length > 0) lines.push(`Pets :   ${names.join(', ')}`);
+  return lines.join('\n');
 }
 export interface PdfBusinessInfo {
   name?: string;
@@ -162,9 +189,13 @@ function buildPdfVars(
     amountPaid: money(amountPaid),
     balanceDue: money(balanceDue),
     subject: record.subject ?? '',
-    notes:
+    notes: [
       (kind === 'invoice' ? businessInfo.invoiceNotesMessage : businessInfo.quoteNotesMessage) ||
-      'Thanks for your business.',
+        'Thanks for your business.',
+      visitScheduleText(record.visitPlan),
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
     businessName: businessInfo.name ?? '',
     businessAddress: businessInfo.address ?? '',
     businessTown: businessInfo.town ?? '',

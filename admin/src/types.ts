@@ -226,6 +226,8 @@ export interface Invoice {
   openedAt?: string;
   amountPaid?: number;
   createdAt: string;
+  // Copied from the source quote when an accepted quote converts.
+  visitPlan?: QuoteVisitPlan | null;
 }
 
 export interface InvoiceTerm {
@@ -390,7 +392,8 @@ export interface ExpenseCategoryTotal {
 // The quote form's Visits section, persisted on the quote so accepting it
 // creates the matching bookings server-side (see backend QuoteVisitPlan).
 export interface QuoteVisitPlan {
-  animals: string[];
+  // Bare ids when saving; populated {_id, name} refs when read back.
+  animals: (string | { _id: string; name: string })[];
   startDate: string;
   endDate: string;
   visitsPerDay: '1' | '2';

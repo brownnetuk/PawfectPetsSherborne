@@ -148,6 +148,7 @@ export class InvoicesService {
       .find(filter)
       .sort({ createdAt: -1 })
       .populate('customer', 'name email address phoneNumber')
+      .populate('visitPlan.animals', 'name')
       .exec();
   }
 
@@ -155,6 +156,7 @@ export class InvoicesService {
     const invoice = await this.invoiceModel
       .findById(id)
       .populate('customer', 'name email address phoneNumber')
+      .populate('visitPlan.animals', 'name')
       .exec();
     if (!invoice) {
       throw new NotFoundException(`Invoice ${id} not found`);

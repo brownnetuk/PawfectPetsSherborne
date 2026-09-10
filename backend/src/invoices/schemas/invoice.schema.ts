@@ -11,6 +11,32 @@ export enum InvoiceStatus {
   CANCELLED = 'cancelled',
 }
 
+// Mirror of the quote's QuoteVisitPlan (quotes/schemas/quote.schema.ts) --
+// copied onto the invoice when an accepted quote converts, so the rendered
+// invoice can show the visit schedule. Defined here rather than imported to
+// avoid a circular schema import (quote.schema already imports Invoice).
+@Schema({ _id: false })
+export class InvoiceVisitPlan {
+  @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'Animal', required: true })
+  animals: Types.ObjectId[];
+
+  @Prop({ required: true })
+  startDate: string;
+
+  @Prop({ required: true })
+  endDate: string;
+
+  @Prop({ required: true, enum: ['1', '2'] })
+  visitsPerDay: string;
+
+  @Prop({ required: true, enum: ['1', '2'] })
+  visitsFirstDay: string;
+
+  @Prop({ required: true, enum: ['1', '2'] })
+  visitsLastDay: string;
+}
+const InvoiceVisitPlanSchema = SchemaFactory.createForClass(InvoiceVisitPlan);
+
 @Schema({ _id: false })
 class LineItem {
   @Prop({ required: true })
@@ -80,6 +106,9 @@ export class Invoice extends Document {
   // invoice actually sits in its draft/sent/paid/overdue/cancelled lifecycle.
   @Prop()
   openedAt?: Date;
+
+  @Prop({ type: InvoiceVisitPlanSchema })
+  visitPlan?: InvoiceVisitPlan;
 }
 
 export const InvoiceSchema = SchemaFactory.createForClass(Invoice);

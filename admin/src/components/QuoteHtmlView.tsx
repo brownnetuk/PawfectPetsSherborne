@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import logoUrl from '../assets/logo.png';
+import VisitScheduleTable from './VisitScheduleTable';
 import type { BusinessInfo, Quote } from '../types';
 
 function formatUkDateFromIso(iso: string | undefined): string {
@@ -175,6 +176,7 @@ export default function QuoteHtmlView({ quote, businessInfo }: Props) {
         <div style={{ color: 'var(--muted)', marginTop: 5, whiteSpace: 'pre-line' }}>
           {businessInfo.quoteNotesMessage || 'Thanks for your business.'}
         </div>
+        {quote.visitPlan && <VisitScheduleTable plan={quote.visitPlan} />}
       </div>
 
       {(businessInfo.bankName || businessInfo.sortCode || businessInfo.accountNumber) && (

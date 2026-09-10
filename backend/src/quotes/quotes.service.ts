@@ -162,6 +162,7 @@ export class QuotesService {
       .find(filter)
       .sort({ createdAt: -1 })
       .populate('customer', 'name email address phoneNumber')
+      .populate('visitPlan.animals', 'name')
       .exec();
   }
 
@@ -169,6 +170,7 @@ export class QuotesService {
     const quote = await this.quoteModel
       .findById(id)
       .populate('customer', 'name email address phoneNumber')
+      .populate('visitPlan.animals', 'name')
       .exec();
     if (!quote) {
       throw new NotFoundException(`Quote ${id} not found`);
@@ -497,6 +499,17 @@ export class QuotesService {
         dueDate,
         paymentTerms: updated.paymentTerms,
         subject: updated.subject,
+        // Carried over so the rendered invoice shows the visit schedule too.
+        visitPlan: updated.visitPlan
+          ? {
+              animals: updated.visitPlan.animals.map((a) => String((a as { _id?: unknown })._id ?? a)),
+              startDate: updated.visitPlan.startDate,
+              endDate: updated.visitPlan.endDate,
+              visitsPerDay: updated.visitPlan.visitsPerDay,
+              visitsFirstDay: updated.visitPlan.visitsFirstDay,
+              visitsLastDay: updated.visitPlan.visitsLastDay,
+            }
+          : undefined,
       },
       'Customer',
     );

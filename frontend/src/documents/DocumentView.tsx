@@ -337,6 +337,34 @@ export default function DocumentView({ kind, id }: Props) {
         <div style={{ marginTop: 36, fontSize: '0.88rem' }}>
           <div style={{ fontWeight: 700 }}>Notes</div>
           <div style={{ color: 'var(--muted)', marginTop: 5, whiteSpace: 'pre-line' }}>{notesMessage}</div>
+          {record.visitPlan && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: 4 }}>Visit Schedule</div>
+              <table style={{ borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                <tbody>
+                  {(() => {
+                    const plan = record.visitPlan!;
+                    const uk = (s: string) => s.slice(0, 10).split('-').reverse().join('/');
+                    const names = plan.animals
+                      .map((a) => (typeof a === 'string' ? null : a.name))
+                      .filter(Boolean)
+                      .join(', ');
+                    const rows: [string, string][] = [
+                      ['Dates', `${uk(plan.startDate)} – ${uk(plan.endDate)}`],
+                      ['Visits', `${plan.visitsPerDay} per day (first day ${plan.visitsFirstDay}, last day ${plan.visitsLastDay})`],
+                    ];
+                    if (names) rows.push(['Pets', names]);
+                    return rows.map(([label, value]) => (
+                      <tr key={label}>
+                        <td style={{ border: '1px solid #d7dce1', padding: '4px 10px', fontWeight: 600 }}>{label}</td>
+                        <td style={{ border: '1px solid #d7dce1', padding: '4px 10px', color: 'var(--muted)' }}>{value}</td>
+                      </tr>
+                    ));
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {(businessInfo.bankName || businessInfo.sortCode || businessInfo.accountNumber) && (

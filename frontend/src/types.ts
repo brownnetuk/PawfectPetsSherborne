@@ -309,6 +309,18 @@ export interface InvoiceRecord {
   subject?: string;
   paidAt?: string;
   amountPaid?: number;
+  visitPlan?: DocVisitPlan | null;
+}
+
+// The Visits section saved on a quote (and copied to the invoice it converts
+// into) -- rendered as a small schedule table in the document's Notes.
+export interface DocVisitPlan {
+  animals: (string | { _id: string; name: string })[];
+  startDate: string;
+  endDate: string;
+  visitsPerDay: string;
+  visitsFirstDay: string;
+  visitsLastDay: string;
 }
 
 export interface QuoteRecord {
@@ -325,6 +337,7 @@ export interface QuoteRecord {
   validUntil: string;
   paymentTerms?: string;
   subject?: string;
+  visitPlan?: DocVisitPlan | null;
 }
 
 export interface PublicBusinessInfo {

@@ -9,6 +9,7 @@ import type {
   PdfItemTableElement,
   PdfTemplateElement,
   Quote,
+  QuoteVisitPlan,
 } from '../types';
 
 export const PAGE_WIDTH = 595.28; // A4, points -- same as customerFormPdf.ts
@@ -46,6 +47,26 @@ function formatUkDateFromIso(iso: string | undefined): string {
   if (!iso) return '';
   const [y, m, d] = iso.slice(0, 10).split('-');
   return `${d}/${m}/${y}`;
+}
+
+// A compact label/value block appended to the {{notes}} token so the PDF
+// shows the visit schedule for quotes with a Visits plan (and the invoices
+// converted from them) -- the HTML views render the same rows as a table via
+// components/VisitScheduleTable.tsx.
+function visitScheduleText(plan?: QuoteVisitPlan | null): string {
+  if (!plan) return '';
+  const uk = (s: string) => s.slice(0, 10).split('-').reverse().join('/');
+  const names = plan.animals
+    .map((a) => (typeof a === 'string' ? null : a.name))
+    .filter(Boolean)
+    .join(', ');
+  const lines = [
+    'Visit Schedule',
+    `Dates :   ${uk(plan.startDate)} - ${uk(plan.endDate)}`,
+    `Visits :   ${plan.visitsPerDay} per day (first day ${plan.visitsFirstDay}, last day ${plan.visitsLastDay})`,
+  ];
+  if (names) lines.push(`Pets :   ${names}`);
+  return lines.join('\n');
 }
 
 function money(n: number): string {
@@ -126,7 +147,12 @@ export function buildPdfVars(
     amountPaid: money(amountPaid),
     balanceDue: money(balanceDue),
     subject: record.subject ?? '',
-    notes: (isInvoice ? businessInfo.invoiceNotesMessage : businessInfo.quoteNotesMessage) || 'Thanks for your business.',
+    notes: [
+      (isInvoice ? businessInfo.invoiceNotesMessage : businessInfo.quoteNotesMessage) || 'Thanks for your business.',
+      visitScheduleText(record.visitPlan),
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
     businessName: businessInfo.name ?? '',
     businessAddress: businessInfo.address ?? '',
     businessTown: businessInfo.town ?? '',

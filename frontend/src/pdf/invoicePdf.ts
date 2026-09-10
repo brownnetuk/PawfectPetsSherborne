@@ -9,6 +9,7 @@ import type {
   PdfTemplateElement,
   PublicBusinessInfo,
   QuoteRecord,
+  DocVisitPlan,
 } from '../types';
 
 // Ported from admin/src/pdf/invoicePdf.ts so the public invoice/quote page's
@@ -51,6 +52,24 @@ function formatUkDateFromIso(iso: string | undefined): string {
   if (!iso) return '';
   const [y, m, d] = iso.slice(0, 10).split('-');
   return `${d}/${m}/${y}`;
+}
+
+// Mirrors the admin PDF builder: the visit schedule rides inside the
+// {{notes}} token as compact label/value lines.
+function visitScheduleText(plan?: DocVisitPlan | null): string {
+  if (!plan) return '';
+  const uk = (s: string) => s.slice(0, 10).split('-').reverse().join('/');
+  const names = plan.animals
+    .map((a) => (typeof a === 'string' ? null : a.name))
+    .filter(Boolean)
+    .join(', ');
+  const lines = [
+    'Visit Schedule',
+    `Dates :   ${uk(plan.startDate)} - ${uk(plan.endDate)}`,
+    `Visits :   ${plan.visitsPerDay} per day (first day ${plan.visitsFirstDay}, last day ${plan.visitsLastDay})`,
+  ];
+  if (names) lines.push(`Pets :   ${names}`);
+  return lines.join('\n');
 }
 
 function money(n: number): string {
@@ -98,7 +117,12 @@ export function buildPdfVars(
     amountPaid: money(amountPaid),
     balanceDue: money(balanceDue),
     subject: record.subject ?? '',
-    notes: (isInvoice ? businessInfo.invoiceNotesMessage : businessInfo.quoteNotesMessage) || 'Thanks for your business.',
+    notes: [
+      (isInvoice ? businessInfo.invoiceNotesMessage : businessInfo.quoteNotesMessage) || 'Thanks for your business.',
+      visitScheduleText(record.visitPlan),
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
     businessName: businessInfo.name ?? '',
     businessAddress: businessInfo.address ?? '',
     businessTown: businessInfo.town ?? '',

@@ -1,4 +1,5 @@
 import { Type } from 'class-transformer';
+import { QuoteVisitPlanDto } from '../../quotes/dto/create-quote.dto';
 import {
   ArrayMinSize,
   IsArray,
@@ -63,4 +64,11 @@ export class CreateInvoiceDto {
   @IsOptional()
   @IsString()
   subject?: string;
+
+  // Copied from the source quote when an accepted quote converts -- see
+  // QuotesService.acceptAndConvert().
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => QuoteVisitPlanDto)
+  visitPlan?: QuoteVisitPlanDto;
 }
