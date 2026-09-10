@@ -617,13 +617,31 @@ class _BookingsScreenState extends State<BookingsScreen> {
         ],
         if (recommended.isNotEmpty) ...[
           _sectionTitle('Recommended'),
+          // One compact line per pet -- this list grows with every dog not yet
+          // booked that day, so it has to stay dense.
           for (final a in recommended)
             ListTile(
-              leading: const Icon(Icons.pets),
-              title: Text(a.name),
-              subtitle: Text(_ownerOf(a.customerId)?.name ?? ''),
+              dense: true,
+              visualDensity: const VisualDensity(vertical: -3),
+              contentPadding: const EdgeInsets.only(left: 16, right: 8),
+              leading: const Icon(Icons.pets, size: 18),
+              title: Text.rich(
+                TextSpan(
+                  text: a.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  children: [
+                    TextSpan(
+                      text: '  ·  ${_ownerOf(a.customerId)?.name ?? ''}',
+                      style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w400),
+                    ),
+                  ],
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
               trailing: IconButton(
-                icon: Icon(Icons.add_circle, color: Colors.green.shade600),
+                icon: Icon(Icons.add_circle, color: Colors.green.shade600, size: 22),
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
                 tooltip: 'Add to this day',
                 onPressed: () => _quickAdd(a, dayItems),
               ),
@@ -755,27 +773,41 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
   Widget _animalCard(List<DayBooking> group, List<DayBooking> all) {
     final first = group.first;
+    // Green tick bottom-right once everything on the card has been invoiced.
+    final invoiced = group.every((b) => b.invoiceId != null && b.invoiceId!.isNotEmpty);
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.pets, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(first.animalName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                Row(
+                  children: [
+                    const Icon(Icons.pets, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(first.animalName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                    Text(first.customerName,
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                  ],
                 ),
-                Text(first.customerName,
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                for (final b in group) _entryRow(b, all),
+                // Keeps the tick clear of the last row's price.
+                if (invoiced) const SizedBox(height: 10),
               ],
             ),
-            for (final b in group) _entryRow(b, all),
-          ],
-        ),
+          ),
+          if (invoiced)
+            Positioned(
+              right: 8,
+              bottom: 6,
+              child: Icon(Icons.check_circle, size: 18, color: Colors.green.shade600),
+            ),
+        ],
       ),
     );
   }
