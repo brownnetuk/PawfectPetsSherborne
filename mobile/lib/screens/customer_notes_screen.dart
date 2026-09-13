@@ -61,18 +61,18 @@ class _CustomerNotesScreenState extends State<CustomerNotesScreen> {
     }
   }
 
-  /// Tapping a note shows it read-only; its Edit button hands over to the
-  /// edit sheet with the same already-fetched attachments.
+  /// Tapping a note shows it read-only. The sheet opens instantly with the
+  /// text it already has and fetches the attachment images itself (they can
+  /// be megabytes, so waiting for them before opening felt like a hang); its
+  /// Edit button pops the fully-loaded note for the edit sheet.
   Future<void> _viewNote(CrmActivity note) async {
-    final full = await _fullNote(note);
-    if (!mounted) return;
-    final action = await showModalBottomSheet<String>(
+    final editTarget = await showModalBottomSheet<CrmActivity>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _NoteViewSheet(note: full),
+      builder: (_) => _NoteViewSheet(note: note),
     );
     if (!mounted) return;
-    if (action == 'edit') await _showNoteSheet(existing: full);
+    if (editTarget != null) await _showNoteSheet(existing: editTarget);
   }
 
   Future<void> _editNote(CrmActivity note) async {
@@ -200,41 +200,87 @@ class _CustomerNotesScreenState extends State<CustomerNotesScreen> {
 }
 
 /// Read-only view of a note (subject, meta, description, attachment images),
-/// mirroring the admin's note modal. Pops 'edit' when the Edit button is
-/// tapped so the caller can open the edit sheet.
-class _NoteViewSheet extends StatelessWidget {
+/// mirroring the admin's note modal. Opens instantly with the light note from
+/// the list and fetches the attachment images itself, showing a placeholder
+/// spinner where they'll appear -- the images are stripped from list
+/// responses and can be megabytes, so blocking the sheet on them read as
+/// "notes take ages to open". Pops the fully-loaded note when Edit is tapped.
+class _NoteViewSheet extends StatefulWidget {
   final CrmActivity note;
   const _NoteViewSheet({required this.note});
 
+  @override
+  State<_NoteViewSheet> createState() => _NoteViewSheetState();
+}
+
+class _NoteViewSheetState extends State<_NoteViewSheet> {
   static final _fmt = DateFormat('d MMM yyyy, HH:mm');
+
+  late CrmActivity _note = widget.note;
+  // Decoded once here rather than in build() -- re-decoding base64 megabytes
+  // on every rebuild is a big part of why the sheet felt slow.
+  late List<Uint8List> _images = _decode(widget.note.attachments);
+  late bool _loading = widget.note.attachmentCount > 0 && widget.note.attachments == null;
+
+  static List<Uint8List> _decode(List<String>? attachments) =>
+      [for (final a in attachments ?? const <String>[]) base64Decode(a.split(',').last)];
+
+  @override
+  void initState() {
+    super.initState();
+    if (_loading) {
+      context.read<Repository>().getActivity(widget.note.id).then((full) {
+        if (!mounted) return;
+        setState(() {
+          _note = full;
+          _images = _decode(full.attachments);
+          _loading = false;
+        });
+      }).catchError((_) {
+        // Sheet stays useful with just the text; the placeholder goes away.
+        if (mounted) setState(() => _loading = false);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final attachments = note.attachments ?? const <String>[];
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(note.subject, style: Theme.of(context).textTheme.titleMedium),
+          Text(_note.subject, style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           Text(
-            '${note.type} · ${note.createdBy} · ${_fmt.format(note.createdAt.toLocal())}',
+            '${_note.type} · ${_note.createdBy} · ${_fmt.format(_note.createdAt.toLocal())}',
             style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
           ),
-          if ((note.description ?? '').isNotEmpty) ...[
+          if ((_note.description ?? '').isNotEmpty) ...[
             const SizedBox(height: 12),
-            Text(note.description!),
+            Text(_note.description!),
           ],
-          if (attachments.isNotEmpty) ...[
+          if (_loading) ...[
             const SizedBox(height: 16),
-            for (final a in attachments)
+            Container(
+              width: double.infinity,
+              height: 140,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+          ],
+          if (_images.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            for (final bytes in _images)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(base64Decode(a.split(',').last), width: double.infinity, fit: BoxFit.contain),
+                  child: Image.memory(bytes, width: double.infinity, fit: BoxFit.contain, gaplessPlayback: true),
                 ),
               ),
           ],
@@ -250,7 +296,7 @@ class _NoteViewSheet extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () => Navigator.of(context).pop('edit'),
+                  onPressed: () => Navigator.of(context).pop(_note),
                   icon: const Icon(Icons.edit_outlined, size: 18),
                   label: const Text('Edit'),
                 ),
@@ -279,8 +325,14 @@ class _NoteSheetState extends State<_NoteSheet> {
   late final _descriptionController = TextEditingController(text: widget.existing?.description ?? '');
   late String _type = widget.existing?.type ?? 'note';
   late final List<String> _attachments = List.of(widget.existing?.attachments ?? const []);
+  // Thumbnail bytes cached per attachment -- build() runs on every keystroke,
+  // and re-decoding base64 images each time makes typing janky.
+  final _thumbCache = <String, Uint8List>{};
   bool _submitting = false;
   String? _error;
+
+  Uint8List _thumbBytes(String attachment) =>
+      _thumbCache.putIfAbsent(attachment, () => base64Decode(attachment.split(',').last));
 
   void _addAttachment(Uint8List bytes) {
     setState(() => _attachments.add('data:image/jpeg;base64,${base64Encode(bytes)}'));
@@ -407,10 +459,11 @@ class _NoteSheetState extends State<_NoteSheet> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Image.memory(
-                          base64Decode(_attachments[i].split(',').last),
+                          _thumbBytes(_attachments[i]),
                           width: 72,
                           height: 72,
                           fit: BoxFit.cover,
+                          gaplessPlayback: true,
                         ),
                       ),
                       Positioned(
