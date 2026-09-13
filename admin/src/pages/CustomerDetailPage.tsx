@@ -37,6 +37,7 @@ import type {
 import { addDays, dateKey } from '../utils/visitPlan';
 import { isVisitProduct, visitCountForProduct } from '../utils/visitMapping';
 import { WEEKDAYS } from '../types';
+import { compressImageToDataUrl } from '../utils/compressImage';
 import { useAuth } from '../auth/AuthContext';
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
@@ -1056,18 +1057,22 @@ function ActivityTab({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function handleAttachmentChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleAttachmentChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    if (file.size > 4 * 1024 * 1024) {
-      setError('Each image must be under 4 MB.');
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Each image must be under 10 MB.');
       return;
     }
     setError(null);
-    const reader = new FileReader();
-    reader.onload = () => setAttachments((prev) => [...prev, reader.result as string]);
-    reader.readAsDataURL(file);
+    try {
+      // Downscaled/re-encoded so notes carrying photos stay quick to open.
+      const compressed = await compressImageToDataUrl(file);
+      setAttachments((prev) => [...prev, compressed]);
+    } catch {
+      setError('Could not read that image.');
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
