@@ -12,15 +12,15 @@ import '../api/repository.dart';
 import '../models/crm_activity.dart';
 import '../state/auth_provider.dart';
 
-/// Downscales an attachment to at most 1600px wide and re-encodes it as JPEG
-/// (quality 70) so the base64 payload stays well under the API's body-size
-/// limit -- same treatment the expense receipt scanner applies. Runs in a
-/// background isolate via `compute`.
+/// Downscales an attachment to at most 1200px wide and re-encodes it as JPEG
+/// (quality 60) -- notes are viewed on a phone screen, so this keeps them
+/// quick to fetch without visible loss. Runs in a background isolate via
+/// `compute`.
 Uint8List _compressAttachment(Uint8List input) {
   final decoded = img.decodeImage(input);
   if (decoded == null) return input;
-  final resized = decoded.width > 1600 ? img.copyResize(decoded, width: 1600) : decoded;
-  return Uint8List.fromList(img.encodeJpg(resized, quality: 70));
+  final resized = decoded.width > 1200 ? img.copyResize(decoded, width: 1200) : decoded;
+  return Uint8List.fromList(img.encodeJpg(resized, quality: 60));
 }
 
 /// The customer's CRM notes (notes/calls/emails/tasks) — the same records the
@@ -355,7 +355,7 @@ class _NoteSheetState extends State<_NoteSheet> {
 
   Future<void> _pickImage(ImageSource source) async {
     try {
-      final file = await ImagePicker().pickImage(source: source, imageQuality: 70, maxWidth: 1600);
+      final file = await ImagePicker().pickImage(source: source, imageQuality: 60, maxWidth: 1200);
       if (file == null) return;
       _addAttachment(await file.readAsBytes());
     } catch (_) {
