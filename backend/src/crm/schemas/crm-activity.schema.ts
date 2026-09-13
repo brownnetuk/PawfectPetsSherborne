@@ -43,6 +43,12 @@ export class CrmActivity extends Document {
   // paperclip without carrying the image payloads themselves.
   @Prop({ default: 0 })
   attachmentCount: number;
+
+  // Set once the attachments are known to be at the compressed size (new
+  // notes immediately; legacy full-size ones by the boot-time recompression
+  // in CrmService.compressLegacyAttachments()).
+  @Prop({ default: false })
+  attachmentsCompressed?: boolean;
 }
 
 export const CrmActivitySchema = SchemaFactory.createForClass(CrmActivity);
