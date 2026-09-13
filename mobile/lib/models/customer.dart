@@ -77,6 +77,7 @@ class Customer {
   final bool travelChargeable;
   final String? travelProductId;
   final List<String> regularDays;
+  final bool portalActive;
 
   Customer({
     required this.id,
@@ -92,6 +93,7 @@ class Customer {
     this.travelChargeable = false,
     this.travelProductId,
     this.regularDays = const [],
+    this.portalActive = false,
   });
 
   factory Customer.fromJson(Map<String, dynamic> json) {
@@ -117,6 +119,7 @@ class Customer {
       travelProductId: idOrNull(json['travelProduct']),
       regularDays:
           (json['regularDays'] as List<dynamic>?)?.map((e) => e as String).toList() ?? const [],
+      portalActive: json['portalActive'] as bool? ?? false,
     );
   }
 }

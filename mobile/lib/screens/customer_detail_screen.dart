@@ -10,6 +10,7 @@ import '../models/form_summary.dart';
 import '../widgets/status_badge.dart';
 import 'animal_detail_screen.dart';
 import 'customer_activity_screen.dart';
+import 'customer_defaults_screen.dart';
 import 'customer_notes_screen.dart';
 
 class CustomerDetailScreen extends StatefulWidget {
@@ -256,6 +257,17 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 onPressed: () => _showSendFormSheet(customer),
                 icon: const Icon(Icons.description_outlined),
                 label: const Text('Send form'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => CustomerDefaultsScreen(customer: customer)),
+                  );
+                  if (mounted) setState(_load); // reflect saved defaults
+                },
+                icon: const Icon(Icons.tune_outlined),
+                label: const Text('Customer defaults'),
               ),
             ],
           );

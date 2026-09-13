@@ -154,6 +154,29 @@ class Repository {
   Future<Customer> updateCustomerStatus(String id, String status) async =>
       Customer.fromJson(await _client.patch('/customers/$id/status', {'status': status}));
 
+  /// Saves the Customer Defaults (default product, travel, regular days) --
+  /// same PATCH the admin's Customer Defaults tab uses. Nulls clear a product.
+  Future<Customer> updateCustomerDefaults(
+    String id, {
+    required String? defaultProduct,
+    required bool travelChargeable,
+    required String? travelProduct,
+    required List<String> regularDays,
+  }) async =>
+      Customer.fromJson(await _client.patch('/customers/$id', {
+        'defaultProduct': defaultProduct,
+        'travelChargeable': travelChargeable,
+        'travelProduct': travelProduct,
+        'regularDays': regularDays,
+      }));
+
+  /// Enables/disables the customer's portal app login. Enabling emails them a
+  /// welcome/set-password link, so callers confirm first.
+  Future<void> setCustomerPortalActive(String id, bool active) =>
+      _client.patch('/customers/$id/portal', {'active': active});
+
+  Future<void> sendCustomerPortalReset(String id) => _client.post('/customers/$id/portal/reset', {});
+
   /// System activity trail for a customer (invoices, quotes, payments, emails
   /// sent/read, deposits, etc.), newest first from the backend.
   Future<List<AuditLogEntry>> listCustomerActivity(String customerId) async =>
