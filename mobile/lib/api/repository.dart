@@ -13,6 +13,7 @@ import '../models/payment.dart' as models;
 import '../models/crm_activity.dart';
 import '../models/customer.dart';
 import '../models/expense.dart';
+import '../models/form_submission.dart';
 import '../models/form_summary.dart';
 import '../models/invoice.dart';
 import '../models/message.dart';
@@ -114,6 +115,13 @@ class Repository {
   // --- forms (send a customer a fill-in link) ---
   Future<List<FormSummary>> listForms() async =>
       (await _client.getList('/forms')).map((e) => FormSummary.fromJson(e)).toList();
+
+  /// Every form ever sent to a customer -- pending links awaiting a reply and
+  /// completed submissions with their answers.
+  Future<List<FormSubmission>> listFormSubmissions(String customerId) async =>
+      (await _client.getList('/form-submissions', query: {'customer': customerId}))
+          .map((e) => FormSubmission.fromJson(e as Map<String, dynamic>))
+          .toList();
 
   /// Creates a pending form submission and returns its id -- the public
   /// /forms/:id link the customer fills in points at this.

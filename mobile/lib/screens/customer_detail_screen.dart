@@ -11,6 +11,7 @@ import '../widgets/status_badge.dart';
 import 'animal_detail_screen.dart';
 import 'customer_activity_screen.dart';
 import 'customer_defaults_screen.dart';
+import 'customer_forms_screen.dart';
 import 'customer_notes_screen.dart';
 
 class CustomerDetailScreen extends StatefulWidget {
@@ -257,6 +258,19 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 onPressed: () => _showSendFormSheet(customer),
                 icon: const Icon(Icons.description_outlined),
                 label: const Text('Send form'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CustomerFormsScreen(
+                      customerId: customer.id,
+                      customerName: customer.name,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.fact_check_outlined),
+                label: const Text('Forms sent'),
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
