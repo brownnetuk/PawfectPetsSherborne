@@ -801,6 +801,35 @@ interface DateGroup {
   visits: DayBooking[];
 }
 
+// A multi-day boarding stay (or a day care + its travel) is several
+// DayBooking rows sharing one `stayId` -- summarized here into one entry
+// spanning its full date range instead of one row per day. `nights`/the
+// product summary below deliberately exclude the trailing `placeholder`
+// row (the pick-up day, never billed) from the count, even though its date
+// still extends the shown range.
+interface StayGroup {
+  key: string;
+  startDate: Date;
+  endDate: Date;
+  animal: DayBooking['animal'];
+  rows: DayBooking[];
+  invoiced: boolean;
+}
+
+function summarizeStayProducts(rows: DayBooking[]): string {
+  const counts = new Map<string, { label: string; count: number }>();
+  for (const r of rows) {
+    if (r.placeholder) continue;
+    const id = dbProductId(r.product);
+    const entry = counts.get(id) ?? { label: dbProductLabel(r.product), count: 0 };
+    entry.count += r.quantity;
+    counts.set(id, entry);
+  }
+  return Array.from(counts.values())
+    .map((c) => `${c.label} × ${c.count}`)
+    .join(', ');
+}
+
 // Matches the Bookings calendar page: staff should see and add this
 // customer's Walks/Visits the same way here as they would from the Bookings
 // page's day panel, rather than the old boarding-style Booking model this
@@ -826,10 +855,21 @@ function BookingsTab({ customer, animals }: { customer: Customer; animals: Anima
     api.listAnnualLeave().then(setAnnualLeave).catch(() => {});
   }, []);
 
-  async function handleRemove(id: string) {
+  async function handleRemove(b: DayBooking) {
     setError(null);
     try {
-      await api.deleteDayBooking(id);
+      // A row that's part of a booking (a boarding stay, or a day care +
+      // its travel) can't be removed on its own -- deleting any of its rows
+      // removes the whole booking, after asking -- same rule the Bookings
+      // page's day panel already enforces.
+      if (b.stayId) {
+        if (!window.confirm('This is part of a booking. Delete the whole booking (all its days and any travel)?')) {
+          return;
+        }
+        await api.deleteStay(b.stayId);
+      } else {
+        await api.deleteDayBooking(b._id);
+      }
       refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove this entry');
@@ -856,10 +896,22 @@ function BookingsTab({ customer, animals }: { customer: Customer; animals: Anima
     return isEnd && !isStart ? 'AM' : 'PM';
   }
 
+  // Rows that are part of a booking (share a stayId -- a multi-day boarding
+  // stay, or a day care + its travel) are pulled out of the per-date
+  // grouping entirely and summarized into their own stay card below,
+  // instead of duplicating one row per day across several date cards.
   const groups: DateGroup[] = [];
+  const stays: StayGroup[] = [];
   if (dayBookings && visitMapping) {
     const byDate = new Map<string, DateGroup>();
+    const byStay = new Map<string, DayBooking[]>();
     for (const b of dayBookings) {
+      if (b.stayId) {
+        const rows = byStay.get(b.stayId) ?? [];
+        rows.push(b);
+        byStay.set(b.stayId, rows);
+        continue;
+      }
       const date = new Date(b.date);
       const key = dateKey(date);
       let g = byDate.get(key);
@@ -871,7 +923,29 @@ function BookingsTab({ customer, animals }: { customer: Customer; animals: Anima
       else g.walks.push(b);
     }
     groups.push(...Array.from(byDate.values()).sort((a, b) => a.key.localeCompare(b.key)));
+    for (const [stayId, rows] of byStay) {
+      const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
+      const billable = sorted.filter((r) => !r.placeholder);
+      stays.push({
+        key: stayId,
+        startDate: new Date(sorted[0].date),
+        endDate: new Date(sorted[sorted.length - 1].date),
+        animal: sorted[0].animal,
+        rows: sorted,
+        invoiced: billable.length > 0 && billable.every((r) => !!r.invoice),
+      });
+    }
+    stays.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
   }
+
+  // One combined, chronologically-sorted list so a stay card (positioned at
+  // its start date) interleaves correctly with the ordinary per-day cards
+  // around it, rather than being shown in a separate block.
+  type Card = { type: 'date'; date: Date; group: DateGroup } | { type: 'stay'; date: Date; stay: StayGroup };
+  const cards: Card[] = [
+    ...groups.map((group): Card => ({ type: 'date', date: group.date, group })),
+    ...stays.map((stay): Card => ({ type: 'stay', date: stay.startDate, stay })),
+  ].sort((a, b) => a.date.getTime() - b.date.getTime());
 
   function Row({ b, label }: { b: DayBooking; label?: string }) {
     return (
@@ -910,7 +984,42 @@ function BookingsTab({ customer, animals }: { customer: Customer; animals: Anima
             ✓
           </span>
         )}
-        <button type="button" className="icon-btn icon-btn-danger" title="Remove" style={{ flexShrink: 0 }} onClick={() => handleRemove(b._id)}>
+        <button type="button" className="icon-btn icon-btn-danger" title="Remove" style={{ flexShrink: 0 }} onClick={() => handleRemove(b)}>
+          <TrashIcon />
+        </button>
+      </div>
+    );
+  }
+
+  function StayRow({ stay }: { stay: StayGroup }) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '6px 0',
+          borderBottom: '1px solid var(--border)',
+        }}
+      >
+        <span style={{ fontWeight: 600, minWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {dbAnimalLabel(stay.animal)}
+        </span>
+        <span style={{ flex: 1, minWidth: 0, color: 'var(--muted)', fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {summarizeStayProducts(stay.rows)}
+        </span>
+        {stay.invoiced && (
+          <span title="Invoiced" style={{ color: 'var(--brand-green)', fontSize: '0.85rem', flexShrink: 0 }}>
+            ✓
+          </span>
+        )}
+        <button
+          type="button"
+          className="icon-btn icon-btn-danger"
+          title="Remove"
+          style={{ flexShrink: 0 }}
+          onClick={() => handleRemove(stay.rows[0])}
+        >
           <TrashIcon />
         </button>
       </div>
@@ -927,37 +1036,51 @@ function BookingsTab({ customer, animals }: { customer: Customer; animals: Anima
       {error && <div className="error-banner">{error}</div>}
       {!dayBookings || !visitMapping ? (
         <div className="empty-state">Loading…</div>
-      ) : groups.length === 0 ? (
+      ) : cards.length === 0 ? (
         <div className="empty-state">No bookings yet.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {groups.map((g) => (
-            <div key={g.key} className="card">
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>
-                {g.date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          {cards.map((card) =>
+            card.type === 'stay' ? (
+              <div key={card.stay.key} className="card">
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>
+                  {card.stay.startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  {' – '}
+                  {card.stay.endDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </div>
+                <div className="section-title" style={{ marginTop: 0 }}>
+                  Boarding
+                </div>
+                <StayRow stay={card.stay} />
               </div>
-              {g.walks.length > 0 && (
-                <div style={{ marginBottom: g.visits.length > 0 ? 10 : 0 }}>
-                  <div className="section-title" style={{ marginTop: 0 }}>
-                    Walks
+            ) : (
+              <div key={card.group.key} className="card">
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>
+                  {card.group.date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                </div>
+                {card.group.walks.length > 0 && (
+                  <div style={{ marginBottom: card.group.visits.length > 0 ? 10 : 0 }}>
+                    <div className="section-title" style={{ marginTop: 0 }}>
+                      Walks
+                    </div>
+                    {card.group.walks.map((b) => (
+                      <Row key={b._id} b={b} />
+                    ))}
                   </div>
-                  {g.walks.map((b) => (
-                    <Row key={b._id} b={b} />
-                  ))}
-                </div>
-              )}
-              {g.visits.length > 0 && (
-                <div>
-                  <div className="section-title">Visits</div>
-                  {g.visits.map((b) => {
-                    const count = visitCountForProduct(visitMapping, dbProductId(b.product));
-                    const label = count === 2 ? 'AM & PM' : visitTimeFor(b, g.date);
-                    return <Row key={b._id} b={b} label={label} />;
-                  })}
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+                {card.group.visits.length > 0 && (
+                  <div>
+                    <div className="section-title">Visits</div>
+                    {card.group.visits.map((b) => {
+                      const count = visitCountForProduct(visitMapping, dbProductId(b.product));
+                      const label = count === 2 ? 'AM & PM' : visitTimeFor(b, card.group.date);
+                      return <Row key={b._id} b={b} label={label} />;
+                    })}
+                  </div>
+                )}
+              </div>
+            ),
+          )}
         </div>
       )}
       {showNew && (
