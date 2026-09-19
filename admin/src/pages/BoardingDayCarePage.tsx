@@ -10,12 +10,11 @@ import { addDays, dateKey } from '../utils/visitPlan';
 // staff-editable.
 const CAPACITY_PER_SECTION = 4;
 
-type Section = 'AM' | 'PM' | 'fullDay' | 'overnight';
-const SECTIONS: Section[] = ['AM', 'PM', 'fullDay', 'overnight'];
+type Section = 'AM' | 'PM' | 'overnight';
+const SECTIONS: Section[] = ['AM', 'PM', 'overnight'];
 const SECTION_LABELS: Record<Section, string> = {
   AM: 'AM (8am–1pm)',
   PM: 'PM (1pm–6pm)',
-  fullDay: 'Full Day',
   overnight: 'Overnight',
 };
 
@@ -32,7 +31,7 @@ function customerLabel(customer: DayBooking['customer']): string {
   return typeof customer === 'string' ? customer : customer.name;
 }
 
-// Which of the 4 occupancy sections a row's PRODUCT actually occupies --
+// Which of the 3 occupancy sections a row's PRODUCT actually occupies --
 // checked against the raw product id (including the 2nd-dog product
 // variants), not the display-only `boardingStay` flag
 // admin/src/utils/visitMapping.ts's own isBoardingProduct/isDayCareProduct
@@ -40,20 +39,22 @@ function customerLabel(customer: DayBooking['customer']): string {
 // boardingStay:true but is a real Day Care product, so it counts as Day
 // Care occupancy on that date, not Overnight.
 //
-// A boarding night occupies AM, PM, *and* Overnight, not just Overnight --
-// the dog is physically on-site the whole day, not just while asleep, so a
-// boarding stay competes for daytime capacity the same as a day-care dog
-// would. Returns [] for a Walk/Visit product (out of scope here), an
-// unmapped one, or the pick-up day's placeholder row (presence-only, never
-// billed, and represents the tail end of the last night rather than a
-// fresh occupied day).
+// There's no separate "Full Day" section -- a Full Day booking (or a
+// boarding night, which also runs the whole day) occupies *both* AM and PM,
+// the same physical daytime capacity a Half Day booking would use one half
+// of, rather than having its own bucket. A boarding night additionally
+// occupies Overnight, since the dog is on-site through the night too, not
+// just during the day. Returns [] for a Walk/Visit product (out of scope
+// here), an unmapped one, or the pick-up day's placeholder row
+// (presence-only, never billed, and represents the tail end of the last
+// night rather than a fresh occupied day).
 function sectionsFor(mapping: VisitMapping, b: DayBooking): Section[] {
   const pid = productId(b.product);
   if (pid === mapping.boardingPerDayProduct || pid === mapping.boardingSecondDogPerDayProduct) {
     return b.placeholder ? [] : ['AM', 'PM', 'overnight'];
   }
   if (pid === mapping.dayCareFullDayProduct || pid === mapping.dayCareSecondDogFullDayProduct) {
-    return ['fullDay'];
+    return ['AM', 'PM'];
   }
   if (pid === mapping.dayCareHalfDayProduct || pid === mapping.dayCareSecondDogHalfDayProduct) {
     // Half Day doesn't store which half separately. A standalone day-care
@@ -73,25 +74,143 @@ function sectionsFor(mapping: VisitMapping, b: DayBooking): Section[] {
   return [];
 }
 
-type Tab = 'upcoming' | 'occupancy';
-const TAB_LABELS: Record<Tab, string> = { upcoming: 'Upcoming Stays', occupancy: 'Occupancy' };
+type Tab = 'dashboard' | 'upcoming' | 'occupancy';
+const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', upcoming: 'Upcoming Stays', occupancy: 'Occupancy' };
 
 export default function BoardingDayCarePage() {
-  const [tab, setTab] = useState<Tab>('upcoming');
+  const [tab, setTab] = useState<Tab>('dashboard');
   return (
     <div>
       <div className="page-header">
         <h1>Boarding &amp; Day Care</h1>
       </div>
       <div className="tabs">
-        {(['upcoming', 'occupancy'] as Tab[]).map((t) => (
+        {(['dashboard', 'upcoming', 'occupancy'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
         ))}
       </div>
+      {tab === 'dashboard' && <DashboardTab />}
       {tab === 'upcoming' && <UpcomingStaysTab />}
       {tab === 'occupancy' && <OccupancyTab />}
+    </div>
+  );
+}
+
+function DashboardTab() {
+  const [dayBookings, setDayBookings] = useState<DayBooking[] | null>(null);
+  const [mapping, setMapping] = useState<VisitMapping | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // A wide-ish window either side of today so a stay that started or ends
+  // outside the visible "today" date is still fully captured for the
+  // arriving/departing-today logic below (same tradeoff Upcoming Stays and
+  // Occupancy both already accept for their own fetch windows).
+  useEffect(() => {
+    const from = addDays(new Date(), -30);
+    const to = addDays(new Date(), 30);
+    api
+      .listDayBookings(dateKey(from), dateKey(addDays(to, 1)))
+      .then(setDayBookings)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bookings'));
+    api.getVisitMapping().then(setMapping).catch(() => {});
+  }, []);
+
+  const today = new Date();
+  const todayKey = dateKey(today);
+
+  const todayCounts: Record<Section, number> = useMemo(() => {
+    const counts: Record<Section, number> = { AM: 0, PM: 0, overnight: 0 };
+    if (!dayBookings || !mapping) return counts;
+    for (const b of dayBookings) {
+      if (dateKey(new Date(b.date)) !== todayKey) continue;
+      for (const section of sectionsFor(mapping, b)) counts[section] += b.quantity;
+    }
+    return counts;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dayBookings, mapping]);
+
+  const { arrivals, departures, dayCareToday } = useMemo(() => {
+    const empty = { arrivals: [] as DayBooking[], departures: [] as DayBooking[], dayCareToday: [] as DayBooking[] };
+    if (!dayBookings || !mapping) return empty;
+    const stays = new Map<string, DayBooking[]>();
+    const standaloneToday: DayBooking[] = [];
+    for (const b of dayBookings) {
+      if (b.stayId) {
+        const rows = stays.get(b.stayId) ?? [];
+        rows.push(b);
+        stays.set(b.stayId, rows);
+      } else if (dateKey(new Date(b.date)) === todayKey && sectionsFor(mapping, b).length > 0) {
+        standaloneToday.push(b);
+      }
+    }
+    const arrivals: DayBooking[] = [];
+    const departures: DayBooking[] = [];
+    for (const rows of stays.values()) {
+      const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
+      if (dateKey(new Date(sorted[0].date)) === todayKey) arrivals.push(sorted[0]);
+      if (dateKey(new Date(sorted[sorted.length - 1].date)) === todayKey) departures.push(sorted[sorted.length - 1]);
+    }
+    return { arrivals, departures, dayCareToday: standaloneToday };
+  }, [dayBookings, mapping, todayKey]);
+
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
+        {SECTIONS.map((s) => (
+          <div
+            key={s}
+            className="card"
+            style={{
+              textAlign: 'center',
+              border: todayCounts[s] >= CAPACITY_PER_SECTION ? '1px solid var(--error)' : undefined,
+            }}
+          >
+            <div style={{ color: 'var(--muted)', fontSize: '0.85rem', fontWeight: 600 }}>{SECTION_LABELS[s]}</div>
+            <div
+              style={{
+                fontSize: '2rem',
+                fontWeight: 700,
+                color: todayCounts[s] >= CAPACITY_PER_SECTION ? 'var(--error)' : 'var(--brand-green)',
+              }}
+            >
+              {todayCounts[s]}/{CAPACITY_PER_SECTION}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {error && <div className="error-banner">{error}</div>}
+      {!dayBookings || !mapping ? (
+        <div className="empty-state">Loading…</div>
+      ) : (
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <DashboardList title="Arriving Today" rows={arrivals} empty="No arrivals today." />
+          <DashboardList title="Departing Today" rows={departures} empty="No departures today." />
+          <DashboardList title="Day Care Today" rows={dayCareToday} empty="No day care today." />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DashboardList({ title, rows, empty }: { title: string; rows: DayBooking[]; empty: string }) {
+  return (
+    <div className="card" style={{ flex: '1 1 260px', minWidth: 260 }}>
+      <div className="section-title" style={{ marginTop: 0 }}>
+        {title} ({rows.length})
+      </div>
+      {rows.length === 0 ? (
+        <div className="empty-state">{empty}</div>
+      ) : (
+        rows.map((b) => (
+          <div key={b._id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
+            <span style={{ fontWeight: 600 }}>{animalLabel(b.animal)}</span>
+            <span style={{ color: 'var(--muted)' }}>{customerLabel(b.customer)}</span>
+          </div>
+        ))
+      )}
     </div>
   );
 }
@@ -163,15 +282,17 @@ function UpcomingStaysTab() {
       });
     }
     for (const b of standalone) {
-      // Standalone (non-boarding-stay) rows only ever occupy one section --
-      // the multi-section case (a boarding night occupying AM/PM/Overnight
-      // at once) only applies to stay rows, already handled above.
-      const section = sectionsFor(mapping, b)[0];
+      // A Half Day row occupies exactly one section, worth naming (the
+      // product name alone doesn't say which half) -- a Full Day row
+      // occupies both AM and PM, and the product name already says "Full
+      // Day" unambiguously, so nothing more is appended for it.
+      const sections = sectionsFor(mapping, b);
+      const type = sections.length === 1 ? `${productLabel(b.product)} (${SECTION_LABELS[sections[0]]})` : productLabel(b.product);
       result.push({
         key: b._id,
         animal: animalLabel(b.animal),
         customer: customerLabel(b.customer),
-        type: `${productLabel(b.product)} (${SECTION_LABELS[section]})`,
+        type,
         startDate: new Date(b.date),
         endDate: new Date(b.date),
         dropOffTime: b.dropOffTime ?? (b.dropOffPeriod ? b.dropOffPeriod : undefined),
@@ -292,6 +413,57 @@ function rangeLabel(viewMode: ViewMode, weeks: Date[][], anchorDate: Date): stri
 
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+const SECTION_COLORS: Record<Section, { bg: string; fg: string }> = {
+  AM: { bg: '#fff4cc', fg: '#8a6d00' },
+  PM: { bg: '#ede9fe', fg: '#6d28d9' },
+  overnight: { bg: '#ccfbf1', fg: '#0f766e' },
+};
+
+// One section's row of slots within a day cell -- one small named box per
+// occupied slot (not just a count), plus empty boxes up to the capacity
+// limit so how much room is left is visible at a glance. Renders extra
+// boxes (in red) past the limit rather than truncating real bookings.
+function SectionSlotsRow({ section, bookings }: { section: Section; bookings: DayBooking[] }) {
+  const slotCount = Math.max(CAPACITY_PER_SECTION, bookings.length);
+  const colors = SECTION_COLORS[section];
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 3 }}>
+      <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)', width: 16, flexShrink: 0 }}>
+        {section === 'overnight' ? 'ON' : section}
+      </span>
+      <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+        {Array.from({ length: slotCount }, (_, i) => {
+          const booking = bookings[i];
+          const overCapacity = i >= CAPACITY_PER_SECTION;
+          return (
+            <div
+              key={i}
+              title={booking ? `${animalLabel(booking.animal)} (${customerLabel(booking.customer)})` : undefined}
+              style={{
+                width: 30,
+                height: 16,
+                borderRadius: 3,
+                fontSize: '0.6rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+                border: booking ? 'none' : '1px dashed var(--border)',
+                background: booking ? (overCapacity ? 'var(--error)' : colors.bg) : 'transparent',
+                color: booking ? (overCapacity ? 'white' : colors.fg) : 'transparent',
+              }}
+            >
+              {booking ? animalLabel(booking.animal) : ''}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function OccupancyTab() {
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [anchorDate, setAnchorDate] = useState(new Date());
@@ -317,13 +489,16 @@ function OccupancyTab() {
     return (dayBookings ?? []).filter((b) => isSameDay(new Date(b.date), date));
   }
 
-  function countsForDay(date: Date): Record<Section, number> {
-    const counts: Record<Section, number> = { AM: 0, PM: 0, fullDay: 0, overnight: 0 };
-    if (!mapping) return counts;
+  // Every booking occupying each section that day -- the grid cell renders
+  // one small named box per entry (not just a count), so staff can see at a
+  // glance which dogs, not just how many.
+  function bookingsBySection(date: Date): Record<Section, DayBooking[]> {
+    const bySection: Record<Section, DayBooking[]> = { AM: [], PM: [], overnight: [] };
+    if (!mapping) return bySection;
     for (const b of entriesForDay(date)) {
-      for (const section of sectionsFor(mapping, b)) counts[section] += b.quantity;
+      for (const section of sectionsFor(mapping, b)) bySection[section].push(b);
     }
-    return counts;
+    return bySection;
   }
 
   function goToday() {
@@ -370,8 +545,8 @@ function OccupancyTab() {
           ))}
           {weeks.map((week) =>
             week.map((date) => {
-              const counts = countsForDay(date);
-              const anyAtCapacity = SECTIONS.some((s) => counts[s] >= CAPACITY_PER_SECTION);
+              const bySection = bookingsBySection(date);
+              const anyAtCapacity = SECTIONS.some((s) => bySection[s].length >= CAPACITY_PER_SECTION);
               const inMonth = viewMode === 'week' || date.getMonth() === anchorDate.getMonth();
               return (
                 <button
@@ -383,24 +558,14 @@ function OccupancyTab() {
                     border: `1px solid ${anyAtCapacity ? 'var(--error)' : 'var(--border)'}`,
                     borderRadius: 8,
                     padding: 8,
-                    minHeight: 96,
                     background: isToday(date) ? 'var(--sage-badge, #eef5ee)' : 'white',
                     opacity: inMonth ? 1 : 0.45,
                     cursor: 'pointer',
                   }}
                 >
-                  <div style={{ fontWeight: 700, fontSize: '0.8rem', marginBottom: 4 }}>{date.getDate()}</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.8rem', marginBottom: 6 }}>{date.getDate()}</div>
                   {SECTIONS.map((s) => (
-                    <div
-                      key={s}
-                      style={{
-                        fontSize: '0.72rem',
-                        color: counts[s] >= CAPACITY_PER_SECTION ? 'var(--error)' : 'var(--muted)',
-                        fontWeight: counts[s] >= CAPACITY_PER_SECTION ? 700 : 400,
-                      }}
-                    >
-                      {SECTION_LABELS[s].split(' ')[0]}: {counts[s]}/{CAPACITY_PER_SECTION}
-                    </div>
+                    <SectionSlotsRow key={s} section={s} bookings={bySection[s]} />
                   ))}
                 </button>
               );
