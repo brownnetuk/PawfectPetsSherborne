@@ -450,11 +450,11 @@ function SectionSlotsRow({ section, bookings }: { section: Section; bookings: Da
   const slotCount = Math.max(CAPACITY_PER_SECTION, bookings.length);
   const colors = SECTION_COLORS[section];
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 3 }}>
-      <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)', width: 16, flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5, marginBottom: 6 }}>
+      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--muted)', width: 20, flexShrink: 0, marginTop: 4 }}>
         {section === 'overnight' ? 'ON' : section}
       </span>
-      <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(64px, 1fr))', gap: 4, flex: 1 }}>
         {Array.from({ length: slotCount }, (_, i) => {
           const booking = bookings[i];
           const overCapacity = i >= CAPACITY_PER_SECTION;
@@ -463,16 +463,17 @@ function SectionSlotsRow({ section, bookings }: { section: Section; bookings: Da
               key={i}
               title={booking ? `${animalLabel(booking.animal)} (${customerLabel(booking.customer)})` : undefined}
               style={{
-                width: 30,
-                height: 16,
-                borderRadius: 3,
-                fontSize: '0.6rem',
+                height: 26,
+                borderRadius: 4,
+                fontSize: '0.78rem',
                 fontWeight: 600,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 overflow: 'hidden',
+                textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
+                padding: '0 4px',
                 border: booking ? 'none' : '1px dashed var(--border)',
                 background: booking ? (overCapacity ? 'var(--error)' : colors.bg) : 'transparent',
                 color: booking ? (overCapacity ? 'white' : colors.fg) : 'transparent',
