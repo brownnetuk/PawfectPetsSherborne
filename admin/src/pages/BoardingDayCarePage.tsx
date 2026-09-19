@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as api from '../api/client';
-import type { DayBooking, VisitMapping } from '../types';
+import type { AnnualLeave, DayBooking, VisitMapping } from '../types';
+import { annualLeaveOn } from '../utils/annualLeave';
 import { addDays, dateKey } from '../utils/visitPlan';
 
 // How many dogs can be in each of the 4 sections at once, across the whole
@@ -186,16 +187,35 @@ function DashboardTab() {
         <div className="empty-state">Loading…</div>
       ) : (
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <DashboardList title="Arriving Today" rows={arrivals} empty="No arrivals today." />
-          <DashboardList title="Departing Today" rows={departures} empty="No departures today." />
-          <DashboardList title="Day Care Today" rows={dayCareToday} empty="No day care today." />
+          <DashboardList title="Arriving Today" rows={arrivals} empty="No arrivals today." detail={(b) => b.dropOffTime || undefined} />
+          <DashboardList title="Departing Today" rows={departures} empty="No departures today." detail={(b) => b.pickUpTime || undefined} />
+          <DashboardList
+            title="Day Care Today"
+            rows={dayCareToday}
+            empty="No day care today."
+            detail={(b) => {
+              const sections = sectionsFor(mapping, b);
+              return sections.length > 1 ? 'Full Day' : SECTION_LABELS[sections[0]]?.split(' ')[0];
+            }}
+          />
         </div>
       )}
     </div>
   );
 }
 
-function DashboardList({ title, rows, empty }: { title: string; rows: DayBooking[]; empty: string }) {
+function DashboardList({
+  title,
+  rows,
+  empty,
+  detail,
+}: {
+  title: string;
+  rows: DayBooking[];
+  empty: string;
+  /** A short piece of extra info shown between the dog and customer name -- a time or an AM/PM/Full Day label. */
+  detail: (b: DayBooking) => string | undefined;
+}) {
   return (
     <div className="card" style={{ flex: '1 1 260px', minWidth: 260 }}>
       <div className="section-title" style={{ marginTop: 0 }}>
@@ -205,9 +225,12 @@ function DashboardList({ title, rows, empty }: { title: string; rows: DayBooking
         <div className="empty-state">{empty}</div>
       ) : (
         rows.map((b) => (
-          <div key={b._id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
-            <span style={{ fontWeight: 600 }}>{animalLabel(b.animal)}</span>
-            <span style={{ color: 'var(--muted)' }}>{customerLabel(b.customer)}</span>
+          <div key={b._id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
+            <span style={{ fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {animalLabel(b.animal)}
+            </span>
+            {detail(b) && <span style={{ color: 'var(--accent-dark)', fontWeight: 600, flexShrink: 0 }}>{detail(b)}</span>}
+            <span style={{ color: 'var(--muted)', flexShrink: 0 }}>{customerLabel(b.customer)}</span>
           </div>
         ))
       )}
@@ -469,6 +492,7 @@ function OccupancyTab() {
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [dayBookings, setDayBookings] = useState<DayBooking[] | null>(null);
   const [mapping, setMapping] = useState<VisitMapping | null>(null);
+  const [annualLeave, setAnnualLeave] = useState<AnnualLeave[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
@@ -484,6 +508,10 @@ function OccupancyTab() {
     api.getVisitMapping().then(setMapping).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, anchorDate]);
+
+  useEffect(() => {
+    api.listAnnualLeave().then(setAnnualLeave).catch(() => {});
+  }, []);
 
   function entriesForDay(date: Date): DayBooking[] {
     return (dayBookings ?? []).filter((b) => isSameDay(new Date(b.date), date));
@@ -548,21 +576,33 @@ function OccupancyTab() {
               const bySection = bookingsBySection(date);
               const anyAtCapacity = SECTIONS.some((s) => bySection[s].length >= CAPACITY_PER_SECTION);
               const inMonth = viewMode === 'week' || date.getMonth() === anchorDate.getMonth();
+              const leave = annualLeaveOn(date, annualLeave);
               return (
                 <button
                   type="button"
                   key={dateKey(date)}
                   onClick={() => setSelectedDate(date)}
+                  title={leave ? `Annual Leave: ${leave.name}` : undefined}
                   style={{
+                    position: 'relative',
                     textAlign: 'left',
                     border: `1px solid ${anyAtCapacity ? 'var(--error)' : 'var(--border)'}`,
                     borderRadius: 8,
                     padding: 8,
-                    background: isToday(date) ? 'var(--sage-badge, #eef5ee)' : 'white',
+                    background: leave ? '#fef2f2' : isToday(date) ? 'var(--sage-badge, #eef5ee)' : 'white',
                     opacity: inMonth ? 1 : 0.45,
                     cursor: 'pointer',
                   }}
                 >
+                  {leave && (
+                    <svg
+                      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+                      preserveAspectRatio="none"
+                    >
+                      <line x1="4" y1="4" x2="100%" y2="100%" stroke="#dc2626" strokeWidth="2" opacity="0.55" />
+                      <line x1="100%" y1="4" x2="4" y2="100%" stroke="#dc2626" strokeWidth="2" opacity="0.55" />
+                    </svg>
+                  )}
                   <div style={{ fontWeight: 700, fontSize: '0.8rem', marginBottom: 6 }}>{date.getDate()}</div>
                   {SECTIONS.map((s) => (
                     <SectionSlotsRow key={s} section={s} bookings={bySection[s]} />
