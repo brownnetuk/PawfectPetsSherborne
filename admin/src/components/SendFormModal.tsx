@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
-import type { Animal, Customer, FormRecord, FormSubmissionRecord } from '../types';
+import type { Animal, Customer, FormField, FormRecord, FormSubmissionRecord } from '../types';
+import FormPreviewModal from './FormPreviewModal';
 import Modal from './Modal';
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
@@ -19,6 +20,36 @@ function usesCustomerData(fields: FormRecord['fields']): boolean {
   });
 }
 
+// Mirrors backend's FormSubmissionsService.wrapFieldsForPets -- this admin
+// app has no shared package with the backend, so the (small) merging logic
+// is duplicated here purely so the preview shown before sending matches
+// what create() actually snapshots. Keep both in sync by hand.
+function wrapFieldsForPets(fields: FormField[], petNames: string[]): FormField[] {
+  const keep: FormField[] = [];
+  const repeat: FormField[] = [];
+  for (const field of fields) {
+    if (field.type === 'group' || field.mapping) {
+      keep.push(field);
+    } else {
+      repeat.push(field);
+    }
+  }
+  if (repeat.length === 0) return fields;
+  const perPetGroup: FormField = {
+    id: 'per-pet',
+    type: 'group',
+    label: 'Pet',
+    required: false,
+    repeatable: true,
+    minRepeats: petNames.length,
+    maxRepeats: petNames.length,
+    createsAnimal: false,
+    repetitionLabels: petNames,
+    fields: repeat,
+  };
+  return [...keep, perPetGroup];
+}
+
 interface Props {
   form: FormRecord;
   /** Pre-fills the recipient when sent from a customer's own "Forms" tab. */
@@ -35,6 +66,7 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
   const [email, setEmail] = useState(customer?.email ?? existing?.recipientEmail ?? '');
   const [pets, setPets] = useState<Animal[]>([]);
   const [selectedPetIds, setSelectedPetIds] = useState<string[]>([]);
+  const [previewing, setPreviewing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [link, setLink] = useState<string | null>(existing ? `${INTAKE_URL}/forms/${existing._id}` : null);
@@ -78,16 +110,24 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
     }
   }
 
-  // No pets selected -> today's plain, general-purpose link. One selected ->
-  // a single-pet submission. Two or more -> still just one submission/link,
-  // but the backend merges the form's own fields into one repeated "per
-  // pet" section covering all of them (see FormSubmissionsService.create())
-  // rather than generating a separate link per pet.
-  async function handleGenerate() {
+  function handlePreview() {
     if (!email.trim()) {
       setError('Enter an email address.');
       return;
     }
+    setError(null);
+    setPreviewing(true);
+  }
+
+  // No pets selected -> today's plain, general-purpose link. One selected ->
+  // a single-pet submission. Two or more -> still just one submission/link,
+  // but the backend merges the form's own fields into one repeated "per
+  // pet" section covering all of them (see FormSubmissionsService.create())
+  // rather than generating a separate link per pet -- previewFields above
+  // mirrors that same merge so what staff preview matches what's actually
+  // sent.
+  async function handleGenerate() {
+    setPreviewing(false);
     setGenerating(true);
     setError(null);
     try {
@@ -171,6 +211,21 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
     );
   }
 
+  if (previewing) {
+    const selectedPets = pets.filter((p) => selectedPetIds.includes(p._id));
+    const previewFields =
+      selectedPets.length > 1 ? wrapFieldsForPets(form.fields, selectedPets.map((p) => p.name)) : form.fields;
+    return (
+      <FormPreviewModal
+        name={form.name}
+        description={form.description ?? ''}
+        fields={previewFields}
+        onClose={() => setPreviewing(false)}
+        onSend={handleGenerate}
+      />
+    );
+  }
+
   return (
     <Modal title={`Send "${form.name}"`} onClose={onClose}>
       {error && <div className="error-banner">{error}</div>}
@@ -193,14 +248,6 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
           )}
         </div>
       )}
-      <div className="field">
-        <label>Recipient name</label>
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} disabled={!!customer} />
-      </div>
-      <div className="field">
-        <label>Recipient email</label>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!!customer} required />
-      </div>
       {pets.length > 0 && (
         <div className="field">
           <label>Which pet(s) is this for? (optional)</label>
@@ -219,12 +266,20 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
           </div>
         </div>
       )}
+      <div className="field">
+        <label>Recipient name</label>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} disabled={!!customer} />
+      </div>
+      <div className="field">
+        <label>Recipient email</label>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!!customer} required />
+      </div>
       <div className="modal-actions">
         <button className="btn btn-secondary" onClick={onClose} disabled={generating}>
           Cancel
         </button>
-        <button className="btn btn-primary" onClick={handleGenerate} disabled={generating}>
-          {generating ? 'Generating…' : 'Generate link'}
+        <button className="btn btn-primary" onClick={handlePreview} disabled={generating}>
+          {generating ? 'Generating…' : 'Preview'}
         </button>
       </div>
     </Modal>

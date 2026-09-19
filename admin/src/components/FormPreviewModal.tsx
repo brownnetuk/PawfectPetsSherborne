@@ -86,7 +86,7 @@ export default function FormPreviewModal({ name, description, fields, onClose, o
           .map((field) =>
             field.type === 'group' ? (
               <div key={field.id} style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-                <div className="section-title">{field.label}</div>
+                {!field.repetitionLabels && <div className="section-title">{field.label}</div>}
                 {(groupAnswers[field.id] ?? []).map((repetition, index) => (
                   <div
                     key={index}
@@ -94,7 +94,7 @@ export default function FormPreviewModal({ name, description, fields, onClose, o
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                       <strong style={{ fontSize: '0.9rem' }}>
-                        {field.label} {index + 1}
+                        {field.repetitionLabels?.[index] ?? `${field.label} ${index + 1}`}
                       </strong>
                       {(groupAnswers[field.id]?.length ?? 0) > field.minRepeats && (
                         <button type="button" className="btn-link" onClick={() => removeRepetition(field.id, index)}>
