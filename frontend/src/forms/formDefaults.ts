@@ -17,6 +17,15 @@ export function defaultAnswersFor(fields: FormField[]): Record<string, unknown> 
     if (field.type === 'toggle') defaults[field.id] = false;
     if (field.type === 'today') defaults[field.id] = now.toISOString().slice(0, 10);
     if (field.type === 'datetime') defaults[field.id] = now.toISOString();
+    // Already {{token}}-resolved server-side (form-placeholders.util.ts) by
+    // the time it reaches this app -- seeds the initial answer, still
+    // freely editable, same as a toggle/today/datetime default above.
+    if (
+      (field.type === 'text' || field.type === 'textarea' || field.type === 'number' || field.type === 'date') &&
+      field.defaultValue
+    ) {
+      defaults[field.id] = field.defaultValue;
+    }
   }
   return defaults;
 }

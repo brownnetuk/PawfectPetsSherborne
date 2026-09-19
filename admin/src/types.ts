@@ -708,6 +708,10 @@ export interface FormFieldBase {
 
 export type SimpleFormField = FormFieldBase & {
   type: 'text' | 'textarea' | 'number' | 'date' | 'toggle' | 'signature';
+  // {{token}} placeholder support (see FORM_PLACEHOLDERS/formPlaceholders.ts),
+  // for text/textarea/number/date only -- pre-fills the customer's initial
+  // answer once resolved server-side, still freely editable by them.
+  defaultValue?: string;
 };
 
 // Read-only, non-interactive block of staff-authored text -- `label` holds

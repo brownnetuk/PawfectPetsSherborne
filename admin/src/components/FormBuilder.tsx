@@ -288,6 +288,7 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
   const isSelected = selectedId === field.id;
   const target: FieldTarget = parentGroupId ? 'animal' : 'customer';
   const labelRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const defaultValueRef = useRef<HTMLInputElement>(null);
 
   // Splices a {{token}} into the label/free-text editor at its current
   // cursor position -- same shape as SettingsPage.tsx's plain-<textarea>
@@ -300,6 +301,28 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
     const end = el?.selectionEnd ?? current.length;
     const next = current.slice(0, start) + token + current.slice(end);
     onUpdate(field.id, (f) => ({ ...f, label: next }));
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(start + token.length, start + token.length);
+    });
+  }
+
+  // Same idea as insertPlaceholder above, against the separate "Default
+  // answer" input instead of the label.
+  function insertDefaultValuePlaceholder(token: string) {
+    if (field.type !== 'text' && field.type !== 'textarea' && field.type !== 'number' && field.type !== 'date') {
+      return;
+    }
+    const el = defaultValueRef.current;
+    const current = field.defaultValue ?? '';
+    const start = el?.selectionStart ?? current.length;
+    const end = el?.selectionEnd ?? current.length;
+    const next = current.slice(0, start) + token + current.slice(end);
+    onUpdate(field.id, (f) =>
+      f.type === 'text' || f.type === 'textarea' || f.type === 'number' || f.type === 'date'
+        ? { ...f, defaultValue: next }
+        : f,
+    );
     requestAnimationFrame(() => {
       el?.focus();
       el?.setSelectionRange(start + token.length, start + token.length);
@@ -413,6 +436,48 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
               Filled in automatically with {field.type === 'today' ? "today's date" : 'the date and time'} when the
               form is opened -- not editable by whoever fills the form in.
             </p>
+          )}
+
+          {(field.type === 'text' || field.type === 'textarea' || field.type === 'number' || field.type === 'date') && (
+            <div className="field">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+                <label>Default answer (optional)</label>
+                <select
+                  className="insert-var-select"
+                  defaultValue=""
+                  onChange={(e) => {
+                    if (e.target.value) insertDefaultValuePlaceholder(e.target.value);
+                    e.target.value = '';
+                  }}
+                >
+                  <option value="" disabled>
+                    Insert placeholder…
+                  </option>
+                  {FORM_PLACEHOLDERS.map((p) => (
+                    <option key={p.key} value={`{{${p.key}}}`}>
+                      {`{{${p.key}}}`} — {p.hint}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <input
+                ref={defaultValueRef}
+                type="text"
+                value={field.defaultValue ?? ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  onUpdate(field.id, (f) =>
+                    f.type === 'text' || f.type === 'textarea' || f.type === 'number' || f.type === 'date'
+                      ? { ...f, defaultValue: value }
+                      : f,
+                  );
+                }}
+              />
+              <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
+                Pre-fills this field once a placeholder resolves -- e.g. {'{{petName}}'} for a form sent for one
+                specific pet. Still editable by whoever fills the form in.
+              </div>
+            </div>
           )}
 
           {(field.type === 'choice' || field.type === 'multichoice') && (

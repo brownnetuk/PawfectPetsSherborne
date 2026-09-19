@@ -217,6 +217,10 @@ export interface FormFieldBase {
 
 export type SimpleFormField = FormFieldBase & {
   type: 'text' | 'textarea' | 'number' | 'date' | 'toggle' | 'signature';
+  // Already resolved server-side (form-placeholders.util.ts) by the time it
+  // reaches this app -- pre-fills the initial answer for text/textarea/
+  // number/date, still freely editable by the customer.
+  defaultValue?: string;
 };
 
 // Read-only, non-interactive block of staff-authored text -- `label` holds

@@ -59,15 +59,16 @@ function flattenValidationErrors(errors: ValidationError[]): string {
 // internal field-mapping details (not a hard security boundary -- submit()
 // re-validates everything server-side regardless, just no reason to leak
 // Customer/Animal DB path names to the public), substitutes {{token}}
-// placeholders into every field's label (form-placeholders.util.ts -- same
-// idea as the intake form's {{petName}} substitution, just with more
-// tokens), and resolves a 'customerPets' choice/multichoice field's
-// `options` to the recipient's real pet names. `placeholders`/`petNames` are
-// both empty when the submission has no known customer yet (a brand-new
-// lead), which resolves every token to '' and every dynamic dropdown to no
-// options -- an accepted limitation of sending a form ahead of picking a
-// real customer, same tradeoff email templates already have for {{name}}
-// etc. on an unaddressed send.
+// placeholders into every field's label and (for text/textarea/number/date)
+// its defaultValue (form-placeholders.util.ts -- same idea as the intake
+// form's {{petName}} substitution, just with more tokens), and resolves a
+// 'customerPets' choice/multichoice field's `options` to the recipient's
+// real pet names. `placeholders`/`petNames` are both empty when the
+// submission has no known customer yet (a brand-new lead), which resolves
+// every token to '' and every dynamic dropdown to no options -- an accepted
+// limitation of sending a form ahead of picking a real customer, same
+// tradeoff email templates already have for {{name}} etc. on an
+// unaddressed send.
 function resolveFieldsForRecipient(
   fields: FormField[],
   placeholders: Record<string, string>,
@@ -78,6 +79,12 @@ function resolveFieldsForRecipient(
     delete copy.mapping;
     delete copy.optionsSource;
     copy.label = interpolatePlaceholders(field.label, placeholders);
+    if (
+      (field.type === 'text' || field.type === 'textarea' || field.type === 'number' || field.type === 'date') &&
+      field.defaultValue
+    ) {
+      copy.defaultValue = interpolatePlaceholders(field.defaultValue, placeholders);
+    }
     if (field.type === 'choice' || field.type === 'multichoice') {
       if (field.optionsSource === 'customerPets') {
         copy.options = petNames;

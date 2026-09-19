@@ -49,6 +49,13 @@ export interface FormFieldBase {
 
 export type SimpleFormField = FormFieldBase & {
   type: 'text' | 'textarea' | 'number' | 'date' | 'toggle' | 'signature';
+  // {{token}} placeholder support (form-placeholders.util.ts), for
+  // text/textarea/number/date only -- pre-fills the customer's initial
+  // answer (still editable, not locked) once resolved at findOnePublic()
+  // time, e.g. "Name of pet" set to {{petName}} on a form generated for one
+  // specific pet. Ignored for toggle/signature, which have no plain text
+  // value to seed.
+  defaultValue?: string;
 };
 
 // Auto-filled, non-editable -- the answer is the date (or date+time) at the

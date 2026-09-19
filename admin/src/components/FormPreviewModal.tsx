@@ -28,6 +28,15 @@ function defaultAnswersFor(fields: FormField[]): Record<string, unknown> {
     if (field.type === 'toggle') defaults[field.id] = false;
     if (field.type === 'today') defaults[field.id] = now.toISOString().slice(0, 10);
     if (field.type === 'datetime') defaults[field.id] = now.toISOString();
+    // Shown as the literal {{token}} text here (this preview has no real
+    // customer to resolve it against), same convention as an unresolved
+    // placeholder in a label.
+    if (
+      (field.type === 'text' || field.type === 'textarea' || field.type === 'number' || field.type === 'date') &&
+      field.defaultValue
+    ) {
+      defaults[field.id] = field.defaultValue;
+    }
   }
   return defaults;
 }
