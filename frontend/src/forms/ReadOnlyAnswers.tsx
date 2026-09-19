@@ -40,9 +40,10 @@ export default function ReadOnlyAnswers({
         }
         if (field.type === 'group') {
           const repetitions = (answers[field.id] as Record<string, unknown>[] | undefined) ?? [];
+          const hasFixedLabels = !!field.repetitionLabels;
           return (
             <div key={field.id} style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
-              <h2 style={{ fontSize: '1.15rem' }}>{field.label}</h2>
+              {!hasFixedLabels && <h2 style={{ fontSize: '1.15rem' }}>{field.label}</h2>}
               {repetitions.length === 0 && <p style={{ color: 'var(--muted)' }}>None provided.</p>}
               {repetitions.map((rep, i) => (
                 <div
@@ -50,7 +51,7 @@ export default function ReadOnlyAnswers({
                   style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 14, marginBottom: 12 }}
                 >
                   <strong style={{ fontSize: '0.9rem' }}>
-                    {field.label} {i + 1}
+                    {field.repetitionLabels?.[i] ?? `${field.label} ${i + 1}`}
                   </strong>
                   <ReadOnlyAnswers fields={field.fields} answers={rep} />
                 </div>

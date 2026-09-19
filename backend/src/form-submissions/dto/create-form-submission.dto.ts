@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsEmail,
   IsMongoId,
   IsNotEmpty,
@@ -15,11 +16,17 @@ export class CreateFormSubmissionDto {
   @IsMongoId()
   customer?: string;
 
-  // Set when generating a link for one specific pet -- see
-  // FormSubmissionsService.create() and SendFormModal's pet multi-select.
+  // Which of the customer's pets this link is for -- see SendFormModal's
+  // pet multi-select and FormSubmissionsService.create(). Omitted/empty:
+  // today's plain, no-pet-association submission. Exactly one: a single-pet
+  // submission (FormSubmission.animal), fields stay flat. Two or more: one
+  // merged submission covering all of them (FormSubmission.animals), with
+  // the form's own (unmapped, non-group) fields wrapped into one repeated
+  // "per pet" section instead of generating a separate link for each.
   @IsOptional()
-  @IsMongoId()
-  animal?: string;
+  @IsArray()
+  @IsMongoId({ each: true })
+  animals?: string[];
 
   @IsNotEmpty()
   @IsEmail()

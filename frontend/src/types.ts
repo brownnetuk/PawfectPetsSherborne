@@ -247,6 +247,11 @@ export type GroupFormField = FormFieldBase & {
   minRepeats: number;
   maxRepeats?: number;
   fields: FormField[];
+  // Set server-side for a synthesized multi-pet "per pet" group (a form
+  // sent for several of a customer's pets at once, merged into one link) --
+  // one real pet name per repetition, in order, overriding the default
+  // "<label> <N>" heading. Absent for every ordinary group.
+  repetitionLabels?: string[];
 };
 
 export type FormField =

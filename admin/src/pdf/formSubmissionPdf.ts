@@ -302,7 +302,7 @@ function fieldFlowBlocks(doc: jsPDF, fields: FormField[], answers: Record<string
         blocks.push(mutedNoteBlock('None provided.'));
       } else {
         repetitions.forEach((rep, i) => {
-          blocks.push(repetitionLabelBlock(`${field.label} ${i + 1}`));
+          blocks.push(repetitionLabelBlock(field.repetitionLabels?.[i] ?? `${field.label} ${i + 1}`));
           blocks.push(...fieldFlowBlocks(doc, field.fields, rep));
           blocks.push(spacerBlock(6));
         });

@@ -875,7 +875,10 @@ export function deleteForm(id: string): Promise<void> {
 export interface CreateFormSubmissionInput {
   form: string;
   customer?: string;
-  animal?: string;
+  // 0/omitted: a plain, general-purpose link. 1: tied to that one pet
+  // (FormSubmissionRecord.animal). 2+: one merged link covering all of them
+  // (FormSubmissionRecord.animals) -- see backend's FormSubmissionsService.create().
+  animals?: string[];
   recipientEmail: string;
   recipientName?: string;
 }

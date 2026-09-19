@@ -26,14 +26,20 @@ export default function RepeatableGroup({ field, value, onFieldChange, onAdd, on
   const canRemove = value.length > field.minRepeats;
   const canAdd = field.maxRepeats === undefined || value.length < field.maxRepeats;
 
+  // A synthesized multi-pet "per pet" section (see backend's
+  // FormSubmissionsService.wrapFieldsForPets) already names each pet on its
+  // own repetition below -- the generic group heading above them would just
+  // be redundant chrome ("Pet" / "Rose" / "Timmy").
+  const hasFixedLabels = !!field.repetitionLabels;
+
   return (
     <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
-      <h2 style={{ fontSize: '1.15rem' }}>{field.label}</h2>
+      {!hasFixedLabels && <h2 style={{ fontSize: '1.15rem' }}>{field.label}</h2>}
       {value.map((repetition, index) => (
         <div key={index} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 14, marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
             <strong style={{ fontSize: '0.9rem' }}>
-              {field.label} {index + 1}
+              {field.repetitionLabels?.[index] ?? `${field.label} ${index + 1}`}
             </strong>
             {canRemove && (
               <button type="button" className="btn-link" onClick={() => onRemove(index)}>

@@ -36,10 +36,13 @@ export default function ViewFormSubmissionModal({
     };
   }, [submission]);
 
-  const title =
+  const petSuffix =
     submission.animal && typeof submission.animal === 'object'
-      ? `${submission.formName} — ${submission.animal.name}`
-      : submission.formName;
+      ? submission.animal.name
+      : submission.animals && submission.animals.length > 0
+        ? submission.animals.map((a) => (typeof a === 'object' ? a.name : a)).join(', ')
+        : undefined;
+  const title = petSuffix ? `${submission.formName} — ${petSuffix}` : submission.formName;
 
   return (
     <Modal title={title} onClose={onClose} xl>

@@ -748,6 +748,10 @@ export type GroupFormField = FormFieldBase & {
   maxRepeats?: number;
   createsAnimal?: boolean;
   fields: FormField[];
+  // Set server-side for a synthesized multi-pet "per pet" group (see
+  // backend's FormSubmissionsService.create()) -- one real pet name per
+  // repetition, in order. Absent for every staff-authored group.
+  repetitionLabels?: string[];
 };
 
 export type FormField =
@@ -772,10 +776,11 @@ export interface FormSubmissionRecord {
   formFieldsSnapshot: FormField[];
   status: FormSubmissionStatus;
   customer?: CustomerRef | string;
-  // Set when this submission was generated for one specific pet -- staff
-  // multi-selecting several of a customer's pets in SendFormModal creates
-  // one submission per pet.
+  // Set when this submission was generated for exactly one specific pet.
   animal?: { _id: string; name: string } | string;
+  // Set instead of `animal` when this one submission covers several pets at
+  // once -- see backend's FormSubmissionsService.create().
+  animals?: ({ _id: string; name: string } | string)[];
   recipientEmail: string;
   recipientName?: string;
   answers?: Record<string, unknown>;

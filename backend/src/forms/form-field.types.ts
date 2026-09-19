@@ -102,6 +102,12 @@ export type GroupFormField = FormFieldBase & {
   maxRepeats?: number;
   createsAnimal?: boolean;
   fields: FormField[];
+  // Overrides each repetition's default "<label> <N>" heading with a fixed,
+  // real-world name instead -- set server-side (never authored in
+  // FormBuilder) when FormSubmissionsService.create() synthesizes a
+  // per-pet group for a multi-pet send, one entry per repetition, in the
+  // same order. Absent for every ordinary, staff-authored group.
+  repetitionLabels?: string[];
 };
 
 export type FormField =

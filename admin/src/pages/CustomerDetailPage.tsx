@@ -1544,6 +1544,12 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
                   {s.animal && typeof s.animal === 'object' && (
                     <span style={{ color: 'var(--muted)' }}> — {s.animal.name}</span>
                   )}
+                  {s.animals && s.animals.length > 0 && (
+                    <span style={{ color: 'var(--muted)' }}>
+                      {' '}
+                      — {s.animals.map((a) => (typeof a === 'object' ? a.name : a)).join(', ')}
+                    </span>
+                  )}
                 </td>
                 <td>{statusLabel(s.status)}</td>
                 <td>{new Date(s.createdAt).toLocaleDateString('en-GB')}</td>

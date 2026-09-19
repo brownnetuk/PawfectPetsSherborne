@@ -90,6 +90,45 @@ function resolveFieldsForRecipient(
   });
 }
 
+// Merges a form's own fields into one repeated "per pet" section, one
+// repetition per name in `petNames` (same order), for a submission
+// covering several of a customer's pets at once (SendFormModal's multi-
+// select) -- so staff send one link instead of one per pet. A field that's
+// already a repeatable group, or mapped to the customer (the only mapping
+// target a top-level field can have -- see form-field.types.ts), is left
+// outside the repeated section unchanged: a pet-creation group has its own
+// independent repeat/mapping semantics unrelated to this, and customer info
+// shouldn't be asked once per pet. Everything else (the common case: plain,
+// unmapped fields like "Name of pet"/"Booking dates") repeats once per pet.
+// A no-op if nothing on the form is actually repeatable this way.
+function wrapFieldsForPets(fields: FormField[], petNames: string[]): FormField[] {
+  const keep: FormField[] = [];
+  const repeat: FormField[] = [];
+  for (const field of fields) {
+    if (field.type === 'group' || field.mapping) {
+      keep.push(field);
+    } else {
+      repeat.push(field);
+    }
+  }
+  if (repeat.length === 0) {
+    return fields;
+  }
+  const perPetGroup: FormField = {
+    id: 'per-pet',
+    type: 'group',
+    label: 'Pet',
+    required: false,
+    repeatable: true,
+    minRepeats: petNames.length,
+    maxRepeats: petNames.length,
+    createsAnimal: false,
+    repetitionLabels: petNames,
+    fields: repeat,
+  };
+  return [...keep, perPetGroup];
+}
+
 @Injectable()
 export class FormSubmissionsService {
   constructor(
@@ -103,14 +142,25 @@ export class FormSubmissionsService {
 
   async create(dto: CreateFormSubmissionDto): Promise<FormSubmission> {
     const form = await this.formsService.findOne(dto.form);
+    const animals = dto.animals ?? [];
+    let formFieldsSnapshot = form.fields as unknown as FormField[];
+    if (animals.length > 1) {
+      // Resolved in the given order (not re-sorted) so repetitionLabels
+      // lines up with whatever order the customer's own pets were selected
+      // in -- purely cosmetic, but keeps the generated link matching what
+      // staff actually picked.
+      const pets = await Promise.all(animals.map((id) => this.animalsService.findOne(id)));
+      formFieldsSnapshot = wrapFieldsForPets(formFieldsSnapshot, pets.map((p) => p.name));
+    }
     return new this.formSubmissionModel({
       form: form._id,
       formName: form.name,
       formDescription: form.description,
-      formFieldsSnapshot: form.fields,
+      formFieldsSnapshot,
       status: FormSubmissionStatus.PENDING,
       customer: dto.customer,
-      animal: dto.animal,
+      animal: animals.length === 1 ? animals[0] : undefined,
+      animals: animals.length > 1 ? animals : undefined,
       recipientEmail: dto.recipientEmail,
       recipientName: dto.recipientName,
     }).save();
@@ -150,6 +200,7 @@ export class FormSubmissionsService {
       .sort({ createdAt: -1 })
       .populate('customer', 'name email')
       .populate('animal', 'name')
+      .populate('animals', 'name')
       .exec();
   }
 

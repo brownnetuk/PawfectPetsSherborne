@@ -44,15 +44,22 @@ export class FormSubmission extends Document {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Customer.name })
   customer?: Types.ObjectId;
 
-  // Set when this submission was generated for one specific pet (staff
-  // multi-selecting several of a customer's pets creates one FormSubmission
-  // per pet, each with this set to that pet -- see
-  // FormSubmissionsService.create()) rather than the customer as a whole.
-  // Purely for staff-side bookkeeping/display and the {{petName}} placeholder
+  // Set when this submission was generated for exactly one specific pet --
+  // see FormSubmissionsService.create() and SendFormModal's pet multi-select.
+  // Fields stay flat (unwrapped) in this case. Purely for staff-side
+  // bookkeeping/display and the {{petName}} placeholder
   // (form-placeholders.util.ts) -- never required, and unrelated to a
   // repeatable group's own createsAnimal behaviour at submit time.
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Animal.name })
   animal?: Types.ObjectId;
+
+  // Set instead of `animal` when this one submission was generated to cover
+  // *several* pets at once (staff selecting more than one in SendFormModal)
+  // -- formFieldsSnapshot's own (unmapped, non-group) fields are wrapped
+  // into one repeated "per pet" section at create() time rather than a
+  // separate submission/link being generated per pet.
+  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: Animal.name }] })
+  animals?: Types.ObjectId[];
 
   @Prop({ required: true })
   recipientEmail: string;

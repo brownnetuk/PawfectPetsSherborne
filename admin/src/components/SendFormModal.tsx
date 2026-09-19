@@ -28,13 +28,6 @@ interface Props {
   onClose: () => void;
 }
 
-interface GeneratedLink {
-  submissionId: string;
-  link: string;
-  /** Set when this link was generated for one specific pet (multi-select below). */
-  petName?: string;
-}
-
 export default function SendFormModal({ form, customer, existing, onClose }: Props) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState(customer?._id ?? '');
@@ -44,9 +37,10 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
   const [selectedPetIds, setSelectedPetIds] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [results, setResults] = useState<GeneratedLink[] | null>(
-    existing ? [{ submissionId: existing._id, link: `${INTAKE_URL}/forms/${existing._id}` }] : null,
-  );
+  const [link, setLink] = useState<string | null>(existing ? `${INTAKE_URL}/forms/${existing._id}` : null);
+  const [copied, setCopied] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const effectiveCustomerId = customer?._id ?? customerId;
 
@@ -84,10 +78,11 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
     }
   }
 
-  // No pets selected -> today's behaviour, one general link. One or more
-  // selected -> one FormSubmission per pet (each tagged via `animal`, so
-  // {{petName}} resolves and the Forms tab can tell them apart), all sharing
-  // the same recipient.
+  // No pets selected -> today's plain, general-purpose link. One selected ->
+  // a single-pet submission. Two or more -> still just one submission/link,
+  // but the backend merges the form's own fields into one repeated "per
+  // pet" section covering all of them (see FormSubmissionsService.create())
+  // rather than generating a separate link per pet.
   async function handleGenerate() {
     if (!email.trim()) {
       setError('Enter an email address.');
@@ -96,23 +91,14 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
     setGenerating(true);
     setError(null);
     try {
-      const petIds = selectedPetIds.length > 0 ? selectedPetIds : [undefined];
-      const created: GeneratedLink[] = [];
-      for (const petId of petIds) {
-        const submission = await api.createFormSubmission({
-          form: form._id,
-          customer: effectiveCustomerId || undefined,
-          animal: petId,
-          recipientEmail: email,
-          recipientName: name || undefined,
-        });
-        created.push({
-          submissionId: submission._id,
-          link: `${INTAKE_URL}/forms/${submission._id}`,
-          petName: petId ? pets.find((p) => p._id === petId)?.name : undefined,
-        });
-      }
-      setResults(created);
+      const submission = await api.createFormSubmission({
+        form: form._id,
+        customer: effectiveCustomerId || undefined,
+        animals: selectedPetIds.length > 0 ? selectedPetIds : undefined,
+        recipientEmail: email,
+        recipientName: name || undefined,
+      });
+      setLink(`${INTAKE_URL}/forms/${submission._id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate a link for this form');
     } finally {
@@ -120,25 +106,63 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
     }
   }
 
-  if (results) {
+  async function copyLink() {
+    if (!link) return;
+    await navigator.clipboard.writeText(link);
+    setCopied(true);
+  }
+
+  async function sendEmail() {
+    if (!link) return;
+    setSending(true);
+    setSendResult(null);
+    try {
+      await api.sendTriggeredEmail('form', email, name || email, link, effectiveCustomerId || undefined, form.name);
+      setSendResult({ ok: true, message: `Email sent to ${email}.` });
+    } catch (err) {
+      setSendResult({ ok: false, message: err instanceof Error ? err.message : 'Failed to send email' });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  if (link) {
     return (
       <Modal title={`${existing ? 'Resend' : 'Send'} "${form.name}"`} onClose={onClose}>
-        <p style={{ color: 'var(--muted)' }}>
-          {results.length > 1
-            ? 'Send each link, or copy it to share another way.'
-            : 'Send this link, or copy it to share another way.'}
-        </p>
-        {results.map((r) => (
-          <ResultRow
-            key={r.submissionId}
-            result={r}
-            email={email}
-            name={name}
-            formName={form.name}
-            customerId={effectiveCustomerId || undefined}
-          />
-        ))}
+        <p style={{ color: 'var(--muted)' }}>Send this link, or copy it to share another way.</p>
+        {selectedPetIds.length > 1 && (
+          <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
+            Covers all {selectedPetIds.length} selected pets, one after another, in this one link.
+          </p>
+        )}
+        <div className="link-copy-box">{link}</div>
+        {sendResult && (
+          <div
+            className={sendResult.ok ? undefined : 'error-banner'}
+            style={
+              sendResult.ok
+                ? {
+                    background: 'var(--sage-badge)',
+                    color: 'var(--brand-green)',
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    marginTop: 14,
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                  }
+                : { marginTop: 14 }
+            }
+          >
+            {sendResult.message}
+          </div>
+        )}
         <div className="modal-actions">
+          <button className="btn btn-secondary" onClick={copyLink}>
+            {copied ? 'Copied!' : 'Copy link'}
+          </button>
+          <button className="btn btn-secondary" onClick={sendEmail} disabled={sending}>
+            {sending ? 'Sending…' : 'Send email'}
+          </button>
           <button className="btn btn-primary" onClick={onClose}>
             Done
           </button>
@@ -190,8 +214,8 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
           </div>
           <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>
             {selectedPetIds.length > 1
-              ? `Generates ${selectedPetIds.length} separate links, one per selected pet.`
-              : 'Select one or more to generate a separate link per pet -- leave none selected for a single general link.'}
+              ? `One link, covering all ${selectedPetIds.length} selected pets one after another.`
+              : 'Select one or more to tie this link to specific pets -- leave none selected for a single general link.'}
           </div>
         </div>
       )}
@@ -200,87 +224,9 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
           Cancel
         </button>
         <button className="btn btn-primary" onClick={handleGenerate} disabled={generating}>
-          {generating
-            ? 'Generating…'
-            : selectedPetIds.length > 1
-              ? `Generate ${selectedPetIds.length} links`
-              : 'Generate link'}
+          {generating ? 'Generating…' : 'Generate link'}
         </button>
       </div>
     </Modal>
-  );
-}
-
-// One row per generated link -- each manages its own copy/send state
-// independently, since sending to several pets at once can have more than
-// one row copied/sending/sent at the same time.
-function ResultRow({
-  result,
-  email,
-  name,
-  formName,
-  customerId,
-}: {
-  result: GeneratedLink;
-  email: string;
-  name: string;
-  formName: string;
-  customerId?: string;
-}) {
-  const [copied, setCopied] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null);
-
-  async function copyLink() {
-    await navigator.clipboard.writeText(result.link);
-    setCopied(true);
-  }
-
-  async function sendEmail() {
-    setSending(true);
-    setSendResult(null);
-    try {
-      await api.sendTriggeredEmail('form', email, name || email, result.link, customerId, formName);
-      setSendResult({ ok: true, message: `Email sent to ${email}.` });
-    } catch (err) {
-      setSendResult({ ok: false, message: err instanceof Error ? err.message : 'Failed to send email' });
-    } finally {
-      setSending(false);
-    }
-  }
-
-  return (
-    <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
-      {result.petName && <div style={{ fontWeight: 600, marginBottom: 6 }}>{result.petName}</div>}
-      <div className="link-copy-box">{result.link}</div>
-      {sendResult && (
-        <div
-          className={sendResult.ok ? undefined : 'error-banner'}
-          style={
-            sendResult.ok
-              ? {
-                  background: 'var(--sage-badge)',
-                  color: 'var(--brand-green)',
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  marginTop: 10,
-                  fontSize: '0.85rem',
-                  fontWeight: 500,
-                }
-              : { marginTop: 10 }
-          }
-        >
-          {sendResult.message}
-        </div>
-      )}
-      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={copyLink}>
-          {copied ? 'Copied!' : 'Copy link'}
-        </button>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={sendEmail} disabled={sending}>
-          {sending ? 'Sending…' : 'Send email'}
-        </button>
-      </div>
-    </div>
   );
 }
