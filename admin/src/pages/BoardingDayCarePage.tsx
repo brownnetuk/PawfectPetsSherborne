@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as api from '../api/client';
-import type { AnnualLeave, DayBooking, VisitMapping } from '../types';
+import NewBookingModal from '../components/NewBookingModal';
+import type { BoardingEditInitial, DayCareEditInitial } from '../components/NewBookingModal';
+import { TrashIcon } from '../components/icons';
+import type { Animal, AnnualLeave, Customer, DayBooking, VisitMapping } from '../types';
 import { annualLeaveOn } from '../utils/annualLeave';
 import { addDays, dateKey } from '../utils/visitPlan';
 
@@ -24,6 +27,12 @@ function productId(product: DayBooking['product']): string {
 }
 function productLabel(product: DayBooking['product']): string {
   return typeof product === 'string' ? product : product.name;
+}
+function productPrice(product: DayBooking['product']): number {
+  return typeof product === 'string' ? 0 : product.price;
+}
+function animalId(animal: DayBooking['animal']): string {
+  return typeof animal === 'string' ? animal : animal._id;
 }
 function animalLabel(animal: DayBooking['animal']): string {
   return typeof animal === 'string' ? animal : animal.name;
@@ -75,11 +84,91 @@ function sectionsFor(mapping: VisitMapping, b: DayBooking): Section[] {
   return [];
 }
 
+interface StayEditHandlers {
+  onEdit: (stayId: string) => void;
+  onDelete: (stayId: string) => void;
+}
+
 type Tab = 'dashboard' | 'upcoming' | 'occupancy';
 const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', upcoming: 'Upcoming Stays', occupancy: 'Occupancy' };
 
 export default function BoardingDayCarePage() {
   const [tab, setTab] = useState<Tab>('dashboard');
+  const [animals, setAnimals] = useState<Animal[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [mapping, setMapping] = useState<VisitMapping | null>(null);
+  const [boardingEdit, setBoardingEdit] = useState<BoardingEditInitial | null>(null);
+  const [dayCareEdit, setDayCareEdit] = useState<DayCareEditInitial | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  // Bumped after an edit/delete so both Dashboard and Upcoming Stays refetch
+  // -- simpler than threading a shared cache between two independently
+  // data-fetching tabs.
+  const [refreshSignal, setRefreshSignal] = useState(0);
+
+  useEffect(() => {
+    api.listAnimals().then(setAnimals).catch(() => {});
+    api.listCustomers().then(setCustomers).catch(() => {});
+    api.getVisitMapping().then(setMapping).catch(() => {});
+  }, []);
+
+  // Shared by Dashboard and Upcoming Stays -- reopens NewBookingModal
+  // pre-filled to edit the clicked booking, same "edit = delete + recreate"
+  // shape CustomerDetailPage.tsx's own openBoardingEdit and BookingsPage.tsx
+  // use. A stayId with no overnight row is a standalone Day Care booking
+  // (always exactly one day/one row), so it edits via dayCareInitial
+  // instead of boardingInitial.
+  async function handleEditStay(stayId: string) {
+    setEditError(null);
+    try {
+      const rows = await api.getBoardingStay(stayId);
+      if (rows.length === 0 || !mapping) return;
+      const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
+      const cust = sorted[0].customer;
+      const custId = typeof cust === 'string' ? cust : cust._id;
+      const isBoarding = sorted.some((r) => sectionsFor(mapping, r).includes('overnight'));
+      if (isBoarding) {
+        setBoardingEdit({
+          stayId,
+          customerId: custId,
+          animalIds: [...new Set(sorted.map((r) => animalId(r.animal)))],
+          startDate: dateKey(new Date(sorted[0].date)),
+          endDate: dateKey(new Date(sorted[sorted.length - 1].date)),
+          dropOffTime: sorted.find((r) => r.dropOffTime)?.dropOffTime ?? '',
+          pickUpTime: sorted.find((r) => r.pickUpTime)?.pickUpTime ?? '',
+        });
+      } else {
+        const b = sorted[0];
+        setDayCareEdit({
+          stayId,
+          customerId: custId,
+          animalId: animalId(b.animal),
+          date: dateKey(new Date(b.date)),
+          dropOffPeriod: b.dropOffPeriod ?? 'AM',
+          dropOffTime: b.dropOffTime ?? '',
+          collectionPeriod: b.collectionPeriod ?? 'PM',
+          collectionTime: b.collectionTime ?? '',
+        });
+      }
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Failed to load this booking');
+    }
+  }
+
+  async function handleDeleteStay(stayId: string) {
+    if (!window.confirm('This is part of a booking. Delete the whole booking (all its days and any travel)?')) {
+      return;
+    }
+    setEditError(null);
+    try {
+      await api.deleteStay(stayId);
+      setRefreshSignal((n) => n + 1);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Failed to remove this booking');
+    }
+  }
+
+  const editHandlers: StayEditHandlers = { onEdit: handleEditStay, onDelete: handleDeleteStay };
+
   return (
     <div>
       <div className="page-header">
@@ -92,22 +181,43 @@ export default function BoardingDayCarePage() {
           </button>
         ))}
       </div>
-      {tab === 'dashboard' && <DashboardTab />}
-      {tab === 'upcoming' && <UpcomingStaysTab />}
-      {tab === 'occupancy' && <OccupancyTab />}
+      {editError && <div className="error-banner">{editError}</div>}
+      {tab === 'dashboard' && <DashboardTab mapping={mapping} refreshSignal={refreshSignal} {...editHandlers} />}
+      {tab === 'upcoming' && <UpcomingStaysTab mapping={mapping} refreshSignal={refreshSignal} {...editHandlers} />}
+      {tab === 'occupancy' && <OccupancyTab mapping={mapping} />}
+
+      {(boardingEdit || dayCareEdit) && (
+        <NewBookingModal
+          animals={animals}
+          customers={customers}
+          boardingInitial={boardingEdit ?? undefined}
+          dayCareInitial={dayCareEdit ?? undefined}
+          onClose={() => {
+            setBoardingEdit(null);
+            setDayCareEdit(null);
+          }}
+          onCreated={() => {
+            setBoardingEdit(null);
+            setDayCareEdit(null);
+            setRefreshSignal((n) => n + 1);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function DashboardTab() {
+function DashboardTab({ mapping, refreshSignal, onEdit, onDelete }: { mapping: VisitMapping | null; refreshSignal: number } & StayEditHandlers) {
   const [dayBookings, setDayBookings] = useState<DayBooking[] | null>(null);
-  const [mapping, setMapping] = useState<VisitMapping | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // A wide-ish window either side of today so a stay that started or ends
   // outside the visible "today" date is still fully captured for the
   // arriving/departing-today logic below (same tradeoff Upcoming Stays and
-  // Occupancy both already accept for their own fetch windows).
+  // Occupancy both already accept for their own fetch windows) -- this same
+  // window also always fully covers the *current calendar month* (30 days
+  // either side of any day within a month reaches both its ends), which is
+  // what the projected-income tiles below need.
   useEffect(() => {
     const from = addDays(new Date(), -30);
     const to = addDays(new Date(), 30);
@@ -115,8 +225,7 @@ function DashboardTab() {
       .listDayBookings(dateKey(from), dateKey(addDays(to, 1)))
       .then(setDayBookings)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bookings'));
-    api.getVisitMapping().then(setMapping).catch(() => {});
-  }, []);
+  }, [refreshSignal]);
 
   const today = new Date();
   const todayKey = dateKey(today);
@@ -132,6 +241,35 @@ function DashboardTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dayBookings, mapping]);
 
+  // This calendar month's projected income, split by Boarding vs Day Care --
+  // "projected" because it includes every booking for the month regardless
+  // of whether it's already happened or is still upcoming, priced at each
+  // row's own product price x quantity (a placeholder row prices at 0 since
+  // sectionsFor() already excludes it, matching it never being invoiced).
+  const monthIncome = useMemo(() => {
+    const result = { boarding: 0, dayCare: 0 };
+    if (!dayBookings || !mapping) return result;
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    for (const b of dayBookings) {
+      const date = new Date(b.date);
+      if (date < monthStart || date > monthEnd) continue;
+      const sections = sectionsFor(mapping, b);
+      if (sections.length === 0) continue;
+      const amount = productPrice(b.product) * b.quantity;
+      if (sections.includes('overnight')) result.boarding += amount;
+      else result.dayCare += amount;
+    }
+    return result;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dayBookings, mapping]);
+
+  // Arrivals/departures only apply to an actual boarding stay (one with an
+  // overnight row) -- a Day Care booking's stayId groups a single day whose
+  // start and end date are the same, so grouping it the same way would
+  // double-count it as both an arrival and a departure and it would never
+  // reach the Day Care Today list. Every row of a Day Care-only stayId group
+  // that falls today goes to dayCareToday instead.
   const { arrivals, departures, dayCareToday } = useMemo(() => {
     const empty = { arrivals: [] as DayBooking[], departures: [] as DayBooking[], dayCareToday: [] as DayBooking[] };
     if (!dayBookings || !mapping) return empty;
@@ -148,17 +286,25 @@ function DashboardTab() {
     }
     const arrivals: DayBooking[] = [];
     const departures: DayBooking[] = [];
+    const dayCareToday: DayBooking[] = [...standaloneToday];
     for (const rows of stays.values()) {
       const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
-      if (dateKey(new Date(sorted[0].date)) === todayKey) arrivals.push(sorted[0]);
-      if (dateKey(new Date(sorted[sorted.length - 1].date)) === todayKey) departures.push(sorted[sorted.length - 1]);
+      const isBoarding = sorted.some((r) => sectionsFor(mapping, r).includes('overnight'));
+      if (isBoarding) {
+        if (dateKey(new Date(sorted[0].date)) === todayKey) arrivals.push(sorted[0]);
+        if (dateKey(new Date(sorted[sorted.length - 1].date)) === todayKey) departures.push(sorted[sorted.length - 1]);
+      } else {
+        for (const r of sorted) {
+          if (dateKey(new Date(r.date)) === todayKey) dayCareToday.push(r);
+        }
+      }
     }
-    return { arrivals, departures, dayCareToday: standaloneToday };
+    return { arrivals, departures, dayCareToday };
   }, [dayBookings, mapping, todayKey]);
 
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 16 }}>
         {SECTIONS.map((s) => (
           <div
             key={s}
@@ -182,21 +328,54 @@ function DashboardTab() {
         ))}
       </div>
 
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 20 }}>
+        <div className="card" style={{ textAlign: 'center' }}>
+          <div style={{ color: 'var(--muted)', fontSize: '0.85rem', fontWeight: 600 }}>
+            This Month's Projected Income — Boarding
+          </div>
+          <div style={{ fontSize: '2rem', fontWeight: 700 }}>£{monthIncome.boarding.toFixed(2)}</div>
+        </div>
+        <div className="card" style={{ textAlign: 'center' }}>
+          <div style={{ color: 'var(--muted)', fontSize: '0.85rem', fontWeight: 600 }}>
+            This Month's Projected Income — Day Care
+          </div>
+          <div style={{ fontSize: '2rem', fontWeight: 700 }}>£{monthIncome.dayCare.toFixed(2)}</div>
+        </div>
+      </div>
+
       {error && <div className="error-banner">{error}</div>}
       {!dayBookings || !mapping ? (
         <div className="empty-state">Loading…</div>
       ) : (
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <DashboardList title="Arriving Today" rows={arrivals} empty="No arrivals today." detail={(b) => b.dropOffTime || undefined} />
-          <DashboardList title="Departing Today" rows={departures} empty="No departures today." detail={(b) => b.pickUpTime || undefined} />
+          <DashboardList
+            title="Arriving Today"
+            rows={arrivals}
+            empty="No arrivals today."
+            detail={(b) => b.dropOffTime || undefined}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+          <DashboardList
+            title="Departing Today"
+            rows={departures}
+            empty="No departures today."
+            detail={(b) => b.pickUpTime || undefined}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
           <DashboardList
             title="Day Care Today"
             rows={dayCareToday}
             empty="No day care today."
             detail={(b) => {
               const sections = sectionsFor(mapping, b);
-              return sections.length > 1 ? 'Full Day' : SECTION_LABELS[sections[0]]?.split(' ')[0];
+              const label = sections.length > 1 ? 'Full Day' : SECTION_LABELS[sections[0]]?.split(' ')[0];
+              const time = b.pickUpTime || b.collectionTime || b.dropOffTime;
+              return time ? `${label} · collect ${time}` : label;
             }}
+            onEdit={onEdit}
+            onDelete={onDelete}
           />
         </div>
       )}
@@ -209,13 +388,15 @@ function DashboardList({
   rows,
   empty,
   detail,
+  onEdit,
+  onDelete,
 }: {
   title: string;
   rows: DayBooking[];
   empty: string;
   /** A short piece of extra info shown between the dog and customer name -- a time or an AM/PM/Full Day label. */
   detail: (b: DayBooking) => string | undefined;
-}) {
+} & StayEditHandlers) {
   return (
     <div className="card" style={{ flex: '1 1 260px', minWidth: 260 }}>
       <div className="section-title" style={{ marginTop: 0 }}>
@@ -225,12 +406,25 @@ function DashboardList({
         <div className="empty-state">{empty}</div>
       ) : (
         rows.map((b) => (
-          <div key={b._id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
-            <span style={{ fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {animalLabel(b.animal)}
-            </span>
-            {detail(b) && <span style={{ color: 'var(--accent-dark)', fontWeight: 600, flexShrink: 0 }}>{detail(b)}</span>}
-            <span style={{ color: 'var(--muted)', flexShrink: 0 }}>{customerLabel(b.customer)}</span>
+          <div key={b._id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
+            <button
+              type="button"
+              className="btn-link"
+              disabled={!b.stayId}
+              onClick={() => b.stayId && onEdit(b.stayId)}
+              style={{ flex: 1, minWidth: 0, textAlign: 'left', padding: 0, display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem' }}
+            >
+              <span style={{ fontWeight: 600, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {animalLabel(b.animal)}
+              </span>
+              {detail(b) && <span style={{ color: 'var(--accent-dark)', fontWeight: 600, flexShrink: 0 }}>{detail(b)}</span>}
+              <span style={{ color: 'var(--muted)', flexShrink: 0 }}>{customerLabel(b.customer)}</span>
+            </button>
+            {b.stayId && (
+              <button type="button" className="icon-btn icon-btn-danger" title="Remove" style={{ flexShrink: 0 }} onClick={() => onDelete(b.stayId!)}>
+                <TrashIcon />
+              </button>
+            )}
           </div>
         ))
       )}
@@ -240,6 +434,7 @@ function DashboardList({
 
 interface StayEntry {
   key: string;
+  stayId?: string;
   animal: string;
   customer: string;
   type: string;
@@ -256,10 +451,9 @@ const RANGE_OPTIONS = [
   { value: 90, label: 'Next 90 Days' },
 ];
 
-function UpcomingStaysTab() {
+function UpcomingStaysTab({ mapping, refreshSignal, onEdit, onDelete }: { mapping: VisitMapping | null; refreshSignal: number } & StayEditHandlers) {
   const [rangeDays, setRangeDays] = useState(30);
   const [dayBookings, setDayBookings] = useState<DayBooking[] | null>(null);
-  const [mapping, setMapping] = useState<VisitMapping | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -269,8 +463,7 @@ function UpcomingStaysTab() {
       .listDayBookings(dateKey(from), dateKey(addDays(to, 1)))
       .then(setDayBookings)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bookings'));
-    api.getVisitMapping().then(setMapping).catch(() => {});
-  }, [rangeDays]);
+  }, [rangeDays, refreshSignal]);
 
   const entries: StayEntry[] = useMemo(() => {
     if (!dayBookings || !mapping) return [];
@@ -294,6 +487,7 @@ function UpcomingStaysTab() {
       const billableNights = sorted.filter((r) => sectionsFor(mapping, r).includes('overnight')).length;
       result.push({
         key: stayId,
+        stayId,
         animal: animalLabel(sorted[0].animal),
         customer: customerLabel(sorted[0].customer),
         type: billableNights > 0 ? `Boarding × ${billableNights} night${billableNights === 1 ? '' : 's'}` : 'Day Care',
@@ -313,6 +507,7 @@ function UpcomingStaysTab() {
       const type = sections.length === 1 ? `${productLabel(b.product)} (${SECTION_LABELS[sections[0]]})` : productLabel(b.product);
       result.push({
         key: b._id,
+        stayId: undefined,
         animal: animalLabel(b.animal),
         customer: customerLabel(b.customer),
         type,
@@ -355,11 +550,12 @@ function UpcomingStaysTab() {
               <th>Drop off</th>
               <th>Pick up</th>
               <th></th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {entries.map((e) => (
-              <tr key={e.key}>
+              <tr key={e.key} onClick={() => e.stayId && onEdit(e.stayId)} style={{ cursor: e.stayId ? 'pointer' : undefined }}>
                 <td>{e.animal}</td>
                 <td>{e.customer}</td>
                 <td>{e.type}</td>
@@ -375,6 +571,13 @@ function UpcomingStaysTab() {
                     <span title="Invoiced" style={{ color: 'var(--brand-green)' }}>
                       ✓
                     </span>
+                  )}
+                </td>
+                <td onClick={(ev) => ev.stopPropagation()}>
+                  {e.stayId && (
+                    <button type="button" className="icon-btn icon-btn-danger" title="Remove" onClick={() => onDelete(e.stayId!)}>
+                      <TrashIcon />
+                    </button>
                   )}
                 </td>
               </tr>
@@ -488,11 +691,10 @@ function SectionSlotsRow({ section, bookings }: { section: Section; bookings: Da
   );
 }
 
-function OccupancyTab() {
+function OccupancyTab({ mapping }: { mapping: VisitMapping | null }) {
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [dayBookings, setDayBookings] = useState<DayBooking[] | null>(null);
-  const [mapping, setMapping] = useState<VisitMapping | null>(null);
   const [annualLeave, setAnnualLeave] = useState<AnnualLeave[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -506,7 +708,6 @@ function OccupancyTab() {
       .listDayBookings(dateKey(from), dateKey(addDays(to, 1)))
       .then(setDayBookings)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bookings'));
-    api.getVisitMapping().then(setMapping).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, anchorDate]);
 
