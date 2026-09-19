@@ -12,6 +12,7 @@ import Modal from '../components/Modal';
 import AddPetChoiceModal from '../components/AddPetChoiceModal';
 import NewAnimalModal from '../components/NewAnimalModal';
 import NewBookingModal from '../components/NewBookingModal';
+import type { BoardingEditInitial } from '../components/NewBookingModal';
 import RegistrationLinkModal from '../components/RegistrationLinkModal';
 import SendFormModal from '../components/SendFormModal';
 import ViewAnimalModal from '../components/ViewAnimalModal';
@@ -839,6 +840,7 @@ function BookingsTab({ customer, animals }: { customer: Customer; animals: Anima
   const [visitMapping, setVisitMapping] = useState<VisitMapping | null>(null);
   const [annualLeave, setAnnualLeave] = useState<AnnualLeave[]>([]);
   const [showNew, setShowNew] = useState(false);
+  const [boardingEdit, setBoardingEdit] = useState<BoardingEditInitial | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function refresh() {
@@ -873,6 +875,30 @@ function BookingsTab({ customer, animals }: { customer: Customer; animals: Anima
       refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove this entry');
+    }
+  }
+
+  // Mirrors BookingsPage.tsx's own openBoardingEdit -- reopens NewBookingModal
+  // pre-filled to edit this stay (save deletes it by stayId and recreates it
+  // from the edited dates/times/dogs, same "edit = delete + recreate" shape
+  // deleteStay's own comment describes).
+  async function openBoardingEdit(stayId: string) {
+    try {
+      const rows = await api.getBoardingStay(stayId);
+      if (rows.length === 0) return;
+      const byDate = [...rows].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const cust = byDate[0].customer;
+      setBoardingEdit({
+        stayId,
+        customerId: typeof cust === 'string' ? cust : cust._id,
+        animalIds: [...new Set(rows.map((r) => dbAnimalId(r.animal)))],
+        startDate: dateKey(new Date(byDate[0].date)),
+        endDate: dateKey(new Date(byDate[byDate.length - 1].date)),
+        dropOffTime: rows.find((r) => r.dropOffTime)?.dropOffTime ?? '',
+        pickUpTime: rows.find((r) => r.pickUpTime)?.pickUpTime ?? '',
+      });
+    } catch {
+      // Non-fatal -- leave the modal closed if the stay couldn't be loaded.
     }
   }
 
@@ -992,36 +1018,53 @@ function BookingsTab({ customer, animals }: { customer: Customer; animals: Anima
   }
 
   function StayRow({ stay }: { stay: StayGroup }) {
+    const dropOffTime = stay.rows.find((r) => r.dropOffTime)?.dropOffTime;
+    const pickUpTime = stay.rows.find((r) => r.pickUpTime)?.pickUpTime;
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '6px 0',
-          borderBottom: '1px solid var(--border)',
-        }}
-      >
-        <span style={{ fontWeight: 600, minWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {dbAnimalLabel(stay.animal)}
-        </span>
-        <span style={{ flex: 1, minWidth: 0, color: 'var(--muted)', fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {summarizeStayProducts(stay.rows)}
-        </span>
-        {stay.invoiced && (
-          <span title="Invoiced" style={{ color: 'var(--brand-green)', fontSize: '0.85rem', flexShrink: 0 }}>
-            ✓
+      <div style={{ padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            type="button"
+            className="btn-link"
+            title="Edit this booking"
+            style={{
+              fontWeight: 600,
+              minWidth: 90,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              padding: 0,
+              textAlign: 'left',
+            }}
+            onClick={() => openBoardingEdit(stay.key)}
+          >
+            {dbAnimalLabel(stay.animal)}
+          </button>
+          <span style={{ flex: 1, minWidth: 0, color: 'var(--muted)', fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {summarizeStayProducts(stay.rows)}
           </span>
+          {stay.invoiced && (
+            <span title="Invoiced" style={{ color: 'var(--brand-green)', fontSize: '0.85rem', flexShrink: 0 }}>
+              ✓
+            </span>
+          )}
+          <button
+            type="button"
+            className="icon-btn icon-btn-danger"
+            title="Remove"
+            style={{ flexShrink: 0 }}
+            onClick={() => handleRemove(stay.rows[0])}
+          >
+            <TrashIcon />
+          </button>
+        </div>
+        {(dropOffTime || pickUpTime) && (
+          <div style={{ marginTop: 4, marginLeft: 98, color: 'var(--muted)', fontSize: '0.8rem' }}>
+            {dropOffTime && <span>Drop off {dropOffTime}</span>}
+            {dropOffTime && pickUpTime && <span> · </span>}
+            {pickUpTime && <span>Pick up {pickUpTime}</span>}
+          </div>
         )}
-        <button
-          type="button"
-          className="icon-btn icon-btn-danger"
-          title="Remove"
-          style={{ flexShrink: 0 }}
-          onClick={() => handleRemove(stay.rows[0])}
-        >
-          <TrashIcon />
-        </button>
       </div>
     );
   }
@@ -1083,15 +1126,20 @@ function BookingsTab({ customer, animals }: { customer: Customer; animals: Anima
           )}
         </div>
       )}
-      {showNew && (
+      {(showNew || boardingEdit) && (
         <NewBookingModal
           animals={animals}
           customers={[customer]}
           annualLeave={annualLeave}
           initialCustomerId={customer._id}
-          onClose={() => setShowNew(false)}
+          boardingInitial={boardingEdit ?? undefined}
+          onClose={() => {
+            setShowNew(false);
+            setBoardingEdit(null);
+          }}
           onCreated={() => {
             setShowNew(false);
+            setBoardingEdit(null);
             refresh();
           }}
         />
