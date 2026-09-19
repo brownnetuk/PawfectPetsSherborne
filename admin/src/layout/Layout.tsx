@@ -6,6 +6,7 @@ import logo from '../assets/logo.png';
 import NotificationBell from '../components/NotificationBell';
 import QrLoginModal from '../components/QrLoginModal';
 import {
+  BoardingIcon,
   BookingsIcon,
   CustomersIcon,
   EnquiriesIcon,
@@ -61,8 +62,13 @@ export default function Layout() {
   // document preview, activity log) and needs the full window width to
   // avoid squeezing the preview -- every other page is fine at the
   // standard reading-width cap. Bookings needs it too: a 7-day-wide
-  // calendar grid plus the day panel gets cramped under the standard cap.
-  const isWide = location.pathname.startsWith('/invoices') || location.pathname.startsWith('/bookings');
+  // calendar grid plus the day panel gets cramped under the standard cap --
+  // same reason Boarding & DayCare's own Occupancy tab (also a 7-wide grid
+  // plus a day panel) needs it.
+  const isWide =
+    location.pathname.startsWith('/invoices') ||
+    location.pathname.startsWith('/bookings') ||
+    location.pathname.startsWith('/boarding-daycare');
 
   function handleLogout() {
     logout();
@@ -79,6 +85,10 @@ export default function Layout() {
           Pawfect Pets
         </div>
         <nav>
+          <NavLink to="/boarding-daycare" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <BoardingIcon />
+            Boarding &amp; DayCare
+          </NavLink>
           <NavLink to="/enquiries" className={({ isActive }) => (isActive ? 'active' : '')}>
             <EnquiriesIcon />
             Enquiries
