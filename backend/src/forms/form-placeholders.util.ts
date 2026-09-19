@@ -15,15 +15,23 @@ export const FORM_PLACEHOLDERS: { key: string; hint: string }[] = [
   { key: 'address', hint: "Customer's full address" },
   { key: 'postcode', hint: "Customer's postcode" },
   { key: 'petNames', hint: "All the customer's pet names, comma-separated" },
+  {
+    key: 'petName',
+    hint: 'The one pet this link was generated for -- only set when sent via "Which pet(s) is this for?" in SendFormModal, empty otherwise',
+  },
 ];
 
 // Only ever built for a submission with a known, real customer -- a
 // brand-new lead (no `customer` set yet) has nothing to substitute, so
 // FormSubmissionsService.findOnePublic() just omits this entirely rather
-// than calling in with an empty Customer.
+// than calling in with an empty Customer. `specificPetName` is only given
+// when the submission itself was generated for one particular pet (see
+// FormSubmission.animal) -- left empty otherwise, deliberately never
+// falling back to the full petNames list, so {{petName}} stays unambiguous.
 export function buildCustomerPlaceholders(
   customer: Customer,
   petNames: string[],
+  specificPetName?: string,
 ): Record<string, string> {
   return {
     customerName: customer.name ?? '',
@@ -34,6 +42,7 @@ export function buildCustomerPlaceholders(
     address: customer.address ?? '',
     postcode: customer.postcode ?? '',
     petNames: petNames.join(', '),
+    petName: specificPetName ?? '',
   };
 }
 

@@ -772,6 +772,10 @@ export interface FormSubmissionRecord {
   formFieldsSnapshot: FormField[];
   status: FormSubmissionStatus;
   customer?: CustomerRef | string;
+  // Set when this submission was generated for one specific pet -- staff
+  // multi-selecting several of a customer's pets in SendFormModal creates
+  // one submission per pet.
+  animal?: { _id: string; name: string } | string;
   recipientEmail: string;
   recipientName?: string;
   answers?: Record<string, unknown>;

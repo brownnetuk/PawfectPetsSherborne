@@ -36,8 +36,13 @@ export default function ViewFormSubmissionModal({
     };
   }, [submission]);
 
+  const title =
+    submission.animal && typeof submission.animal === 'object'
+      ? `${submission.formName} — ${submission.animal.name}`
+      : submission.formName;
+
   return (
-    <Modal title={submission.formName} onClose={onClose} xl>
+    <Modal title={title} onClose={onClose} xl>
       {submission.status !== 'completed' ? (
         <div className="empty-state">Not filled in yet.</div>
       ) : error ? (

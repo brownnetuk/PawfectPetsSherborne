@@ -875,6 +875,7 @@ export function deleteForm(id: string): Promise<void> {
 export interface CreateFormSubmissionInput {
   form: string;
   customer?: string;
+  animal?: string;
   recipientEmail: string;
   recipientName?: string;
 }

@@ -1539,7 +1539,12 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
           <tbody>
             {submissions.map((s) => (
               <tr key={s._id} onClick={() => setViewing(s)}>
-                <td>{s.formName}</td>
+                <td>
+                  {s.formName}
+                  {s.animal && typeof s.animal === 'object' && (
+                    <span style={{ color: 'var(--muted)' }}> — {s.animal.name}</span>
+                  )}
+                </td>
                 <td>{statusLabel(s.status)}</td>
                 <td>{new Date(s.createdAt).toLocaleDateString('en-GB')}</td>
                 <td>{s.submittedAt ? new Date(s.submittedAt).toLocaleDateString('en-GB') : '—'}</td>

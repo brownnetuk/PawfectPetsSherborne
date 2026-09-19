@@ -110,6 +110,7 @@ export class FormSubmissionsService {
       formFieldsSnapshot: form.fields,
       status: FormSubmissionStatus.PENDING,
       customer: dto.customer,
+      animal: dto.animal,
       recipientEmail: dto.recipientEmail,
       recipientName: dto.recipientName,
     }).save();
@@ -148,6 +149,7 @@ export class FormSubmissionsService {
       .find(filter)
       .sort({ createdAt: -1 })
       .populate('customer', 'name email')
+      .populate('animal', 'name')
       .exec();
   }
 
@@ -174,8 +176,15 @@ export class FormSubmissionsService {
         this.animalsService.findAll(customerId),
       ]);
       petNames = animals.map((a) => a.name);
+      // The one specific pet this submission was generated for (staff
+      // multi-selecting pets in SendFormModal creates one submission per
+      // pet) -- falls back to '' (not the full petNames list) when unset, so
+      // {{petName}} only ever resolves to a single, unambiguous pet.
+      const specificPet = submission.animal
+        ? animals.find((a) => a._id.toString() === submission.animal!.toString())
+        : undefined;
       if (customer) {
-        placeholders = buildCustomerPlaceholders(customer, petNames);
+        placeholders = buildCustomerPlaceholders(customer, petNames, specificPet?.name);
       }
     }
 

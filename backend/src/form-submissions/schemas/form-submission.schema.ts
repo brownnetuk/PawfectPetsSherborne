@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Animal } from '../../animals/schemas/animal.schema';
 import { Customer } from '../../customers/schemas/customer.schema';
 import { Form } from '../../forms/schemas/form.schema';
 
@@ -42,6 +43,16 @@ export class FormSubmission extends Document {
   // this is already set and switch straight to updating that customer.
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Customer.name })
   customer?: Types.ObjectId;
+
+  // Set when this submission was generated for one specific pet (staff
+  // multi-selecting several of a customer's pets creates one FormSubmission
+  // per pet, each with this set to that pet -- see
+  // FormSubmissionsService.create()) rather than the customer as a whole.
+  // Purely for staff-side bookkeeping/display and the {{petName}} placeholder
+  // (form-placeholders.util.ts) -- never required, and unrelated to a
+  // repeatable group's own createsAnimal behaviour at submit time.
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Animal.name })
+  animal?: Types.ObjectId;
 
   @Prop({ required: true })
   recipientEmail: string;

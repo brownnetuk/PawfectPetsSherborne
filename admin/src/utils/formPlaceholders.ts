@@ -17,4 +17,8 @@ export const FORM_PLACEHOLDERS: { key: string; hint: string }[] = [
   { key: 'address', hint: "Customer's full address" },
   { key: 'postcode', hint: "Customer's postcode" },
   { key: 'petNames', hint: "All the customer's pet names, comma-separated" },
+  {
+    key: 'petName',
+    hint: 'The one pet this link was generated for -- only set when sent for a specific pet via "Which pet(s) is this for?" in Send, empty otherwise',
+  },
 ];
