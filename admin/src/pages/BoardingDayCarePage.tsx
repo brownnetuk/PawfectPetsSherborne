@@ -32,24 +32,28 @@ function customerLabel(customer: DayBooking['customer']): string {
   return typeof customer === 'string' ? customer : customer.name;
 }
 
-// Which of the 4 occupancy sections a row's PRODUCT actually belongs to --
-// the raw product id (including the 2nd-dog product variants), not the
-// display-only `boardingStay` flag admin/src/utils/visitMapping.ts's own
-// isBoardingProduct/isDayCareProduct don't check. A boarding stay's attached
-// leftover Day Care day carries boardingStay:true but is a real Day Care
-// product, so it counts as Day Care occupancy on that date, not Overnight.
-// Returns null for a Walk/Visit product (out of scope here) or an unmapped
-// one.
-function sectionFor(mapping: VisitMapping, b: DayBooking): Section | null {
+// Which of the 4 occupancy sections a row's PRODUCT actually occupies --
+// checked against the raw product id (including the 2nd-dog product
+// variants), not the display-only `boardingStay` flag
+// admin/src/utils/visitMapping.ts's own isBoardingProduct/isDayCareProduct
+// don't check. A boarding stay's attached leftover Day Care day carries
+// boardingStay:true but is a real Day Care product, so it counts as Day
+// Care occupancy on that date, not Overnight.
+//
+// A boarding night occupies AM, PM, *and* Overnight, not just Overnight --
+// the dog is physically on-site the whole day, not just while asleep, so a
+// boarding stay competes for daytime capacity the same as a day-care dog
+// would. Returns [] for a Walk/Visit product (out of scope here), an
+// unmapped one, or the pick-up day's placeholder row (presence-only, never
+// billed, and represents the tail end of the last night rather than a
+// fresh occupied day).
+function sectionsFor(mapping: VisitMapping, b: DayBooking): Section[] {
   const pid = productId(b.product);
   if (pid === mapping.boardingPerDayProduct || pid === mapping.boardingSecondDogPerDayProduct) {
-    // The pick-up day's placeholder row is presence-only (never billed) and
-    // represents the tail end of the last night rather than a fresh
-    // overnight stay on this date -- excluded from the Overnight count.
-    return b.placeholder ? null : 'overnight';
+    return b.placeholder ? [] : ['AM', 'PM', 'overnight'];
   }
   if (pid === mapping.dayCareFullDayProduct || pid === mapping.dayCareSecondDogFullDayProduct) {
-    return 'fullDay';
+    return ['fullDay'];
   }
   if (pid === mapping.dayCareHalfDayProduct || pid === mapping.dayCareSecondDogHalfDayProduct) {
     // Half Day doesn't store which half separately. A standalone day-care
@@ -58,15 +62,15 @@ function sectionFor(mapping: VisitMapping, b: DayBooking): Section | null {
     // pickUpTime instead (see backend's day-booking.schema.ts). Falls back
     // to AM if genuinely nothing is set, so every row still lands somewhere.
     const period = b.dropOffPeriod ?? b.collectionPeriod;
-    if (period) return period === 'PM' ? 'PM' : 'AM';
+    if (period) return [period === 'PM' ? 'PM' : 'AM'];
     const timeStr = b.dropOffTime || b.collectionTime || b.pickUpTime;
     if (timeStr) {
       const hour = parseInt(timeStr, 10);
-      if (!Number.isNaN(hour)) return hour < 13 ? 'AM' : 'PM';
+      if (!Number.isNaN(hour)) return [hour < 13 ? 'AM' : 'PM'];
     }
-    return 'AM';
+    return ['AM'];
   }
-  return null;
+  return [];
 }
 
 type Tab = 'upcoming' | 'occupancy';
@@ -135,7 +139,7 @@ function UpcomingStaysTab() {
         const rows = stays.get(b.stayId) ?? [];
         rows.push(b);
         stays.set(b.stayId, rows);
-      } else if (sectionFor(mapping, b)) {
+      } else if (sectionsFor(mapping, b).length > 0) {
         standalone.push(b);
       }
     }
@@ -145,7 +149,7 @@ function UpcomingStaysTab() {
       // can be a real Day Care product) -- only non-placeholder boarding
       // rows count as billable nights for the summary label.
       const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
-      const billableNights = sorted.filter((r) => sectionFor(mapping, r) === 'overnight').length;
+      const billableNights = sorted.filter((r) => sectionsFor(mapping, r).includes('overnight')).length;
       result.push({
         key: stayId,
         animal: animalLabel(sorted[0].animal),
@@ -159,7 +163,10 @@ function UpcomingStaysTab() {
       });
     }
     for (const b of standalone) {
-      const section = sectionFor(mapping, b)!;
+      // Standalone (non-boarding-stay) rows only ever occupy one section --
+      // the multi-section case (a boarding night occupying AM/PM/Overnight
+      // at once) only applies to stay rows, already handled above.
+      const section = sectionsFor(mapping, b)[0];
       result.push({
         key: b._id,
         animal: animalLabel(b.animal),
@@ -314,8 +321,7 @@ function OccupancyTab() {
     const counts: Record<Section, number> = { AM: 0, PM: 0, fullDay: 0, overnight: 0 };
     if (!mapping) return counts;
     for (const b of entriesForDay(date)) {
-      const section = sectionFor(mapping, b);
-      if (section) counts[section] += b.quantity;
+      for (const section of sectionsFor(mapping, b)) counts[section] += b.quantity;
     }
     return counts;
   }
@@ -415,7 +421,7 @@ function OccupancyTab() {
           </div>
           {mapping &&
             SECTIONS.map((section) => {
-              const rows = entriesForDay(selectedDate).filter((b) => sectionFor(mapping, b) === section);
+              const rows = entriesForDay(selectedDate).filter((b) => sectionsFor(mapping, b).includes(section));
               if (rows.length === 0) return null;
               return (
                 <div key={section} style={{ marginBottom: 14 }}>
@@ -431,7 +437,7 @@ function OccupancyTab() {
                 </div>
               );
             })}
-          {mapping && entriesForDay(selectedDate).every((b) => !sectionFor(mapping, b)) && (
+          {mapping && entriesForDay(selectedDate).every((b) => sectionsFor(mapping, b).length === 0) && (
             <div className="empty-state">No boarding or day care that day.</div>
           )}
         </div>
