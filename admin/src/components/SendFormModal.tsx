@@ -119,13 +119,48 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
     setPreviewing(true);
   }
 
+  async function copyLink() {
+    if (!link) return;
+    await navigator.clipboard.writeText(link);
+    setCopied(true);
+  }
+
+  // `linkOverride` lets handleGenerate below call this with the
+  // just-created link before the setLink() state update has actually
+  // landed -- the button's own onClick still just calls this with no
+  // argument, reusing the (by-then-current) `link` state instead.
+  async function sendEmail(linkOverride?: string) {
+    const targetLink = linkOverride ?? link;
+    if (!targetLink) return;
+    setSending(true);
+    setSendResult(null);
+    try {
+      await api.sendTriggeredEmail(
+        'form',
+        email,
+        name || email,
+        targetLink,
+        effectiveCustomerId || undefined,
+        form.name,
+      );
+      setSendResult({ ok: true, message: `Email sent to ${email}.` });
+    } catch (err) {
+      setSendResult({ ok: false, message: err instanceof Error ? err.message : 'Failed to send email' });
+    } finally {
+      setSending(false);
+    }
+  }
+
   // No pets selected -> today's plain, general-purpose link. One selected ->
   // a single-pet submission. Two or more -> still just one submission/link,
   // but the backend merges the form's own fields into one repeated "per
   // pet" section covering all of them (see FormSubmissionsService.create())
   // rather than generating a separate link per pet -- previewFields above
   // mirrors that same merge so what staff preview matches what's actually
-  // sent.
+  // sent. Clicking "Send" in the preview both generates the link and
+  // emails it in one step, rather than requiring a separate "Send email"
+  // click afterwards -- the result screen below still offers Copy
+  // link/Resend as a fallback in case the automatic send fails.
   async function handleGenerate() {
     setPreviewing(false);
     setGenerating(true);
@@ -138,7 +173,9 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
         recipientEmail: email,
         recipientName: name || undefined,
       });
-      setLink(`${INTAKE_URL}/forms/${submission._id}`);
+      const newLink = `${INTAKE_URL}/forms/${submission._id}`;
+      setLink(newLink);
+      await sendEmail(newLink);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate a link for this form');
     } finally {
@@ -146,53 +183,36 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
     }
   }
 
-  async function copyLink() {
-    if (!link) return;
-    await navigator.clipboard.writeText(link);
-    setCopied(true);
-  }
-
-  async function sendEmail() {
-    if (!link) return;
-    setSending(true);
-    setSendResult(null);
-    try {
-      await api.sendTriggeredEmail('form', email, name || email, link, effectiveCustomerId || undefined, form.name);
-      setSendResult({ ok: true, message: `Email sent to ${email}.` });
-    } catch (err) {
-      setSendResult({ ok: false, message: err instanceof Error ? err.message : 'Failed to send email' });
-    } finally {
-      setSending(false);
-    }
-  }
-
   if (link) {
     return (
       <Modal title={`${existing ? 'Resend' : 'Send'} "${form.name}"`} onClose={onClose}>
-        <p style={{ color: 'var(--muted)' }}>Send this link, or copy it to share another way.</p>
+        {sendResult?.ok ? (
+          <div
+            style={{
+              background: 'var(--sage-badge)',
+              color: 'var(--brand-green)',
+              padding: '12px 16px',
+              borderRadius: 8,
+              marginBottom: 14,
+              fontSize: '0.95rem',
+              fontWeight: 600,
+            }}
+          >
+            ✓ Email sent to {email}.
+          </div>
+        ) : (
+          <p style={{ color: 'var(--muted)' }}>
+            {sending ? 'Sending the email…' : 'Send this link, or copy it to share another way.'}
+          </p>
+        )}
         {selectedPetIds.length > 1 && (
           <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
             Covers all {selectedPetIds.length} selected pets, one after another, in this one link.
           </p>
         )}
         <div className="link-copy-box">{link}</div>
-        {sendResult && (
-          <div
-            className={sendResult.ok ? undefined : 'error-banner'}
-            style={
-              sendResult.ok
-                ? {
-                    background: 'var(--sage-badge)',
-                    color: 'var(--brand-green)',
-                    padding: '10px 14px',
-                    borderRadius: 8,
-                    marginTop: 14,
-                    fontSize: '0.85rem',
-                    fontWeight: 500,
-                  }
-                : { marginTop: 14 }
-            }
-          >
+        {sendResult && !sendResult.ok && (
+          <div className="error-banner" style={{ marginTop: 14 }}>
             {sendResult.message}
           </div>
         )}
@@ -200,8 +220,8 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
           <button className="btn btn-secondary" onClick={copyLink}>
             {copied ? 'Copied!' : 'Copy link'}
           </button>
-          <button className="btn btn-secondary" onClick={sendEmail} disabled={sending}>
-            {sending ? 'Sending…' : 'Send email'}
+          <button className="btn btn-secondary" onClick={() => sendEmail()} disabled={sending}>
+            {sending ? 'Sending…' : sendResult?.ok ? 'Resend email' : 'Send email'}
           </button>
           <button className="btn btn-primary" onClick={onClose}>
             Done
