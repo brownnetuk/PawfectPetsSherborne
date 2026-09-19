@@ -653,11 +653,11 @@ function SectionSlotsRow({ section, bookings }: { section: Section; bookings: Da
   const slotCount = Math.max(CAPACITY_PER_SECTION, bookings.length);
   const colors = SECTION_COLORS[section];
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5, marginBottom: 6 }}>
-      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--muted)', width: 20, flexShrink: 0, marginTop: 4 }}>
-        {section === 'overnight' ? 'ON' : section}
-      </span>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(64px, 1fr))', gap: 4, flex: 1 }}>
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>
+        {section === 'overnight' ? 'Overnight' : section}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4 }}>
         {Array.from({ length: slotCount }, (_, i) => {
           const booking = bookings[i];
           const overCapacity = i >= CAPACITY_PER_SECTION;
