@@ -61,13 +61,45 @@ function customerLabel(customer: DayBooking['customer']): string {
 // here), an unmapped one, or the pick-up day's placeholder row
 // (presence-only, never billed, and represents the tail end of the last
 // night rather than a fresh occupied day).
+function parseHour(time: string | null | undefined): number | null {
+  if (!time) return null;
+  const hour = parseInt(time, 10);
+  return Number.isNaN(hour) ? null : hour;
+}
+
 function sectionsFor(mapping: VisitMapping, b: DayBooking): Section[] {
   const pid = productId(b.product);
   if (pid === mapping.boardingPerDayProduct || pid === mapping.boardingSecondDogPerDayProduct) {
-    return b.placeholder ? [] : ['AM', 'PM', 'overnight'];
+    if (b.placeholder) return [];
+    let sections: Section[] = ['AM', 'PM', 'overnight'];
+    // Middle nights of a stay have neither field set and stay full
+    // occupancy. The first/last calendar day of the stay only has the dog
+    // there for part of the day -- trim by the actual drop-off/pick-up time
+    // (dropOffTime is only ever set on the stay's first row, pickUpTime only
+    // on its last -- see backend's day-booking.schema.ts) rather than always
+    // treating every boarding row as full-day-plus-overnight.
+    const dropHour = parseHour(b.dropOffTime);
+    if (dropHour !== null && dropHour >= 13) sections = sections.filter((s) => s !== 'AM');
+    const pickHour = parseHour(b.pickUpTime);
+    if (pickHour !== null) {
+      sections = sections.filter((s) => s !== 'overnight'); // leaving that day, not staying the night
+      if (pickHour < 13) sections = sections.filter((s) => s !== 'PM');
+    }
+    return sections;
   }
   if (pid === mapping.dayCareFullDayProduct || pid === mapping.dayCareSecondDogFullDayProduct) {
-    return ['AM', 'PM'];
+    let sections: Section[] = ['AM', 'PM'];
+    // Only trim a boarding stay's attached leftover Full Day by its actual
+    // times (same reasoning as the boarding branch above) -- a standalone
+    // Full Day booking's own product selection already guarantees an AM
+    // drop-off and PM collection, so it always spans both.
+    if (b.boardingStay) {
+      const dropHour = parseHour(b.dropOffTime);
+      if (dropHour !== null && dropHour >= 13) sections = sections.filter((s) => s !== 'AM');
+      const pickHour = parseHour(b.pickUpTime);
+      if (pickHour !== null && pickHour < 13) sections = sections.filter((s) => s !== 'PM');
+    }
+    return sections;
   }
   if (pid === mapping.dayCareHalfDayProduct || pid === mapping.dayCareSecondDogHalfDayProduct) {
     // Half Day doesn't store which half separately. A standalone day-care
@@ -78,10 +110,8 @@ function sectionsFor(mapping: VisitMapping, b: DayBooking): Section[] {
     const period = b.dropOffPeriod ?? b.collectionPeriod;
     if (period) return [period === 'PM' ? 'PM' : 'AM'];
     const timeStr = b.dropOffTime || b.collectionTime || b.pickUpTime;
-    if (timeStr) {
-      const hour = parseInt(timeStr, 10);
-      if (!Number.isNaN(hour)) return [hour < 13 ? 'AM' : 'PM'];
-    }
+    const hour = parseHour(timeStr);
+    if (hour !== null) return [hour < 13 ? 'AM' : 'PM'];
     return ['AM'];
   }
   return [];
