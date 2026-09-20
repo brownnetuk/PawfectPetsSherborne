@@ -25,6 +25,7 @@ import type {
   AnnualLeave,
   BankAccount,
   BankHoliday,
+  BoardingWorkflowSettings,
   BusinessInfo,
   EmailSettings,
   EmailTemplate,
@@ -2715,11 +2716,343 @@ function BookingsSettingsTab() {
 
 // Distinct from the "Bookings" tab above (which maps Visit/Day Care/
 // Boarding options to invoicing products) -- this one is for day-to-day
-// boarding operations, starting with Checklists.
+// boarding operations: the new Booking quote -> ... -> Invoice paid
+// workflow's reference numbering and which Form each of its three stages
+// uses, plus Checklists (unchanged).
 function BoardingSettingsTab() {
   return (
     <div>
+      <BookingReferenceCard />
+      <PreCheckInCard />
+      <CheckInFormCard />
+      <CheckOutFormCard />
       <ChecklistsCard />
+    </div>
+  );
+}
+
+function BookingReferenceCard() {
+  const [template, setTemplate] = useState('');
+  const [nextNumber, setNextNumber] = useState('1');
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api
+      .getBusinessInfo()
+      .then((info) => {
+        setTemplate(info.bookingRefTemplate);
+        setNextNumber(String(info.bookingRefNextNumber));
+        setLoaded(true);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load booking reference'));
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await api.updateBusinessInfo({ bookingRefTemplate: template, bookingRefNextNumber: Number(nextNumber) || 1 });
+      setSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save booking reference');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Booking reference</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        The reference each new Boarding &amp; Day Care booking is given, same pattern as invoice and quote numbers.
+      </p>
+      {error && <div className="error-banner">{error}</div>}
+      {!loaded ? (
+        <div className="empty-state">Loading…</div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div className="field-row">
+            <div className="field">
+              <label>Format</label>
+              <input type="text" value={template} onChange={(e) => setTemplate(e.target.value)} placeholder="BK-{year}-{seq}" />
+            </div>
+            <div className="field">
+              <label>Next reference</label>
+              <input type="number" min="1" step="1" value={nextNumber} onChange={(e) => setNextNumber(e.target.value)} />
+            </div>
+          </div>
+          <div className="modal-actions" style={{ justifyContent: 'flex-start', gap: 12 }}>
+            <button className="btn btn-primary" type="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            {saved && <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>}
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+// A plain <select> of every Form, used by the three cards below for their
+// Boarding/Day Care form pickers.
+function FormPicker({
+  forms,
+  value,
+  onChange,
+  label,
+}: {
+  forms: FormRecord[];
+  value: string;
+  onChange: (id: string) => void;
+  label: string;
+}) {
+  return (
+    <div className="field">
+      <label>{label}</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">None configured</option>
+        {forms.map((f) => (
+          <option key={f._id} value={f._id}>
+            {f.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function useBoardingWorkflowSettings() {
+  const [settings, setSettings] = useState<BoardingWorkflowSettings | null>(null);
+  const [forms, setForms] = useState<FormRecord[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  function refresh() {
+    api
+      .getBoardingWorkflowSettings()
+      .then(setSettings)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load Boarding settings'));
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(refresh, []);
+  useEffect(() => {
+    api.listForms().then(setForms).catch(() => {});
+  }, []);
+
+  return { settings, forms, error, refresh };
+}
+
+function PreCheckInCard() {
+  const { settings, forms, error: loadError, refresh } = useBoardingWorkflowSettings();
+  const [daysBefore, setDaysBefore] = useState('2');
+  const [formBoarding, setFormBoarding] = useState('');
+  const [formDayCare, setFormDayCare] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!settings) return;
+    setDaysBefore(String(settings.preCheckInDaysBefore));
+    setFormBoarding(settings.preCheckInFormBoarding ?? '');
+    setFormDayCare(settings.preCheckInFormDayCare ?? '');
+  }, [settings]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      await api.updateBoardingWorkflowSettings({
+        preCheckInDaysBefore: Number(daysBefore) || 0,
+        preCheckInFormBoarding: formBoarding || undefined,
+        preCheckInFormDayCare: formDayCare || undefined,
+      });
+      setSaved(true);
+      refresh();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save pre-check-in settings');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Pre-check-in</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        Emailed to the customer automatically ahead of drop-off, using a form from Settings &gt; Forms. Boarding and
+        Day Care use their own forms.
+      </p>
+      {(loadError || saveError) && <div className="error-banner">{loadError ?? saveError}</div>}
+      {!settings ? (
+        <div className="empty-state">Loading…</div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div className="field">
+            <label>Send before drop-off (days)</label>
+            <input type="number" min="0" step="1" value={daysBefore} onChange={(e) => setDaysBefore(e.target.value)} />
+          </div>
+          <div className="field-row">
+            <FormPicker forms={forms} value={formBoarding} onChange={setFormBoarding} label="Boarding form" />
+            <FormPicker forms={forms} value={formDayCare} onChange={setFormDayCare} label="Day Care form" />
+          </div>
+          <div className="modal-actions" style={{ justifyContent: 'flex-start', gap: 12 }}>
+            <button className="btn btn-primary" type="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            {saved && <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>}
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function CheckInFormCard() {
+  const { settings, forms, error: loadError, refresh } = useBoardingWorkflowSettings();
+  const [formBoarding, setFormBoarding] = useState('');
+  const [formDayCare, setFormDayCare] = useState('');
+  const [requirePhoto, setRequirePhoto] = useState(true);
+  const [requireSignature, setRequireSignature] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!settings) return;
+    setFormBoarding(settings.checkInFormBoarding ?? '');
+    setFormDayCare(settings.checkInFormDayCare ?? '');
+    setRequirePhoto(settings.checkInRequirePhoto);
+    setRequireSignature(settings.checkInRequireSignature);
+  }, [settings]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      await api.updateBoardingWorkflowSettings({
+        checkInFormBoarding: formBoarding || undefined,
+        checkInFormDayCare: formDayCare || undefined,
+        checkInRequirePhoto: requirePhoto,
+        checkInRequireSignature: requireSignature,
+      });
+      setSaved(true);
+      refresh();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save check-in settings');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Check-in form</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        What staff fill in when a dog arrives, from the booking's Forms card. Boarding and Day Care use their own
+        forms.
+      </p>
+      {(loadError || saveError) && <div className="error-banner">{loadError ?? saveError}</div>}
+      {!settings ? (
+        <div className="empty-state">Loading…</div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div className="field-row">
+            <FormPicker forms={forms} value={formBoarding} onChange={setFormBoarding} label="Boarding form" />
+            <FormPicker forms={forms} value={formDayCare} onChange={setFormDayCare} label="Day Care form" />
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '10px 0' }}>
+            <input type="checkbox" checked={requirePhoto} onChange={(e) => setRequirePhoto(e.target.checked)} />
+            Require a photo
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '10px 0' }}>
+            <input type="checkbox" checked={requireSignature} onChange={(e) => setRequireSignature(e.target.checked)} />
+            Require a signature
+          </label>
+          <div className="modal-actions" style={{ justifyContent: 'flex-start', gap: 12 }}>
+            <button className="btn btn-primary" type="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            {saved && <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>}
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function CheckOutFormCard() {
+  const { settings, forms, error: loadError, refresh } = useBoardingWorkflowSettings();
+  const [formBoarding, setFormBoarding] = useState('');
+  const [formDayCare, setFormDayCare] = useState('');
+  const [requireSignature, setRequireSignature] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!settings) return;
+    setFormBoarding(settings.checkOutFormBoarding ?? '');
+    setFormDayCare(settings.checkOutFormDayCare ?? '');
+    setRequireSignature(settings.checkOutRequireSignature);
+  }, [settings]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      await api.updateBoardingWorkflowSettings({
+        checkOutFormBoarding: formBoarding || undefined,
+        checkOutFormDayCare: formDayCare || undefined,
+        checkOutRequireSignature: requireSignature,
+      });
+      setSaved(true);
+      refresh();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save check-out settings');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Check-out form</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        Completing this moves the booking to Checked out -- the invoice was already raised on confirmation, so this
+        just marks the balance as due. Boarding and Day Care use their own forms.
+      </p>
+      {(loadError || saveError) && <div className="error-banner">{loadError ?? saveError}</div>}
+      {!settings ? (
+        <div className="empty-state">Loading…</div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div className="field-row">
+            <FormPicker forms={forms} value={formBoarding} onChange={setFormBoarding} label="Boarding form" />
+            <FormPicker forms={forms} value={formDayCare} onChange={setFormDayCare} label="Day Care form" />
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '10px 0' }}>
+            <input type="checkbox" checked={requireSignature} onChange={(e) => setRequireSignature(e.target.checked)} />
+            Require a signature
+          </label>
+          <div className="modal-actions" style={{ justifyContent: 'flex-start', gap: 12 }}>
+            <button className="btn btn-primary" type="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            {saved && <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>}
+          </div>
+        </form>
+      )}
     </div>
   );
 }
