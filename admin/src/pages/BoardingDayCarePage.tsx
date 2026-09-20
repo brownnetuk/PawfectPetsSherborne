@@ -1,20 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import AmendBoardingBookingDatesModal from '../components/AmendBoardingBookingDatesModal';
 import Badge from '../components/Badge';
+import FormFillModal from '../components/FormFillModal';
 import Modal from '../components/Modal';
+import NewBoardingBookingModal from '../components/NewBoardingBookingModal';
 import NewBookingModal from '../components/NewBookingModal';
 import type { BoardingEditInitial, DayCareEditInitial } from '../components/NewBookingModal';
 import SignaturePad from '../components/SignaturePad';
+import ViewFormSubmissionModal from '../components/ViewFormSubmissionModal';
 import { ChevronDownIcon, TrashIcon } from '../components/icons';
 import { buildChecklistPdf, buildChecklistsPdf } from '../pdf/checklistPdf';
 import type {
   Animal,
   AnnualLeave,
+  BoardingBookingStage,
+  BoardingBookingWithStatus,
   ChecklistAssignment,
   ChecklistTemplate,
   Customer,
   DayBooking,
+  FormSubmissionRecord,
   Invoice,
   Payment,
   VisitMapping,
@@ -151,11 +158,12 @@ interface StayEditHandlers {
   onDelete: (stayId: string) => void;
 }
 
-type Tab = 'dashboard' | 'upcoming' | 'occupancy' | 'checklists';
+type Tab = 'dashboard' | 'upcoming' | 'occupancy' | 'bookings' | 'checklists';
 const TAB_LABELS: Record<Tab, string> = {
   dashboard: 'Dashboard',
   upcoming: 'Upcoming Stays',
   occupancy: 'Occupancy',
+  bookings: 'Bookings',
   checklists: 'Checklists',
 };
 
@@ -244,7 +252,7 @@ export default function BoardingDayCarePage() {
         <h1>Boarding &amp; Day Care</h1>
       </div>
       <div className="tabs">
-        {(['dashboard', 'upcoming', 'occupancy', 'checklists'] as Tab[]).map((t) => (
+        {(['dashboard', 'upcoming', 'occupancy', 'bookings', 'checklists'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -254,6 +262,7 @@ export default function BoardingDayCarePage() {
       {tab === 'dashboard' && <DashboardTab mapping={mapping} refreshSignal={refreshSignal} {...editHandlers} />}
       {tab === 'upcoming' && <UpcomingStaysTab mapping={mapping} refreshSignal={refreshSignal} {...editHandlers} />}
       {tab === 'occupancy' && <OccupancyTab mapping={mapping} />}
+      {tab === 'bookings' && <BookingsTab animals={animals} customers={customers} />}
       {tab === 'checklists' && <ChecklistsTab />}
 
       {(boardingEdit || dayCareEdit) && (
@@ -1182,6 +1191,451 @@ function BookingDetailModal({ booking, onClose }: { booking: DayBooking; onClose
         </>
       )}
     </Modal>
+  );
+}
+
+function boardingCustomerLabel(customer: BoardingBookingWithStatus['booking']['customer']): string {
+  return typeof customer === 'string' ? customer : customer.name;
+}
+function boardingAnimalNames(animals: BoardingBookingWithStatus['booking']['animals']): string {
+  return animals.map((a) => (typeof a === 'string' ? a : a.name)).join(', ');
+}
+function formatDateRange(booking: BoardingBookingWithStatus['booking']): string {
+  const start = new Date(booking.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  if (booking.type === 'dayCare' || booking.startDate === booking.endDate) return start;
+  const end = new Date(booking.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return `${start} – ${end}`;
+}
+
+function BookingsTab({ animals, customers }: { animals: Animal[]; customers: Customer[] }) {
+  const [items, setItems] = useState<BoardingBookingWithStatus[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [refreshSignal, setRefreshSignal] = useState(0);
+
+  useEffect(() => {
+    api.listBoardingBookings().then(setItems).catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bookings'));
+  }, [refreshSignal]);
+
+  if (selectedId) {
+    return (
+      <BookingDetail
+        id={selectedId}
+        onBack={() => {
+          setSelectedId(null);
+          setRefreshSignal((n) => n + 1);
+        }}
+        onChanged={() => setRefreshSignal((n) => n + 1)}
+      />
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+        <button className="btn btn-primary" onClick={() => setShowNew(true)}>
+          + New booking
+        </button>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      <div className="card">
+        {!items ? (
+          <div className="empty-state">Loading…</div>
+        ) : items.length === 0 ? (
+          <div className="empty-state">No bookings yet.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Reference</th>
+                <th>Customer</th>
+                <th>Dog(s)</th>
+                <th>Type</th>
+                <th>Dates</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map(({ booking, status }) => (
+                <tr key={booking._id} onClick={() => setSelectedId(booking._id)} style={{ cursor: 'pointer' }}>
+                  <td style={{ fontWeight: 600, color: 'var(--accent)' }}>{booking.reference}</td>
+                  <td>{boardingCustomerLabel(booking.customer)}</td>
+                  <td>{boardingAnimalNames(booking.animals)}</td>
+                  <td>{booking.type === 'boarding' ? 'Boarding' : 'Day Care'}</td>
+                  <td>{formatDateRange(booking)}</td>
+                  <td>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        padding: '3px 10px',
+                        borderRadius: 999,
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        background: status === 'Paid in full' ? 'var(--sage-badge)' : 'var(--accent-light)',
+                        color: status === 'Paid in full' ? 'var(--brand-green)' : 'var(--accent-dark)',
+                      }}
+                    >
+                      {status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {showNew && (
+        <NewBoardingBookingModal
+          animals={animals}
+          customers={customers}
+          onClose={() => setShowNew(false)}
+          onCreated={(id) => {
+            setRefreshSignal((n) => n + 1);
+            setSelectedId(id);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+const STAGE_DOT_SIZE = 26;
+
+function StageDot({ stage }: { stage: BoardingBookingStage }) {
+  const base: React.CSSProperties = {
+    width: STAGE_DOT_SIZE,
+    height: STAGE_DOT_SIZE,
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '0.72rem',
+    flexShrink: 0,
+  };
+  if (stage.done) {
+    return <div style={{ ...base, background: 'var(--brand-green)', color: '#fff' }}>✓</div>;
+  }
+  if (stage.current) {
+    return (
+      <div style={{ ...base, background: '#fff', border: '2px solid var(--accent)', color: 'var(--accent)', fontWeight: 700 }} />
+    );
+  }
+  return <div style={{ ...base, background: '#fff', border: '2px solid var(--border)', color: 'var(--muted)' }} />;
+}
+
+function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => void; onChanged: () => void }) {
+  const [data, setData] = useState<BoardingBookingWithStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showAmend, setShowAmend] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+  const [fillFor, setFillFor] = useState<{ stage: 'checkIn' | 'checkOut'; submissionId: string } | null>(null);
+  const [viewSubmission, setViewSubmission] = useState<FormSubmissionRecord | null>(null);
+
+  function refresh() {
+    api
+      .getBoardingBooking(id)
+      .then(setData)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load this booking'));
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(refresh, [id]);
+
+  async function handleRequestPayment(type: 'deposit' | 'full') {
+    setRequesting(true);
+    setError(null);
+    try {
+      await api.requestBoardingBookingPayment(id, type);
+      refresh();
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to request payment');
+    } finally {
+      setRequesting(false);
+    }
+  }
+
+  async function handleSendPreCheckIn() {
+    setError(null);
+    try {
+      await api.sendBoardingBookingPreCheckIn(id);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send the pre-check-in link');
+    }
+  }
+
+  async function handleViewSubmission(submissionId?: string) {
+    if (!submissionId) return;
+    try {
+      setViewSubmission(await api.getFormSubmission(submissionId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load that submission');
+    }
+  }
+
+  async function startCheckIn() {
+    if (!data) return;
+    const workflow = await api.getBoardingWorkflowSettings();
+    const formId = data.booking.type === 'boarding' ? workflow.checkInFormBoarding : workflow.checkInFormDayCare;
+    if (!formId) {
+      setError(`No check-in form is configured for ${data.booking.type === 'boarding' ? 'Boarding' : 'Day Care'} yet -- set one in Settings > Boarding first.`);
+      return;
+    }
+    const customer = data.booking.customer;
+    const customerId = typeof customer === 'string' ? customer : customer._id;
+    const submission = await api.createFormSubmission({
+      form: formId,
+      customer: customerId,
+      animals: data.booking.animals.map((a) => (typeof a === 'string' ? a : a._id)),
+      recipientEmail: typeof customer === 'string' ? '' : customer.email,
+      recipientName: typeof customer === 'string' ? undefined : customer.name,
+    });
+    setFillFor({ stage: 'checkIn', submissionId: submission._id });
+  }
+
+  async function startCheckOut() {
+    if (!data) return;
+    const workflow = await api.getBoardingWorkflowSettings();
+    const formId = data.booking.type === 'boarding' ? workflow.checkOutFormBoarding : workflow.checkOutFormDayCare;
+    if (!formId) {
+      setError(`No check-out form is configured for ${data.booking.type === 'boarding' ? 'Boarding' : 'Day Care'} yet -- set one in Settings > Boarding first.`);
+      return;
+    }
+    const customer = data.booking.customer;
+    const customerId = typeof customer === 'string' ? customer : customer._id;
+    const submission = await api.createFormSubmission({
+      form: formId,
+      customer: customerId,
+      animals: data.booking.animals.map((a) => (typeof a === 'string' ? a : a._id)),
+      recipientEmail: typeof customer === 'string' ? '' : customer.email,
+      recipientName: typeof customer === 'string' ? undefined : customer.name,
+    });
+    setFillFor({ stage: 'checkOut', submissionId: submission._id });
+  }
+
+  async function handleFormSubmitted(submissionId: string) {
+    if (!fillFor) return;
+    try {
+      if (fillFor.stage === 'checkIn') await api.recordBoardingBookingCheckIn(id, submissionId);
+      else await api.recordBoardingBookingCheckOut(id, submissionId);
+      refresh();
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to record this');
+    } finally {
+      setFillFor(null);
+    }
+  }
+
+  if (error && !data) {
+    return (
+      <div>
+        <a onClick={onBack} style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--muted)' }}>
+          ← Back to bookings
+        </a>
+        <div className="error-banner">{error}</div>
+      </div>
+    );
+  }
+  if (!data) return <div className="empty-state">Loading…</div>;
+
+  const { booking, invoice, stages, status } = data;
+  const balance = invoice ? invoice.total - (invoice.amountPaid ?? 0) : 0;
+
+  return (
+    <div>
+      <a onClick={onBack} style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--muted)' }}>
+        ← Back to bookings
+      </a>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '10px 0 4px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+          <h1 style={{ margin: 0 }}>{booking.reference}</h1>
+          <span
+            style={{
+              display: 'inline-block',
+              padding: '4px 12px',
+              borderRadius: 999,
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              background: status === 'Paid in full' ? 'var(--sage-badge)' : 'var(--accent-light)',
+              color: status === 'Paid in full' ? 'var(--brand-green)' : 'var(--accent-dark)',
+            }}
+          >
+            {status}
+          </span>
+        </div>
+        {booking.invoice && (
+          <button className="btn btn-secondary" onClick={() => setShowAmend(true)}>
+            Amend dates
+          </button>
+        )}
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 20, marginTop: 14 }}>
+        <div className="card">
+          <div className="section-title">Progress</div>
+          {stages.map((stage, i) => (
+            <div key={stage.key} style={{ display: 'flex', gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <StageDot stage={stage} />
+                {i < stages.length - 1 && (
+                  <div style={{ width: 2, flex: 1, minHeight: 18, background: stage.done ? 'var(--brand-green)' : 'var(--border)' }} />
+                )}
+              </div>
+              <div style={{ paddingBottom: 18 }}>
+                <div
+                  style={{
+                    fontWeight: stage.current ? 700 : 600,
+                    fontSize: '0.82rem',
+                    color: stage.current ? 'var(--accent)' : stage.done ? 'var(--ink)' : 'var(--muted)',
+                  }}
+                >
+                  {stage.label}
+                </div>
+                {stage.sub && <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 2 }}>{stage.sub}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="card">
+            <div className="section-title">Booking details</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Customer</span><span style={{ fontWeight: 600 }}>{boardingCustomerLabel(booking.customer)}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Dog(s)</span><span style={{ fontWeight: 600 }}>{boardingAnimalNames(booking.animals)}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Type</span><span>{booking.type === 'boarding' ? 'Boarding' : 'Day Care'}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Notes</span><span>{booking.notes || '—'}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Drop off</span><span>{new Date(booking.startDate).toLocaleDateString('en-GB')}, {booking.dropOffTime}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Pick up</span><span>{new Date(booking.endDate).toLocaleDateString('en-GB')}, {booking.pickUpTime}</span></div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="section-title">Invoice</div>
+            {!invoice ? (
+              <div className="empty-state">Not yet invoiced.</div>
+            ) : (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 24 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Invoice</span><span style={{ fontWeight: 600, color: 'var(--accent)' }}>{invoice.invoiceNumber}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Status</span><Badge value={invoice.status} /></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Payment requested</span><span>{booking.paymentRequestType === 'deposit' ? 'Deposit' : booking.paymentRequestType === 'full' ? 'Full payment' : 'Not yet'}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Total</span><span>£{invoice.total.toFixed(2)}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Paid so far</span><span>£{(invoice.amountPaid ?? 0).toFixed(2)}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Balance</span><span style={{ fontWeight: 600 }}>£{balance.toFixed(2)}</span></div>
+                </div>
+                {!booking.paymentRequestType && (
+                  <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                    <button className="btn btn-secondary" disabled={requesting} onClick={() => handleRequestPayment('deposit')}>
+                      Request deposit
+                    </button>
+                    <button className="btn btn-secondary" disabled={requesting} onClick={() => handleRequestPayment('full')}>
+                      Request full payment
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          <div className="card">
+            <div className="section-title">Forms</div>
+            <FormRow
+              label="Pre-check-in"
+              sub={booking.preCheckInSentAt ? `Sent ${new Date(booking.preCheckInSentAt).toLocaleDateString('en-GB')}` : 'Not yet sent'}
+              status={booking.preCheckInSubmission ? 'Completed' : booking.preCheckInSentAt ? 'Sent' : 'Not started'}
+              onClick={
+                booking.preCheckInSubmission
+                  ? () => handleViewSubmission(booking.preCheckInSubmission)
+                  : booking.invoice
+                    ? handleSendPreCheckIn
+                    : undefined
+              }
+              actionLabel={!booking.preCheckInSubmission && booking.invoice ? 'Send now' : undefined}
+            />
+            <FormRow
+              label="Check-in"
+              sub={booking.checkInAt ? `${new Date(booking.checkInAt).toLocaleString('en-GB')} · ${booking.checkInBy}` : 'Not yet'}
+              status={booking.checkInSubmission ? 'Completed' : 'Not started'}
+              onClick={booking.checkInSubmission ? () => handleViewSubmission(booking.checkInSubmission) : startCheckIn}
+              actionLabel={!booking.checkInSubmission ? 'Fill in' : undefined}
+            />
+            <FormRow
+              label="Check-out"
+              sub={booking.checkOutAt ? `${new Date(booking.checkOutAt).toLocaleString('en-GB')} · ${booking.checkOutBy}` : 'Not yet'}
+              status={booking.checkOutSubmission ? 'Completed' : 'Not started'}
+              onClick={booking.checkOutSubmission ? () => handleViewSubmission(booking.checkOutSubmission) : startCheckOut}
+              actionLabel={!booking.checkOutSubmission ? 'Fill in' : undefined}
+            />
+          </div>
+        </div>
+      </div>
+
+      {showAmend && (
+        <AmendBoardingBookingDatesModal
+          booking={booking}
+          onClose={() => setShowAmend(false)}
+          onAmended={() => {
+            refresh();
+            onChanged();
+          }}
+        />
+      )}
+      {fillFor && (
+        <FormFillModal
+          submissionId={fillFor.submissionId}
+          title={fillFor.stage === 'checkIn' ? 'Check-in' : 'Check-out'}
+          onClose={() => setFillFor(null)}
+          onSubmitted={handleFormSubmitted}
+        />
+      )}
+      {viewSubmission && <ViewFormSubmissionModal submission={viewSubmission} onClose={() => setViewSubmission(null)} />}
+    </div>
+  );
+}
+
+function FormRow({
+  label,
+  sub,
+  status,
+  onClick,
+  actionLabel,
+}: {
+  label: string;
+  sub: string;
+  status: 'Completed' | 'Sent' | 'Not started';
+  onClick?: () => void;
+  actionLabel?: string;
+}) {
+  const pillColors: Record<string, { bg: string; color: string }> = {
+    Completed: { bg: 'var(--sage-badge)', color: 'var(--brand-green)' },
+    Sent: { bg: 'var(--accent-light)', color: 'var(--accent-dark)' },
+    'Not started': { bg: '#f1efe8', color: 'var(--muted)' },
+  };
+  const c = pillColors[status];
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '10px 0',
+        borderBottom: '1px solid var(--border)',
+        cursor: onClick ? 'pointer' : 'default',
+      }}
+      onClick={onClick}
+    >
+      <div>
+        <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{label}</div>
+        <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{sub}</div>
+      </div>
+      <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 999, fontSize: '0.72rem', fontWeight: 600, background: c.bg, color: c.color }}>
+        {actionLabel ?? status}
+      </span>
+    </div>
   );
 }
 
