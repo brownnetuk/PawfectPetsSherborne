@@ -10,7 +10,6 @@ import type {
   PdfVisitTableElement,
   PublicBusinessInfo,
   QuoteRecord,
-  DocVisitPlan,
 } from '../types';
 
 // Ported from admin/src/pdf/invoicePdf.ts so the public invoice/quote page's
@@ -55,27 +54,59 @@ function formatUkDateFromIso(iso: string | undefined): string {
   return `${d}/${m}/${y}`;
 }
 
-// Mirrors the admin PDF builder: the visit schedule rides inside the
-// {{notes}} token as compact label/value lines.
-function visitScheduleRows(plan: DocVisitPlan | null | undefined): [string, string][] {
-  if (!plan) return [];
-  const uk = (s: string) => s.slice(0, 10).split('-').reverse().join('/');
-  const names = plan.animals
+function scheduleAnimalNames(animals: (string | { name: string })[]): string {
+  return animals
     .map((a) => (typeof a === 'string' ? null : a.name))
     .filter(Boolean)
     .join(', ');
-  const rows: [string, string][] = [
-    ['Dates', `${uk(plan.startDate)} - ${uk(plan.endDate)}`],
-    ['Visits', `${plan.visitsPerDay} per day (first day ${plan.visitsFirstDay}, last day ${plan.visitsLastDay})`],
-  ];
-  if (names) rows.push(['Pets', names]);
-  return rows;
+}
+function ukDate(s: string): string {
+  return s.slice(0, 10).split('-').reverse().join('/');
 }
 
-function visitScheduleText(plan?: DocVisitPlan | null): string {
-  const rows = visitScheduleRows(plan);
-  if (rows.length === 0) return '';
-  return ['Visit Schedule', ...rows.map(([label, value]) => `${label} :   ${value}`)].join('\n');
+// Mirrors the admin PDF builder: the Visits/Day Care/Boarding schedule rides
+// inside the {{notes}} token as compact label/value lines. A record carries
+// at most one of the three.
+function scheduleFor(record: InvoiceRecord | QuoteRecord): { title: string; rows: [string, string][] } | null {
+  if (record.visitPlan) {
+    const plan = record.visitPlan;
+    const rows: [string, string][] = [
+      ['Dates', `${ukDate(plan.startDate)} - ${ukDate(plan.endDate)}`],
+      ['Visits', `${plan.visitsPerDay} per day (first day ${plan.visitsFirstDay}, last day ${plan.visitsLastDay})`],
+    ];
+    const names = scheduleAnimalNames(plan.animals);
+    if (names) rows.push(['Pets', names]);
+    return { title: 'Visit Schedule', rows };
+  }
+  if (record.dayCarePlan) {
+    const plan = record.dayCarePlan;
+    const rows: [string, string][] = [
+      ['Date', ukDate(plan.date)],
+      ['Drop off', `${plan.dropOffPeriod} (${plan.dropOffTime})`],
+      ['Collection', `${plan.collectionPeriod} (${plan.collectionTime})`],
+    ];
+    const names = scheduleAnimalNames(plan.animals);
+    if (names) rows.push(['Pets', names]);
+    return { title: 'Day Care Schedule', rows };
+  }
+  if (record.boardingPlan) {
+    const plan = record.boardingPlan;
+    const rows: [string, string][] = [
+      ['Dates', `${ukDate(plan.startDate)} - ${ukDate(plan.endDate)}`],
+      ['Drop off', plan.dropOffTime],
+      ['Pick up', plan.pickUpTime],
+    ];
+    const names = scheduleAnimalNames(plan.animals);
+    if (names) rows.push(['Pets', names]);
+    return { title: 'Boarding Schedule', rows };
+  }
+  return null;
+}
+
+function scheduleText(record: InvoiceRecord | QuoteRecord): string {
+  const schedule = scheduleFor(record);
+  if (!schedule) return '';
+  return [schedule.title, ...schedule.rows.map(([label, value]) => `${label} :   ${value}`)].join('\n');
 }
 
 function money(n: number): string {
@@ -125,7 +156,7 @@ export function buildPdfVars(
     subject: record.subject ?? '',
     notes: [
       (isInvoice ? businessInfo.invoiceNotesMessage : businessInfo.quoteNotesMessage) || 'Thanks for your business.',
-      visitScheduleText(record.visitPlan),
+      scheduleText(record),
     ]
       .filter(Boolean)
       .join('\n\n'),
@@ -688,9 +719,10 @@ function resolveLayout(
  * the layout-resolution/pagination behaviour.
  */
 
-// Draws the injected visit-schedule mini table (see injectVisitSchedule):
-// a bold title, then bordered label/value rows mirroring the on-screen
-// VisitScheduleTable component.
+// Draws the injected schedule mini table (see injectVisitSchedule): a bold
+// title, then bordered label/value rows mirroring the on-screen
+// ScheduleTable-equivalent JSX in DocumentView.tsx. Used for all three of
+// Visits/Day Care/Boarding.
 const VISIT_TITLE_H = 14;
 const VISIT_ROW_H = 18;
 const VISIT_LABEL_W = 60;
@@ -723,10 +755,10 @@ function drawVisitTable(doc: jsPDF, el: PdfVisitTableElement): void {
 // anything underneath it.
 function injectVisitSchedule(
   template: PdfTemplateElement[],
-  plan: DocVisitPlan | null | undefined,
+  record: InvoiceRecord | QuoteRecord,
 ): PdfTemplateElement[] {
-  const scheduleText = visitScheduleText(plan);
-  if (!scheduleText) return template;
+  const schedule = scheduleFor(record);
+  if (!schedule) return template;
   if (template.some((el) => el.type === 'text' && el.content.includes('{{notes}}'))) return template;
   const texts = template
     .filter((el): el is Extract<PdfTemplateElement, { type: 'text' }> => el.type === 'text')
@@ -744,8 +776,8 @@ function injectVisitSchedule(
       // Deliberately smaller than the drawn size -- the layout resolver's
       // natural-height overflow is what pushes everything below down.
       height: 12,
-      title: 'Visit Schedule',
-      rows: visitScheduleRows(plan),
+      title: schedule.title,
+      rows: schedule.rows,
     },
   ];
 }
@@ -759,7 +791,7 @@ export async function buildInvoicePdf(
   const rawTemplate = businessInfo.invoicePdfTemplate?.length
     ? (businessInfo.invoicePdfTemplate as unknown as PdfTemplateElement[])
     : DEFAULT_INVOICE_TEMPLATE;
-  const template = injectVisitSchedule(prepareForKind(rawTemplate, kind), record.visitPlan);
+  const template = injectVisitSchedule(prepareForKind(rawTemplate, kind), record);
   const vars = buildPdfVars(record, kind, businessInfo);
   const isPaid = kind === 'invoice' && record.status === 'paid';
   const visibleElements = template.filter((el) => isVisible(el, isPaid, kind));

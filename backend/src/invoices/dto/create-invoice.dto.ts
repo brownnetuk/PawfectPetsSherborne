@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { QuoteVisitPlanDto } from '../../quotes/dto/create-quote.dto';
+import { QuoteBoardingPlanDto, QuoteDayCarePlanDto, QuoteVisitPlanDto } from '../../quotes/dto/create-quote.dto';
 import {
   ArrayMinSize,
   IsArray,
@@ -66,9 +66,20 @@ export class CreateInvoiceDto {
   subject?: string;
 
   // Copied from the source quote when an accepted quote converts -- see
-  // QuotesService.acceptAndConvert().
+  // QuotesService.acceptAndConvert(). A quote only ever carries one of the
+  // three at a time.
   @IsOptional()
   @ValidateNested()
   @Type(() => QuoteVisitPlanDto)
   visitPlan?: QuoteVisitPlanDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => QuoteDayCarePlanDto)
+  dayCarePlan?: QuoteDayCarePlanDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => QuoteBoardingPlanDto)
+  boardingPlan?: QuoteBoardingPlanDto;
 }

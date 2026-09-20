@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import logoUrl from '../assets/logo.png';
-import VisitScheduleTable from './VisitScheduleTable';
+import ScheduleTable from './ScheduleTable';
 import type { BusinessInfo, Invoice } from '../types';
 
 function formatUkDateFromIso(iso: string | undefined): string {
@@ -212,7 +212,7 @@ export default function InvoiceHtmlView({ invoice, businessInfo }: Props) {
         <div style={{ color: 'var(--muted)', marginTop: 5, whiteSpace: 'pre-line' }}>
           {businessInfo.invoiceNotesMessage || 'Thanks for your business.'}
         </div>
-        {invoice.visitPlan && <VisitScheduleTable plan={invoice.visitPlan} />}
+        <ScheduleTable visitPlan={invoice.visitPlan} dayCarePlan={invoice.dayCarePlan} boardingPlan={invoice.boardingPlan} />
       </div>
 
       {(businessInfo.bankName || businessInfo.sortCode || businessInfo.accountNumber) && (

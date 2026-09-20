@@ -37,6 +37,49 @@ export class InvoiceVisitPlan {
 }
 const InvoiceVisitPlanSchema = SchemaFactory.createForClass(InvoiceVisitPlan);
 
+// Mirrors QuoteDayCarePlan/QuoteBoardingPlan (quotes/schemas/quote.schema.ts)
+// for the same reason as InvoiceVisitPlan above.
+@Schema({ _id: false })
+export class InvoiceDayCarePlan {
+  @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'Animal', required: true })
+  animals: Types.ObjectId[];
+
+  @Prop({ required: true })
+  date: string;
+
+  @Prop({ required: true, enum: ['AM', 'PM'] })
+  dropOffPeriod: string;
+
+  @Prop({ required: true })
+  dropOffTime: string;
+
+  @Prop({ required: true, enum: ['AM', 'PM'] })
+  collectionPeriod: string;
+
+  @Prop({ required: true })
+  collectionTime: string;
+}
+const InvoiceDayCarePlanSchema = SchemaFactory.createForClass(InvoiceDayCarePlan);
+
+@Schema({ _id: false })
+export class InvoiceBoardingPlan {
+  @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'Animal', required: true })
+  animals: Types.ObjectId[];
+
+  @Prop({ required: true })
+  startDate: string;
+
+  @Prop({ required: true })
+  dropOffTime: string;
+
+  @Prop({ required: true })
+  endDate: string;
+
+  @Prop({ required: true })
+  pickUpTime: string;
+}
+const InvoiceBoardingPlanSchema = SchemaFactory.createForClass(InvoiceBoardingPlan);
+
 @Schema({ _id: false })
 class LineItem {
   @Prop({ required: true })
@@ -109,6 +152,12 @@ export class Invoice extends Document {
 
   @Prop({ type: InvoiceVisitPlanSchema })
   visitPlan?: InvoiceVisitPlan;
+
+  @Prop({ type: InvoiceDayCarePlanSchema })
+  dayCarePlan?: InvoiceDayCarePlan;
+
+  @Prop({ type: InvoiceBoardingPlanSchema })
+  boardingPlan?: InvoiceBoardingPlan;
 }
 
 export const InvoiceSchema = SchemaFactory.createForClass(Invoice);

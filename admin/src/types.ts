@@ -226,8 +226,11 @@ export interface Invoice {
   openedAt?: string;
   amountPaid?: number;
   createdAt: string;
-  // Copied from the source quote when an accepted quote converts.
+  // Copied from the source quote when an accepted quote converts. An
+  // invoice carries at most one of the three.
   visitPlan?: QuoteVisitPlan | null;
+  dayCarePlan?: QuoteDayCarePlan | null;
+  boardingPlan?: QuoteBoardingPlan | null;
 }
 
 export interface InvoiceTerm {

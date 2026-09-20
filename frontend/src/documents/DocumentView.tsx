@@ -17,6 +17,55 @@ function money(n: number): string {
   return n.toFixed(2);
 }
 
+function scheduleAnimalNames(animals: (string | { name: string })[]): string {
+  return animals
+    .map((a) => (typeof a === 'string' ? null : a.name))
+    .filter(Boolean)
+    .join(', ');
+}
+function ukDate(s: string): string {
+  return s.slice(0, 10).split('-').reverse().join('/');
+}
+
+// Mirrors pdf/invoicePdf.ts's own scheduleFor -- the on-screen twin of the
+// Visits/Day Care/Boarding schedule table injected into the downloadable
+// PDF. A record carries at most one of the three.
+function scheduleFor(record: InvoiceRecord | QuoteRecord): { title: string; rows: [string, string][] } | null {
+  if (record.visitPlan) {
+    const plan = record.visitPlan;
+    const rows: [string, string][] = [
+      ['Dates', `${ukDate(plan.startDate)} – ${ukDate(plan.endDate)}`],
+      ['Visits', `${plan.visitsPerDay} per day (first day ${plan.visitsFirstDay}, last day ${plan.visitsLastDay})`],
+    ];
+    const names = scheduleAnimalNames(plan.animals);
+    if (names) rows.push(['Pets', names]);
+    return { title: 'Visit Schedule', rows };
+  }
+  if (record.dayCarePlan) {
+    const plan = record.dayCarePlan;
+    const rows: [string, string][] = [
+      ['Date', ukDate(plan.date)],
+      ['Drop off', `${plan.dropOffPeriod} (${plan.dropOffTime})`],
+      ['Collection', `${plan.collectionPeriod} (${plan.collectionTime})`],
+    ];
+    const names = scheduleAnimalNames(plan.animals);
+    if (names) rows.push(['Pets', names]);
+    return { title: 'Day Care Schedule', rows };
+  }
+  if (record.boardingPlan) {
+    const plan = record.boardingPlan;
+    const rows: [string, string][] = [
+      ['Dates', `${ukDate(plan.startDate)} – ${ukDate(plan.endDate)}`],
+      ['Drop off', plan.dropOffTime],
+      ['Pick up', plan.pickUpTime],
+    ];
+    const names = scheduleAnimalNames(plan.animals);
+    if (names) rows.push(['Pets', names]);
+    return { title: 'Boarding Schedule', rows };
+  }
+  return null;
+}
+
 interface Props {
   kind: 'invoice' | 'quote';
   id: string;
@@ -145,6 +194,7 @@ export default function DocumentView({ kind, id }: Props) {
   const number = invoice?.invoiceNumber ?? quote!.quoteNumber;
   const dueDateValue = invoice?.dueDate ?? quote!.validUntil;
   const notesMessage = (isInvoice ? businessInfo.invoiceNotesMessage : businessInfo.quoteNotesMessage) || 'Thanks for your business.';
+  const schedule = scheduleFor(record);
   const canRespond = quote && (quote.status === 'draft' || quote.status === 'sent');
 
   return (
@@ -337,30 +387,17 @@ export default function DocumentView({ kind, id }: Props) {
         <div style={{ marginTop: 36, fontSize: '0.88rem' }}>
           <div style={{ fontWeight: 700 }}>Notes</div>
           <div style={{ color: 'var(--muted)', marginTop: 5, whiteSpace: 'pre-line' }}>{notesMessage}</div>
-          {record.visitPlan && (
+          {schedule && (
             <div style={{ marginTop: 10 }}>
-              <div style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: 4 }}>Visit Schedule</div>
+              <div style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: 4 }}>{schedule.title}</div>
               <table style={{ borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                 <tbody>
-                  {(() => {
-                    const plan = record.visitPlan!;
-                    const uk = (s: string) => s.slice(0, 10).split('-').reverse().join('/');
-                    const names = plan.animals
-                      .map((a) => (typeof a === 'string' ? null : a.name))
-                      .filter(Boolean)
-                      .join(', ');
-                    const rows: [string, string][] = [
-                      ['Dates', `${uk(plan.startDate)} – ${uk(plan.endDate)}`],
-                      ['Visits', `${plan.visitsPerDay} per day (first day ${plan.visitsFirstDay}, last day ${plan.visitsLastDay})`],
-                    ];
-                    if (names) rows.push(['Pets', names]);
-                    return rows.map(([label, value]) => (
-                      <tr key={label}>
-                        <td style={{ border: '1px solid #d7dce1', padding: '4px 10px', fontWeight: 600 }}>{label}</td>
-                        <td style={{ border: '1px solid #d7dce1', padding: '4px 10px', color: 'var(--muted)' }}>{value}</td>
-                      </tr>
-                    ));
-                  })()}
+                  {schedule.rows.map(([label, value]) => (
+                    <tr key={label}>
+                      <td style={{ border: '1px solid #d7dce1', padding: '4px 10px', fontWeight: 600 }}>{label}</td>
+                      <td style={{ border: '1px solid #d7dce1', padding: '4px 10px', color: 'var(--muted)' }}>{value}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

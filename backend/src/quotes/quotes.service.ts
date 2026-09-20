@@ -684,7 +684,8 @@ export class QuotesService {
         dueDate,
         paymentTerms: updated.paymentTerms,
         subject: updated.subject,
-        // Carried over so the rendered invoice shows the visit schedule too.
+        // Carried over so the rendered invoice shows the same schedule too.
+        // A quote only ever carries one of the three.
         visitPlan: updated.visitPlan
           ? {
               animals: updated.visitPlan.animals.map((a) => String((a as { _id?: unknown })._id ?? a)),
@@ -693,6 +694,25 @@ export class QuotesService {
               visitsPerDay: updated.visitPlan.visitsPerDay,
               visitsFirstDay: updated.visitPlan.visitsFirstDay,
               visitsLastDay: updated.visitPlan.visitsLastDay,
+            }
+          : undefined,
+        dayCarePlan: updated.dayCarePlan
+          ? {
+              animals: updated.dayCarePlan.animals.map((a) => String((a as { _id?: unknown })._id ?? a)),
+              date: updated.dayCarePlan.date,
+              dropOffPeriod: updated.dayCarePlan.dropOffPeriod,
+              dropOffTime: updated.dayCarePlan.dropOffTime,
+              collectionPeriod: updated.dayCarePlan.collectionPeriod,
+              collectionTime: updated.dayCarePlan.collectionTime,
+            }
+          : undefined,
+        boardingPlan: updated.boardingPlan
+          ? {
+              animals: updated.boardingPlan.animals.map((a) => String((a as { _id?: unknown })._id ?? a)),
+              startDate: updated.boardingPlan.startDate,
+              dropOffTime: updated.boardingPlan.dropOffTime,
+              endDate: updated.boardingPlan.endDate,
+              pickUpTime: updated.boardingPlan.pickUpTime,
             }
           : undefined,
       },

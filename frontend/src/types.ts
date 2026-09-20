@@ -318,11 +318,15 @@ export interface InvoiceRecord {
   subject?: string;
   paidAt?: string;
   amountPaid?: number;
+  // A record carries at most one of the three.
   visitPlan?: DocVisitPlan | null;
+  dayCarePlan?: DocDayCarePlan | null;
+  boardingPlan?: DocBoardingPlan | null;
 }
 
-// The Visits section saved on a quote (and copied to the invoice it converts
-// into) -- rendered as a small schedule table in the document's Notes.
+// The Visits/Day Care/Boarding section saved on a quote (and copied to the
+// invoice it converts into) -- rendered as a small schedule table in the
+// document's Notes.
 export interface DocVisitPlan {
   animals: (string | { _id: string; name: string })[];
   startDate: string;
@@ -330,6 +334,23 @@ export interface DocVisitPlan {
   visitsPerDay: string;
   visitsFirstDay: string;
   visitsLastDay: string;
+}
+
+export interface DocDayCarePlan {
+  animals: (string | { _id: string; name: string })[];
+  date: string;
+  dropOffPeriod: string;
+  dropOffTime: string;
+  collectionPeriod: string;
+  collectionTime: string;
+}
+
+export interface DocBoardingPlan {
+  animals: (string | { _id: string; name: string })[];
+  startDate: string;
+  dropOffTime: string;
+  endDate: string;
+  pickUpTime: string;
 }
 
 export interface QuoteRecord {
@@ -347,6 +368,8 @@ export interface QuoteRecord {
   paymentTerms?: string;
   subject?: string;
   visitPlan?: DocVisitPlan | null;
+  dayCarePlan?: DocDayCarePlan | null;
+  boardingPlan?: DocBoardingPlan | null;
 }
 
 export interface PublicBusinessInfo {
