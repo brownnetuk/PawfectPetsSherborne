@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuditLogModule } from '../audit-log/audit-log.module';
+import { BoardingWorkflowSettings, BoardingWorkflowSettingsSchema } from './schemas/boarding-workflow-settings.schema';
 import { BusinessInfo, BusinessInfoSchema } from './schemas/business-info.schema';
 import { EmailSettings, EmailSettingsSchema } from './schemas/email-settings.schema';
 import { EmailTemplate, EmailTemplateSchema } from './schemas/email-template.schema';
@@ -15,6 +16,7 @@ import { SettingsService } from './settings.service';
       { name: EmailSettings.name, schema: EmailSettingsSchema },
       { name: EmailTemplate.name, schema: EmailTemplateSchema },
       { name: VisitMapping.name, schema: VisitMappingSchema },
+      { name: BoardingWorkflowSettings.name, schema: BoardingWorkflowSettingsSchema },
     ]),
     AuditLogModule,
   ],

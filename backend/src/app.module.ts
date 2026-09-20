@@ -18,6 +18,7 @@ import { BankAccountsModule } from './bank-accounts/bank-accounts.module';
 import { BankHolidaysModule } from './bank-holidays/bank-holidays.module';
 import { BankTransfersModule } from './bank-transfers/bank-transfers.module';
 import { BookingsModule } from './bookings/bookings.module';
+import { BoardingBookingsModule } from './boarding-bookings/boarding-bookings.module';
 import { DayBookingsModule } from './day-bookings/day-bookings.module';
 import { CreditNotesModule } from './credit-notes/credit-notes.module';
 import { ExpenseCategoriesModule } from './expense-categories/expense-categories.module';
@@ -82,6 +83,7 @@ import { ChecklistsModule } from './checklists/checklists.module';
     BankTransfersModule,
     BookingsModule,
     DayBookingsModule,
+    BoardingBookingsModule,
     InvoicesModule,
     QuotesModule,
     InvoiceTermsModule,

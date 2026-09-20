@@ -5,12 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { randomUUID } from 'crypto';
 import { Model, Types } from 'mongoose';
 import { Animal } from '../animals/schemas/animal.schema';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
 import { BankHoliday } from '../bank-holidays/schemas/bank-holiday.schema';
+import { BoardingBookingsService } from '../boarding-bookings/boarding-bookings.service';
 import { DayBooking } from '../day-bookings/schemas/day-booking.schema';
 import { VisitMapping } from '../settings/schemas/visit-mapping.schema';
 import {
@@ -59,6 +59,7 @@ export class QuotesService {
     private readonly auditLogService: AuditLogService,
     private readonly invoicesService: InvoicesService,
     private readonly notificationService: NotificationService,
+    private readonly boardingBookingsService: BoardingBookingsService,
   ) {}
 
   private calculateTotals(
@@ -450,197 +451,22 @@ export class QuotesService {
     }
   }
 
-  // Same lookup admin/src/utils/visitMapping.ts's dayCareProductFor() does --
-  // kept in sync with it by hand, same reasoning as the boarding plan below.
-  private dayCareProductFor(
-    mapping: VisitMapping,
-    dropOffPeriod: string,
-    collectionPeriod: string,
-  ): Types.ObjectId | undefined {
-    const isFullDay = dropOffPeriod === 'AM' && collectionPeriod === 'PM';
-    return isFullDay ? mapping.dayCareFullDayProduct : mapping.dayCareHalfDayProduct;
-  }
-
-  /**
-   * Turns an accepted quote's persisted Day Care plan into real DayBookings --
-   * a server-side port of the admin's New Booking modal's Day Care submit
-   * (one DayBooking per animal, sharing a stayId, invoiced immediately since
-   * the invoice already exists by this point).
-   */
-  private async createBookingsFromDayCarePlan(quote: Quote, invoiceId: string): Promise<void> {
-    const plan = quote.dayCarePlan;
-    if (!plan) return;
-    const mapping = await this.visitMappingModel.findOne().exec();
-    const productId = mapping && this.dayCareProductFor(mapping, plan.dropOffPeriod, plan.collectionPeriod);
-    if (!productId) {
-      console.error(`Quote ${quote.quoteNumber}: no Day Care product configured; skipping booking creation.`);
-      return;
-    }
-    const animals = await this.animalModel.find({ _id: { $in: plan.animals } }).exec();
-    const parseYmd = (s: string) => {
-      const [y, m, d] = s.slice(0, 10).split('-').map(Number);
-      return new Date(y, m - 1, d);
-    };
-    const date = parseYmd(plan.date);
-    const stayId = randomUUID();
-    let created = 0;
-    for (const animal of animals) {
-      await new this.dayBookingModel({
-        animal: animal._id,
-        customer: animal.customer,
-        date,
-        product: productId,
-        quantity: 1,
-        dropOffPeriod: plan.dropOffPeriod,
-        dropOffTime: plan.dropOffTime,
-        collectionPeriod: plan.collectionPeriod,
-        collectionTime: plan.collectionTime,
-        stayId,
-        invoice: invoiceId,
-      }).save();
-      created++;
-    }
-    if (created > 0) {
-      await this.auditLogService.record(
-        animals[0].customer as unknown as string,
-        AuditEventType.BOOKING_CREATED,
-        'Bookings created',
-        `${created} day care booking${created === 1 ? '' : 's'} created from accepted quote ${quote.quoteNumber}`,
-        undefined,
-        'Customer',
-      );
-    }
-  }
-
-  /**
-   * Turns an accepted quote's persisted Boarding plan into real DayBookings --
-   * a server-side port of DayBookingsService.computeBoardingPlan() (the two
-   * must be kept in sync by hand -- QuotesModule deliberately doesn't import
-   * DayBookingsModule, same reasoning as the Visits plan above): the first
-   * day and every 24h after it is a full Boarding day; the leftover rounds up
-   * to a Half Day (12h or less) or another full Boarding day (more than
-   * 12h). When there's no leftover to bill, a presence-only placeholder row
-   * (never invoiced) marks the pick-up day so the calendar still shows the
-   * stay through checkout, same as the admin's own boarding flow does.
-   */
-  private async createBookingsFromBoardingPlan(quote: Quote, invoiceId: string): Promise<void> {
-    const plan = quote.boardingPlan;
-    if (!plan) return;
-    const mapping = await this.visitMappingModel.findOne().exec();
-    if (!mapping) {
-      console.error(`Quote ${quote.quoteNumber}: no Boarding product mapping configured; skipping booking creation.`);
-      return;
-    }
-    const start = new Date(`${plan.startDate}T${plan.dropOffTime}:00`);
-    const end = new Date(`${plan.endDate}T${plan.pickUpTime}:00`);
-    const hours = (end.getTime() - start.getTime()) / 3_600_000;
-    const wholeDays = hours > 0 ? Math.floor(hours / 24) : 0;
-    const remainder = hours - wholeDays * 24;
-    const boardingDays = remainder > 12 ? wholeDays + 1 : wholeDays;
-    const hasHalfDay = remainder > 0 && remainder <= 12;
-    if (boardingDays === 0 && !hasHalfDay) {
-      console.error(`Quote ${quote.quoteNumber}: boarding plan is too short to book anything; skipping.`);
-      return;
-    }
-
-    const animals = await this.animalModel.find({ _id: { $in: plan.animals } }).exec();
-    const parseYmd = (s: string) => {
-      const [y, m, d] = s.slice(0, 10).split('-').map(Number);
-      return new Date(y, m - 1, d);
-    };
-    const startDate = parseYmd(plan.startDate);
-    const addDays = (d: Date, n: number) => {
-      const r = new Date(d);
-      r.setDate(r.getDate() + n);
-      return r;
-    };
-    const stayId = randomUUID();
-    let created = 0;
-    for (const [dogIndex, animal] of animals.entries()) {
-      const secondDog = dogIndex === 1; // only the 2nd dog gets 2nd-dog rates
-      for (let day = 0; day < boardingDays; day++) {
-        const productId = secondDog ? mapping.boardingSecondDogPerDayProduct : mapping.boardingPerDayProduct;
-        if (!productId) {
-          console.error(
-            `Quote ${quote.quoteNumber}: no ${secondDog ? '2nd Dog ' : ''}Per Day (Boarding) product configured; skipping.`,
-          );
-          continue;
-        }
-        await new this.dayBookingModel({
-          animal: animal._id,
-          customer: animal.customer,
-          date: addDays(startDate, day),
-          product: productId,
-          quantity: 1,
-          dropOffTime: day === 0 ? plan.dropOffTime : undefined,
-          pickUpTime: !hasHalfDay && day === boardingDays - 1 ? plan.pickUpTime : undefined,
-          boardingStay: true,
-          stayId,
-          invoice: invoiceId,
-        }).save();
-        created++;
-      }
-      if (hasHalfDay) {
-        const productId = secondDog ? mapping.boardingSecondDogHalfDayProduct : mapping.boardingHalfDayProduct;
-        if (!productId) {
-          console.error(
-            `Quote ${quote.quoteNumber}: no ${secondDog ? '2nd Dog ' : ''}Half Day (Boarding) product configured; skipping.`,
-          );
-          continue;
-        }
-        await new this.dayBookingModel({
-          animal: animal._id,
-          customer: animal.customer,
-          date: addDays(startDate, boardingDays),
-          product: productId,
-          quantity: 1,
-          dropOffTime: boardingDays === 0 ? plan.dropOffTime : undefined,
-          pickUpTime: plan.pickUpTime,
-          boardingStay: true,
-          stayId,
-          invoice: invoiceId,
-        }).save();
-        created++;
-      } else {
-        const productId = secondDog ? mapping.boardingSecondDogPerDayProduct : mapping.boardingPerDayProduct;
-        if (productId) {
-          await new this.dayBookingModel({
-            animal: animal._id,
-            customer: animal.customer,
-            date: addDays(startDate, boardingDays),
-            product: productId,
-            quantity: 1,
-            pickUpTime: plan.pickUpTime,
-            placeholder: true,
-            boardingStay: true,
-            stayId,
-          }).save();
-        }
-      }
-    }
-    if (created > 0 && animals.length > 0) {
-      await this.auditLogService.record(
-        animals[0].customer as unknown as string,
-        AuditEventType.BOOKING_CREATED,
-        'Bookings created',
-        `${created} boarding booking${created === 1 ? '' : 's'} created from accepted quote ${quote.quoteNumber}`,
-        undefined,
-        'Customer',
-      );
-    }
-  }
-
   /**
    * Called from the public quote page's "Accept" button. Marks the quote
    * accepted (resolving/creating a real Customer first if it was still a
    * manual-customer quote -- see resolveOrCreateCustomer(), reused via
    * update()), converts it into a real Invoice with the same line items,
    * creates the calendar bookings for a quote carrying a Visits plan (see
-   * createBookingsFromVisitPlan() above), and immediately requests a deposit
-   * on that new invoice using Settings > Deposit's configured percentage.
-   * Idempotent: re-accepting an already-converted quote (e.g. a page
-   * refresh) returns the existing invoice instead of creating a second one,
-   * and doesn't re-send the deposit request or re-create bookings.
+   * createBookingsFromVisitPlan() above) or a linked BoardingBooking for one
+   * carrying a Day Care/Boarding plan (BoardingBookingsService.createFromQuote()),
+   * and -- for a plain/Visits quote only -- immediately requests a deposit on
+   * that new invoice using Settings > Deposit's configured percentage. A Day
+   * Care/Boarding quote does NOT auto-request a deposit: staff choose
+   * "Request deposit"/"Request full payment" themselves from the booking's
+   * detail page once it exists. Idempotent: re-accepting an already-converted
+   * quote (e.g. a page refresh) returns the existing invoice instead of
+   * creating a second one, and doesn't re-send the deposit request or
+   * re-create bookings.
    */
   async acceptAndConvert(
     id: string,
@@ -726,10 +552,15 @@ export class QuotesService {
     try {
       const invoiceId = (invoice._id as { toString(): string }).toString();
       await this.createBookingsFromVisitPlan(updated, invoiceId);
-      await this.createBookingsFromDayCarePlan(updated, invoiceId);
-      await this.createBookingsFromBoardingPlan(updated, invoiceId);
+      await this.boardingBookingsService.createFromQuote(updated, invoiceId);
     } catch (err) {
       console.error(`Failed to create bookings from quote ${id}'s plan:`, err);
+    }
+    // A Day Care/Boarding quote's booking already exists at this point (see
+    // above) -- staff choose whether to request a deposit or the full
+    // balance from its detail page, so nothing is auto-requested here.
+    if (updated.dayCarePlan || updated.boardingPlan) {
+      return { invoice };
     }
     // The quote-to-invoice conversion above is what actually matters to the
     // customer clicking "Accept" -- if the deposit-request email fails to

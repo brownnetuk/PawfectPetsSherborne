@@ -19,6 +19,7 @@ import { getClientIp } from '../common/client-ip.util';
 import { PreviewTermsDto } from './dto/preview-terms.dto';
 import { SendTestEmailDto } from './dto/send-test-email.dto';
 import { SendTriggeredEmailDto } from './dto/send-triggered-email.dto';
+import { UpdateBoardingWorkflowSettingsDto } from './dto/update-boarding-workflow-settings.dto';
 import { UpdateBusinessInfoDto } from './dto/update-business-info.dto';
 import { UpdateEmailSettingsDto } from './dto/update-email-settings.dto';
 import { UpdateVisitMappingDto } from './dto/update-visit-mapping.dto';
@@ -131,6 +132,20 @@ export class SettingsController {
   @Patch('visits')
   updateVisitMapping(@Body() dto: UpdateVisitMappingDto) {
     return this.settingsService.updateVisitMapping(dto);
+  }
+
+  // Read by the Settings > Boarding tab, and by BoardingBookingsService (which
+  // form to use for pre-check-in/check-in/check-out) -- not gated, same as
+  // GET /settings/visits above.
+  @Get('boarding')
+  getBoardingWorkflowSettings() {
+    return this.settingsService.getBoardingWorkflowSettings();
+  }
+
+  @RequirePermission('settings.manage')
+  @Patch('boarding')
+  updateBoardingWorkflowSettings(@Body() dto: UpdateBoardingWorkflowSettingsDto) {
+    return this.settingsService.updateBoardingWorkflowSettings(dto);
   }
 
   @Get('email')

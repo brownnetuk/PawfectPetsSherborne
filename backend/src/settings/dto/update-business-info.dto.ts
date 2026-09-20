@@ -140,6 +140,16 @@ export class UpdateBusinessInfoDto {
   // no @ValidateNested()/@Type() on the array elements, so arbitrary per-element
   // keys pass through the global whitelist untouched rather than being stripped.
   @IsOptional()
+  @IsString()
+  bookingRefTemplate?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  bookingRefNextNumber?: number;
+
+  @IsOptional()
   @IsArray()
   invoicePdfTemplate?: Record<string, unknown>[];
 

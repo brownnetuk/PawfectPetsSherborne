@@ -26,5 +26,9 @@ import { DayBooking, DayBookingSchema } from './schemas/day-booking.schema';
   ],
   controllers: [DayBookingsController],
   providers: [DayBookingsService],
+  // So QuotesService and the new BoardingBookingsService can share
+  // createDayCareStay()/createBoardingStay() instead of each re-implementing
+  // the boarding day/product rounding math.
+  exports: [DayBookingsService],
 })
 export class DayBookingsModule {}

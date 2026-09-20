@@ -429,6 +429,80 @@ export class InvoicesService {
     return { depositAmount, depositPercentage };
   }
 
+  /**
+   * Same as requestDeposit() above but for the full balance -- used when
+   * staff choose "Request full payment" on a Boarding & Day Care booking
+   * instead of a deposit. Reuses the same DEPOSIT_REQUEST email
+   * trigger/template (deposit_percentage reads "100" and deposit_amount is
+   * the full total) rather than adding a second template just for this.
+   */
+  async requestFullPayment(
+    id: string,
+    actor = 'Staff',
+  ): Promise<{ depositAmount: number; depositPercentage: number }> {
+    const invoice = await this.findOne(id);
+    const customer = invoice.customer as unknown as {
+      _id?: unknown;
+      name?: string;
+      email?: string;
+      address?: string;
+      phoneNumber?: string;
+    };
+    if (!customer?.email) {
+      throw new BadRequestException(
+        'This customer has no email address on file.',
+      );
+    }
+    const business = await this.settingsService.getBusinessInfo();
+    const depositAmount = invoice.total;
+
+    const entry = await this.auditLogService.record(
+      customer._id as string,
+      AuditEventType.DEPOSIT_REQUESTED,
+      'Full payment requested',
+      `£${depositAmount.toFixed(2)} (full balance) requested for ${invoice.invoiceNumber}`,
+      undefined,
+      actor,
+      undefined,
+      'Payment request read',
+      id,
+    );
+    const appendHtml = entry
+      ? trackingPixelHtml(
+          `${publicApiUrl()}/audit-log/${(entry._id as { toString(): string }).toString()}/pixel.gif`,
+        )
+      : '';
+
+    await this.settingsService.sendTemplatedEmail(
+      EmailTrigger.DEPOSIT_REQUEST,
+      customer.email,
+      {
+        customer_name: customer.name,
+        customer_address: customer.address,
+        customer_phone: customer.phoneNumber,
+        invoice_number: invoice.invoiceNumber,
+        invoice_total: invoice.total.toFixed(2),
+        due_date: formatUkDate(invoice.dueDate),
+        payment_terms: invoice.paymentTerms,
+        deposit_percentage: '100',
+        deposit_amount: depositAmount.toFixed(2),
+        remaining_balance: '0.00',
+        invoice_link: `${publicFrontendUrl()}/invoices/${id}`,
+        bank_name: business.bankName,
+        sort_code: business.sortCode,
+        account_number: business.accountNumber,
+      },
+      {},
+      appendHtml,
+    );
+
+    if (invoice.status === InvoiceStatus.DRAFT) {
+      await this.update(id, { status: InvoiceStatus.SENT }, actor);
+    }
+
+    return { depositAmount, depositPercentage: 100 };
+  }
+
   /** First-open only -- called by the public GET /invoices/:id/pixel.gif when the sent email's tracking pixel loads. */
   async markOpened(id: string): Promise<void> {
     const invoice = await this.invoiceModel

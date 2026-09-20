@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Animal, AnimalSchema } from '../animals/schemas/animal.schema';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { BankHoliday, BankHolidaySchema } from '../bank-holidays/schemas/bank-holiday.schema';
+import { BoardingBookingsModule } from '../boarding-bookings/boarding-bookings.module';
 import { Customer, CustomerSchema } from '../customers/schemas/customer.schema';
 import { DayBooking, DayBookingSchema } from '../day-bookings/schemas/day-booking.schema';
 import { InvoiceTerm, InvoiceTermSchema } from '../invoice-terms/schemas/invoice-term.schema';
@@ -47,6 +48,11 @@ import { Quote, QuoteSchema } from './schemas/quote.schema';
     // into a real Invoice (see QuotesService.acceptAndConvert()). Safe
     // direction: InvoicesModule doesn't import QuotesModule.
     InvoicesModule,
+    // For BoardingBookingsService.createFromQuote() -- a quote carrying a
+    // dayCarePlan/boardingPlan gets a linked BoardingBooking instead of just
+    // raw DayBooking rows. Safe direction: BoardingBookingsModule doesn't
+    // import QuotesModule.
+    BoardingBookingsModule,
     // For pushing the customer's portal app when a quote is emailed to them.
     NotificationsModule,
   ],

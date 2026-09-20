@@ -14,10 +14,12 @@ import { publicApiUrl, publicFrontendUrl, trackingPixelHtml } from '../common/tr
 import { PreviewTermsDto } from './dto/preview-terms.dto';
 import { SendTestEmailDto } from './dto/send-test-email.dto';
 import { SendTriggeredEmailDto } from './dto/send-triggered-email.dto';
+import { UpdateBoardingWorkflowSettingsDto } from './dto/update-boarding-workflow-settings.dto';
 import { UpdateBusinessInfoDto } from './dto/update-business-info.dto';
 import { UpdateEmailSettingsDto } from './dto/update-email-settings.dto';
 import { UpdateVisitMappingDto } from './dto/update-visit-mapping.dto';
 import { UpsertEmailTemplateDto } from './dto/upsert-email-template.dto';
+import { BoardingWorkflowSettings } from './schemas/boarding-workflow-settings.schema';
 import { BusinessInfo } from './schemas/business-info.schema';
 import { EmailSettings } from './schemas/email-settings.schema';
 import { EmailTemplate, EmailTrigger } from './schemas/email-template.schema';
@@ -68,6 +70,8 @@ export class SettingsService {
     private readonly emailTemplateModel: Model<EmailTemplate>,
     @InjectModel(VisitMapping.name)
     private readonly visitMappingModel: Model<VisitMapping>,
+    @InjectModel(BoardingWorkflowSettings.name)
+    private readonly boardingWorkflowSettingsModel: Model<BoardingWorkflowSettings>,
     private readonly encryptionService: EncryptionService,
     private readonly auditLogService: AuditLogService,
   ) {}
@@ -108,6 +112,8 @@ export class SettingsService {
       creditNoteNumberTemplate:
         doc?.creditNoteNumberTemplate ?? 'CN-{year}-{seq}',
       creditNoteNextNumber: doc?.creditNoteNextNumber ?? 1,
+      bookingRefTemplate: doc?.bookingRefTemplate ?? 'BK-{year}-{seq}',
+      bookingRefNextNumber: doc?.bookingRefNextNumber ?? 1,
       invoicePdfTemplate: doc?.invoicePdfTemplate ?? [],
       trustedIps: doc?.trustedIps ?? [],
       qrCodeUrl: doc?.qrCodeUrl ?? '',
@@ -170,6 +176,10 @@ export class SettingsService {
       update.creditNoteNumberTemplate = dto.creditNoteNumberTemplate;
     if (dto.creditNoteNextNumber !== undefined)
       update.creditNoteNextNumber = dto.creditNoteNextNumber;
+    if (dto.bookingRefTemplate !== undefined)
+      update.bookingRefTemplate = dto.bookingRefTemplate;
+    if (dto.bookingRefNextNumber !== undefined)
+      update.bookingRefNextNumber = dto.bookingRefNextNumber;
     if (dto.invoicePdfTemplate !== undefined)
       update.invoicePdfTemplate = dto.invoicePdfTemplate;
     if (dto.trustedIps !== undefined) update.trustedIps = dto.trustedIps;
@@ -370,6 +380,39 @@ export class SettingsService {
       update.boardingSecondDogHalfDayProduct = dto.boardingSecondDogHalfDayProduct;
     await this.visitMappingModel.findOneAndUpdate({}, update, { upsert: true }).exec();
     return this.getVisitMapping();
+  }
+
+  // Settings > Boarding's Pre-check-in/Check-in/Check-out cards.
+  async getBoardingWorkflowSettings() {
+    const doc = await this.boardingWorkflowSettingsModel.findOne().exec();
+    return {
+      preCheckInDaysBefore: doc?.preCheckInDaysBefore ?? 2,
+      preCheckInFormBoarding: doc?.preCheckInFormBoarding?.toString() ?? null,
+      preCheckInFormDayCare: doc?.preCheckInFormDayCare?.toString() ?? null,
+      checkInFormBoarding: doc?.checkInFormBoarding?.toString() ?? null,
+      checkInFormDayCare: doc?.checkInFormDayCare?.toString() ?? null,
+      checkInRequirePhoto: doc?.checkInRequirePhoto ?? true,
+      checkInRequireSignature: doc?.checkInRequireSignature ?? true,
+      checkOutFormBoarding: doc?.checkOutFormBoarding?.toString() ?? null,
+      checkOutFormDayCare: doc?.checkOutFormDayCare?.toString() ?? null,
+      checkOutRequireSignature: doc?.checkOutRequireSignature ?? true,
+    };
+  }
+
+  async updateBoardingWorkflowSettings(dto: UpdateBoardingWorkflowSettingsDto) {
+    const update: Record<string, unknown> = {};
+    if (dto.preCheckInDaysBefore !== undefined) update.preCheckInDaysBefore = dto.preCheckInDaysBefore;
+    if (dto.preCheckInFormBoarding !== undefined) update.preCheckInFormBoarding = dto.preCheckInFormBoarding;
+    if (dto.preCheckInFormDayCare !== undefined) update.preCheckInFormDayCare = dto.preCheckInFormDayCare;
+    if (dto.checkInFormBoarding !== undefined) update.checkInFormBoarding = dto.checkInFormBoarding;
+    if (dto.checkInFormDayCare !== undefined) update.checkInFormDayCare = dto.checkInFormDayCare;
+    if (dto.checkInRequirePhoto !== undefined) update.checkInRequirePhoto = dto.checkInRequirePhoto;
+    if (dto.checkInRequireSignature !== undefined) update.checkInRequireSignature = dto.checkInRequireSignature;
+    if (dto.checkOutFormBoarding !== undefined) update.checkOutFormBoarding = dto.checkOutFormBoarding;
+    if (dto.checkOutFormDayCare !== undefined) update.checkOutFormDayCare = dto.checkOutFormDayCare;
+    if (dto.checkOutRequireSignature !== undefined) update.checkOutRequireSignature = dto.checkOutRequireSignature;
+    await this.boardingWorkflowSettingsModel.findOneAndUpdate({}, update, { upsert: true }).exec();
+    return this.getBoardingWorkflowSettings();
   }
 
   listEmailTemplates() {

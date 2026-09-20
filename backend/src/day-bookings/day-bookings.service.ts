@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { randomUUID } from 'crypto';
 import { Model } from 'mongoose';
 import { Animal } from '../animals/schemas/animal.schema';
 import { ChecklistsService } from '../checklists/checklists.service';
@@ -7,6 +8,23 @@ import { VisitMapping } from '../settings/schemas/visit-mapping.schema';
 import { CreateDayBookingDto } from './dto/create-day-booking.dto';
 import { UpdateDayBookingDto } from './dto/update-day-booking.dto';
 import { DayBooking } from './schemas/day-booking.schema';
+
+export interface DayCareStayPlan {
+  animals: string[];
+  date: string;
+  dropOffPeriod: 'AM' | 'PM';
+  dropOffTime?: string;
+  collectionPeriod: 'AM' | 'PM';
+  collectionTime?: string;
+}
+
+export interface BoardingStayPlan {
+  animals: string[];
+  startDate: string;
+  dropOffTime: string;
+  endDate: string;
+  pickUpTime: string;
+}
 
 export type BoardingLineKind = 'boarding' | 'halfDay';
 
@@ -137,6 +155,119 @@ export class DayBookingsService {
     return { boardingDays, partial, lines, missing: [...missing] };
   }
 
+  // Same lookup admin/src/utils/visitMapping.ts's dayCareProductFor() does --
+  // moved here (from being duplicated in QuotesService) so both quote
+  // acceptance and direct boarding-booking creation resolve day-care pricing
+  // one way.
+  private dayCareProductFor(
+    mapping: VisitMapping,
+    dropOffPeriod: string,
+    collectionPeriod: string,
+  ) {
+    const isFullDay = dropOffPeriod === 'AM' && collectionPeriod === 'PM';
+    return isFullDay ? mapping.dayCareFullDayProduct : mapping.dayCareHalfDayProduct;
+  }
+
+  // Creates one day-care stay's DayBooking rows (one per animal, sharing a
+  // fresh stayId) and returns how many were created -- the single place both
+  // QuotesService (accepting a quote's dayCarePlan) and BoardingBookingsService
+  // (confirming a direct day-care booking) go through, so there's exactly one
+  // copy of this pricing lookup rather than a hand-kept-in-sync duplicate.
+  async createDayCareStay(
+    plan: DayCareStayPlan,
+    invoiceId?: string,
+  ): Promise<{ stayId: string; bookings: DayBooking[] }> {
+    const mapping = await this.visitMappingModel.findOne().exec();
+    const productId = mapping && this.dayCareProductFor(mapping, plan.dropOffPeriod, plan.collectionPeriod);
+    if (!productId) {
+      throw new BadRequestException(
+        'No Day Care product is configured yet -- set one in Settings > Bookings > Day Care first.',
+      );
+    }
+    const animals = await this.animalModel.find({ _id: { $in: plan.animals } }).exec();
+    const date = toDayStart(plan.date);
+    const stayId = randomUUID();
+    const bookings: DayBooking[] = [];
+    for (const animal of animals) {
+      const created = await new this.dayBookingModel({
+        animal: animal._id,
+        customer: animal.customer,
+        date,
+        product: productId,
+        quantity: 1,
+        dropOffPeriod: plan.dropOffPeriod,
+        dropOffTime: plan.dropOffTime,
+        collectionPeriod: plan.collectionPeriod,
+        collectionTime: plan.collectionTime,
+        stayId,
+        invoice: invoiceId,
+      }).save();
+      bookings.push(await created.populate('product', 'name price'));
+    }
+    return { stayId, bookings };
+  }
+
+  // Same as createDayCareStay above, for a boarding stay -- resolves the plan
+  // via computeBoardingPlan() (the single source of truth for the day/product
+  // breakdown) and books one row per resulting line, stamping dropOffTime on
+  // each dog's earliest row and pickUpTime on its latest one.
+  async createBoardingStay(
+    plan: BoardingStayPlan,
+    invoiceId?: string,
+  ): Promise<{ stayId: string; bookings: DayBooking[] }> {
+    const startIso = `${plan.startDate}T${plan.dropOffTime}:00`;
+    const endIso = `${plan.endDate}T${plan.pickUpTime}:00`;
+    const boardingPlan = await this.computeBoardingPlan(startIso, endIso, plan.animals.length);
+    if (boardingPlan.lines.length === 0) {
+      throw new BadRequestException('This boarding stay is too short to book anything.');
+    }
+    if (boardingPlan.missing.length > 0) {
+      throw new BadRequestException(
+        `Missing product mapping for: ${boardingPlan.missing.join(', ')} -- configure these in Settings > Bookings > Boarding first.`,
+      );
+    }
+    const animals = await this.animalModel.find({ _id: { $in: plan.animals } }).exec();
+    const byId = new Map(animals.map((a) => [String(a._id), a]));
+    const startDate = toDayStart(plan.startDate);
+    const addDays = (d: Date, n: number) => {
+      const r = new Date(d);
+      r.setDate(r.getDate() + n);
+      return r;
+    };
+    const byDog = new Map<number, BoardingPlanLine[]>();
+    for (const line of boardingPlan.lines) {
+      const arr = byDog.get(line.dogIndex) ?? [];
+      arr.push(line);
+      byDog.set(line.dogIndex, arr);
+    }
+    const stayId = randomUUID();
+    const bookings: DayBooking[] = [];
+    for (const [dogIndex, lines] of byDog) {
+      const animal = byId.get(plan.animals[dogIndex]);
+      if (!animal) continue;
+      lines.sort((a, b) => a.dayOffset - b.dayOffset);
+      const first = lines[0];
+      const last = lines[lines.length - 1];
+      for (const line of lines) {
+        const created = await new this.dayBookingModel({
+          animal: animal._id,
+          customer: animal.customer,
+          date: addDays(startDate, line.dayOffset),
+          product: line.productId ?? undefined,
+          quantity: 1,
+          dropOffTime: line === first ? plan.dropOffTime : undefined,
+          pickUpTime: line === last ? plan.pickUpTime : undefined,
+          boardingStay: true,
+          placeholder: line.placeholder ?? false,
+          stayId,
+          invoice: line.placeholder ? undefined : invoiceId,
+        }).save();
+        bookings.push(await created.populate('product', 'name price'));
+      }
+    }
+    return { stayId, bookings };
+  }
+
   async create(dto: CreateDayBookingDto): Promise<DayBooking> {
     const animal = await this.animalModel.findById(dto.animal).exec();
     if (!animal) {
@@ -238,6 +369,14 @@ export class DayBookingsService {
       .populate('invoice', 'invoiceNumber')
       .sort({ date: 1 })
       .exec();
+  }
+
+  // Patches `invoice` onto every non-placeholder row of a stay -- used by
+  // BoardingBookingsService.createDirect(), which has to create the stay's
+  // rows first (to know what to bill) before the invoice built from them
+  // exists.
+  async attachInvoiceToStay(stayId: string, invoiceId: string): Promise<void> {
+    await this.dayBookingModel.updateMany({ stayId, placeholder: { $ne: true } }, { invoice: invoiceId }).exec();
   }
 
   // Deletes a whole boarding stay in one go -- used when editing a stay
