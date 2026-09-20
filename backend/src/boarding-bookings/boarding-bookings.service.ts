@@ -25,7 +25,7 @@ import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
 import { AmendBoardingBookingDatesDto } from './dto/amend-boarding-booking-dates.dto';
 import { CreateBoardingBookingDto } from './dto/create-boarding-booking.dto';
-import { BoardingBooking } from './schemas/boarding-booking.schema';
+import { BookingStatusLabel, BoardingBooking } from './schemas/boarding-booking.schema';
 
 export interface BoardingBookingStage {
   key:
@@ -523,16 +523,25 @@ export class BoardingBookingsService {
   // (not-yet-done) stage, so using its label here made the list claim e.g.
   // "Payment received" for a booking that had only had a deposit requested,
   // not paid -- read as done when it was really just the pending step.
-  statusLabel(booking: BoardingBooking, invoice?: Invoice | null): string {
-    if (invoice?.status === InvoiceStatus.PAID) return 'Paid in Full';
-    if (booking.checkOutAt) return 'Checked Out';
-    if (booking.checkInAt) return 'In Progress';
-    if (booking.preCheckInSubmission) return 'Pre-Check-In Complete';
-    if (booking.preCheckInSentAt) return 'Pre-Check-In Sent';
+  // statusOverride (set via setStatus() below) always wins over the
+  // automatic computation, until it's cleared back to automatic.
+  //
+  // "Check In Complete" vs "In Progress": both mean "checked in, not yet
+  // checked out" -- the only real signal to tell them apart is whether
+  // check-in happened today (a boarding stay's later days have genuinely
+  // moved on to "in progress") or on an earlier day.
+  statusLabel(booking: BoardingBooking, invoice?: Invoice | null): BookingStatusLabel {
+    if (booking.statusOverride) return booking.statusOverride;
+    if (booking.checkOutAt && invoice?.status === InvoiceStatus.PAID) return 'Booking Complete';
+    if (booking.checkOutAt) return 'Check Out Complete';
+    if (booking.checkInAt) {
+      const today = new Date().toISOString().slice(0, 10);
+      return today > booking.startDate ? 'In Progress' : 'Check In Complete';
+    }
+    if (booking.preCheckInSubmission) return 'Pre Check In Complete';
     const amountPaid = invoice?.amountPaid ?? 0;
-    if (amountPaid > 0) return booking.paymentRequestType === 'full' ? 'Payment Received' : 'Deposit Paid';
-    if (booking.paymentRequestType === 'deposit') return 'Deposit Requested';
-    if (booking.paymentRequestType === 'full') return 'Payment Requested';
+    if (amountPaid > 0) return 'Deposit Paid';
+    if (booking.paymentRequestType) return 'Deposit Requested';
     if (booking.invoice) return 'Invoice Raised';
     return 'Confirmed';
   }
@@ -547,5 +556,14 @@ export class BoardingBookingsService {
     const invoice = (booking.invoice as unknown as Invoice) ?? null;
     const stages = this.computeStages(booking, invoice);
     return { booking, invoice, stages, status: this.statusLabel(booking, invoice) };
+  }
+
+  // Staff pinning (or clearing, via `status: null`) a manual status from the
+  // Booking Detail page -- see statusOverride's doc comment on the schema.
+  async setStatus(id: string, status: BookingStatusLabel | null | undefined): Promise<BoardingBooking> {
+    const booking = await this.boardingBookingModel.findById(id).exec();
+    if (!booking) throw new NotFoundException(`Boarding booking ${id} not found`);
+    booking.statusOverride = status ?? undefined;
+    return booking.save();
   }
 }

@@ -446,6 +446,22 @@ export interface Quote {
   boardingPlan?: QuoteBoardingPlan | null;
 }
 
+// The full set of status labels a BoardingBooking can show -- mirrors
+// backend's BOOKING_STATUS_LABELS (boarding-bookings/schemas/boarding-booking.schema.ts).
+// Kept in sync by hand, same convention as other cross-app enums in this file.
+export const BOOKING_STATUS_LABELS = [
+  'Confirmed',
+  'Invoice Raised',
+  'Deposit Requested',
+  'Deposit Paid',
+  'Pre Check In Complete',
+  'Check In Complete',
+  'In Progress',
+  'Check Out Complete',
+  'Booking Complete',
+] as const;
+export type BookingStatusLabel = (typeof BOOKING_STATUS_LABELS)[number];
+
 // The new reference-numbered Boarding & Day Care booking entity -- a
 // separate collection from Booking above (which mobile still uses), behind
 // the Booking quote -> Confirmed -> Invoice raised -> Payment received ->
@@ -474,6 +490,7 @@ export interface BoardingBooking {
   checkOutSubmission?: string;
   checkOutAt?: string;
   checkOutBy?: string;
+  statusOverride?: BookingStatusLabel;
   createdAt: string;
 }
 
@@ -501,7 +518,7 @@ export interface BoardingBookingWithStatus {
   booking: BoardingBooking;
   invoice: Invoice | null;
   stages: BoardingBookingStage[];
-  status: string;
+  status: BookingStatusLabel;
 }
 
 export interface BoardingWorkflowSettings {

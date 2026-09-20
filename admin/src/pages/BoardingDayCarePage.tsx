@@ -13,19 +13,21 @@ import SignaturePad from '../components/SignaturePad';
 import ViewFormSubmissionModal from '../components/ViewFormSubmissionModal';
 import { ChevronDownIcon, TrashIcon } from '../components/icons';
 import { buildChecklistPdf, buildChecklistsPdf } from '../pdf/checklistPdf';
-import type {
-  Animal,
-  AnnualLeave,
-  BoardingBookingStage,
-  BoardingBookingWithStatus,
-  ChecklistAssignment,
-  ChecklistTemplate,
-  Customer,
-  DayBooking,
-  FormSubmissionRecord,
-  Invoice,
-  Payment,
-  VisitMapping,
+import {
+  BOOKING_STATUS_LABELS,
+  type Animal,
+  type AnnualLeave,
+  type BoardingBookingStage,
+  type BoardingBookingWithStatus,
+  type BookingStatusLabel,
+  type ChecklistAssignment,
+  type ChecklistTemplate,
+  type Customer,
+  type DayBooking,
+  type FormSubmissionRecord,
+  type Invoice,
+  type Payment,
+  type VisitMapping,
 } from '../types';
 import { annualLeaveOn } from '../utils/annualLeave';
 import { addDays, dateKey } from '../utils/visitPlan';
@@ -1208,6 +1210,19 @@ function formatDateRange(booking: BoardingBookingWithStatus['booking']): string 
   return `${start} – ${end}`;
 }
 
+// Shared by the list's read-only pill and the detail header's editable one.
+const STATUS_PILL_COLORS: Record<BookingStatusLabel, { bg: string; color: string }> = {
+  Confirmed: { bg: '#f1efe8', color: 'var(--muted)' },
+  'Invoice Raised': { bg: 'var(--info-light)', color: 'var(--info)' },
+  'Deposit Requested': { bg: 'var(--accent-light)', color: 'var(--accent-dark)' },
+  'Deposit Paid': { bg: 'var(--sage-badge)', color: 'var(--brand-green)' },
+  'Pre Check In Complete': { bg: 'var(--sage-badge)', color: 'var(--brand-green)' },
+  'Check In Complete': { bg: 'var(--sage-badge)', color: 'var(--brand-green)' },
+  'In Progress': { bg: 'var(--accent-light)', color: 'var(--accent-dark)' },
+  'Check Out Complete': { bg: 'var(--sage-badge)', color: 'var(--brand-green)' },
+  'Booking Complete': { bg: 'var(--sage-badge)', color: 'var(--brand-green)' },
+};
+
 function BookingsTab({ animals, customers }: { animals: Animal[]; customers: Customer[] }) {
   const [items, setItems] = useState<BoardingBookingWithStatus[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1273,8 +1288,7 @@ function BookingsTab({ animals, customers }: { animals: Animal[]; customers: Cus
                         borderRadius: 999,
                         fontSize: '0.78rem',
                         fontWeight: 600,
-                        background: status === 'Paid in Full' ? 'var(--sage-badge)' : 'var(--accent-light)',
-                        color: status === 'Paid in Full' ? 'var(--brand-green)' : 'var(--accent-dark)',
+                        ...STATUS_PILL_COLORS[status],
                       }}
                     >
                       {status}
@@ -1331,6 +1345,7 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
   const [showAmend, setShowAmend] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
   const [requesting, setRequesting] = useState(false);
+  const [savingStatus, setSavingStatus] = useState(false);
   const [fillFor, setFillFor] = useState<{ stage: 'checkIn' | 'checkOut'; submissionId: string } | null>(null);
   const [viewSubmission, setViewSubmission] = useState<FormSubmissionRecord | null>(null);
 
@@ -1354,6 +1369,22 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
       setError(err instanceof Error ? err.message : 'Failed to request payment');
     } finally {
       setRequesting(false);
+    }
+  }
+
+  // `value` is '' for the "Automatic" option -- clears the override rather
+  // than setting a literal status.
+  async function handleSetStatus(value: string) {
+    setSavingStatus(true);
+    setError(null);
+    try {
+      const updated = await api.setBoardingBookingStatus(id, (value || null) as BookingStatusLabel | null);
+      setData(updated);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to change the status');
+    } finally {
+      setSavingStatus(false);
     }
   }
 
@@ -1460,12 +1491,25 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
               borderRadius: 999,
               fontSize: '0.78rem',
               fontWeight: 600,
-              background: status === 'Paid in Full' ? 'var(--sage-badge)' : 'var(--accent-light)',
-              color: status === 'Paid in Full' ? 'var(--brand-green)' : 'var(--accent-dark)',
+              ...STATUS_PILL_COLORS[status],
             }}
           >
             {status}
           </span>
+          <select
+            value={booking.statusOverride ?? ''}
+            onChange={(e) => handleSetStatus(e.target.value)}
+            disabled={savingStatus}
+            title="Override the status manually, or choose Automatic to let it follow the booking's progress"
+            style={{ fontSize: '0.78rem', padding: '3px 6px', borderRadius: 6, border: '1px solid var(--border)', color: 'var(--muted)' }}
+          >
+            <option value="">Automatic</option>
+            {BOOKING_STATUS_LABELS.map((label) => (
+              <option key={label} value={label}>
+                {label}
+              </option>
+            ))}
+          </select>
         </div>
         {booking.invoice && (
           <button className="btn btn-secondary" onClick={() => setShowAmend(true)}>

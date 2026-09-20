@@ -5,6 +5,7 @@ import { BoardingBookingsService } from './boarding-bookings.service';
 import { AmendBoardingBookingDatesDto } from './dto/amend-boarding-booking-dates.dto';
 import { CreateBoardingBookingDto } from './dto/create-boarding-booking.dto';
 import { RequestPaymentDto } from './dto/request-payment.dto';
+import { SetBoardingBookingStatusDto } from './dto/set-boarding-booking-status.dto';
 
 @Controller('boarding-bookings')
 export class BoardingBookingsController {
@@ -30,6 +31,17 @@ export class BoardingBookingsController {
   @Patch(':id/amend-dates')
   amendDates(@Param('id') id: string, @Body() dto: AmendBoardingBookingDatesDto) {
     return this.boardingBookingsService.amendDates(id, dto);
+  }
+
+  @Patch(':id/status')
+  async setStatus(@Param('id') id: string, @Body() dto: SetBoardingBookingStatusDto) {
+    // setStatus() returns the saved doc with `invoice` unpopulated (just an
+    // id) -- re-fetch via findOne() (which populates it) before wrapping,
+    // same reasoning as withStatus()'s own comment about not trusting an
+    // unpopulated `invoice` field.
+    await this.boardingBookingsService.setStatus(id, dto.status);
+    const booking = await this.boardingBookingsService.findOne(id);
+    return this.boardingBookingsService.withStatus(booking);
   }
 
   @Post(':id/request-payment')

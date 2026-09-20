@@ -12,6 +12,7 @@ import type {
   BoardingBookingWithStatus,
   BoardingWorkflowSettings,
   Booking,
+  BookingStatusLabel,
   BusinessInfo,
   ChecklistAssignment,
   ChecklistCategory,
@@ -514,6 +515,13 @@ export function recordBoardingBookingCheckIn(id: string, submissionId: string): 
 }
 export function recordBoardingBookingCheckOut(id: string, submissionId: string): Promise<BoardingBooking> {
   return request(`/boarding-bookings/${id}/check-out`, { method: 'POST', body: JSON.stringify({ submission: submissionId }) });
+}
+// `status: null` clears a manual override, going back to automatic.
+export function setBoardingBookingStatus(
+  id: string,
+  status: BookingStatusLabel | null,
+): Promise<BoardingBookingWithStatus> {
+  return request(`/boarding-bookings/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
 }
 
 // --- invoice terms ---
