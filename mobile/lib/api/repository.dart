@@ -381,9 +381,12 @@ class Repository {
     required DateTime validUntil,
     String? subject,
     String? paymentTerms,
-    // The Visits section's inputs, persisted on the quote so accepting it
-    // creates the matching calendar bookings server-side.
+    // The Visits/Day Care/Boarding section's inputs (a quote carries at most
+    // one), persisted on the quote so accepting it creates the matching
+    // calendar bookings server-side.
     Map<String, dynamic>? visitPlan,
+    Map<String, dynamic>? dayCarePlan,
+    Map<String, dynamic>? boardingPlan,
   }) async =>
       Quote.fromJson(await _client.post('/quotes', {
         if (customerId != null && customerId.isNotEmpty) 'customer': customerId,
@@ -397,7 +400,21 @@ class Repository {
         if (subject != null && subject.isNotEmpty) 'subject': subject,
         if (paymentTerms != null && paymentTerms.isNotEmpty) 'paymentTerms': paymentTerms,
         if (visitPlan != null) 'visitPlan': visitPlan,
+        if (dayCarePlan != null) 'dayCarePlan': dayCarePlan,
+        if (boardingPlan != null) 'boardingPlan': boardingPlan,
       }));
+
+  /// The product breakdown for a boarding stay (whole 24h boarding days plus a
+  /// leftover half day), resolved to the products configured in Settings >
+  /// Bookings > Boarding -- the same endpoint the admin's New Booking modal
+  /// and quote form call. [startIso]/[endIso] are ISO datetimes. Returns
+  /// {boardingDays, partial, lines: [{productId, placeholder, ...}], missing}.
+  Future<Map<String, dynamic>> getBoardingPlan(String startIso, String endIso, int dogCount) =>
+      _client.get('/day-bookings/boarding-plan', query: {
+        'start': startIso,
+        'end': endIso,
+        'dogCount': '$dogCount',
+      });
 
   /// Accepts a quote and converts it into an invoice (server also emails a
   /// deposit request). Returns the new invoice number, if available.

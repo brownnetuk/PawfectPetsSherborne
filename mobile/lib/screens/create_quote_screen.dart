@@ -69,6 +69,55 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
   String? _visitError;
   String? _visitInfo;
 
+  // "Day Care" toggle: a single day's drop off/collection, resolved to the
+  // Half/Full Day product -- mirrors the admin quote form's Day Care section.
+  bool _showDayCare = false;
+  final Set<String> _dayCareAnimalIds = {};
+  DateTime? _dayCareDate;
+  String _dropOffPeriod = 'AM';
+  TimeOfDay? _dropOffTime;
+  String _collectionPeriod = 'PM';
+  TimeOfDay? _collectionTime;
+  String? _dayCareError;
+  String? _dayCareInfo;
+
+  // "Boarding" toggle: a stay's date range + drop off/pick up times, priced by
+  // the backend boarding-plan endpoint -- mirrors the admin's Boarding section.
+  bool _showBoarding = false;
+  final Set<String> _boardingAnimalIds = {};
+  DateTime? _boardingStart;
+  TimeOfDay? _boardingDropOffTime;
+  DateTime? _boardingEnd;
+  TimeOfDay? _boardingPickUpTime;
+  String? _boardingError;
+  String? _boardingInfo;
+  bool _boardingSaving = false;
+
+  // A quote only ever carries one of Visits/Day Care/Boarding (the schema
+  // stores at most one plan), so turning one toggle on turns the others off --
+  // same mutual exclusivity as the admin quote form.
+  void _enableVisits(bool v) => setState(() {
+        _showVisits = v;
+        if (v) {
+          _showDayCare = false;
+          _showBoarding = false;
+        }
+      });
+  void _enableDayCare(bool v) => setState(() {
+        _showDayCare = v;
+        if (v) {
+          _showVisits = false;
+          _showBoarding = false;
+        }
+      });
+  void _enableBoarding(bool v) => setState(() {
+        _showBoarding = v;
+        if (v) {
+          _showVisits = false;
+          _showDayCare = false;
+        }
+      });
+
   @override
   void initState() {
     super.initState();
@@ -222,37 +271,140 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
       byProduct[d.productId] = (byProduct[d.productId] ?? 0) + animalCount;
     }
     setState(() {
-      // Drop still-blank starter rows, keep anything with a product chosen.
-      final kept = _items.where((e) => e.product != null).toList();
-      for (final e in _items) {
-        if (!kept.contains(e)) e.dispose();
-      }
-      _items
-        ..clear()
-        ..addAll(kept);
-      byProduct.forEach((pid, qty) {
-        Product? product;
-        for (final p in data.products) {
-          if (p.id == pid) product = p;
-        }
-        if (product == null) return;
-        _LineItemEntry? existing;
-        for (final e in _items) {
-          if (e.product?.id == pid) existing = e;
-        }
-        if (existing != null) {
-          final cur = double.tryParse(existing.quantity.text.trim()) ?? 0;
-          final total = cur + qty;
-          existing.quantity.text = total == total.roundToDouble() ? total.toStringAsFixed(0) : total.toStringAsFixed(2);
-        } else {
-          _items.add(_LineItemEntry()
-            ..product = product
-            ..quantity.text = '$qty');
-        }
-      });
-      if (_items.isEmpty) _items.add(_LineItemEntry());
+      _mergeProductsIntoItems(byProduct, data.products);
       _visitInfo = 'Added to line items.';
     });
+  }
+
+  // Merges a by-product quantity map into the line items, keeping anything
+  // with a product already chosen and summing quantities into an existing row
+  // for the same product. Shared by the Visits/Day Care/Boarding "Add to line
+  // items" buttons; must be called inside setState.
+  void _mergeProductsIntoItems(Map<String, int> byProduct, List<Product> products) {
+    // Drop still-blank starter rows, keep anything with a product chosen.
+    final kept = _items.where((e) => e.product != null).toList();
+    for (final e in _items) {
+      if (!kept.contains(e)) e.dispose();
+    }
+    _items
+      ..clear()
+      ..addAll(kept);
+    byProduct.forEach((pid, qty) {
+      Product? product;
+      for (final p in products) {
+        if (p.id == pid) product = p;
+      }
+      if (product == null) return;
+      _LineItemEntry? existing;
+      for (final e in _items) {
+        if (e.product?.id == pid) existing = e;
+      }
+      if (existing != null) {
+        final cur = double.tryParse(existing.quantity.text.trim()) ?? 0;
+        final total = cur + qty;
+        existing.quantity.text = total == total.roundToDouble() ? total.toStringAsFixed(0) : total.toStringAsFixed(2);
+      } else {
+        _items.add(_LineItemEntry()
+          ..product = product
+          ..quantity.text = '$qty');
+      }
+    });
+    if (_items.isEmpty) _items.add(_LineItemEntry());
+  }
+
+  // Resolves the single Day Care product (Full Day for an AM drop off + PM
+  // collection, else Half Day -- the same rule the admin quote form and New
+  // Booking modal use) and adds one line, quantity per animal.
+  void _saveDayCare(_FormData data) {
+    setState(() {
+      _dayCareError = null;
+      _dayCareInfo = null;
+    });
+    if (_dayCareAnimalIds.isEmpty) {
+      setState(() => _dayCareError = 'Choose at least one animal.');
+      return;
+    }
+    if (_dayCareDate == null || _dropOffTime == null || _collectionTime == null) {
+      setState(() => _dayCareError = 'Choose a date, and both a drop off and collection time.');
+      return;
+    }
+    final isFullDay = _dropOffPeriod == 'AM' && _collectionPeriod == 'PM';
+    final productId = isFullDay ? data.visitMapping.dayCareFullDay : data.visitMapping.dayCareHalfDay;
+    if (productId == null) {
+      setState(() => _dayCareError =
+          'No product is configured in Settings > Bookings > Day Care for: ${isFullDay ? 'Full Day' : 'Half Day'}.');
+      return;
+    }
+    setState(() {
+      _mergeProductsIntoItems({productId: _dayCareAnimalIds.length}, data.products);
+      _dayCareInfo = 'Added to line items.';
+    });
+  }
+
+  // Calls the same backend boarding-plan endpoint the admin uses (whole 24h
+  // boarding days + a leftover half day, with 2nd-dog rates), then aggregates
+  // its day-by-day lines into line items by product.
+  Future<void> _saveBoarding(_FormData data) async {
+    setState(() {
+      _boardingError = null;
+      _boardingInfo = null;
+    });
+    if (_boardingAnimalIds.isEmpty) {
+      setState(() => _boardingError = 'Choose at least one animal.');
+      return;
+    }
+    if (_boardingStart == null || _boardingEnd == null) {
+      setState(() => _boardingError = 'Choose a start and end date.');
+      return;
+    }
+    if (_boardingDropOffTime == null || _boardingPickUpTime == null) {
+      setState(() => _boardingError = 'Choose a drop off and pick up time.');
+      return;
+    }
+    final startIso = '${_ymd(_boardingStart!)}T${_hm(_boardingDropOffTime!)}:00';
+    final endIso = '${_ymd(_boardingEnd!)}T${_hm(_boardingPickUpTime!)}:00';
+    if (!DateTime.parse(endIso).isAfter(DateTime.parse(startIso))) {
+      setState(() => _boardingError = 'Pick up must be after drop off.');
+      return;
+    }
+    setState(() => _boardingSaving = true);
+    try {
+      final plan = await context
+          .read<Repository>()
+          .getBoardingPlan(startIso, endIso, _boardingAnimalIds.length);
+      final missing = (plan['missing'] as List<dynamic>? ?? []);
+      if (missing.isNotEmpty) {
+        setState(() =>
+            _boardingError = 'No product is configured in Settings > Bookings for: ${missing.join(', ')}.');
+        return;
+      }
+      final lines = (plan['lines'] as List<dynamic>? ?? []);
+      if (lines.isEmpty) {
+        setState(() => _boardingError = 'This stay is too short to book anything. Check the dates and times.');
+        return;
+      }
+      final byProduct = <String, int>{};
+      for (final line in lines.whereType<Map<String, dynamic>>()) {
+        // Placeholder lines (the unbilled pick-up-day presence marker) don't
+        // carry a charge, so they never become line items.
+        if (line['placeholder'] == true) continue;
+        final pid = line['productId'] as String?;
+        if (pid == null) continue;
+        byProduct[pid] = (byProduct[pid] ?? 0) + 1;
+      }
+      if (!mounted) return;
+      setState(() {
+        _mergeProductsIntoItems(byProduct, data.products);
+        _boardingInfo = 'Added to line items.';
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() =>
+            _boardingError = e is ApiException ? e.message : 'Failed to work out the boarding plan');
+      }
+    } finally {
+      if (mounted) setState(() => _boardingSaving = false);
+    }
   }
 
   Widget _visitsSection(_FormData data) {
@@ -264,7 +416,7 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
           title: const Text('Visits'),
           subtitle: const Text('Auto-populate line items from the Visits mapping'),
           value: _showVisits,
-          onChanged: (v) => setState(() => _showVisits = v),
+          onChanged: _enableVisits,
         ),
         if (_showVisits) ...[
           Text('Animals', style: TextStyle(color: Colors.grey.shade700, fontSize: 12, fontWeight: FontWeight.w600)),
@@ -332,6 +484,215 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
       ],
     );
   }
+
+  // The animal checkboxes shared by all three plan sections, each driving its
+  // own selection set.
+  List<Widget> _animalChecklist(_FormData data, Set<String> selected) {
+    if (widget.isManual || data.pets.isEmpty) {
+      return [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Text(
+            widget.isManual ? 'Select a customer first.' : 'This customer has no animals on file.',
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
+        ),
+      ];
+    }
+    return [
+      for (final p in data.pets)
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          controlAffinity: ListTileControlAffinity.leading,
+          value: selected.contains(p.id),
+          onChanged: (v) => setState(() {
+            if (v == true) {
+              selected.add(p.id);
+            } else {
+              selected.remove(p.id);
+            }
+          }),
+          title: Text('${p.name}${p.species.isNotEmpty ? ' (${p.species})' : ''}'),
+        ),
+    ];
+  }
+
+  Widget _dayCareSection(_FormData data) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Day Care'),
+          subtitle: const Text("Auto-populate line items from a single day's drop off/collection"),
+          value: _showDayCare,
+          onChanged: _enableDayCare,
+        ),
+        if (_showDayCare) ...[
+          Text('Animals', style: TextStyle(color: Colors.grey.shade700, fontSize: 12, fontWeight: FontWeight.w600)),
+          ..._animalChecklist(data, _dayCareAnimalIds),
+          const SizedBox(height: 8),
+          _visitDateField('Date', _dayCareDate, () => _pickDay(_dayCareDate, (d) => _dayCareDate = d)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _periodDropdown('Drop off', _dropOffPeriod, (v) => setState(() => _dropOffPeriod = v))),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _timeField('Drop off time', _dropOffTime, () => _pickTime(_dropOffTime, (t) => _dropOffTime = t)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _periodDropdown('Collection', _collectionPeriod, (v) => setState(() => _collectionPeriod = v)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _timeField(
+                    'Collection time', _collectionTime, () => _pickTime(_collectionTime, (t) => _collectionTime = t)),
+              ),
+            ],
+          ),
+          if (_dayCareError != null) ...[
+            const SizedBox(height: 8),
+            Text(_dayCareError!, style: TextStyle(color: Colors.red.shade700, fontSize: 13)),
+          ],
+          if (_dayCareInfo != null) ...[
+            const SizedBox(height: 8),
+            Text(_dayCareInfo!, style: TextStyle(color: Colors.green.shade700, fontSize: 13)),
+          ],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => _saveDayCare(data),
+              icon: const Icon(Icons.playlist_add, size: 18),
+              label: const Text('Add to line items'),
+            ),
+          ),
+          const Divider(),
+        ],
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _boardingSection(_FormData data) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Boarding'),
+          subtitle: const Text("Auto-populate line items from a stay's dates and times"),
+          value: _showBoarding,
+          onChanged: _enableBoarding,
+        ),
+        if (_showBoarding) ...[
+          Text('Animals', style: TextStyle(color: Colors.grey.shade700, fontSize: 12, fontWeight: FontWeight.w600)),
+          ..._animalChecklist(data, _boardingAnimalIds),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _visitDateField('Start date', _boardingStart, () => _pickDay(_boardingStart, (d) => _boardingStart = d)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _timeField('Drop off time', _boardingDropOffTime,
+                    () => _pickTime(_boardingDropOffTime, (t) => _boardingDropOffTime = t)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _visitDateField('End date', _boardingEnd, () => _pickDay(_boardingEnd, (d) => _boardingEnd = d)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _timeField('Pick up time', _boardingPickUpTime,
+                    () => _pickTime(_boardingPickUpTime, (t) => _boardingPickUpTime = t)),
+              ),
+            ],
+          ),
+          if (_boardingError != null) ...[
+            const SizedBox(height: 8),
+            Text(_boardingError!, style: TextStyle(color: Colors.red.shade700, fontSize: 13)),
+          ],
+          if (_boardingInfo != null) ...[
+            const SizedBox(height: 8),
+            Text(_boardingInfo!, style: TextStyle(color: Colors.green.shade700, fontSize: 13)),
+          ],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _boardingSaving ? null : () => _saveBoarding(data),
+              icon: const Icon(Icons.playlist_add, size: 18),
+              label: Text(_boardingSaving ? 'Working out the plan…' : 'Add to line items'),
+            ),
+          ),
+          const Divider(),
+        ],
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _periodDropdown(String label, String value, ValueChanged<String> onChanged) {
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      isDense: true,
+      decoration: InputDecoration(labelText: label, isDense: true),
+      items: const [
+        DropdownMenuItem(value: 'AM', child: Text('AM')),
+        DropdownMenuItem(value: 'PM', child: Text('PM')),
+      ],
+      onChanged: (v) {
+        if (v != null) onChanged(v);
+      },
+    );
+  }
+
+  Widget _timeField(String label, TimeOfDay? time, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: InputDecorator(
+        decoration: InputDecoration(labelText: label, isDense: true),
+        child: Text(time == null ? 'Choose' : _hm(time)),
+      ),
+    );
+  }
+
+  Future<void> _pickDay(DateTime? current, ValueChanged<DateTime> assign) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() => assign(DateTime(picked.year, picked.month, picked.day)));
+    }
+  }
+
+  Future<void> _pickTime(TimeOfDay? current, ValueChanged<TimeOfDay> assign) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: current ?? const TimeOfDay(hour: 9, minute: 0),
+    );
+    if (picked != null) setState(() => assign(picked));
+  }
+
+  static String _ymd(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  static String _hm(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   Widget _visitsCountDropdown(String label, int value, ValueChanged<int> onChanged) {
     return DropdownButtonFormField<int>(
@@ -424,26 +785,58 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
     setState(() => _submitting = true);
     try {
       final lineItems = _items.where((i) => i.isValid).map((i) => i.toLineItem()).toList();
-      // The Visits inputs, when complete, ride along on the quote so
-      // accepting it books those visits on the calendar -- same plan the
-      // admin's quote form persists. Omitted (not nulled) when empty so an
-      // edit here can't wipe a plan saved elsewhere.
-      String ymd(DateTime d) =>
-          '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      // The toggled-on plan's inputs, when complete, ride along on the quote
+      // so accepting it books the stay/day/visits on the calendar -- same
+      // plans the admin's quote form persists. A quote carries at most one of
+      // the three, so choosing one explicitly nulls the other two; with no
+      // toggle on, all three are omitted (not nulled) so an edit here can't
+      // wipe a plan saved elsewhere.
       Map<String, dynamic>? visitPlan;
-      if (_visitAnimalIds.isNotEmpty &&
+      if (_showVisits &&
+          _visitAnimalIds.isNotEmpty &&
           _visitStart != null &&
           _visitEnd != null &&
           !_visitEnd!.isBefore(_visitStart!)) {
         visitPlan = {
           'animals': _visitAnimalIds.toList(),
-          'startDate': ymd(_visitStart!),
-          'endDate': ymd(_visitEnd!),
+          'startDate': _ymd(_visitStart!),
+          'endDate': _ymd(_visitEnd!),
           'visitsPerDay': '$_visitsPerDay',
           'visitsFirstDay': '$_visitsFirstDay',
           'visitsLastDay': '$_visitsLastDay',
         };
       }
+      Map<String, dynamic>? dayCarePlan;
+      if (_showDayCare &&
+          _dayCareAnimalIds.isNotEmpty &&
+          _dayCareDate != null &&
+          _dropOffTime != null &&
+          _collectionTime != null) {
+        dayCarePlan = {
+          'animals': _dayCareAnimalIds.toList(),
+          'date': _ymd(_dayCareDate!),
+          'dropOffPeriod': _dropOffPeriod,
+          'dropOffTime': _hm(_dropOffTime!),
+          'collectionPeriod': _collectionPeriod,
+          'collectionTime': _hm(_collectionTime!),
+        };
+      }
+      Map<String, dynamic>? boardingPlan;
+      if (_showBoarding &&
+          _boardingAnimalIds.isNotEmpty &&
+          _boardingStart != null &&
+          _boardingEnd != null &&
+          _boardingDropOffTime != null &&
+          _boardingPickUpTime != null) {
+        boardingPlan = {
+          'animals': _boardingAnimalIds.toList(),
+          'startDate': _ymd(_boardingStart!),
+          'dropOffTime': _hm(_boardingDropOffTime!),
+          'endDate': _ymd(_boardingEnd!),
+          'pickUpTime': _hm(_boardingPickUpTime!),
+        };
+      }
+      final hasPlan = visitPlan != null || dayCarePlan != null || boardingPlan != null;
       final Quote quote;
       if (widget.isEditing) {
         quote = await repo.updateQuote(widget.quote!.id, {
@@ -452,7 +845,11 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
           'validUntil': _validUntil.toIso8601String(),
           'subject': _subjectController.text.trim(),
           'paymentTerms': _selectedTerm?.text ?? '',
-          if (visitPlan != null) 'visitPlan': visitPlan,
+          if (hasPlan) ...{
+            'visitPlan': visitPlan,
+            'dayCarePlan': dayCarePlan,
+            'boardingPlan': boardingPlan,
+          },
         });
       } else {
         quote = await repo.createQuote(
@@ -465,6 +862,8 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
           subject: _subjectController.text.trim(),
           paymentTerms: _selectedTerm?.text ?? '',
           visitPlan: visitPlan,
+          dayCarePlan: dayCarePlan,
+          boardingPlan: boardingPlan,
         );
         if (send) await repo.sendQuoteEmail(quote.id);
       }
@@ -554,6 +953,8 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
         _dateRow('Valid until', _validUntil, () => _pickDate(isIssue: false)),
         const SizedBox(height: 16),
         _visitsSection(data),
+        _dayCareSection(data),
+        _boardingSection(data),
         _sectionTitle('Line items'),
         ..._items.asMap().entries.map(
               (entry) => _LineItemEditor(
