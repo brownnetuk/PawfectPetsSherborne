@@ -782,6 +782,19 @@ function PetsTab({
   );
 }
 
+// A stay's last row is dated by the calendar day its leftover Day Care block
+// STARTS on (see backend's computeBoardingPlan day-offset comment), which
+// isn't necessarily the day pick-up actually happens -- if that block's
+// duration pushes pick-up time earlier in the clock than drop-off time, it
+// crossed midnight. Every 24h boarding block preserves time-of-day, so
+// comparing the two clock times (rather than redoing the hours/boardingDays
+// math) reliably detects that using only what's already on the stay's rows.
+// Mirrors BoardingDayCarePage.tsx's own stayEndDate.
+function stayEndDate(lastRowDate: Date, dropOffTime: string | null | undefined, pickUpTime: string | null | undefined): Date {
+  if (dropOffTime && pickUpTime && pickUpTime < dropOffTime) return addDays(lastRowDate, 1);
+  return lastRowDate;
+}
+
 function dbAnimalId(animal: DayBooking['animal']): string {
   return typeof animal === 'string' ? animal : animal._id;
 }
@@ -888,14 +901,16 @@ function BookingsTab({ customer, animals }: { customer: Customer; animals: Anima
       if (rows.length === 0) return;
       const byDate = [...rows].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       const cust = byDate[0].customer;
+      const dropOffTime = rows.find((r) => r.dropOffTime)?.dropOffTime ?? '';
+      const pickUpTime = rows.find((r) => r.pickUpTime)?.pickUpTime ?? '';
       setBoardingEdit({
         stayId,
         customerId: typeof cust === 'string' ? cust : cust._id,
         animalIds: [...new Set(rows.map((r) => dbAnimalId(r.animal)))],
         startDate: dateKey(new Date(byDate[0].date)),
-        endDate: dateKey(new Date(byDate[byDate.length - 1].date)),
-        dropOffTime: rows.find((r) => r.dropOffTime)?.dropOffTime ?? '',
-        pickUpTime: rows.find((r) => r.pickUpTime)?.pickUpTime ?? '',
+        endDate: dateKey(stayEndDate(new Date(byDate[byDate.length - 1].date), dropOffTime, pickUpTime)),
+        dropOffTime,
+        pickUpTime,
       });
     } catch {
       // Non-fatal -- leave the modal closed if the stay couldn't be loaded.
@@ -952,10 +967,12 @@ function BookingsTab({ customer, animals }: { customer: Customer; animals: Anima
     for (const [stayId, rows] of byStay) {
       const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
       const billable = sorted.filter((r) => !r.placeholder);
+      const dropOffTime = sorted.find((r) => r.dropOffTime)?.dropOffTime;
+      const pickUpTime = sorted.find((r) => r.pickUpTime)?.pickUpTime;
       stays.push({
         key: stayId,
         startDate: new Date(sorted[0].date),
-        endDate: new Date(sorted[sorted.length - 1].date),
+        endDate: stayEndDate(new Date(sorted[sorted.length - 1].date), dropOffTime, pickUpTime),
         animal: sorted[0].animal,
         rows: sorted,
         invoiced: billable.length > 0 && billable.every((r) => !!r.invoice),

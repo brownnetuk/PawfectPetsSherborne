@@ -67,6 +67,18 @@ function parseHour(time: string | null | undefined): number | null {
   return Number.isNaN(hour) ? null : hour;
 }
 
+// A stay's last row is dated by the calendar day its leftover Day Care block
+// STARTS on (see backend's computeBoardingPlan day-offset comment), which
+// isn't necessarily the day pick-up actually happens -- if that block's
+// duration pushes pick-up time earlier in the clock than drop-off time, it
+// crossed midnight. Every 24h boarding block preserves time-of-day, so
+// comparing the two clock times (rather than redoing the hours/boardingDays
+// math) reliably detects that using only what's already on the stay's rows.
+function stayEndDate(lastRowDate: Date, dropOffTime: string | null | undefined, pickUpTime: string | null | undefined): Date {
+  if (dropOffTime && pickUpTime && pickUpTime < dropOffTime) return addDays(lastRowDate, 1);
+  return lastRowDate;
+}
+
 function sectionsFor(mapping: VisitMapping, b: DayBooking): Section[] {
   const pid = productId(b.product);
   if (pid === mapping.boardingPerDayProduct || pid === mapping.boardingSecondDogPerDayProduct) {
@@ -165,14 +177,16 @@ export default function BoardingDayCarePage() {
       const custId = typeof cust === 'string' ? cust : cust._id;
       const isBoarding = sorted.some((r) => sectionsFor(mapping, r).includes('overnight'));
       if (isBoarding) {
+        const dropOffTime = sorted.find((r) => r.dropOffTime)?.dropOffTime ?? '';
+        const pickUpTime = sorted.find((r) => r.pickUpTime)?.pickUpTime ?? '';
         setBoardingEdit({
           stayId,
           customerId: custId,
           animalIds: [...new Set(sorted.map((r) => animalId(r.animal)))],
           startDate: dateKey(new Date(sorted[0].date)),
-          endDate: dateKey(new Date(sorted[sorted.length - 1].date)),
-          dropOffTime: sorted.find((r) => r.dropOffTime)?.dropOffTime ?? '',
-          pickUpTime: sorted.find((r) => r.pickUpTime)?.pickUpTime ?? '',
+          endDate: dateKey(stayEndDate(new Date(sorted[sorted.length - 1].date), dropOffTime, pickUpTime)),
+          dropOffTime,
+          pickUpTime,
         });
       } else {
         const b = sorted[0];
@@ -330,8 +344,12 @@ function DashboardTab({ mapping, refreshSignal, onEdit, onDelete }: { mapping: V
       const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
       const isBoarding = sorted.some((r) => sectionsFor(mapping, r).includes('overnight'));
       if (isBoarding) {
+        const dropOffTime = sorted.find((r) => r.dropOffTime)?.dropOffTime;
+        const pickUpTime = sorted.find((r) => r.pickUpTime)?.pickUpTime;
         if (dateKey(new Date(sorted[0].date)) === todayKey) arrivals.push(sorted[0]);
-        if (dateKey(new Date(sorted[sorted.length - 1].date)) === todayKey) departures.push(sorted[sorted.length - 1]);
+        if (dateKey(stayEndDate(new Date(sorted[sorted.length - 1].date), dropOffTime, pickUpTime)) === todayKey) {
+          departures.push(sorted[sorted.length - 1]);
+        }
       } else {
         for (const r of sorted) {
           if (dateKey(new Date(r.date)) === todayKey) dayCareToday.push(r);
@@ -524,6 +542,8 @@ function UpcomingStaysTab({ mapping, refreshSignal, onEdit, onDelete }: { mappin
       // rows count as billable nights for the summary label.
       const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
       const billableNights = sorted.filter((r) => sectionsFor(mapping, r).includes('overnight')).length;
+      const dropOffTime = sorted.find((r) => r.dropOffTime)?.dropOffTime;
+      const pickUpTime = sorted.find((r) => r.pickUpTime)?.pickUpTime;
       result.push({
         key: stayId,
         stayId,
@@ -531,9 +551,9 @@ function UpcomingStaysTab({ mapping, refreshSignal, onEdit, onDelete }: { mappin
         customer: customerLabel(sorted[0].customer),
         type: billableNights > 0 ? `Boarding × ${billableNights} night${billableNights === 1 ? '' : 's'}` : 'Day Care',
         startDate: new Date(sorted[0].date),
-        endDate: new Date(sorted[sorted.length - 1].date),
-        dropOffTime: sorted.find((r) => r.dropOffTime)?.dropOffTime,
-        pickUpTime: sorted.find((r) => r.pickUpTime)?.pickUpTime,
+        endDate: stayEndDate(new Date(sorted[sorted.length - 1].date), dropOffTime, pickUpTime),
+        dropOffTime,
+        pickUpTime,
         invoiced: sorted.filter((r) => !r.placeholder).every((r) => !!r.invoice),
       });
     }
