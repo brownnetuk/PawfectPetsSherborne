@@ -705,62 +705,121 @@ const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 // A stable (not re-randomized on every render), distinct-looking colour per
 // booking rather than per section -- so the same dog's boarding stay reads
-// as one colour across AM/PM/Overnight and across every day it spans, and a
-// different booking sharing a slot that day is visually distinguishable
-// from it. Hashes the stay (or the row itself, for a standalone day-care
-// booking) rather than the animal, since two different stays for the same
-// dog should still read as separate bookings.
+// as one colour across every day it spans, and a different booking sharing
+// a day with it is visually distinguishable. Hashes the stay (or the row
+// itself, for a standalone day-care booking) rather than the animal, since
+// two different stays for the same dog should still read as separate
+// bookings. Mid-tone (not the pale tint colorForBooking used to return) --
+// the timeline bar itself carries the colour now, not text sitting on it.
 function hashString(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
   return Math.abs(h);
 }
-function colorForBooking(b: DayBooking): { bg: string; fg: string } {
+function colorForBooking(b: DayBooking): string {
   const hue = hashString(b.stayId ?? b._id) % 360;
-  return { bg: `hsl(${hue}, 65%, 88%)`, fg: `hsl(${hue}, 55%, 28%)` };
+  return `hsl(${hue}, 60%, 62%)`;
 }
 
-// One section's row of slots within a day cell -- one small named box per
-// occupied slot (not just a count), plus empty boxes up to the capacity
-// limit so how much room is left is visible at a glance. Renders extra
-// boxes (in red) past the limit rather than truncating real bookings.
-function SectionSlotsRow({ section, bookings }: { section: Section; bookings: DayBooking[] }) {
-  const slotCount = Math.max(CAPACITY_PER_SECTION, bookings.length);
+// Same category check sectionsFor() uses (Boarding Per Day/Half Day, Day
+// Care Half/Full Day), but also true for a placeholder row -- it's unbilled
+// and sectionsFor deliberately excludes it from capacity, but it still
+// represents a real dog on-site that morning, so the timeline still shows it.
+function isOccupancyRow(mapping: VisitMapping, b: DayBooking): boolean {
+  const pid = productId(b.product);
+  return [
+    mapping.boardingPerDayProduct,
+    mapping.boardingSecondDogPerDayProduct,
+    mapping.boardingHalfDayProduct,
+    mapping.boardingSecondDogHalfDayProduct,
+    mapping.dayCareFullDayProduct,
+    mapping.dayCareSecondDogFullDayProduct,
+    mapping.dayCareHalfDayProduct,
+    mapping.dayCareSecondDogHalfDayProduct,
+  ].some((p) => p === pid);
+}
+
+function hourFraction(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return (h + (m || 0) / 60) / 24;
+}
+
+// Where a booking's presence bar starts/ends on a 24h axis for the day it's
+// on. "Exact" means a real drop-off/collection time or period is on this
+// row, so that end gets a rounded cap; when neither is set, presence
+// defaults to the day's own edge with a square "continues" cap -- a
+// boarding stay's middle night (present all day, before and after this one),
+// or the unset side of its first/last day.
+function timelineSpan(b: DayBooking): { start: number; end: number; startExact: boolean; endExact: boolean } {
+  let start = 0;
+  let startExact = false;
+  if (b.dropOffTime) {
+    start = hourFraction(b.dropOffTime);
+    startExact = true;
+  } else if (b.dropOffPeriod) {
+    start = b.dropOffPeriod === 'PM' ? 13 / 24 : 8 / 24;
+    startExact = true;
+  }
+  let end = 1;
+  let endExact = false;
+  const pickup = b.pickUpTime || b.collectionTime;
+  if (pickup) {
+    end = hourFraction(pickup);
+    endExact = true;
+  } else if (b.collectionPeriod) {
+    end = b.collectionPeriod === 'AM' ? 13 / 24 : 18 / 24;
+    endExact = true;
+  }
+  return { start, end, startExact, endExact };
+}
+
+// Light background bands marking the AM (8am-1pm) / PM (1pm-6pm) reference
+// zones on the same 24h axis timelineSpan positions bars against; overnight
+// (either side) is left untinted.
+const TIMELINE_BANDS = 'linear-gradient(to right, transparent 0 33.333%, #fff6de 33.333% 54.167%, #efeafd 54.167% 75%, transparent 75% 100%)';
+
+// One booking's presence for one day, as a bar on the 24h axis rather than a
+// named box in a fixed AM/PM/Overnight grid -- its position and length
+// reflect the actual drop-off/collection time instead of snapping to a
+// section. `hideLabel` drops the dog-name column for the bigger day modal,
+// where the name's already shown as a heading above.
+function TimelineRow({ booking, large, hideLabel }: { booking: DayBooking; large?: boolean; hideLabel?: boolean }) {
+  const span = timelineSpan(booking);
+  const color = colorForBooking(booking);
+  const height = large ? 22 : 12;
   return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>
-        {section === 'overnight' ? 'Overnight' : section}
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4 }}>
-        {Array.from({ length: slotCount }, (_, i) => {
-          const booking = bookings[i];
-          const overCapacity = i >= CAPACITY_PER_SECTION;
-          const colors = booking ? colorForBooking(booking) : null;
-          return (
-            <div
-              key={i}
-              title={booking ? `${animalLabel(booking.animal)} (${customerLabel(booking.customer)})` : undefined}
-              style={{
-                height: 26,
-                borderRadius: 4,
-                fontSize: '0.78rem',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                padding: '0 4px',
-                border: booking ? 'none' : '1px dashed var(--border)',
-                background: booking ? (overCapacity ? 'var(--error)' : colors!.bg) : 'transparent',
-                color: booking ? (overCapacity ? 'white' : colors!.fg) : 'transparent',
-              }}
-            >
-              {booking ? animalLabel(booking.animal) : ''}
-            </div>
-          );
-        })}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: large ? 0 : 3 }}>
+      {!hideLabel && (
+        <span
+          title={`${animalLabel(booking.animal)} (${customerLabel(booking.customer)})`}
+          style={{
+            width: 40,
+            flexShrink: 0,
+            fontSize: '0.65rem',
+            fontWeight: 600,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {animalLabel(booking.animal)}
+        </span>
+      )}
+      <div style={{ position: 'relative', flex: 1, height, borderRadius: 4, background: TIMELINE_BANDS }}>
+        <div
+          style={{
+            position: 'absolute',
+            left: `${span.start * 100}%`,
+            width: `${Math.max(2, (span.end - span.start) * 100)}%`,
+            top: 0,
+            height,
+            background: color,
+            borderTopLeftRadius: span.startExact ? 4 : 0,
+            borderBottomLeftRadius: span.startExact ? 4 : 0,
+            borderTopRightRadius: span.endExact ? 4 : 0,
+            borderBottomRightRadius: span.endExact ? 4 : 0,
+          }}
+        />
       </div>
     </div>
   );
@@ -792,6 +851,14 @@ function OccupancyTab({ mapping }: { mapping: VisitMapping | null }) {
 
   function entriesForDay(date: Date): DayBooking[] {
     return (dayBookings ?? []).filter((b) => isSameDay(new Date(b.date), date));
+  }
+
+  // The rows the timeline actually draws a bar for -- see isOccupancyRow.
+  function occupancyEntriesForDay(date: Date): DayBooking[] {
+    if (!mapping) return [];
+    return entriesForDay(date)
+      .filter((b) => isOccupancyRow(mapping, b))
+      .sort((a, b) => timelineSpan(a).start - timelineSpan(b).start);
   }
 
   // Every booking occupying each section that day -- the grid cell renders
@@ -842,6 +909,10 @@ function OccupancyTab({ mapping }: { mapping: VisitMapping | null }) {
           </div>
         </div>
         {error && <div className="error-banner">{error}</div>}
+        <p style={{ fontSize: '0.78rem', color: 'var(--muted)', margin: '-6px 0 12px' }}>
+          Each bar spans the day proportionally to its actual drop-off/collection time -- tinted bands mark AM
+          (8am–1pm) and PM (1pm–6pm); untinted is overnight.
+        </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8 }}>
           {WEEKDAY_LABELS.map((label) => (
             <div key={label} style={{ fontWeight: 700, fontSize: '0.78rem', color: 'var(--muted)', textAlign: 'center' }}>
@@ -881,8 +952,8 @@ function OccupancyTab({ mapping }: { mapping: VisitMapping | null }) {
                     </svg>
                   )}
                   <div style={{ fontWeight: 700, fontSize: '0.8rem', marginBottom: 6 }}>{date.getDate()}</div>
-                  {SECTIONS.map((s) => (
-                    <SectionSlotsRow key={s} section={s} bookings={bySection[s]} />
+                  {occupancyEntriesForDay(date).map((b) => (
+                    <TimelineRow key={b._id} booking={b} />
                   ))}
                 </button>
               );
@@ -892,49 +963,44 @@ function OccupancyTab({ mapping }: { mapping: VisitMapping | null }) {
       </div>
 
       {selectedDate && (
-        <div className="card" style={{ width: 320, flexShrink: 0, position: 'sticky', top: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <h2 style={{ margin: 0, fontSize: '1.05rem' }}>
-              {selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
-            </h2>
-            <button type="button" className="icon-btn" onClick={() => setSelectedDate(null)} aria-label="Close">
-              ✕
-            </button>
-          </div>
-          {mapping &&
-            SECTIONS.map((section) => {
-              const rows = entriesForDay(selectedDate).filter((b) => sectionsFor(mapping, b).includes(section));
-              if (rows.length === 0) return null;
+        <Modal
+          title={selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+          onClose={() => setSelectedDate(null)}
+          wide
+        >
+          {occupancyEntriesForDay(selectedDate).length === 0 ? (
+            <div className="empty-state">No boarding or day care that day.</div>
+          ) : (
+            occupancyEntriesForDay(selectedDate).map((b) => {
+              const pickup = b.pickUpTime || b.collectionTime;
               return (
-                <div key={section} style={{ marginBottom: 14 }}>
-                  <div className="section-title" style={{ marginTop: 0 }}>
-                    {SECTION_LABELS[section]} ({rows.reduce((n, b) => n + b.quantity, 0)}/{CAPACITY_PER_SECTION})
+                <div key={b._id} style={{ marginBottom: 18 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                    <strong style={{ fontSize: '0.9rem' }}>{animalLabel(b.animal)}</strong>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{customerLabel(b.customer)}</span>
                   </div>
-                  {rows.map((b) => {
-                    const pickup = b.pickUpTime || b.collectionTime;
-                    return (
-                      <div key={b._id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-                        <div>
-                          <div>{animalLabel(b.animal)}</div>
-                          {(b.dropOffTime || pickup) && (
-                            <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
-                              {b.dropOffTime && `Drop off ${b.dropOffTime}`}
-                              {b.dropOffTime && pickup && ' · '}
-                              {pickup && `Collect ${pickup}`}
-                            </div>
-                          )}
-                        </div>
-                        <span style={{ color: 'var(--muted)' }}>{customerLabel(b.customer)}</span>
-                      </div>
-                    );
-                  })}
+                  {(b.dropOffTime || pickup) && (
+                    <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: 6 }}>
+                      {b.dropOffTime && `Drop off ${b.dropOffTime}`}
+                      {b.dropOffTime && pickup && ' · '}
+                      {pickup && `Collect ${pickup}`}
+                    </div>
+                  )}
+                  <TimelineRow booking={b} large hideLabel />
                 </div>
               );
-            })}
-          {mapping && entriesForDay(selectedDate).every((b) => sectionsFor(mapping, b).length === 0) && (
-            <div className="empty-state">No boarding or day care that day.</div>
+            })
           )}
-        </div>
+          {occupancyEntriesForDay(selectedDate).length > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>12am</span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>8am</span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>1pm</span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>6pm</span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>12am</span>
+            </div>
+          )}
+        </Modal>
       )}
     </div>
   );
