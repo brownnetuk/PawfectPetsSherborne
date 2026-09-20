@@ -8,17 +8,22 @@ import { bankAccountTypeLabel } from '../utils/bankAccountType';
 interface Props {
   onClose: () => void;
   onSaved: () => void;
+  // Pre-selects an invoice (and its outstanding balance) when opened from a
+  // page that already knows which invoice a payment is against -- e.g. the
+  // Boarding & Day Care booking detail's Invoice card -- instead of making
+  // staff find it again in the dropdown below.
+  initialInvoiceId?: string;
 }
 
 function customerName(customer: Invoice['customer']): string {
   return typeof customer === 'string' ? customer : customer.name;
 }
 
-export default function AddPaymentModal({ onClose, onSaved }: Props) {
+export default function AddPaymentModal({ onClose, onSaved, initialInvoiceId }: Props) {
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
   const [accounts, setAccounts] = useState<BankAccount[] | null>(null);
   const [methods, setMethods] = useState<PaymentMethod[] | null>(null);
-  const [invoiceId, setInvoiceId] = useState('');
+  const [invoiceId, setInvoiceId] = useState(initialInvoiceId ?? '');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [amount, setAmount] = useState('');
   const [charges, setCharges] = useState('');
@@ -29,7 +34,12 @@ export default function AddPaymentModal({ onClose, onSaved }: Props) {
 
   useEffect(() => {
     api.listInvoices().then((list) => {
-      setInvoices(list.filter((inv) => inv.status !== 'cancelled' && inv.total - (inv.amountPaid ?? 0) > 0));
+      const withBalance = list.filter((inv) => inv.status !== 'cancelled' && inv.total - (inv.amountPaid ?? 0) > 0);
+      setInvoices(withBalance);
+      if (initialInvoiceId) {
+        const invoice = withBalance.find((inv) => inv._id === initialInvoiceId);
+        if (invoice) setAmount((invoice.total - (invoice.amountPaid ?? 0)).toFixed(2));
+      }
     });
     api.listBankAccounts().then((list) => {
       setAccounts(list);
@@ -39,6 +49,7 @@ export default function AddPaymentModal({ onClose, onSaved }: Props) {
       setMethods(list);
       if (list.length > 0) setPaymentMethod((cur) => cur || list[0].name);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function handleInvoiceChange(id: string) {

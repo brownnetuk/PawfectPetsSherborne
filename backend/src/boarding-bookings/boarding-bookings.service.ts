@@ -517,12 +517,24 @@ export class BoardingBookingsService {
     return stages;
   }
 
-  // Single-word status shown on the Bookings list -- the label of whichever
-  // stage is current, or "Paid in full"/"Complete" once every stage is done.
-  statusLabel(stages: BoardingBookingStage[]): string {
-    const current = stages.find((s) => s.current);
-    if (!current) return 'Paid in full';
-    return current.label;
+  // Single label shown on the Bookings list and the detail header pill --
+  // describes what has ACTUALLY happened so far, most-advanced-first. Not
+  // derived from computeStages()'s "current" pointer: that marks the NEXT
+  // (not-yet-done) stage, so using its label here made the list claim e.g.
+  // "Payment received" for a booking that had only had a deposit requested,
+  // not paid -- read as done when it was really just the pending step.
+  statusLabel(booking: BoardingBooking, invoice?: Invoice | null): string {
+    if (invoice?.status === InvoiceStatus.PAID) return 'Paid in Full';
+    if (booking.checkOutAt) return 'Checked Out';
+    if (booking.checkInAt) return 'In Progress';
+    if (booking.preCheckInSubmission) return 'Pre-Check-In Complete';
+    if (booking.preCheckInSentAt) return 'Pre-Check-In Sent';
+    const amountPaid = invoice?.amountPaid ?? 0;
+    if (amountPaid > 0) return booking.paymentRequestType === 'full' ? 'Payment Received' : 'Deposit Paid';
+    if (booking.paymentRequestType === 'deposit') return 'Deposit Requested';
+    if (booking.paymentRequestType === 'full') return 'Payment Requested';
+    if (booking.invoice) return 'Invoice Raised';
+    return 'Confirmed';
   }
 
   // findAll()/findOne() above already .populate('invoice'), so `booking.invoice`
@@ -534,6 +546,6 @@ export class BoardingBookingsService {
   withStatus(booking: BoardingBooking) {
     const invoice = (booking.invoice as unknown as Invoice) ?? null;
     const stages = this.computeStages(booking, invoice);
-    return { booking, invoice, stages, status: this.statusLabel(stages) };
+    return { booking, invoice, stages, status: this.statusLabel(booking, invoice) };
   }
 }

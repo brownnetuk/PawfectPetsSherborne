@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import AddPaymentModal from '../components/AddPaymentModal';
 import AmendBoardingBookingDatesModal from '../components/AmendBoardingBookingDatesModal';
 import Badge from '../components/Badge';
 import FormFillModal from '../components/FormFillModal';
@@ -1272,8 +1273,8 @@ function BookingsTab({ animals, customers }: { animals: Animal[]; customers: Cus
                         borderRadius: 999,
                         fontSize: '0.78rem',
                         fontWeight: 600,
-                        background: status === 'Paid in full' ? 'var(--sage-badge)' : 'var(--accent-light)',
-                        color: status === 'Paid in full' ? 'var(--brand-green)' : 'var(--accent-dark)',
+                        background: status === 'Paid in Full' ? 'var(--sage-badge)' : 'var(--accent-light)',
+                        color: status === 'Paid in Full' ? 'var(--brand-green)' : 'var(--accent-dark)',
                       }}
                     >
                       {status}
@@ -1328,6 +1329,7 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
   const [data, setData] = useState<BoardingBookingWithStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAmend, setShowAmend] = useState(false);
+  const [showAddPayment, setShowAddPayment] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [fillFor, setFillFor] = useState<{ stage: 'checkIn' | 'checkOut'; submissionId: string } | null>(null);
   const [viewSubmission, setViewSubmission] = useState<FormSubmissionRecord | null>(null);
@@ -1458,8 +1460,8 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
               borderRadius: 999,
               fontSize: '0.78rem',
               fontWeight: 600,
-              background: status === 'Paid in full' ? 'var(--sage-badge)' : 'var(--accent-light)',
-              color: status === 'Paid in full' ? 'var(--brand-green)' : 'var(--accent-dark)',
+              background: status === 'Paid in Full' ? 'var(--sage-badge)' : 'var(--accent-light)',
+              color: status === 'Paid in Full' ? 'var(--brand-green)' : 'var(--accent-dark)',
             }}
           >
             {status}
@@ -1514,7 +1516,14 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
           </div>
 
           <div className="card">
-            <div className="section-title">Invoice</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="section-title" style={{ marginBottom: 0 }}>Invoice</div>
+              {invoice && balance > 0 && (
+                <button className="btn btn-secondary" onClick={() => setShowAddPayment(true)}>
+                  Add payment
+                </button>
+              )}
+            </div>
             {!invoice ? (
               <div className="empty-state">Not yet invoiced.</div>
             ) : (
@@ -1579,6 +1588,17 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
           booking={booking}
           onClose={() => setShowAmend(false)}
           onAmended={() => {
+            refresh();
+            onChanged();
+          }}
+        />
+      )}
+      {showAddPayment && invoice && (
+        <AddPaymentModal
+          initialInvoiceId={invoice._id}
+          onClose={() => setShowAddPayment(false)}
+          onSaved={() => {
+            setShowAddPayment(false);
             refresh();
             onChanged();
           }}
