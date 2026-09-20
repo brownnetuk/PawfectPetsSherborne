@@ -3,7 +3,7 @@ import * as api from '../api/client';
 import NewBookingModal from '../components/NewBookingModal';
 import type { BoardingEditInitial, DayCareEditInitial } from '../components/NewBookingModal';
 import { TrashIcon } from '../components/icons';
-import type { Animal, AnnualLeave, Customer, DayBooking, VisitMapping } from '../types';
+import type { Animal, AnnualLeave, ChecklistAssignment, ChecklistTemplate, Customer, DayBooking, VisitMapping } from '../types';
 import { annualLeaveOn } from '../utils/annualLeave';
 import { addDays, dateKey } from '../utils/visitPlan';
 
@@ -89,8 +89,13 @@ interface StayEditHandlers {
   onDelete: (stayId: string) => void;
 }
 
-type Tab = 'dashboard' | 'upcoming' | 'occupancy';
-const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', upcoming: 'Upcoming Stays', occupancy: 'Occupancy' };
+type Tab = 'dashboard' | 'upcoming' | 'occupancy' | 'checklists';
+const TAB_LABELS: Record<Tab, string> = {
+  dashboard: 'Dashboard',
+  upcoming: 'Upcoming Stays',
+  occupancy: 'Occupancy',
+  checklists: 'Checklists',
+};
 
 export default function BoardingDayCarePage() {
   const [tab, setTab] = useState<Tab>('dashboard');
@@ -175,7 +180,7 @@ export default function BoardingDayCarePage() {
         <h1>Boarding &amp; Day Care</h1>
       </div>
       <div className="tabs">
-        {(['dashboard', 'upcoming', 'occupancy'] as Tab[]).map((t) => (
+        {(['dashboard', 'upcoming', 'occupancy', 'checklists'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -185,6 +190,7 @@ export default function BoardingDayCarePage() {
       {tab === 'dashboard' && <DashboardTab mapping={mapping} refreshSignal={refreshSignal} {...editHandlers} />}
       {tab === 'upcoming' && <UpcomingStaysTab mapping={mapping} refreshSignal={refreshSignal} {...editHandlers} />}
       {tab === 'occupancy' && <OccupancyTab mapping={mapping} />}
+      {tab === 'checklists' && <ChecklistsTab />}
 
       {(boardingEdit || dayCareEdit) && (
         <NewBookingModal
@@ -846,6 +852,232 @@ function OccupancyTab({ mapping }: { mapping: VisitMapping | null }) {
             })}
           {mapping && entriesForDay(selectedDate).every((b) => sectionsFor(mapping, b).length === 0) && (
             <div className="empty-state">No boarding or day care that day.</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChecklistsTab() {
+  const [viewMode, setViewMode] = useState<ViewMode>('week');
+  const [anchorDate, setAnchorDate] = useState(new Date());
+  const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
+  const [assignments, setAssignments] = useState<ChecklistAssignment[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [pickedTemplateId, setPickedTemplateId] = useState('');
+  const [assigning, setAssigning] = useState(false);
+
+  const weeks = useMemo(() => buildWeeks(viewMode, anchorDate), [viewMode, anchorDate]);
+
+  function refresh() {
+    const from = weeks[0][0];
+    const to = weeks[weeks.length - 1][6];
+    api
+      .listChecklistAssignments(dateKey(from), dateKey(addDays(to, 1)))
+      .then(setAssignments)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load checklists'));
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(refresh, [viewMode, anchorDate]);
+
+  useEffect(() => {
+    api.listChecklistTemplates().then(setTemplates).catch(() => {});
+  }, []);
+
+  function assignmentsForDay(date: Date): ChecklistAssignment[] {
+    return (assignments ?? []).filter((a) => isSameDay(new Date(a.date), date));
+  }
+
+  function goToday() {
+    setAnchorDate(new Date());
+  }
+  function goBack() {
+    setAnchorDate((d) => (viewMode === 'week' ? addDays(d, -7) : addMonths(d, -1)));
+  }
+  function goForward() {
+    setAnchorDate((d) => (viewMode === 'week' ? addDays(d, 7) : addMonths(d, 1)));
+  }
+
+  async function handleAssign() {
+    if (!selectedDate || !pickedTemplateId) return;
+    setAssigning(true);
+    setError(null);
+    try {
+      await api.assignChecklist({ template: pickedTemplateId, date: dateKey(selectedDate) });
+      setPickedTemplateId('');
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to assign this checklist');
+    } finally {
+      setAssigning(false);
+    }
+  }
+
+  async function handleToggleItem(assignment: ChecklistAssignment, index: number) {
+    const next = assignment.completed.slice();
+    next[index] = !next[index];
+    try {
+      await api.updateChecklistAssignment(assignment._id, next);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update this checklist');
+    }
+  }
+
+  async function handleUnassign(id: string) {
+    if (!window.confirm("Remove this checklist from this day? Its ticked-off progress won't be kept.")) return;
+    try {
+      await api.deleteChecklistAssignment(id);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove this checklist');
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+      <div className="card" style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className="btn btn-secondary btn-sm" onClick={goBack} aria-label="Previous">
+              ←
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={goToday}>
+              Today
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={goForward} aria-label="Next">
+              →
+            </button>
+            <h2 style={{ margin: 0, fontSize: '1.05rem' }}>{rangeLabel(viewMode, weeks, anchorDate)}</h2>
+          </div>
+          <div className="tabs" style={{ marginBottom: 0 }}>
+            <button className={viewMode === 'week' ? 'active' : ''} onClick={() => setViewMode('week')}>
+              Week
+            </button>
+            <button className={viewMode === 'month' ? 'active' : ''} onClick={() => setViewMode('month')}>
+              Month
+            </button>
+          </div>
+        </div>
+        {error && <div className="error-banner">{error}</div>}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8 }}>
+          {WEEKDAY_LABELS.map((label) => (
+            <div key={label} style={{ fontWeight: 700, fontSize: '0.78rem', color: 'var(--muted)', textAlign: 'center' }}>
+              {label}
+            </div>
+          ))}
+          {weeks.map((week) =>
+            week.map((date) => {
+              const dayAssignments = assignmentsForDay(date);
+              const inMonth = viewMode === 'week' || date.getMonth() === anchorDate.getMonth();
+              return (
+                <button
+                  type="button"
+                  key={dateKey(date)}
+                  onClick={() => setSelectedDate(date)}
+                  style={{
+                    textAlign: 'left',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    padding: 8,
+                    minHeight: 90,
+                    background: isToday(date) ? 'var(--sage-badge, #eef5ee)' : 'white',
+                    opacity: inMonth ? 1 : 0.45,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: '0.8rem', marginBottom: 6 }}>{date.getDate()}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {dayAssignments.map((a) => {
+                      const done = a.completed.filter(Boolean).length;
+                      const allDone = done === a.items.length;
+                      return (
+                        <span
+                          key={a._id}
+                          style={{
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            borderRadius: 4,
+                            padding: '2px 6px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            background: allDone ? 'var(--sage-badge, #d9f2e3)' : '#fff4cc',
+                            color: allDone ? 'var(--brand-green)' : '#8a6d00',
+                          }}
+                        >
+                          {a.name} ({done}/{a.items.length})
+                        </span>
+                      );
+                    })}
+                  </div>
+                </button>
+              );
+            }),
+          )}
+        </div>
+      </div>
+
+      {selectedDate && (
+        <div className="card" style={{ width: 320, flexShrink: 0, position: 'sticky', top: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <h2 style={{ margin: 0, fontSize: '1.05rem' }}>
+              {selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </h2>
+            <button type="button" className="icon-btn" onClick={() => setSelectedDate(null)} aria-label="Close">
+              ✕
+            </button>
+          </div>
+
+          <div className="field" style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1 }}>
+              <label>Assign a checklist</label>
+              <select value={pickedTemplateId} onChange={(e) => setPickedTemplateId(e.target.value)}>
+                <option value="">Choose…</option>
+                {templates.map((t) => (
+                  <option key={t._id} value={t._id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button className="btn btn-primary btn-sm" onClick={handleAssign} disabled={!pickedTemplateId || assigning}>
+              {assigning ? 'Adding…' : 'Add'}
+            </button>
+          </div>
+
+          {assignmentsForDay(selectedDate).length === 0 ? (
+            <div className="empty-state">No checklists assigned to this day yet.</div>
+          ) : (
+            assignmentsForDay(selectedDate).map((a) => (
+              <div key={a._id} style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <strong style={{ fontSize: '0.9rem' }}>{a.name}</strong>
+                  <button type="button" className="icon-btn icon-btn-danger" title="Remove" onClick={() => handleUnassign(a._id)}>
+                    <TrashIcon />
+                  </button>
+                </div>
+                {a.items.map((item, i) => (
+                  <label
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '4px 0',
+                      fontSize: '0.85rem',
+                      textDecoration: a.completed[i] ? 'line-through' : undefined,
+                      color: a.completed[i] ? 'var(--muted)' : undefined,
+                    }}
+                  >
+                    <input type="checkbox" checked={!!a.completed[i]} onChange={() => handleToggleItem(a, i)} />
+                    {item}
+                  </label>
+                ))}
+              </div>
+            ))
           )}
         </div>
       )}

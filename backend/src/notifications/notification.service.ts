@@ -44,6 +44,10 @@ export class NotificationService {
     await this.itemModel.updateMany({ read: false }, { read: true }).exec();
   }
 
+  async clearAll(): Promise<void> {
+    await this.itemModel.deleteMany({}).exec();
+  }
+
   async notifyCustomerActivated(name: string): Promise<void> {
     const s = await this.settings.get();
     if (!s.customerActivated) return;

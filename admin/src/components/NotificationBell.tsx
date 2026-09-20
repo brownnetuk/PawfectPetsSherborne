@@ -49,6 +49,17 @@ export default function NotificationBell() {
     }
   }
 
+  async function handleClearAll() {
+    try {
+      await api.clearNotifications();
+      setItems([]);
+      setUnread(0);
+    } catch {
+      // Leave the list as-is if the clear itself failed -- nothing else to
+      // show for this, and the bell's own next refresh will reconcile.
+    }
+  }
+
   return (
     <>
       <button
@@ -77,7 +88,17 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <Modal title="Notifications" onClose={() => setOpen(false)}>
+        <Modal
+          title="Notifications"
+          onClose={() => setOpen(false)}
+          headerActions={
+            items && items.length > 0 ? (
+              <button type="button" className="btn-link" onClick={handleClearAll}>
+                Clear all
+              </button>
+            ) : undefined
+          }
+        >
           {items === null ? (
             <div className="empty-state">Loading…</div>
           ) : items.length === 0 ? (

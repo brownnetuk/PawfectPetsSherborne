@@ -4,6 +4,7 @@ import { API_URL } from '../api/client';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import BankAccountModal from '../components/BankAccountModal';
+import ChecklistsCard from '../components/ChecklistsCard';
 import DateInput from '../components/DateInput';
 import { TimeReadout } from '../components/DateTimeReadout';
 import FormBuilder from '../components/FormBuilder';
@@ -48,6 +49,7 @@ type Tab =
   | 'templates'
   | 'invoices'
   | 'bookings'
+  | 'boarding'
   | 'forms'
   | 'financial'
   | 'notifications';
@@ -59,6 +61,7 @@ const TAB_LABELS: Record<Tab, string> = {
   templates: 'Email Templates',
   invoices: 'Invoice/Quotes',
   bookings: 'Bookings',
+  boarding: 'Boarding',
   forms: 'Forms',
   financial: 'Finance',
   notifications: 'Notifications',
@@ -74,7 +77,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="tabs">
-        {(['business', 'staff', 'email', 'templates', 'invoices', 'bookings', 'forms', 'financial', 'notifications'] as Tab[]).map((t) => (
+        {(['business', 'staff', 'email', 'templates', 'invoices', 'bookings', 'boarding', 'forms', 'financial', 'notifications'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -87,6 +90,7 @@ export default function SettingsPage() {
       {tab === 'templates' && <EmailTemplatesTab />}
       {tab === 'invoices' && <InvoicesSettingsTab />}
       {tab === 'bookings' && <BookingsSettingsTab />}
+      {tab === 'boarding' && <BoardingSettingsTab />}
       {tab === 'forms' && <FormsTab />}
       {tab === 'financial' && <FinancialTab />}
       {tab === 'notifications' && <NotificationsSettingsTab />}
@@ -2703,6 +2707,17 @@ function BookingsSettingsTab() {
           { key: 'boardingSecondDogPerDayProduct', label: '2nd Dog Per Day' },
         ]}
       />
+    </div>
+  );
+}
+
+// Distinct from the "Bookings" tab above (which maps Visit/Day Care/
+// Boarding options to invoicing products) -- this one is for day-to-day
+// boarding operations, starting with Checklists.
+function BoardingSettingsTab() {
+  return (
+    <div>
+      <ChecklistsCard />
     </div>
   );
 }

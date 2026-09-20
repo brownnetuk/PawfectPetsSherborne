@@ -43,6 +43,7 @@ import { FormsModule } from './forms/forms.module';
 import { FormSubmissionsModule } from './form-submissions/form-submissions.module';
 import { RolesModule } from './roles/roles.module';
 import { StaffModule } from './staff/staff.module';
+import { ChecklistsModule } from './checklists/checklists.module';
 
 @Module({
   imports: [
@@ -98,6 +99,7 @@ import { StaffModule } from './staff/staff.module';
     VetPracticesModule,
     FormsModule,
     FormSubmissionsModule,
+    ChecklistsModule,
     RolesModule,
     PortalModule,
     MessagesModule,

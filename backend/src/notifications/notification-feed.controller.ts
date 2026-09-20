@@ -1,8 +1,8 @@
-import { Controller, Get, Post } from '@nestjs/common';
+import { Controller, Delete, Get, Post } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 
 // The admin app's notification centre (the bell): recent notifications, the
-// unread count for the red dot, and mark-all-read.
+// unread count for the red dot, mark-all-read, and clear-all.
 @Controller('notifications')
 export class NotificationFeedController {
   constructor(private readonly notifications: NotificationService) {}
@@ -20,6 +20,12 @@ export class NotificationFeedController {
   @Post('mark-read')
   async markRead() {
     await this.notifications.markAllRead();
+    return { ok: true };
+  }
+
+  @Delete()
+  async clear() {
+    await this.notifications.clearAll();
     return { ok: true };
   }
 }

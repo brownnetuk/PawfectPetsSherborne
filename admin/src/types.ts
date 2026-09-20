@@ -792,6 +792,27 @@ export interface FormSubmissionRecord {
   createdAt: string;
 }
 
+// --- Checklists (Settings > Boarding, and Boarding & DayCare > Checklists) ---
+
+export interface ChecklistTemplate {
+  _id: string;
+  name: string;
+  items: string[];
+  createdAt: string;
+}
+
+// name/items are a snapshot from the template at the moment it was
+// assigned -- see backend's ChecklistAssignment schema comment.
+export interface ChecklistAssignment {
+  _id: string;
+  template: string;
+  name: string;
+  items: string[];
+  date: string;
+  completed: boolean[];
+  createdAt: string;
+}
+
 export type EnquiryService = 'dog_walking' | 'pet_visits' | 'boarding' | 'day_care';
 
 export interface Enquiry {
