@@ -343,6 +343,8 @@ export class SettingsService {
       dayCareSecondDogFullDayProduct: doc?.dayCareSecondDogFullDayProduct?.toString() ?? null,
       boardingPerDayProduct: doc?.boardingPerDayProduct?.toString() ?? null,
       boardingSecondDogPerDayProduct: doc?.boardingSecondDogPerDayProduct?.toString() ?? null,
+      boardingHalfDayProduct: doc?.boardingHalfDayProduct?.toString() ?? null,
+      boardingSecondDogHalfDayProduct: doc?.boardingSecondDogHalfDayProduct?.toString() ?? null,
     };
   }
 
@@ -363,6 +365,9 @@ export class SettingsService {
     if (dto.boardingPerDayProduct !== undefined) update.boardingPerDayProduct = dto.boardingPerDayProduct;
     if (dto.boardingSecondDogPerDayProduct !== undefined)
       update.boardingSecondDogPerDayProduct = dto.boardingSecondDogPerDayProduct;
+    if (dto.boardingHalfDayProduct !== undefined) update.boardingHalfDayProduct = dto.boardingHalfDayProduct;
+    if (dto.boardingSecondDogHalfDayProduct !== undefined)
+      update.boardingSecondDogHalfDayProduct = dto.boardingSecondDogHalfDayProduct;
     await this.visitMappingModel.findOneAndUpdate({}, update, { upsert: true }).exec();
     return this.getVisitMapping();
   }

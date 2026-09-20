@@ -503,6 +503,8 @@ export interface VisitMapping {
   dayCareSecondDogFullDayProduct: string | null;
   boardingPerDayProduct: string | null;
   boardingSecondDogPerDayProduct: string | null;
+  boardingHalfDayProduct: string | null;
+  boardingSecondDogHalfDayProduct: string | null;
 }
 
 export interface BusinessInfo {

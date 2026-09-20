@@ -47,6 +47,16 @@ export class VisitMapping extends Document {
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
   boardingSecondDogPerDayProduct?: Types.ObjectId;
+
+  // Leftover time after whole 24h boarding blocks that rounds up to a 12h
+  // charge rather than a full extra day (see DayBookingsService.
+  // computeBoardingPlan) -- a dedicated Boarding product, not the Day Care
+  // Half Day one, so a boarding stay's leftover is never billed as day care.
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  boardingHalfDayProduct?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  boardingSecondDogHalfDayProduct?: Types.ObjectId;
 }
 
 export const VisitMappingSchema = SchemaFactory.createForClass(VisitMapping);

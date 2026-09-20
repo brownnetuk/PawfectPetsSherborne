@@ -8,7 +8,7 @@ import { CreateDayBookingDto } from './dto/create-day-booking.dto';
 import { UpdateDayBookingDto } from './dto/update-day-booking.dto';
 import { DayBooking } from './schemas/day-booking.schema';
 
-export type BoardingLineKind = 'boarding' | 'halfDay' | 'fullDay';
+export type BoardingLineKind = 'boarding' | 'halfDay';
 
 export interface BoardingPlanLine {
   dogIndex: number; // 0-based position in the animals list
@@ -16,13 +16,14 @@ export interface BoardingPlanLine {
   kind: BoardingLineKind;
   secondDog: boolean; // uses the 2nd-dog product rate
   productId: string | null; // resolved from the VisitMapping, null if unmapped
-  // Presence-only row (pick-up day of an exact-24h stay) -- shown but not billed.
+  // Presence-only row (pick-up day of an exact-24h/exact-12h-rounded stay)
+  // -- shown but not billed.
   placeholder?: boolean;
 }
 
 export interface BoardingPlan {
   boardingDays: number;
-  partial: 'none' | 'half' | 'full';
+  partial: 'none' | 'half';
   lines: BoardingPlanLine[];
   // Human labels of the product slots the plan needs but that aren't set in
   // Settings > Bookings -- the admin blocks the booking and names these.
@@ -61,7 +62,12 @@ export class DayBookingsService {
   private async classifyBooking(productId: string): Promise<'boarding' | 'dayCare' | null> {
     const mapping = await this.visitMappingModel.findOne().exec();
     if (!mapping) return null;
-    const boarding = [mapping.boardingPerDayProduct, mapping.boardingSecondDogPerDayProduct];
+    const boarding = [
+      mapping.boardingPerDayProduct,
+      mapping.boardingSecondDogPerDayProduct,
+      mapping.boardingHalfDayProduct,
+      mapping.boardingSecondDogHalfDayProduct,
+    ];
     const dayCare = [
       mapping.dayCareHalfDayProduct,
       mapping.dayCareFullDayProduct,
@@ -74,31 +80,34 @@ export class DayBookingsService {
   }
 
   // Turns a boarding stay's start/end datetimes + dog count into the exact set
-  // of product lines to book, resolving each to the catalogue product configured
-  // in Settings > Bookings (Day Care / Boarding). Rules (confirmed with the
-  // business): whole 24h blocks = Boarding days; the leftover remainder is one
-  // Day Care day -- Half if <= 6h, Full if > 6h. Only the *2nd* dog uses the
-  // 2nd-dog product rates; the 1st and any 3rd+ dogs use the normal ones. The
-  // Half/Full Day Care lands on the pickup day (the day after the last full
-  // boarding day). Single source of truth -- the admin calls this, then creates
-  // the day bookings it returns.
+  // of product lines to book, resolving each to the catalogue product
+  // configured in Settings > Bookings > Boarding. Rules (confirmed with the
+  // business): the first day and every 24h after it is a full Boarding day;
+  // whatever's left over rounds up to the nearest charge -- a Half Day (12h)
+  // if it's 12h or less, otherwise it rounds up to another full Boarding day
+  // (never a Day Care product; boarding leftover is always billed as
+  // boarding). Only the *2nd* dog uses the 2nd-dog product rates; the 1st and
+  // any 3rd+ dogs use the normal ones. The Half Day (or the pick-up-day
+  // placeholder, when there's no leftover at all) lands on the pickup day
+  // (the day after the last full boarding day). Single source of truth -- the
+  // admin calls this, then creates the day bookings it returns.
   async computeBoardingPlan(startIso: string, endIso: string, dogCount: number): Promise<BoardingPlan> {
     const start = new Date(startIso);
     const end = new Date(endIso);
     const hours = (end.getTime() - start.getTime()) / 3_600_000;
-    const boardingDays = hours > 0 ? Math.floor(hours / 24) : 0;
-    const remainder = hours - boardingDays * 24;
-    const partial: 'none' | 'half' | 'full' = remainder <= 0 ? 'none' : remainder <= 6 ? 'half' : 'full';
+    const wholeDays = hours > 0 ? Math.floor(hours / 24) : 0;
+    const remainder = hours - wholeDays * 24;
+    // > 12h rounds up to a whole extra Boarding day instead of a Half Day.
+    const boardingDays = remainder > 12 ? wholeDays + 1 : wholeDays;
+    const partial: 'none' | 'half' = remainder > 0 && remainder <= 12 ? 'half' : 'none';
 
     const mapping = await this.visitMappingModel.findOne().exec();
     const id = (v?: unknown): string | null => (v ? String(v) : null);
     const products = {
       boarding: id(mapping?.boardingPerDayProduct),
       boardingSecond: id(mapping?.boardingSecondDogPerDayProduct),
-      half: id(mapping?.dayCareHalfDayProduct),
-      halfSecond: id(mapping?.dayCareSecondDogHalfDayProduct),
-      full: id(mapping?.dayCareFullDayProduct),
-      fullSecond: id(mapping?.dayCareSecondDogFullDayProduct),
+      half: id(mapping?.boardingHalfDayProduct),
+      halfSecond: id(mapping?.boardingSecondDogHalfDayProduct),
     };
 
     const dogs = Math.max(1, Math.floor(dogCount) || 1);
@@ -112,25 +121,14 @@ export class DayBookingsService {
         if (!productId) missing.add(secondDog ? '2nd Dog Per Day (Boarding)' : 'Per Day (Boarding)');
         lines.push({ dogIndex, dayOffset: day, kind: 'boarding', secondDog, productId });
       }
-      if (partial !== 'none') {
-        const kind: BoardingLineKind = partial === 'half' ? 'halfDay' : 'fullDay';
-        const productId =
-          partial === 'half'
-            ? secondDog
-              ? products.halfSecond
-              : products.half
-            : secondDog
-              ? products.fullSecond
-              : products.full;
-        if (!productId) {
-          if (partial === 'half') missing.add(secondDog ? '2nd Dog Half Day' : 'Half Day');
-          else missing.add(secondDog ? '2nd Dog Full Day' : 'Full Day');
-        }
-        lines.push({ dogIndex, dayOffset: boardingDays, kind, secondDog, productId });
+      if (partial === 'half') {
+        const productId = secondDog ? products.halfSecond : products.half;
+        if (!productId) missing.add(secondDog ? '2nd Dog Half Day (Boarding)' : 'Half Day (Boarding)');
+        lines.push({ dogIndex, dayOffset: boardingDays, kind: 'halfDay', secondDog, productId });
       } else if (boardingDays > 0) {
-        // Exact 24h multiple -- nothing billed on the pick-up day, so add a
-        // presence-only placeholder there (carries the boarding product so it
-        // still renders as boarding on the calendar) that's never invoiced.
+        // Nothing billed on the pick-up day, so add a presence-only
+        // placeholder there (carries the boarding product so it still
+        // renders as boarding on the calendar) that's never invoiced.
         const productId = secondDog ? products.boardingSecond : products.boarding;
         lines.push({ dogIndex, dayOffset: boardingDays, kind: 'boarding', secondDog, productId, placeholder: true });
       }

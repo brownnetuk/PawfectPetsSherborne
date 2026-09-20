@@ -113,7 +113,12 @@ function sectionsFor(mapping: VisitMapping, b: DayBooking): Section[] {
     }
     return sections;
   }
-  if (pid === mapping.dayCareHalfDayProduct || pid === mapping.dayCareSecondDogHalfDayProduct) {
+  if (
+    pid === mapping.dayCareHalfDayProduct ||
+    pid === mapping.dayCareSecondDogHalfDayProduct ||
+    pid === mapping.boardingHalfDayProduct ||
+    pid === mapping.boardingSecondDogHalfDayProduct
+  ) {
     // Half Day doesn't store which half separately. A standalone day-care
     // booking has dropOffPeriod/collectionPeriod (AM/AM or PM/PM for a half
     // day); a boarding stay's attached leftover day only has dropOffTime/

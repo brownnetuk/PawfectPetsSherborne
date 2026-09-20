@@ -2701,10 +2701,12 @@ function BookingsSettingsTab() {
       />
       <ProductMappingCard
         title="Boarding"
-        description="Maps each Boarding option to the product used for it."
+        description="Maps each Boarding option to the product used for it. The first day (and every full 24h after) charges Per Day; whatever's left over rounds up to a Half Day (12h or less) or another full Per Day charge (more than 12h)."
         fields={[
           { key: 'boardingPerDayProduct', label: 'Per Day' },
           { key: 'boardingSecondDogPerDayProduct', label: '2nd Dog Per Day' },
+          { key: 'boardingHalfDayProduct', label: 'Half Day' },
+          { key: 'boardingSecondDogHalfDayProduct', label: '2nd Dog Half Day' },
         ]}
       />
     </div>

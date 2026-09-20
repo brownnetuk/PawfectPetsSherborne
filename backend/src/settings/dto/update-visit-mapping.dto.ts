@@ -63,4 +63,14 @@ export class UpdateVisitMappingDto {
   @ValidateIf((_, v) => v !== null)
   @IsMongoId()
   boardingSecondDogPerDayProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  boardingHalfDayProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  boardingSecondDogHalfDayProduct?: string | null;
 }

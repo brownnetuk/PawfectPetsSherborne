@@ -316,14 +316,14 @@ export function listDayBookingsForCustomer(customerId: string): Promise<DayBooki
 export interface BoardingPlanLine {
   dogIndex: number;
   dayOffset: number;
-  kind: 'boarding' | 'halfDay' | 'fullDay';
+  kind: 'boarding' | 'halfDay';
   secondDog: boolean;
   productId: string | null;
   placeholder?: boolean;
 }
 export interface BoardingPlan {
   boardingDays: number;
-  partial: 'none' | 'half' | 'full';
+  partial: 'none' | 'half';
   lines: BoardingPlanLine[];
   missing: string[];
 }
