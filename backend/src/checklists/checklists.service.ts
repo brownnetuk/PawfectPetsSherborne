@@ -6,7 +6,7 @@ import { CreateChecklistTemplateDto } from './dto/create-checklist-template.dto'
 import { UpdateChecklistAssignmentDto } from './dto/update-checklist-assignment.dto';
 import { UpdateChecklistTemplateDto } from './dto/update-checklist-template.dto';
 import { ChecklistAssignment } from './schemas/checklist-assignment.schema';
-import { ChecklistTemplate } from './schemas/checklist-template.schema';
+import { ChecklistCategory, ChecklistTemplate } from './schemas/checklist-template.schema';
 
 // Same local-midnight parsing DayBookingsService.toDayStart uses, so a
 // checklist assigned to a date lines up with how every other calendar-y
@@ -70,24 +70,64 @@ export class ChecklistsService {
     if (!template) {
       throw new BadRequestException(`Checklist template ${dto.template} not found`);
     }
+    return this.createAssignment(template, toDayStart(dto.date));
+  }
+
+  private createAssignment(template: ChecklistTemplate, date: Date): Promise<ChecklistAssignment> {
     return new this.assignmentModel({
       template: template._id,
+      category: template.category,
       name: template.name,
+      completeByTime: template.completeByTime,
       items: template.items,
-      date: toDayStart(dto.date),
+      date,
       completed: template.items.map(() => false),
+      completedBy: template.items.map(() => null),
     }).save();
   }
 
-  async updateAssignment(id: string, dto: UpdateChecklistAssignmentDto): Promise<ChecklistAssignment> {
+  // Called by DayBookingsService whenever a booking is created/dated, so any
+  // auto-assign template matching that booking's category gets a copy on
+  // that day -- unless one's already there (from a previous booking that
+  // day, or a staff member assigning it by hand).
+  async autoAssignForDate(date: Date, category: ChecklistCategory): Promise<void> {
+    const templates = await this.templateModel.find({ category, autoAssign: true }).exec();
+    for (const template of templates) {
+      const exists = await this.assignmentModel.exists({ template: template._id, date });
+      if (exists) continue;
+      await this.createAssignment(template, date);
+    }
+  }
+
+  async toggleItem(id: string, index: number, actor: string): Promise<ChecklistAssignment> {
     const assignment = await this.assignmentModel.findById(id).exec();
     if (!assignment) {
       throw new NotFoundException(`Checklist assignment ${id} not found`);
     }
-    if (dto.completed.length !== assignment.items.length) {
-      throw new BadRequestException('completed must have one entry per item');
+    if (!Number.isInteger(index) || index < 0 || index >= assignment.items.length) {
+      throw new BadRequestException('Invalid item index');
     }
-    assignment.completed = dto.completed;
+    const nowDone = !assignment.completed[index];
+    assignment.completed[index] = nowDone;
+    assignment.completedBy[index] = nowDone ? actor : null;
+    assignment.markModified('completed');
+    assignment.markModified('completedBy');
+    return assignment.save();
+  }
+
+  async updateAssignment(id: string, dto: UpdateChecklistAssignmentDto, actor: string): Promise<ChecklistAssignment> {
+    const assignment = await this.assignmentModel.findById(id).exec();
+    if (!assignment) {
+      throw new NotFoundException(`Checklist assignment ${id} not found`);
+    }
+    if (dto.notes !== undefined) {
+      assignment.notes = dto.notes;
+    }
+    if (dto.signatureImage !== undefined) {
+      assignment.signatureImage = dto.signatureImage || undefined;
+      assignment.signedBy = dto.signatureImage ? actor : undefined;
+      assignment.signedAt = dto.signatureImage ? new Date() : undefined;
+    }
     return assignment.save();
   }
 

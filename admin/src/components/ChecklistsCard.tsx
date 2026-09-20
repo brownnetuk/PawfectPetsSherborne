@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
-import type { ChecklistTemplate } from '../types';
+import type { ChecklistCategory, ChecklistTemplate } from '../types';
+import { TimeReadout } from './DateTimeReadout';
 import Modal from './Modal';
 import { PencilIcon, TrashIcon } from './icons';
+
+const CATEGORY_LABELS: Record<ChecklistCategory, string> = {
+  dayCare: 'Day Care',
+  boarding: 'Boarding',
+};
 
 // Settings > Boarding > Checklists -- reusable named task lists staff assign
 // to specific days on the Boarding & DayCare > Checklists calendar. Not
@@ -60,16 +66,22 @@ export default function ChecklistsCard() {
         <table>
           <thead>
             <tr>
+              <th>Type</th>
               <th>Name</th>
+              <th>Complete by</th>
               <th>Items</th>
+              <th>Auto assign</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {templates.map((t) => (
               <tr key={t._id}>
+                <td>{CATEGORY_LABELS[t.category]}</td>
                 <td>{t.name}</td>
+                <td>{t.completeByTime || '—'}</td>
                 <td>{t.items.length}</td>
+                <td>{t.autoAssign ? 'Yes' : 'No'}</td>
                 <td>
                   <div style={{ display: 'flex', gap: 2 }}>
                     <button className="icon-btn" title="Edit" onClick={() => setEditing(t)}>
@@ -127,7 +139,10 @@ function EditChecklistModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const [category, setCategory] = useState<ChecklistCategory>(template?.category ?? 'dayCare');
+  const [autoAssign, setAutoAssign] = useState(template?.autoAssign ?? false);
   const [name, setName] = useState(template?.name ?? '');
+  const [completeByTime, setCompleteByTime] = useState(template?.completeByTime ?? '');
   const [items, setItems] = useState<string[]>(template?.items ?? ['']);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -149,7 +164,7 @@ function EditChecklistModal({
     setSubmitting(true);
     setError(null);
     try {
-      const input = { name, items: cleanedItems };
+      const input = { category, name, completeByTime: completeByTime || undefined, items: cleanedItems, autoAssign };
       if (template) {
         await api.updateChecklistTemplate(template._id, input);
       } else {
@@ -168,6 +183,23 @@ function EditChecklistModal({
       {error && <div className="error-banner">{error}</div>}
       <form onSubmit={handleSubmit}>
         <div className="field">
+          <label>Type</label>
+          <select value={category} onChange={(e) => setCategory(e.target.value as ChecklistCategory)}>
+            <option value="dayCare">Day Care</option>
+            <option value="boarding">Boarding</option>
+          </select>
+        </div>
+        <div className="field">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
+            <input type="checkbox" checked={autoAssign} onChange={(e) => setAutoAssign(e.target.checked)} />
+            Auto Assign
+          </label>
+          <p style={{ color: 'var(--muted)', fontSize: '0.82rem', marginTop: 4 }}>
+            When checked, this checklist is automatically added to any day that has a{' '}
+            {category === 'boarding' ? 'boarding' : 'day care'} booking.
+          </p>
+        </div>
+        <div className="field">
           <label>Name</label>
           <input
             type="text"
@@ -177,6 +209,11 @@ function EditChecklistModal({
             required
             autoFocus
           />
+        </div>
+        <div className="field">
+          <label>Complete by time</label>
+          <input type="time" lang="en-GB" value={completeByTime} onChange={(e) => setCompleteByTime(e.target.value)} />
+          <TimeReadout value={completeByTime} />
         </div>
         <div className="field">
           <label>Items</label>

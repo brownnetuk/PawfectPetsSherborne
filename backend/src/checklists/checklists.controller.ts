@@ -1,4 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { ChecklistsService } from './checklists.service';
 import { AssignChecklistDto } from './dto/assign-checklist.dto';
@@ -54,9 +56,17 @@ export class ChecklistAssignmentsController {
     return this.checklists.assign(dto);
   }
 
+  // Ticking/unticking a single item -- separate from the general update
+  // below so the "completed by" name always comes from the logged-in user,
+  // never something the client could send in a body.
+  @Patch(':id/items/:index')
+  toggleItem(@Param('id') id: string, @Param('index') index: string, @CurrentUser() user: CurrentUserShape) {
+    return this.checklists.toggleItem(id, Number(index), user.name);
+  }
+
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateChecklistAssignmentDto) {
-    return this.checklists.updateAssignment(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateChecklistAssignmentDto, @CurrentUser() user: CurrentUserShape) {
+    return this.checklists.updateAssignment(id, dto, user.name);
   }
 
   @Delete(':id')

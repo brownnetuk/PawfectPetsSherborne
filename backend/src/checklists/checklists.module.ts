@@ -14,5 +14,6 @@ import { ChecklistTemplate, ChecklistTemplateSchema } from './schemas/checklist-
   ],
   controllers: [ChecklistTemplatesController, ChecklistAssignmentsController],
   providers: [ChecklistsService],
+  exports: [ChecklistsService],
 })
 export class ChecklistsModule {}

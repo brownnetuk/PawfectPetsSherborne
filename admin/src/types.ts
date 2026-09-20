@@ -794,22 +794,34 @@ export interface FormSubmissionRecord {
 
 // --- Checklists (Settings > Boarding, and Boarding & DayCare > Checklists) ---
 
+export type ChecklistCategory = 'boarding' | 'dayCare';
+
 export interface ChecklistTemplate {
   _id: string;
+  category: ChecklistCategory;
   name: string;
+  completeByTime?: string;
   items: string[];
+  autoAssign: boolean;
   createdAt: string;
 }
 
-// name/items are a snapshot from the template at the moment it was
-// assigned -- see backend's ChecklistAssignment schema comment.
+// name/items/category/completeByTime are a snapshot from the template at the
+// moment it was assigned -- see backend's ChecklistAssignment schema comment.
 export interface ChecklistAssignment {
   _id: string;
   template: string;
+  category: ChecklistCategory;
   name: string;
+  completeByTime?: string;
   items: string[];
   date: string;
   completed: boolean[];
+  completedBy: (string | null)[];
+  notes?: string;
+  signatureImage?: string;
+  signedBy?: string;
+  signedAt?: string;
   createdAt: string;
 }
 

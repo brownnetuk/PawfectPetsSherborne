@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Animal, AnimalSchema } from '../animals/schemas/animal.schema';
+import { ChecklistsModule } from '../checklists/checklists.module';
 import { VisitMapping, VisitMappingSchema } from '../settings/schemas/visit-mapping.schema';
 import { DayBookingsController } from './day-bookings.controller';
 import { DayBookingsService } from './day-bookings.service';
@@ -8,6 +9,9 @@ import { DayBooking, DayBookingSchema } from './schemas/day-booking.schema';
 
 @Module({
   imports: [
+    // So create() can auto-assign any matching auto-assign checklist
+    // template to a booking's date -- see DayBookingsService.create().
+    ChecklistsModule,
     MongooseModule.forFeature([
       { name: DayBooking.name, schema: DayBookingSchema },
       // Read-only here -- DayBookingsService.create() looks up the animal's

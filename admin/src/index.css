@@ -1067,3 +1067,29 @@ table input:focus {
   padding: 4px 8px !important;
   font-size: 0.82rem !important;
 }
+
+/* SignaturePad -- checklist sign-off, ported from the intake app's version. */
+.signature-pad {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+}
+.signature-canvas {
+  display: block;
+  width: 100%;
+  height: 140px;
+  touch-action: none;
+  cursor: crosshair;
+}
+.signature-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+.signature-actions .hint {
+  color: var(--muted);
+}

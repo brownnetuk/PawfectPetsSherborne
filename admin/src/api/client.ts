@@ -11,6 +11,7 @@ import type {
   Booking,
   BusinessInfo,
   ChecklistAssignment,
+  ChecklistCategory,
   ChecklistTemplate,
   Conversation,
   CreditNote,
@@ -969,13 +970,17 @@ export function updateNotificationSettings(patch: Partial<NotificationSettings>)
 export function listChecklistTemplates(): Promise<ChecklistTemplate[]> {
   return request('/checklist-templates');
 }
-export function createChecklistTemplate(input: { name: string; items: string[] }): Promise<ChecklistTemplate> {
+export interface ChecklistTemplateInput {
+  category: ChecklistCategory;
+  name: string;
+  completeByTime?: string;
+  items: string[];
+  autoAssign?: boolean;
+}
+export function createChecklistTemplate(input: ChecklistTemplateInput): Promise<ChecklistTemplate> {
   return request('/checklist-templates', { method: 'POST', body: JSON.stringify(input) });
 }
-export function updateChecklistTemplate(
-  id: string,
-  input: { name: string; items: string[] },
-): Promise<ChecklistTemplate> {
+export function updateChecklistTemplate(id: string, input: ChecklistTemplateInput): Promise<ChecklistTemplate> {
   return request(`/checklist-templates/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
 }
 export function deleteChecklistTemplate(id: string): Promise<void> {
@@ -987,8 +992,14 @@ export function listChecklistAssignments(from: string, to: string): Promise<Chec
 export function assignChecklist(input: { template: string; date: string }): Promise<ChecklistAssignment> {
   return request('/checklist-assignments', { method: 'POST', body: JSON.stringify(input) });
 }
-export function updateChecklistAssignment(id: string, completed: boolean[]): Promise<ChecklistAssignment> {
-  return request(`/checklist-assignments/${id}`, { method: 'PATCH', body: JSON.stringify({ completed }) });
+export function toggleChecklistItem(id: string, index: number): Promise<ChecklistAssignment> {
+  return request(`/checklist-assignments/${id}/items/${index}`, { method: 'PATCH' });
+}
+export function updateChecklistAssignment(
+  id: string,
+  input: { notes?: string; signatureImage?: string },
+): Promise<ChecklistAssignment> {
+  return request(`/checklist-assignments/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
 }
 export function deleteChecklistAssignment(id: string): Promise<void> {
   return request(`/checklist-assignments/${id}`, { method: 'DELETE' });

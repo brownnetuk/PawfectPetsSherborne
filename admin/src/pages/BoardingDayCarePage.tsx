@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as api from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import NewBookingModal from '../components/NewBookingModal';
 import type { BoardingEditInitial, DayCareEditInitial } from '../components/NewBookingModal';
+import SignaturePad from '../components/SignaturePad';
 import { TrashIcon } from '../components/icons';
 import type { Animal, AnnualLeave, ChecklistAssignment, ChecklistTemplate, Customer, DayBooking, VisitMapping } from '../types';
 import { annualLeaveOn } from '../utils/annualLeave';
@@ -915,17 +917,6 @@ function ChecklistsTab() {
     }
   }
 
-  async function handleToggleItem(assignment: ChecklistAssignment, index: number) {
-    const next = assignment.completed.slice();
-    next[index] = !next[index];
-    try {
-      await api.updateChecklistAssignment(assignment._id, next);
-      refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update this checklist');
-    }
-  }
-
   async function handleUnassign(id: string) {
     if (!window.confirm("Remove this checklist from this day? Its ticked-off progress won't be kept.")) return;
     try {
@@ -1052,35 +1043,140 @@ function ChecklistsTab() {
             <div className="empty-state">No checklists assigned to this day yet.</div>
           ) : (
             assignmentsForDay(selectedDate).map((a) => (
-              <div key={a._id} style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <strong style={{ fontSize: '0.9rem' }}>{a.name}</strong>
-                  <button type="button" className="icon-btn icon-btn-danger" title="Remove" onClick={() => handleUnassign(a._id)}>
-                    <TrashIcon />
-                  </button>
-                </div>
-                {a.items.map((item, i) => (
-                  <label
-                    key={i}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '4px 0',
-                      fontSize: '0.85rem',
-                      textDecoration: a.completed[i] ? 'line-through' : undefined,
-                      color: a.completed[i] ? 'var(--muted)' : undefined,
-                    }}
-                  >
-                    <input type="checkbox" checked={!!a.completed[i]} onChange={() => handleToggleItem(a, i)} />
-                    {item}
-                  </label>
-                ))}
-              </div>
+              <AssignmentCard
+                key={a._id}
+                assignment={a}
+                onChanged={refresh}
+                onError={setError}
+                onRemove={() => handleUnassign(a._id)}
+              />
             ))
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// One assigned checklist's card in the day panel -- items with tick + who
+// ticked them, a notes area, and a sign-off signature at the bottom. Kept as
+// its own component (rather than inlined in ChecklistsTab) so the notes
+// textarea can hold its own draft state without fighting the parent's
+// refresh-on-every-change re-renders.
+function AssignmentCard({
+  assignment,
+  onChanged,
+  onError,
+  onRemove,
+}: {
+  assignment: ChecklistAssignment;
+  onChanged: () => void;
+  onError: (message: string) => void;
+  onRemove: () => void;
+}) {
+  const { staff } = useAuth();
+  const [notes, setNotes] = useState(assignment.notes ?? '');
+  const [notesDirty, setNotesDirty] = useState(false);
+  const [savingSignature, setSavingSignature] = useState(false);
+
+  useEffect(() => {
+    if (!notesDirty) setNotes(assignment.notes ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignment.notes]);
+
+  async function handleToggle(index: number) {
+    try {
+      await api.toggleChecklistItem(assignment._id, index);
+      onChanged();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Failed to update this checklist');
+    }
+  }
+
+  async function saveNotes() {
+    setNotesDirty(false);
+    try {
+      await api.updateChecklistAssignment(assignment._id, { notes });
+      onChanged();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Failed to save notes');
+    }
+  }
+
+  async function handleSignatureChange(dataUrl: string | undefined) {
+    setSavingSignature(true);
+    try {
+      await api.updateChecklistAssignment(assignment._id, { signatureImage: dataUrl ?? '' });
+      onChanged();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Failed to save signature');
+    } finally {
+      setSavingSignature(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+        <div>
+          <strong style={{ fontSize: '0.9rem' }}>{assignment.name}</strong>
+          {assignment.completeByTime && (
+            <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Complete by {assignment.completeByTime}</div>
+          )}
+        </div>
+        <button type="button" className="icon-btn icon-btn-danger" title="Remove" onClick={onRemove}>
+          <TrashIcon />
+        </button>
+      </div>
+
+      {assignment.items.map((item, i) => (
+        <div key={i} style={{ padding: '4px 0' }}>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontSize: '0.85rem',
+              textDecoration: assignment.completed[i] ? 'line-through' : undefined,
+              color: assignment.completed[i] ? 'var(--muted)' : undefined,
+            }}
+          >
+            <input type="checkbox" checked={!!assignment.completed[i]} onChange={() => handleToggle(i)} />
+            {item}
+          </label>
+          {assignment.completedBy[i] && (
+            <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginLeft: 24 }}>
+              Completed by {assignment.completedBy[i]}
+            </div>
+          )}
+        </div>
+      ))}
+
+      <div className="field" style={{ marginTop: 10 }}>
+        <label>Notes</label>
+        <textarea
+          value={notes}
+          onChange={(e) => {
+            setNotes(e.target.value);
+            setNotesDirty(true);
+          }}
+          onBlur={() => notesDirty && saveNotes()}
+          rows={2}
+          style={{ fontSize: '0.85rem', width: '100%' }}
+        />
+      </div>
+
+      <div className="field" style={{ marginTop: 10 }}>
+        <label>Signature{staff?.name ? ` (${staff.name})` : ''}</label>
+        <SignaturePad value={assignment.signatureImage} onChange={handleSignatureChange} />
+        {savingSignature && <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4 }}>Saving…</div>}
+        {!savingSignature && assignment.signedBy && (
+          <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4 }}>
+            Signed by {assignment.signedBy}
+            {assignment.signedAt ? ` on ${new Date(assignment.signedAt).toLocaleString('en-GB')}` : ''}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

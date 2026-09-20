@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Animal } from '../animals/schemas/animal.schema';
+import { ChecklistsService } from '../checklists/checklists.service';
 import { VisitMapping } from '../settings/schemas/visit-mapping.schema';
 import { CreateDayBookingDto } from './dto/create-day-booking.dto';
 import { UpdateDayBookingDto } from './dto/update-day-booking.dto';
@@ -49,7 +50,28 @@ export class DayBookingsService {
     @InjectModel(DayBooking.name) private readonly dayBookingModel: Model<DayBooking>,
     @InjectModel(Animal.name) private readonly animalModel: Model<Animal>,
     @InjectModel(VisitMapping.name) private readonly visitMappingModel: Model<VisitMapping>,
+    private readonly checklists: ChecklistsService,
   ) {}
+
+  // Boarding vs Day Care, purely from which VisitMapping product slot a
+  // booking's product fills -- there's no stored category on Product itself,
+  // same lookup computeBoardingPlan() above does in reverse (category ->
+  // product). Returns null for Visits or an unmapped product, neither of
+  // which any checklist auto-assigns against.
+  private async classifyBooking(productId: string): Promise<'boarding' | 'dayCare' | null> {
+    const mapping = await this.visitMappingModel.findOne().exec();
+    if (!mapping) return null;
+    const boarding = [mapping.boardingPerDayProduct, mapping.boardingSecondDogPerDayProduct];
+    const dayCare = [
+      mapping.dayCareHalfDayProduct,
+      mapping.dayCareFullDayProduct,
+      mapping.dayCareSecondDogHalfDayProduct,
+      mapping.dayCareSecondDogFullDayProduct,
+    ];
+    if (boarding.some((p) => p && String(p) === productId)) return 'boarding';
+    if (dayCare.some((p) => p && String(p) === productId)) return 'dayCare';
+    return null;
+  }
 
   // Turns a boarding stay's start/end datetimes + dog count into the exact set
   // of product lines to book, resolving each to the catalogue product configured
@@ -138,6 +160,16 @@ export class DayBookingsService {
       boardingStay: dto.boardingStay ?? false,
       stayId: dto.stayId ?? undefined,
     }).save();
+
+    // Best-effort -- a checklist auto-assign hiccup should never block the
+    // booking itself from being created.
+    try {
+      const category = await this.classifyBooking(String(created.product));
+      if (category) await this.checklists.autoAssignForDate(created.date, category);
+    } catch (err) {
+      console.error('Checklist auto-assign failed for new day booking (will just be missing, not retried):', err);
+    }
+
     return created.populate([
       { path: 'animal', select: 'name species' },
       { path: 'customer', select: 'name' },
