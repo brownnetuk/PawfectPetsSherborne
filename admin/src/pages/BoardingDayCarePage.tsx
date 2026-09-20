@@ -971,6 +971,26 @@ function OccupancyTab({ mapping }: { mapping: VisitMapping | null }) {
           title={selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
           onClose={() => setSelectedDate(null)}
           wide
+          headerActions={
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setSelectedDate((d) => (d ? addDays(d, -1) : d))}
+                aria-label="Previous day"
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setSelectedDate((d) => (d ? addDays(d, 1) : d))}
+                aria-label="Next day"
+              >
+                →
+              </button>
+            </div>
+          }
         >
           {occupancyEntriesForDay(selectedDate).length === 0 ? (
             <div className="empty-state">No boarding or day care that day.</div>
