@@ -910,12 +910,24 @@ function OccupancyTab({ mapping }: { mapping: VisitMapping | null }) {
                   <div className="section-title" style={{ marginTop: 0 }}>
                     {SECTION_LABELS[section]} ({rows.reduce((n, b) => n + b.quantity, 0)}/{CAPACITY_PER_SECTION})
                   </div>
-                  {rows.map((b) => (
-                    <div key={b._id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-                      <span>{animalLabel(b.animal)}</span>
-                      <span style={{ color: 'var(--muted)' }}>{customerLabel(b.customer)}</span>
-                    </div>
-                  ))}
+                  {rows.map((b) => {
+                    const pickup = b.pickUpTime || b.collectionTime;
+                    return (
+                      <div key={b._id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                        <div>
+                          <div>{animalLabel(b.animal)}</div>
+                          {(b.dropOffTime || pickup) && (
+                            <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
+                              {b.dropOffTime && `Drop off ${b.dropOffTime}`}
+                              {b.dropOffTime && pickup && ' · '}
+                              {pickup && `Collect ${pickup}`}
+                            </div>
+                          )}
+                        </div>
+                        <span style={{ color: 'var(--muted)' }}>{customerLabel(b.customer)}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
