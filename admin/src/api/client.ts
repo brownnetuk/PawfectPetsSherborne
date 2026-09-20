@@ -40,6 +40,8 @@ import type {
   ProductAvailability,
   PushMessage,
   Quote,
+  QuoteBoardingPlan,
+  QuoteDayCarePlan,
   QuoteVisitPlan,
   Role,
   Staff,
@@ -441,6 +443,8 @@ export interface CreateQuoteInput {
   paymentTerms?: string;
   subject?: string;
   visitPlan?: QuoteVisitPlan | null;
+  dayCarePlan?: QuoteDayCarePlan | null;
+  boardingPlan?: QuoteBoardingPlan | null;
 }
 export function createQuote(input: CreateQuoteInput): Promise<Quote> {
   return request('/quotes', { method: 'POST', body: JSON.stringify(input) });

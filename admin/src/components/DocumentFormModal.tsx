@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import DateInput from './DateInput';
+import { TimeReadout } from './DateTimeReadout';
 import CustomerPicker from './CustomerPicker';
 import ManualCustomerModal from './ManualCustomerModal';
 import type { ManualCustomer } from './ManualCustomerModal';
@@ -9,6 +10,7 @@ import SendPreviewModal from './SendPreviewModal';
 import { ChevronDownIcon } from './icons';
 import { buildVisitPlan, parseYmd as parseVisitYmd } from '../utils/visitPlan';
 import type { VisitCount } from '../utils/visitPlan';
+import { dayCareProductFor } from '../utils/visitMapping';
 import type { Animal, BankHoliday, Customer, Invoice, InvoiceTerm, LineItem, Product, Quote, VisitMapping } from '../types';
 
 function customerId(customer: Invoice['customer'] | Quote['customer']): string {
@@ -59,6 +61,24 @@ function calculateDueDate(issueDateStr: string, term: InvoiceTerm | undefined): 
 
 function lineItemAmount(item: LineItem): number {
   return item.quantity * item.unitPrice * (1 - (item.discountPercent ?? 0) / 100);
+}
+
+// Shared by the Visits/Day Care/Boarding "Save" buttons: merges a
+// by-product quantity map into whatever's already in the Item Table rather
+// than replacing it outright, so filled-in rows survive while a still-blank
+// starter row gets replaced.
+function mergeLineItemsByProduct(
+  prev: LineItem[],
+  additions: Map<string, { name: string; price: number; quantity: number }>,
+): LineItem[] {
+  const kept = prev.filter((item) => item.description.trim() !== '');
+  const merged = [...kept];
+  for (const p of additions.values()) {
+    const idx = merged.findIndex((m) => m.description === p.name);
+    if (idx >= 0) merged[idx] = { ...merged[idx], quantity: merged[idx].quantity + p.quantity };
+    else merged.push({ description: p.name, quantity: p.quantity, unitPrice: p.price, discountPercent: 0 });
+  }
+  return merged;
 }
 
 // A real (visually-hidden) checkbox under a custom sliding track/thumb, so
@@ -390,6 +410,37 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
   const [visitError, setVisitError] = useState<string | null>(null);
   const [visitSaved, setVisitSaved] = useState(false);
 
+  // Quote-only: same idea as Visits above, for a single Day Care day --
+  // mirrors the New Booking modal's Day Care fields.
+  const existingDayCarePlan = kind === 'quote' && existing ? (existing as Quote).dayCarePlan : undefined;
+  const [showDayCare, setShowDayCare] = useState(!!existingDayCarePlan);
+  const [dayCareAnimalIds, setDayCareAnimalIds] = useState<string[]>(
+    (existingDayCarePlan?.animals ?? []).map((a) => (typeof a === 'string' ? a : a._id)),
+  );
+  const [dayCareDate, setDayCareDate] = useState(existingDayCarePlan?.date ?? '');
+  const [dropOffPeriod, setDropOffPeriod] = useState<'AM' | 'PM'>(existingDayCarePlan?.dropOffPeriod ?? 'AM');
+  const [dropOffTime, setDropOffTime] = useState(existingDayCarePlan?.dropOffTime ?? '');
+  const [collectionPeriod, setCollectionPeriod] = useState<'AM' | 'PM'>(existingDayCarePlan?.collectionPeriod ?? 'PM');
+  const [collectionTime, setCollectionTime] = useState(existingDayCarePlan?.collectionTime ?? '');
+  const [dayCareError, setDayCareError] = useState<string | null>(null);
+  const [dayCareSaved, setDayCareSaved] = useState(false);
+
+  // Quote-only: same idea again, for a Boarding stay -- mirrors the New
+  // Booking modal's Boarding fields, including the backend boarding-plan
+  // endpoint for the day/product breakdown.
+  const existingBoardingPlan = kind === 'quote' && existing ? (existing as Quote).boardingPlan : undefined;
+  const [showBoarding, setShowBoarding] = useState(!!existingBoardingPlan);
+  const [boardingAnimalIds, setBoardingAnimalIds] = useState<string[]>(
+    (existingBoardingPlan?.animals ?? []).map((a) => (typeof a === 'string' ? a : a._id)),
+  );
+  const [boardingStartDate, setBoardingStartDate] = useState(existingBoardingPlan?.startDate ?? '');
+  const [boardingDropOffTime, setBoardingDropOffTime] = useState(existingBoardingPlan?.dropOffTime ?? '');
+  const [boardingEndDate, setBoardingEndDate] = useState(existingBoardingPlan?.endDate ?? '');
+  const [boardingPickUpTime, setBoardingPickUpTime] = useState(existingBoardingPlan?.pickUpTime ?? '');
+  const [boardingError, setBoardingError] = useState<string | null>(null);
+  const [boardingSaved, setBoardingSaved] = useState(false);
+  const [boardingSaving, setBoardingSaving] = useState(false);
+
   const [custId, setCustId] = useState(existing ? customerId(existing.customer) : presetCustomerId ?? '');
   const [lineItems, setLineItems] = useState<LineItem[]>(
     existing ? existing.lineItems.map((li) => ({ ...li })) : [{ description: '', quantity: 1, unitPrice: 0, discountPercent: 0 }],
@@ -508,6 +559,37 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
   function toggleVisitAnimal(id: string) {
     setVisitAnimalIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
+  function toggleDayCareAnimal(id: string) {
+    setDayCareAnimalIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+  function toggleBoardingAnimal(id: string) {
+    setBoardingAnimalIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  // A quote only ever carries one of Visits/Day Care/Boarding (the schema
+  // stores at most one plan) -- these keep the three toggles mutually
+  // exclusive instead of just letting the last-saved one silently win.
+  function enableVisits(v: boolean) {
+    setShowVisits(v);
+    if (v) {
+      setShowDayCare(false);
+      setShowBoarding(false);
+    }
+  }
+  function enableDayCare(v: boolean) {
+    setShowDayCare(v);
+    if (v) {
+      setShowVisits(false);
+      setShowBoarding(false);
+    }
+  }
+  function enableBoarding(v: boolean) {
+    setShowBoarding(v);
+    if (v) {
+      setShowVisits(false);
+      setShowDayCare(false);
+    }
+  }
 
   // Computes the same day-by-day product plan New Booking uses, then
   // aggregates it (summed across every selected animal and day, by product)
@@ -551,17 +633,96 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
       else byProduct.set(productId, { name: product.name, price: product.price, quantity: visitAnimalIds.length });
     }
 
-    setLineItems((prev) => {
-      const kept = prev.filter((item) => item.description.trim() !== '');
-      const merged = [...kept];
-      for (const p of byProduct.values()) {
-        const idx = merged.findIndex((m) => m.description === p.name);
-        if (idx >= 0) merged[idx] = { ...merged[idx], quantity: merged[idx].quantity + p.quantity };
-        else merged.push({ description: p.name, quantity: p.quantity, unitPrice: p.price, discountPercent: 0 });
-      }
-      return merged;
-    });
+    setLineItems((prev) => mergeLineItemsByProduct(prev, byProduct));
     setVisitSaved(true);
+  }
+
+  // Resolves the single Day Care product (Settings > Bookings > Day Care,
+  // Half/Full Day depending on the AM/PM combo) and adds one line item
+  // quantity-per-animal, same product-resolution rule the New Booking
+  // modal's Day Care submit uses.
+  function handleSaveDayCare() {
+    setDayCareError(null);
+    setDayCareSaved(false);
+    if (dayCareAnimalIds.length === 0) {
+      setDayCareError('Choose at least one animal.');
+      return;
+    }
+    if (!dayCareDate || !dropOffTime || !collectionTime) {
+      setDayCareError('Choose a date, and both a drop off and collection time.');
+      return;
+    }
+    if (!visitMapping) {
+      setDayCareError('Still loading the Day Care configuration -- try again in a moment.');
+      return;
+    }
+    const productId = dayCareProductFor(visitMapping, dropOffPeriod, collectionPeriod);
+    const product = productId ? products.find((p) => p._id === productId) : undefined;
+    if (!product) {
+      const isFullDay = dropOffPeriod === 'AM' && collectionPeriod === 'PM';
+      setDayCareError(`No product is configured in Settings > Bookings > Day Care for: ${isFullDay ? 'Full Day' : 'Half Day'}.`);
+      return;
+    }
+    setLineItems((prev) =>
+      mergeLineItemsByProduct(
+        prev,
+        new Map([[product._id, { name: product.name, price: product.price, quantity: dayCareAnimalIds.length }]]),
+      ),
+    );
+    setDayCareSaved(true);
+  }
+
+  // Calls the same backend boarding-plan endpoint (DayBookingsService.
+  // computeBoardingPlan) the New Booking modal's Boarding submit uses, then
+  // aggregates its day-by-day lines into line items by product.
+  async function handleSaveBoarding() {
+    setBoardingError(null);
+    setBoardingSaved(false);
+    if (boardingAnimalIds.length === 0) {
+      setBoardingError('Choose at least one animal.');
+      return;
+    }
+    if (!boardingStartDate || !boardingEndDate) {
+      setBoardingError('Choose a start and end date.');
+      return;
+    }
+    if (!boardingDropOffTime || !boardingPickUpTime) {
+      setBoardingError('Choose a drop off and pick up time.');
+      return;
+    }
+    const startIso = `${boardingStartDate}T${boardingDropOffTime}:00`;
+    const endIso = `${boardingEndDate}T${boardingPickUpTime}:00`;
+    if (new Date(endIso) <= new Date(startIso)) {
+      setBoardingError('Pick up must be after drop off.');
+      return;
+    }
+    setBoardingSaving(true);
+    try {
+      const plan = await api.getBoardingPlan(startIso, endIso, boardingAnimalIds.length);
+      if (plan.missing.length > 0) {
+        setBoardingError(`No product is configured in Settings > Bookings for: ${plan.missing.join(', ')}.`);
+        return;
+      }
+      if (plan.lines.length === 0) {
+        setBoardingError('This stay is too short to book anything. Check the dates and times.');
+        return;
+      }
+      const byProduct = new Map<string, { name: string; price: number; quantity: number }>();
+      for (const line of plan.lines) {
+        if (!line.productId || line.placeholder) continue;
+        const product = products.find((p) => p._id === line.productId);
+        if (!product) continue;
+        const existing = byProduct.get(line.productId);
+        if (existing) existing.quantity += 1;
+        else byProduct.set(line.productId, { name: product.name, price: product.price, quantity: 1 });
+      }
+      setLineItems((prev) => mergeLineItemsByProduct(prev, byProduct));
+      setBoardingSaved(true);
+    } catch (err) {
+      setBoardingError(err instanceof Error ? err.message : 'Failed to work out the boarding plan');
+    } finally {
+      setBoardingSaving(false);
+    }
   }
 
   const selectedCustomer = customers.find((c) => c._id === custId);
@@ -595,10 +756,12 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
         };
         saved = existing ? await api.updateInvoice(existing._id, payload) : await api.createInvoice(payload);
       } else {
-        // Persisted so accepting the quote can create these visits as real
-        // bookings on the calendar; null clears a plan staff have emptied out.
+        // Persisted so accepting the quote can create these as real bookings
+        // on the calendar; null clears a plan staff have emptied out. A quote
+        // only ever carries one of the three (the toggles are mutually
+        // exclusive), so whichever section isn't showing sends null.
         const visitPlan =
-          visitAnimalIds.length > 0 && visitStartDate && visitEndDate
+          showVisits && visitAnimalIds.length > 0 && visitStartDate && visitEndDate
             ? {
                 animals: visitAnimalIds,
                 startDate: visitStartDate,
@@ -606,6 +769,20 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
                 visitsPerDay,
                 visitsFirstDay,
                 visitsLastDay,
+              }
+            : null;
+        const dayCarePlan =
+          showDayCare && dayCareAnimalIds.length > 0 && dayCareDate && dropOffTime && collectionTime
+            ? { animals: dayCareAnimalIds, date: dayCareDate, dropOffPeriod, dropOffTime, collectionPeriod, collectionTime }
+            : null;
+        const boardingPlan =
+          showBoarding && boardingAnimalIds.length > 0 && boardingStartDate && boardingEndDate && boardingDropOffTime && boardingPickUpTime
+            ? {
+                animals: boardingAnimalIds,
+                startDate: boardingStartDate,
+                dropOffTime: boardingDropOffTime,
+                endDate: boardingEndDate,
+                pickUpTime: boardingPickUpTime,
               }
             : null;
         const payload = {
@@ -618,6 +795,8 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
           paymentTerms,
           subject: subject || undefined,
           visitPlan,
+          dayCarePlan,
+          boardingPlan,
         };
         saved = existing ? await api.updateQuote(existing._id, payload) : await api.createQuote(payload);
       }
@@ -677,7 +856,7 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
         <div className="card">
           <div className="section-title">Customer</div>
           <div className="field">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6, flexWrap: 'wrap' }}>
               <label style={{ margin: 0 }}>Customer</label>
               {kind === 'quote' && !manualCustomer && (
                 <button
@@ -688,7 +867,9 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
                   Manual Customer
                 </button>
               )}
-              {kind === 'quote' && <ToggleSwitch checked={showVisits} onChange={setShowVisits} label="Visits" />}
+              {kind === 'quote' && <ToggleSwitch checked={showVisits} onChange={enableVisits} label="Visits" />}
+              {kind === 'quote' && <ToggleSwitch checked={showDayCare} onChange={enableDayCare} label="Day Care" />}
+              {kind === 'quote' && <ToggleSwitch checked={showBoarding} onChange={enableBoarding} label="Boarding" />}
             </div>
             {manualCustomer ? (
               <div
@@ -849,6 +1030,168 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
                 Save
               </button>
               {visitSaved && (
+                <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>
+                  Added to the line items below.
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {kind === 'quote' && showDayCare && (
+          <div className="card">
+            <div className="section-title">Day Care</div>
+            <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+              Populates the line items below from a single day's drop off/collection times, using Settings &gt;
+              Bookings &gt; Day Care. When the customer accepts the quote, this is booked on the calendar
+              automatically.
+            </p>
+            {dayCareError && <div className="error-banner">{dayCareError}</div>}
+            <div className="field">
+              <label>Animals</label>
+              {!custId ? (
+                <div className="field-hint" style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
+                  Select a customer first.
+                </div>
+              ) : customerPets.length === 0 ? (
+                <div className="field-hint" style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
+                  This customer has no animals on file.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {customerPets.map((a) => (
+                    <label key={a._id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
+                      <input
+                        type="checkbox"
+                        checked={dayCareAnimalIds.includes(a._id)}
+                        onChange={() => toggleDayCareAnimal(a._id)}
+                      />
+                      {a.name} ({a.species})
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="field">
+              <label>Date</label>
+              <DateInput value={dayCareDate} onChange={setDayCareDate} />
+            </div>
+            <div className="field-row">
+              <div className="field">
+                <label>Drop Off</label>
+                <select value={dropOffPeriod} onChange={(e) => setDropOffPeriod(e.target.value as 'AM' | 'PM')}>
+                  <option value="AM">AM</option>
+                  <option value="PM">PM</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Drop Off Time</label>
+                <input type="time" lang="en-GB" value={dropOffTime} onChange={(e) => setDropOffTime(e.target.value)} />
+                <TimeReadout value={dropOffTime} />
+              </div>
+            </div>
+            <div className="field-row">
+              <div className="field">
+                <label>Collection</label>
+                <select value={collectionPeriod} onChange={(e) => setCollectionPeriod(e.target.value as 'AM' | 'PM')}>
+                  <option value="AM">AM</option>
+                  <option value="PM">PM</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Collection Time</label>
+                <input
+                  type="time"
+                  lang="en-GB"
+                  value={collectionTime}
+                  onChange={(e) => setCollectionTime(e.target.value)}
+                />
+                <TimeReadout value={collectionTime} />
+              </div>
+            </div>
+            <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+              <button type="button" className="btn btn-primary" onClick={handleSaveDayCare}>
+                Save
+              </button>
+              {dayCareSaved && (
+                <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>
+                  Added to the line items below.
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {kind === 'quote' && showBoarding && (
+          <div className="card">
+            <div className="section-title">Boarding</div>
+            <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+              Populates the line items below from a date range, using Settings &gt; Bookings &gt; Boarding. When the
+              customer accepts the quote, the stay is booked on the calendar automatically.
+            </p>
+            {boardingError && <div className="error-banner">{boardingError}</div>}
+            <div className="field">
+              <label>Animals</label>
+              {!custId ? (
+                <div className="field-hint" style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
+                  Select a customer first.
+                </div>
+              ) : customerPets.length === 0 ? (
+                <div className="field-hint" style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
+                  This customer has no animals on file.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {customerPets.map((a) => (
+                    <label key={a._id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
+                      <input
+                        type="checkbox"
+                        checked={boardingAnimalIds.includes(a._id)}
+                        onChange={() => toggleBoardingAnimal(a._id)}
+                      />
+                      {a.name} ({a.species})
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="field-row">
+              <div className="field">
+                <label>Start Date</label>
+                <DateInput value={boardingStartDate} onChange={setBoardingStartDate} />
+              </div>
+              <div className="field">
+                <label>Drop Off Time</label>
+                <input
+                  type="time"
+                  lang="en-GB"
+                  value={boardingDropOffTime}
+                  onChange={(e) => setBoardingDropOffTime(e.target.value)}
+                />
+                <TimeReadout value={boardingDropOffTime} />
+              </div>
+            </div>
+            <div className="field-row">
+              <div className="field">
+                <label>End Date</label>
+                <DateInput value={boardingEndDate} onChange={setBoardingEndDate} />
+              </div>
+              <div className="field">
+                <label>Pick Up Time</label>
+                <input
+                  type="time"
+                  lang="en-GB"
+                  value={boardingPickUpTime}
+                  onChange={(e) => setBoardingPickUpTime(e.target.value)}
+                />
+                <TimeReadout value={boardingPickUpTime} />
+              </div>
+            </div>
+            <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+              <button type="button" className="btn btn-primary" onClick={handleSaveBoarding} disabled={boardingSaving}>
+                {boardingSaving ? 'Computing…' : 'Save'}
+              </button>
+              {boardingSaved && (
                 <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>
                   Added to the line items below.
                 </span>

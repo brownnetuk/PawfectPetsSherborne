@@ -401,6 +401,23 @@ export interface QuoteVisitPlan {
   visitsLastDay: '1' | '2';
 }
 
+export interface QuoteDayCarePlan {
+  animals: (string | { _id: string; name: string })[];
+  date: string;
+  dropOffPeriod: 'AM' | 'PM';
+  dropOffTime: string;
+  collectionPeriod: 'AM' | 'PM';
+  collectionTime: string;
+}
+
+export interface QuoteBoardingPlan {
+  animals: (string | { _id: string; name: string })[];
+  startDate: string;
+  dropOffTime: string;
+  endDate: string;
+  pickUpTime: string;
+}
+
 export interface Quote {
   _id: string;
   // Absent for a quote raised against a "Manual Customer" placeholder that
@@ -422,6 +439,8 @@ export interface Quote {
   openedAt?: string;
   createdAt: string;
   visitPlan?: QuoteVisitPlan | null;
+  dayCarePlan?: QuoteDayCarePlan | null;
+  boardingPlan?: QuoteBoardingPlan | null;
 }
 
 export interface CrmActivity {

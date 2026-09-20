@@ -54,6 +54,56 @@ export class QuoteVisitPlan {
 }
 const QuoteVisitPlanSchema = SchemaFactory.createForClass(QuoteVisitPlan);
 
+// Mirrors the admin's New Booking modal's Day Care fields (a single day,
+// same-day drop-off/collection) -- enough to replay dayCareProductFor()
+// (admin/src/utils/visitMapping.ts) server-side on acceptance.
+@Schema({ _id: false })
+export class QuoteDayCarePlan {
+  @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'Animal', required: true })
+  animals: Types.ObjectId[];
+
+  @Prop({ required: true })
+  date: string;
+
+  @Prop({ required: true, enum: ['AM', 'PM'] })
+  dropOffPeriod: string;
+
+  @Prop({ required: true })
+  dropOffTime: string;
+
+  @Prop({ required: true, enum: ['AM', 'PM'] })
+  collectionPeriod: string;
+
+  @Prop({ required: true })
+  collectionTime: string;
+}
+const QuoteDayCarePlanSchema = SchemaFactory.createForClass(QuoteDayCarePlan);
+
+// Mirrors the admin's New Booking modal's Boarding fields (a date range,
+// drop-off time on the first day / pick-up time on the last) -- enough to
+// replay DayBookingsService.computeBoardingPlan()'s day/product math
+// server-side on acceptance (see QuotesService.createBookingsFromBoardingPlan,
+// which must be kept in sync with it by hand -- QuotesModule deliberately
+// doesn't import DayBookingsModule, same reasoning as visitPlan below).
+@Schema({ _id: false })
+export class QuoteBoardingPlan {
+  @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'Animal', required: true })
+  animals: Types.ObjectId[];
+
+  @Prop({ required: true })
+  startDate: string;
+
+  @Prop({ required: true })
+  dropOffTime: string;
+
+  @Prop({ required: true })
+  endDate: string;
+
+  @Prop({ required: true })
+  pickUpTime: string;
+}
+const QuoteBoardingPlanSchema = SchemaFactory.createForClass(QuoteBoardingPlan);
+
 // Mirrors Invoice (../../invoices/schemas/invoice.schema.ts) field-for-field
 // except dueDate -> validUntil -- a quote hasn't been billed yet, so "due" has
 // no meaning; "valid until" does.
@@ -125,6 +175,15 @@ export class Quote extends Document {
   // calendar the moment the quote is accepted.
   @Prop({ type: QuoteVisitPlanSchema })
   visitPlan?: QuoteVisitPlan;
+
+  // Same idea as visitPlan, for the quote form's Day Care / Boarding toggles.
+  // A quote carries at most one of visitPlan/dayCarePlan/boardingPlan at a
+  // time (the form's three toggles are mutually exclusive).
+  @Prop({ type: QuoteDayCarePlanSchema })
+  dayCarePlan?: QuoteDayCarePlan;
+
+  @Prop({ type: QuoteBoardingPlanSchema })
+  boardingPlan?: QuoteBoardingPlan;
 }
 
 export const QuoteSchema = SchemaFactory.createForClass(Quote);

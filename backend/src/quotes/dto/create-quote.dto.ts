@@ -64,6 +64,49 @@ export class QuoteVisitPlanDto {
   visitsLastDay: string;
 }
 
+// See QuoteDayCarePlan in ../schemas/quote.schema.ts.
+export class QuoteDayCarePlanDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsMongoId({ each: true })
+  animals: string[];
+
+  @IsDateString()
+  date: string;
+
+  @IsIn(['AM', 'PM'])
+  dropOffPeriod: string;
+
+  @IsString()
+  dropOffTime: string;
+
+  @IsIn(['AM', 'PM'])
+  collectionPeriod: string;
+
+  @IsString()
+  collectionTime: string;
+}
+
+// See QuoteBoardingPlan in ../schemas/quote.schema.ts.
+export class QuoteBoardingPlanDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsMongoId({ each: true })
+  animals: string[];
+
+  @IsDateString()
+  startDate: string;
+
+  @IsString()
+  dropOffTime: string;
+
+  @IsDateString()
+  endDate: string;
+
+  @IsString()
+  pickUpTime: string;
+}
+
 export class CreateQuoteDto {
   // Exactly one of `customer` or manualCustomerName+manualCustomerEmail is
   // required -- enforced in QuotesService.create() (a "one of" constraint
@@ -108,10 +151,25 @@ export class CreateQuoteDto {
   subject?: string;
 
   // null explicitly clears a previously-saved plan (e.g. staff emptied the
-  // Visits section while editing the quote).
+  // Visits section while editing the quote). A quote only ever carries one of
+  // visitPlan/dayCarePlan/boardingPlan -- the admin form's toggles are
+  // mutually exclusive -- but the backend doesn't enforce that itself, same
+  // as it doesn't enforce the customer/manual-customer "one of" either.
   @IsOptional()
   @ValidateIf((_, v) => v !== null)
   @ValidateNested()
   @Type(() => QuoteVisitPlanDto)
   visitPlan?: QuoteVisitPlanDto | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @ValidateNested()
+  @Type(() => QuoteDayCarePlanDto)
+  dayCarePlan?: QuoteDayCarePlanDto | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @ValidateNested()
+  @Type(() => QuoteBoardingPlanDto)
+  boardingPlan?: QuoteBoardingPlanDto | null;
 }
