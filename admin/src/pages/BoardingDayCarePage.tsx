@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import Modal from '../components/Modal';
 import NewBookingModal from '../components/NewBookingModal';
 import type { BoardingEditInitial, DayCareEditInitial } from '../components/NewBookingModal';
 import SignaturePad from '../components/SignaturePad';
@@ -999,6 +1000,7 @@ function ChecklistsTab() {
                             color: allDone ? 'var(--brand-green)' : '#8a6d00',
                           }}
                         >
+                          {allDone ? '✓ ' : ''}
                           {a.name} ({done}/{a.items.length})
                         </span>
                       );
@@ -1012,16 +1014,11 @@ function ChecklistsTab() {
       </div>
 
       {selectedDate && (
-        <div className="card" style={{ width: 320, flexShrink: 0, position: 'sticky', top: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <h2 style={{ margin: 0, fontSize: '1.05rem' }}>
-              {selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
-            </h2>
-            <button type="button" className="icon-btn" onClick={() => setSelectedDate(null)} aria-label="Close">
-              ✕
-            </button>
-          </div>
-
+        <Modal
+          title={selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+          onClose={() => setSelectedDate(null)}
+          wide
+        >
           <div className="field" style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
             <div style={{ flex: 1 }}>
               <label>Assign a checklist</label>
@@ -1052,7 +1049,7 @@ function ChecklistsTab() {
               />
             ))
           )}
-        </div>
+        </Modal>
       )}
     </div>
   );
@@ -1078,6 +1075,7 @@ function AssignmentCard({
   const [notes, setNotes] = useState(assignment.notes ?? '');
   const [notesDirty, setNotesDirty] = useState(false);
   const [savingSignature, setSavingSignature] = useState(false);
+  const allDone = assignment.items.length > 0 && assignment.completed.every(Boolean);
 
   useEffect(() => {
     if (!notesDirty) setNotes(assignment.notes ?? '');
@@ -1120,6 +1118,21 @@ function AssignmentCard({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
         <div>
           <strong style={{ fontSize: '0.9rem' }}>{assignment.name}</strong>
+          {allDone && (
+            <span
+              style={{
+                marginLeft: 8,
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                color: 'var(--brand-green)',
+                background: 'var(--sage-badge, #d9f2e3)',
+                borderRadius: 4,
+                padding: '2px 6px',
+              }}
+            >
+              ✓ Completed
+            </span>
+          )}
           {assignment.completeByTime && (
             <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Complete by {assignment.completeByTime}</div>
           )}
@@ -1141,7 +1154,12 @@ function AssignmentCard({
               color: assignment.completed[i] ? 'var(--muted)' : undefined,
             }}
           >
-            <input type="checkbox" checked={!!assignment.completed[i]} onChange={() => handleToggle(i)} />
+            <input
+              type="checkbox"
+              checked={!!assignment.completed[i]}
+              disabled={allDone}
+              onChange={() => handleToggle(i)}
+            />
             {item}
           </label>
           {assignment.completedBy[i] && (
@@ -1166,17 +1184,19 @@ function AssignmentCard({
         />
       </div>
 
-      <div className="field" style={{ marginTop: 10 }}>
-        <label>Signature{staff?.name ? ` (${staff.name})` : ''}</label>
-        <SignaturePad value={assignment.signatureImage} onChange={handleSignatureChange} />
-        {savingSignature && <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4 }}>Saving…</div>}
-        {!savingSignature && assignment.signedBy && (
-          <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4 }}>
-            Signed by {assignment.signedBy}
-            {assignment.signedAt ? ` on ${new Date(assignment.signedAt).toLocaleString('en-GB')}` : ''}
-          </div>
-        )}
-      </div>
+      {allDone && (
+        <div className="field" style={{ marginTop: 10 }}>
+          <label>Signature{staff?.name ? ` (${staff.name})` : ''}</label>
+          <SignaturePad value={assignment.signatureImage} onChange={handleSignatureChange} />
+          {savingSignature && <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4 }}>Saving…</div>}
+          {!savingSignature && assignment.signedBy && (
+            <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4 }}>
+              Signed by {assignment.signedBy}
+              {assignment.signedAt ? ` on ${new Date(assignment.signedAt).toLocaleString('en-GB')}` : ''}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

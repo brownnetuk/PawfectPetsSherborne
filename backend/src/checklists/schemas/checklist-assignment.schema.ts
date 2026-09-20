@@ -14,7 +14,10 @@ export class ChecklistAssignment extends Document {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: ChecklistTemplate.name, required: true })
   template: Types.ObjectId;
 
-  @Prop({ type: String, enum: ['boarding', 'dayCare'], required: true })
+  // Defaulted for the same reason as ChecklistTemplate.category -- an
+  // assignment snapshotted from a pre-migration template would otherwise
+  // fail to save with no category to copy.
+  @Prop({ type: String, enum: ['boarding', 'dayCare'], required: true, default: 'boarding' })
   category: ChecklistCategory;
 
   @Prop({ required: true })

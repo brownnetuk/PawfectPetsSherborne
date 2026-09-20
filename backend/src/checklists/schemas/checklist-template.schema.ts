@@ -12,7 +12,9 @@ export class ChecklistTemplate extends Document {
   // Which service this checklist applies to -- decides both which
   // auto-assign bookings trigger it (see ChecklistsService.autoAssignForDate)
   // and lets staff tell Boarding from Day Care checklists apart at a glance.
-  @Prop({ type: String, enum: ['boarding', 'dayCare'], required: true })
+  // Defaulted (not just required) so templates created before this field
+  // existed still validate on save instead of throwing.
+  @Prop({ type: String, enum: ['boarding', 'dayCare'], required: true, default: 'boarding' })
   category: ChecklistCategory;
 
   @Prop({ required: true })
