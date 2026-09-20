@@ -512,9 +512,55 @@ export class BoardingBookingsService {
       done: invoice?.status === InvoiceStatus.PAID,
       current: false,
     });
-    const firstPending = stages.findIndex((s) => !s.done);
-    if (firstPending >= 0) stages[firstPending].current = true;
+    if (booking.statusOverride) {
+      this.applyStatusOverride(stages, booking.statusOverride);
+    } else {
+      const firstPending = stages.findIndex((s) => !s.done);
+      if (firstPending >= 0) stages[firstPending].current = true;
+    }
     return stages;
+  }
+
+  // When staff pin a manual status, the Progress timeline should tell the
+  // same story instead of carrying on describing the raw, un-overridden
+  // field state (e.g. the pill saying "Deposit Paid" while the timeline
+  // still showed "Payment received" as merely current/pending looked like
+  // two different, contradicting statuses). `sub` text (invoice number,
+  // amount paid, etc.) is left as computed above -- still factually true
+  // regardless of which stage staff have manually marked as reached.
+  private applyStatusOverride(stages: BoardingBookingStage[], override: BookingStatusLabel): void {
+    const order: BoardingBookingStage['key'][] = [
+      'confirmed',
+      'invoiceRaised',
+      'paymentReceived',
+      'preCheckIn',
+      'checkedIn',
+      'inProgress',
+      'checkedOut',
+      'invoicePaid',
+    ];
+    // The index (into `order` above) of the last stage the given status
+    // implies is DONE -- 'Deposit Requested' and 'Deposit Paid' share the
+    // same underlying 'paymentReceived' stage but land on different sides
+    // of it (requested-not-paid leaves it as the current/pending one).
+    const doneThroughIndex: Record<BookingStatusLabel, number> = {
+      Confirmed: 0,
+      'Invoice Raised': 1,
+      'Deposit Requested': 1,
+      'Deposit Paid': 2,
+      'Pre Check In Complete': 3,
+      'Check In Complete': 4,
+      'In Progress': 5,
+      'Check Out Complete': 6,
+      'Booking Complete': 7,
+    };
+    const threshold = doneThroughIndex[override];
+    for (const stage of stages) {
+      if (stage.key === 'quote') continue;
+      const index = order.indexOf(stage.key);
+      stage.done = index <= threshold;
+      stage.current = index === threshold + 1;
+    }
   }
 
   // Single label shown on the Bookings list and the detail header pill --
