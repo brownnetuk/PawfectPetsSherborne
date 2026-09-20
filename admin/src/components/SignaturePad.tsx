@@ -7,9 +7,12 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 interface Props {
   value?: string;
   onChange: (dataUrl: string | undefined) => void;
+  // Locks the pad once a signature's already been captured -- e.g. a
+  // checklist sign-off shouldn't be alterable after the fact.
+  readOnly?: boolean;
 }
 
-export default function SignaturePad({ value, onChange }: Props) {
+export default function SignaturePad({ value, onChange, readOnly }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const [hasSignature, setHasSignature] = useState(!!value);
@@ -53,6 +56,7 @@ export default function SignaturePad({ value, onChange }: Props) {
   };
 
   const start = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (readOnly) return;
     drawing.current = true;
     const ctx = canvasRef.current?.getContext('2d');
     const { x, y } = getPos(e);
@@ -89,6 +93,7 @@ export default function SignaturePad({ value, onChange }: Props) {
       <canvas
         ref={canvasRef}
         className="signature-canvas"
+        style={readOnly ? { cursor: 'default', touchAction: 'auto' } : undefined}
         onPointerDown={start}
         onPointerMove={move}
         onPointerUp={end}
@@ -96,9 +101,11 @@ export default function SignaturePad({ value, onChange }: Props) {
       />
       <div className="signature-actions">
         <span className="hint">{hasSignature ? 'Signed' : 'Sign above with your mouse or finger'}</span>
-        <button type="button" className="btn-link" onClick={clear}>
-          Clear
-        </button>
+        {!readOnly && (
+          <button type="button" className="btn-link" onClick={clear}>
+            Clear
+          </button>
+        )}
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import Modal from '../components/Modal';
 import NewBookingModal from '../components/NewBookingModal';
 import type { BoardingEditInitial, DayCareEditInitial } from '../components/NewBookingModal';
 import SignaturePad from '../components/SignaturePad';
-import { TrashIcon } from '../components/icons';
+import { ChevronDownIcon, TrashIcon } from '../components/icons';
 import type { Animal, AnnualLeave, ChecklistAssignment, ChecklistTemplate, Customer, DayBooking, VisitMapping } from '../types';
 import { annualLeaveOn } from '../utils/annualLeave';
 import { addDays, dateKey } from '../utils/visitPlan';
@@ -1072,10 +1072,12 @@ function AssignmentCard({
   onRemove: () => void;
 }) {
   const { staff } = useAuth();
+  const [expanded, setExpanded] = useState(false);
   const [notes, setNotes] = useState(assignment.notes ?? '');
   const [notesDirty, setNotesDirty] = useState(false);
   const [savingSignature, setSavingSignature] = useState(false);
   const allDone = assignment.items.length > 0 && assignment.completed.every(Boolean);
+  const doneCount = assignment.completed.filter(Boolean).length;
 
   useEffect(() => {
     if (!notesDirty) setNotes(assignment.notes ?? '');
@@ -1115,34 +1117,64 @@ function AssignmentCard({
 
   return (
     <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-        <div>
-          <strong style={{ fontSize: '0.9rem' }}>{assignment.name}</strong>
-          {allDone && (
-            <span
-              style={{
-                marginLeft: 8,
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                color: 'var(--brand-green)',
-                background: 'var(--sage-badge, #d9f2e3)',
-                borderRadius: 4,
-                padding: '2px 6px',
-              }}
-            >
-              ✓ Completed
-            </span>
-          )}
-          {assignment.completeByTime && (
-            <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Complete by {assignment.completeByTime}</div>
-          )}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setExpanded((v) => !v)}
+        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setExpanded((v) => !v)}
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <span
+            style={{
+              display: 'inline-block',
+              marginTop: 3,
+              transform: expanded ? 'rotate(180deg)' : undefined,
+              color: 'var(--muted)',
+            }}
+          >
+            <ChevronDownIcon />
+          </span>
+          <div>
+            <strong style={{ fontSize: '0.9rem' }}>{assignment.name}</strong>
+            {allDone ? (
+              <span
+                style={{
+                  marginLeft: 8,
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  color: 'var(--brand-green)',
+                  background: 'var(--sage-badge, #d9f2e3)',
+                  borderRadius: 4,
+                  padding: '2px 6px',
+                }}
+              >
+                ✓ Completed
+              </span>
+            ) : (
+              <span style={{ marginLeft: 8, fontSize: '0.72rem', color: 'var(--muted)' }}>
+                {doneCount}/{assignment.items.length}
+              </span>
+            )}
+            {assignment.completeByTime && (
+              <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Complete by {assignment.completeByTime}</div>
+            )}
+          </div>
         </div>
-        <button type="button" className="icon-btn icon-btn-danger" title="Remove" onClick={onRemove}>
+        <button
+          type="button"
+          className="icon-btn icon-btn-danger"
+          title="Remove"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+        >
           <TrashIcon />
         </button>
       </div>
 
-      {assignment.items.map((item, i) => (
+      {!expanded ? null : assignment.items.map((item, i) => (
         <div key={i} style={{ padding: '4px 0' }}>
           <label
             style={{
@@ -1170,24 +1202,30 @@ function AssignmentCard({
         </div>
       ))}
 
-      <div className="field" style={{ marginTop: 10 }}>
-        <label>Notes</label>
-        <textarea
-          value={notes}
-          onChange={(e) => {
-            setNotes(e.target.value);
-            setNotesDirty(true);
-          }}
-          onBlur={() => notesDirty && saveNotes()}
-          rows={2}
-          style={{ fontSize: '0.85rem', width: '100%' }}
-        />
-      </div>
+      {expanded && (
+        <div className="field" style={{ marginTop: 10 }}>
+          <label>Notes</label>
+          <textarea
+            value={notes}
+            onChange={(e) => {
+              setNotes(e.target.value);
+              setNotesDirty(true);
+            }}
+            onBlur={() => notesDirty && saveNotes()}
+            rows={2}
+            style={{ fontSize: '0.85rem', width: '100%' }}
+          />
+        </div>
+      )}
 
-      {allDone && (
+      {expanded && allDone && (
         <div className="field" style={{ marginTop: 10 }}>
           <label>Signature{staff?.name ? ` (${staff.name})` : ''}</label>
-          <SignaturePad value={assignment.signatureImage} onChange={handleSignatureChange} />
+          <SignaturePad
+            value={assignment.signatureImage}
+            onChange={handleSignatureChange}
+            readOnly={!!assignment.signatureImage}
+          />
           {savingSignature && <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4 }}>Saving…</div>}
           {!savingSignature && assignment.signedBy && (
             <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4 }}>
