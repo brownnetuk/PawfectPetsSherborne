@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -11,6 +11,7 @@ import {
 import { formatUkDate } from '../common/invoice-email.util';
 import { publicFrontendUrl } from '../common/tracking-pixel.util';
 import { ExpensesService } from '../expenses/expenses.service';
+import { Invoice } from '../invoices/schemas/invoice.schema';
 import { InvoicesService } from '../invoices/invoices.service';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
@@ -40,6 +41,33 @@ export class PaymentsService {
     const info = await this.businessInfoModel.findOne().exec();
     const template = info?.paymentNumberTemplate || 'PAY-{year}-{seq}';
     return formatDocumentNumber(template, seq);
+  }
+
+  // Shared by the auto-sent "Thank You" email on create() and the two
+  // on-demand resend endpoints below, so all three stay in sync.
+  private paymentEmailVars(
+    payment: Payment,
+    invoice: Invoice,
+  ): Record<string, string | undefined> {
+    const customer = invoice.customer as unknown as {
+      name?: string;
+      address?: string;
+      phoneNumber?: string;
+    };
+    const balanceDue = invoice.total - (invoice.amountPaid ?? 0);
+    return {
+      customer_name: customer?.name,
+      customer_address: customer?.address,
+      customer_phone: customer?.phoneNumber,
+      invoice_number: invoice.invoiceNumber,
+      amount: payment.amount.toFixed(2),
+      payment_date: formatUkDate(payment.date),
+      due_date: formatUkDate(invoice.dueDate),
+      total: invoice.total.toFixed(2),
+      balance_due: balanceDue > 0 ? balanceDue.toFixed(2) : undefined,
+      payment_method: payment.paymentMethod,
+      invoice_link: `${publicFrontendUrl()}/invoices/${invoice._id}`,
+    };
   }
 
   async create(dto: CreatePaymentDto, actor = 'Staff'): Promise<Payment> {
@@ -98,24 +126,11 @@ export class PaymentsService {
       phoneNumber?: string;
     };
     if (customer?.email) {
-      const balanceDue = invoice.total - (invoice.amountPaid ?? 0);
       try {
         await this.settingsService.sendTemplatedEmail(
           EmailTrigger.PAYMENT_RECEIVED,
           customer.email,
-          {
-            customer_name: customer.name,
-            customer_address: customer.address,
-            customer_phone: customer.phoneNumber,
-            invoice_number: invoice.invoiceNumber,
-            amount: dto.amount.toFixed(2),
-            payment_date: formatUkDate(dto.date),
-            due_date: formatUkDate(invoice.dueDate),
-            total: invoice.total.toFixed(2),
-            balance_due: balanceDue > 0 ? balanceDue.toFixed(2) : undefined,
-            payment_method: dto.paymentMethod,
-            invoice_link: `${publicFrontendUrl()}/invoices/${dto.invoice}`,
-          },
+          this.paymentEmailVars(saved, invoice),
         );
       } catch {
         // No template configured yet, or Graph is unreachable -- the payment
@@ -123,6 +138,60 @@ export class PaymentsService {
       }
     }
     return saved;
+  }
+
+  // Manual resend of the same "Thank You" email create() sends automatically
+  // -- unlike there, failures propagate so the staff member who clicked the
+  // button actually sees why it didn't go out.
+  async sendReceivedEmail(id: string): Promise<void> {
+    const payment = await this.paymentModel.findById(id).exec();
+    if (!payment) {
+      throw new NotFoundException(`Payment ${id} not found`);
+    }
+    const invoice = await this.invoicesService.findOne(
+      payment.invoice.toString(),
+    );
+    const customer = invoice.customer as unknown as { email?: string };
+    if (!customer?.email) {
+      throw new BadRequestException(
+        'This customer has no email address on file.',
+      );
+    }
+    await this.settingsService.sendTemplatedEmail(
+      EmailTrigger.PAYMENT_RECEIVED,
+      customer.email,
+      this.paymentEmailVars(payment, invoice),
+    );
+  }
+
+  // Same email/template as sendReceivedEmail, but with a client-built PDF
+  // receipt attached (see admin/src/pdf/receiptPdf.ts) -- mirrors
+  // CustomersService.sendRegistrationCopy's attachment pattern.
+  async sendReceipt(
+    id: string,
+    attachment: { data: string; name: string },
+  ): Promise<void> {
+    const payment = await this.paymentModel.findById(id).exec();
+    if (!payment) {
+      throw new NotFoundException(`Payment ${id} not found`);
+    }
+    const invoice = await this.invoicesService.findOne(
+      payment.invoice.toString(),
+    );
+    const customer = invoice.customer as unknown as { email?: string };
+    if (!customer?.email) {
+      throw new BadRequestException(
+        'This customer has no email address on file.',
+      );
+    }
+    await this.settingsService.sendTemplatedEmail(
+      EmailTrigger.PAYMENT_RECEIVED,
+      customer.email,
+      this.paymentEmailVars(payment, invoice),
+      {},
+      '',
+      attachment,
+    );
   }
 
   findAll(): Promise<Payment[]> {

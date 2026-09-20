@@ -6,7 +6,8 @@ import CreditNoteModal from '../components/CreditNoteModal';
 import ExpenseModal from '../components/ExpenseModal';
 import Modal from '../components/Modal';
 import ViewExpenseModal from '../components/ViewExpenseModal';
-import { PencilIcon, TrashIcon } from '../components/icons';
+import { InvoicesIcon, MailIcon, PencilIcon, TrashIcon } from '../components/icons';
+import { buildReceiptPdf } from '../pdf/receiptPdf';
 import type { BankTransfer, CreditNote, Expense, Payment } from '../types';
 import FinancialSnapshotTab from './FinancialSnapshotTab';
 
@@ -63,6 +64,12 @@ function PaymentsCard() {
   const [deleting, setDeleting] = useState<Payment | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [sendingEmail, setSendingEmail] = useState<Payment | null>(null);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [sendingReceipt, setSendingReceipt] = useState<Payment | null>(null);
+  const [receiptBusy, setReceiptBusy] = useState(false);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
 
   function refresh() {
     api
@@ -84,6 +91,40 @@ function PaymentsCard() {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete this payment');
     } finally {
       setDeleteBusy(false);
+    }
+  }
+
+  async function handleSendEmail() {
+    if (!sendingEmail) return;
+    setEmailBusy(true);
+    setEmailError(null);
+    try {
+      await api.sendPaymentReceivedEmail(sendingEmail._id);
+      setSendingEmail(null);
+    } catch (err) {
+      setEmailError(err instanceof Error ? err.message : 'Failed to send this email');
+    } finally {
+      setEmailBusy(false);
+    }
+  }
+
+  async function handleSendReceipt() {
+    if (!sendingReceipt) return;
+    setReceiptBusy(true);
+    setReceiptError(null);
+    try {
+      const invoiceId =
+        typeof sendingReceipt.invoice === 'string' ? sendingReceipt.invoice : sendingReceipt.invoice?._id;
+      if (!invoiceId) throw new Error('This payment has no invoice to build a receipt from.');
+      const invoice = await api.getInvoice(invoiceId);
+      const doc = await buildReceiptPdf(sendingReceipt, invoice);
+      const attachmentData = doc.output('datauristring');
+      await api.sendPaymentReceipt(sendingReceipt._id, attachmentData, `Receipt ${sendingReceipt.paymentId}.pdf`);
+      setSendingReceipt(null);
+    } catch (err) {
+      setReceiptError(err instanceof Error ? err.message : 'Failed to send this receipt');
+    } finally {
+      setReceiptBusy(false);
     }
   }
 
@@ -129,9 +170,17 @@ function PaymentsCard() {
                 <td>{p.paymentMethod || '—'}</td>
                 <td>{accountLabel(p.account)}</td>
                 <td>
-                  <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(p)}>
-                    <TrashIcon />
-                  </button>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    <button className="icon-btn" title="Send receipt" onClick={() => setSendingReceipt(p)}>
+                      <InvoicesIcon />
+                    </button>
+                    <button className="icon-btn" title="Send payment received email" onClick={() => setSendingEmail(p)}>
+                      <MailIcon />
+                    </button>
+                    <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(p)}>
+                      <TrashIcon />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -162,6 +211,42 @@ function PaymentsCard() {
             </button>
             <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
               {deleteBusy ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {sendingEmail && (
+        <Modal title="Send payment received email?" onClose={() => setSendingEmail(null)}>
+          {emailError && <div className="error-banner">{emailError}</div>}
+          <p>
+            Resend the payment confirmation email for <strong>{sendingEmail.paymentId}</strong> to the customer on{' '}
+            {invoiceLabel(sendingEmail.invoice)}.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setSendingEmail(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" onClick={handleSendEmail} disabled={emailBusy}>
+              {emailBusy ? 'Sending…' : 'Send'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {sendingReceipt && (
+        <Modal title="Send receipt?" onClose={() => setSendingReceipt(null)}>
+          {receiptError && <div className="error-banner">{receiptError}</div>}
+          <p>
+            Email a PDF receipt for payment <strong>{sendingReceipt.paymentId}</strong> to the customer on{' '}
+            {invoiceLabel(sendingReceipt.invoice)}.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setSendingReceipt(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" onClick={handleSendReceipt} disabled={receiptBusy}>
+              {receiptBusy ? 'Sending…' : 'Send'}
             </button>
           </div>
         </Modal>

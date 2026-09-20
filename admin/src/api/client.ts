@@ -393,6 +393,9 @@ export function deleteAppointment(id: string): Promise<void> {
 export function listInvoices(customerId?: string): Promise<Invoice[]> {
   return request(`/invoices${customerId ? `?customer=${customerId}` : ''}`);
 }
+export function getInvoice(id: string): Promise<Invoice> {
+  return request(`/invoices/${id}`);
+}
 export interface CreateInvoiceInput {
   customer: string;
   booking?: string;
@@ -566,6 +569,15 @@ export function createPayment(input: PaymentInput): Promise<Payment> {
 }
 export function deletePayment(id: string): Promise<void> {
   return request(`/payments/${id}`, { method: 'DELETE' });
+}
+export function sendPaymentReceivedEmail(id: string): Promise<void> {
+  return request(`/payments/${id}/send-email`, { method: 'POST' });
+}
+export function sendPaymentReceipt(id: string, attachmentData: string, attachmentName: string): Promise<void> {
+  return request(`/payments/${id}/send-receipt`, {
+    method: 'POST',
+    body: JSON.stringify({ attachmentData, attachmentName }),
+  });
 }
 
 // --- expenses ---
