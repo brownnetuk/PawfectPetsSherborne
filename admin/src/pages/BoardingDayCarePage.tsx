@@ -7,7 +7,7 @@ import NewBookingModal from '../components/NewBookingModal';
 import type { BoardingEditInitial, DayCareEditInitial } from '../components/NewBookingModal';
 import SignaturePad from '../components/SignaturePad';
 import { ChevronDownIcon, TrashIcon } from '../components/icons';
-import { buildChecklistPdf } from '../pdf/checklistPdf';
+import { buildChecklistPdf, buildChecklistsPdf } from '../pdf/checklistPdf';
 import type {
   Animal,
   AnnualLeave,
@@ -1194,6 +1194,8 @@ function ChecklistsTab() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [pickedTemplateId, setPickedTemplateId] = useState('');
   const [assigning, setAssigning] = useState(false);
+  const [exportingDay, setExportingDay] = useState(false);
+  const [exportingAll, setExportingAll] = useState(false);
 
   const weeks = useMemo(() => buildWeeks(viewMode, anchorDate), [viewMode, anchorDate]);
 
@@ -1251,6 +1253,38 @@ function ChecklistsTab() {
     }
   }
 
+  async function handleExportDay() {
+    if (!selectedDate) return;
+    const dayAssignments = assignmentsForDay(selectedDate);
+    if (dayAssignments.length === 0) return;
+    setExportingDay(true);
+    setError(null);
+    try {
+      const subtitle = selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      const doc = await buildChecklistsPdf(dayAssignments, subtitle);
+      doc.save(`Checklists - ${dateKey(selectedDate)}.pdf`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate the PDF');
+    } finally {
+      setExportingDay(false);
+    }
+  }
+
+  async function handleExportAll() {
+    if (!assignments || assignments.length === 0) return;
+    setExportingAll(true);
+    setError(null);
+    try {
+      const subtitle = rangeLabel(viewMode, weeks, anchorDate);
+      const doc = await buildChecklistsPdf(assignments, subtitle);
+      doc.save(`Checklists - ${subtitle}.pdf`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate the PDF');
+    } finally {
+      setExportingAll(false);
+    }
+  }
+
   return (
     <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
       <div className="card" style={{ flex: 1, minWidth: 0 }}>
@@ -1267,13 +1301,18 @@ function ChecklistsTab() {
             </button>
             <h2 style={{ margin: 0, fontSize: '1.05rem' }}>{rangeLabel(viewMode, weeks, anchorDate)}</h2>
           </div>
-          <div className="tabs" style={{ marginBottom: 0 }}>
-            <button className={viewMode === 'week' ? 'active' : ''} onClick={() => setViewMode('week')}>
-              Week
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button className="btn btn-secondary btn-sm" onClick={handleExportAll} disabled={exportingAll || !assignments?.length}>
+              {exportingAll ? 'Exporting…' : 'Export all'}
             </button>
-            <button className={viewMode === 'month' ? 'active' : ''} onClick={() => setViewMode('month')}>
-              Month
-            </button>
+            <div className="tabs" style={{ marginBottom: 0 }}>
+              <button className={viewMode === 'week' ? 'active' : ''} onClick={() => setViewMode('week')}>
+                Week
+              </button>
+              <button className={viewMode === 'month' ? 'active' : ''} onClick={() => setViewMode('month')}>
+                Month
+              </button>
+            </div>
           </div>
         </div>
         {error && <div className="error-banner">{error}</div>}
@@ -1341,6 +1380,16 @@ function ChecklistsTab() {
           title={selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
           onClose={() => setSelectedDate(null)}
           wide
+          headerActions={
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={handleExportDay}
+              disabled={exportingDay || assignmentsForDay(selectedDate).length === 0}
+            >
+              {exportingDay ? 'Exporting…' : 'Export day'}
+            </button>
+          }
         >
           <div className="field" style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
             <div style={{ flex: 1 }}>

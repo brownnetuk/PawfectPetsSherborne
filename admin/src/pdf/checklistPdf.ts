@@ -228,20 +228,15 @@ class PdfWriter {
   }
 }
 
-/** Renders one day's checklist assignment (items, notes, sign-off) as a branded PDF. */
-export async function buildChecklistPdf(assignment: ChecklistAssignment): Promise<jsPDF> {
-  const logo = await loadLogoDataUrl();
-  const w = new PdfWriter();
-  const doc = w.doc;
-  const now = new Date();
-  const dateLabel = new Date(assignment.date).toLocaleDateString('en-GB', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-  w.drawHeader(logo, dateLabel);
+function fullDateLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
 
+// The blocks for one checklist assignment's section (items, notes, sign-off)
+// -- shared by the single-checklist export and the combined multi-checklist
+// one below, so both stay in sync. `doc` is needed to measure wrapped text
+// height at block-construction time (before anything is actually drawn).
+function assignmentBlocks(doc: jsPDF, assignment: ChecklistAssignment): Block[] {
   const blocks: Block[] = [];
   if (assignment.completeByTime) {
     blocks.push(fieldBlock(doc, 'Complete by', assignment.completeByTime));
@@ -259,8 +254,37 @@ export async function buildChecklistPdf(assignment: ChecklistAssignment): Promis
     const signedOn = assignment.signedAt ? ` on ${new Date(assignment.signedAt).toLocaleString('en-GB')}` : '';
     blocks.push(signatureBlock(assignment.signatureImage, `Signed by ${assignment.signedBy ?? 'staff'}${signedOn}`));
   }
-  w.section(assignment.name, blocks);
+  return blocks;
+}
 
+/** Renders one day's checklist assignment (items, notes, sign-off) as a branded PDF. */
+export async function buildChecklistPdf(assignment: ChecklistAssignment): Promise<jsPDF> {
+  const logo = await loadLogoDataUrl();
+  const w = new PdfWriter();
+  const now = new Date();
+  w.drawHeader(logo, fullDateLabel(assignment.date));
+  w.section(assignment.name, assignmentBlocks(w.doc, assignment));
+  w.finish(`Generated ${now.toLocaleDateString('en-GB')} · PawfectPets Sherborne`);
+  return w.doc;
+}
+
+/**
+ * Renders several checklist assignments into ONE combined PDF, one section
+ * per checklist -- used by "Export day" (every checklist on one day) and
+ * "Export all" (every checklist currently loaded in the calendar view).
+ * Each section title is prefixed with its own date so entries from
+ * different days stay identifiable once combined.
+ */
+export async function buildChecklistsPdf(assignments: ChecklistAssignment[], subtitle: string): Promise<jsPDF> {
+  const logo = await loadLogoDataUrl();
+  const w = new PdfWriter();
+  const now = new Date();
+  w.drawHeader(logo, subtitle);
+  const sorted = [...assignments].sort((a, b) => a.date.localeCompare(b.date));
+  for (const assignment of sorted) {
+    const dateLabel = new Date(assignment.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    w.section(`${assignment.name} — ${dateLabel}`, assignmentBlocks(w.doc, assignment));
+  }
   w.finish(`Generated ${now.toLocaleDateString('en-GB')} · PawfectPets Sherborne`);
   return w.doc;
 }
