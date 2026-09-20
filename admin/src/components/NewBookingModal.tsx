@@ -128,6 +128,7 @@ export default function NewBookingModal({
   // recreates from the edited form.
   const editingStayId = boardingInitial?.stayId;
   const editingDayCareStayId = dayCareInitial?.stayId;
+  const isEditing = !!(initial || boardingInitial || dayCareInitial);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
@@ -670,7 +671,7 @@ export default function NewBookingModal({
               {result ? 'Close' : 'Cancel'}
             </button>
             <button type="submit" className="btn btn-primary" disabled={busy}>
-              {busy ? (initial ? 'Updating…' : 'Creating…') : initial ? 'Update booking' : 'Create booking'}
+              {busy ? (isEditing ? 'Updating…' : 'Creating…') : isEditing ? 'Update booking' : 'Create booking'}
             </button>
           </div>
         </div>
