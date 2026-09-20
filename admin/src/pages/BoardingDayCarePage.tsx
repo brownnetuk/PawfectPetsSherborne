@@ -1,13 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import NewBookingModal from '../components/NewBookingModal';
 import type { BoardingEditInitial, DayCareEditInitial } from '../components/NewBookingModal';
 import SignaturePad from '../components/SignaturePad';
 import { ChevronDownIcon, TrashIcon } from '../components/icons';
 import { buildChecklistPdf } from '../pdf/checklistPdf';
-import type { Animal, AnnualLeave, ChecklistAssignment, ChecklistTemplate, Customer, DayBooking, VisitMapping } from '../types';
+import type {
+  Animal,
+  AnnualLeave,
+  ChecklistAssignment,
+  ChecklistTemplate,
+  Customer,
+  DayBooking,
+  Invoice,
+  Payment,
+  VisitMapping,
+} from '../types';
 import { annualLeaveOn } from '../utils/annualLeave';
 import { addDays, dateKey } from '../utils/visitPlan';
 
@@ -836,6 +847,7 @@ function OccupancyTab({ mapping }: { mapping: VisitMapping | null }) {
   const [annualLeave, setAnnualLeave] = useState<AnnualLeave[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<DayBooking | null>(null);
 
   const weeks = useMemo(() => buildWeeks(viewMode, anchorDate), [viewMode, anchorDate]);
 
@@ -1000,7 +1012,14 @@ function OccupancyTab({ mapping }: { mapping: VisitMapping | null }) {
               return (
                 <div key={b._id} style={{ marginBottom: 18 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-                    <strong style={{ fontSize: '0.9rem' }}>{animalLabel(b.animal)}</strong>
+                    <button
+                      type="button"
+                      className="btn-link"
+                      style={{ fontSize: '0.9rem', fontWeight: 700, padding: 0 }}
+                      onClick={() => setSelectedBooking(b)}
+                    >
+                      {animalLabel(b.animal)}
+                    </button>
                     <span style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{customerLabel(b.customer)}</span>
                   </div>
                   {(b.dropOffTime || pickup) && (
@@ -1026,7 +1045,143 @@ function OccupancyTab({ mapping }: { mapping: VisitMapping | null }) {
           )}
         </Modal>
       )}
+
+      {selectedBooking && <BookingDetailModal booking={selectedBooking} onClose={() => setSelectedBooking(null)} />}
     </div>
+  );
+}
+
+// Clicking a dog's name in the day modal opens this -- every row of the same
+// stay (boarding stay, or a day-care day + its travel row), plus whichever
+// invoice they've been billed on and the payments recorded against it, so
+// staff can see a booking's full picture (dates, invoice status, deposit/
+// payments) without leaving the calendar.
+function BookingDetailModal({ booking, onClose }: { booking: DayBooking; onClose: () => void }) {
+  const [rows, setRows] = useState<DayBooking[] | null>(null);
+  const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [payments, setPayments] = useState<Payment[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setError(null);
+      try {
+        const stayRows = booking.stayId ? await api.getBoardingStay(booking.stayId) : [booking];
+        if (cancelled) return;
+        setRows(stayRows);
+        const invoiceRef = stayRows.find((r) => r.invoice)?.invoice;
+        const invoiceId = invoiceRef ? (typeof invoiceRef === 'string' ? invoiceRef : invoiceRef._id) : null;
+        if (!invoiceId) {
+          setInvoice(null);
+          setPayments(null);
+          return;
+        }
+        const [inv, allPayments] = await Promise.all([api.getInvoice(invoiceId), api.listPayments()]);
+        if (cancelled) return;
+        setInvoice(inv);
+        setPayments(
+          allPayments.filter((p) => {
+            const pid = typeof p.invoice === 'string' ? p.invoice : p.invoice?._id;
+            return pid === invoiceId;
+          }),
+        );
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load this booking');
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [booking]);
+
+  const balanceDue = invoice ? invoice.total - (invoice.amountPaid ?? 0) : 0;
+
+  return (
+    <Modal title={`${animalLabel(booking.animal)} · ${customerLabel(booking.customer)}`} onClose={onClose}>
+      {error && <div className="error-banner">{error}</div>}
+      {!rows ? (
+        <div className="empty-state">Loading…</div>
+      ) : (
+        <>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Product</th>
+                <th>Times</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows
+                .filter((r) => !r.placeholder)
+                .map((r) => {
+                  const pickup = r.pickUpTime || r.collectionTime;
+                  return (
+                    <tr key={r._id}>
+                      <td>{new Date(r.date).toLocaleDateString('en-GB')}</td>
+                      <td>{productLabel(r.product)}</td>
+                      <td style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>
+                        {r.dropOffTime && `Drop off ${r.dropOffTime}`}
+                        {r.dropOffTime && pickup && ' · '}
+                        {pickup && `Collect ${pickup}`}
+                        {!r.dropOffTime && !pickup && '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+
+          <div className="section-title" style={{ marginTop: 16 }}>
+            Invoice
+          </div>
+          {!invoice ? (
+            <div className="empty-state">Not yet invoiced.</div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div>
+                  <strong>{invoice.invoiceNumber}</strong>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>
+                    Total £{invoice.total.toFixed(2)} · Paid £{(invoice.amountPaid ?? 0).toFixed(2)}
+                    {balanceDue > 0 ? ` · Balance £${balanceDue.toFixed(2)}` : ' · Paid in full'}
+                  </div>
+                </div>
+                <Badge value={invoice.status} />
+              </div>
+
+              <div className="section-title">Payments</div>
+              {!payments || payments.length === 0 ? (
+                <div className="empty-state">No payments recorded yet.</div>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Payment ID</th>
+                      <th>Date</th>
+                      <th>Amount</th>
+                      <th>Method</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.map((p) => (
+                      <tr key={p._id}>
+                        <td>{p.paymentId}</td>
+                        <td>{new Date(p.date).toLocaleDateString('en-GB')}</td>
+                        <td>£{p.amount.toFixed(2)}</td>
+                        <td>{p.paymentMethod || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </Modal>
   );
 }
 
