@@ -698,11 +698,22 @@ function rangeLabel(viewMode: ViewMode, weeks: Date[][], anchorDate: Date): stri
 
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-const SECTION_COLORS: Record<Section, { bg: string; fg: string }> = {
-  AM: { bg: '#fff4cc', fg: '#8a6d00' },
-  PM: { bg: '#ede9fe', fg: '#6d28d9' },
-  overnight: { bg: '#ccfbf1', fg: '#0f766e' },
-};
+// A stable (not re-randomized on every render), distinct-looking colour per
+// booking rather than per section -- so the same dog's boarding stay reads
+// as one colour across AM/PM/Overnight and across every day it spans, and a
+// different booking sharing a slot that day is visually distinguishable
+// from it. Hashes the stay (or the row itself, for a standalone day-care
+// booking) rather than the animal, since two different stays for the same
+// dog should still read as separate bookings.
+function hashString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function colorForBooking(b: DayBooking): { bg: string; fg: string } {
+  const hue = hashString(b.stayId ?? b._id) % 360;
+  return { bg: `hsl(${hue}, 65%, 88%)`, fg: `hsl(${hue}, 55%, 28%)` };
+}
 
 // One section's row of slots within a day cell -- one small named box per
 // occupied slot (not just a count), plus empty boxes up to the capacity
@@ -710,7 +721,6 @@ const SECTION_COLORS: Record<Section, { bg: string; fg: string }> = {
 // boxes (in red) past the limit rather than truncating real bookings.
 function SectionSlotsRow({ section, bookings }: { section: Section; bookings: DayBooking[] }) {
   const slotCount = Math.max(CAPACITY_PER_SECTION, bookings.length);
-  const colors = SECTION_COLORS[section];
   return (
     <div style={{ marginBottom: 8 }}>
       <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>
@@ -720,6 +730,7 @@ function SectionSlotsRow({ section, bookings }: { section: Section; bookings: Da
         {Array.from({ length: slotCount }, (_, i) => {
           const booking = bookings[i];
           const overCapacity = i >= CAPACITY_PER_SECTION;
+          const colors = booking ? colorForBooking(booking) : null;
           return (
             <div
               key={i}
@@ -737,8 +748,8 @@ function SectionSlotsRow({ section, bookings }: { section: Section; bookings: Da
                 whiteSpace: 'nowrap',
                 padding: '0 4px',
                 border: booking ? 'none' : '1px dashed var(--border)',
-                background: booking ? (overCapacity ? 'var(--error)' : colors.bg) : 'transparent',
-                color: booking ? (overCapacity ? 'white' : colors.fg) : 'transparent',
+                background: booking ? (overCapacity ? 'var(--error)' : colors!.bg) : 'transparent',
+                color: booking ? (overCapacity ? 'white' : colors!.fg) : 'transparent',
               }}
             >
               {booking ? animalLabel(booking.animal) : ''}
