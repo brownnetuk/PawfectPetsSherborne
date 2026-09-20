@@ -6,6 +6,7 @@ import NewBookingModal from '../components/NewBookingModal';
 import type { BoardingEditInitial, DayCareEditInitial } from '../components/NewBookingModal';
 import SignaturePad from '../components/SignaturePad';
 import { ChevronDownIcon, TrashIcon } from '../components/icons';
+import { buildChecklistPdf } from '../pdf/checklistPdf';
 import type { Animal, AnnualLeave, ChecklistAssignment, ChecklistTemplate, Customer, DayBooking, VisitMapping } from '../types';
 import { annualLeaveOn } from '../utils/annualLeave';
 import { addDays, dateKey } from '../utils/visitPlan';
@@ -548,7 +549,10 @@ function UpcomingStaysTab({ mapping, refreshSignal, onEdit, onDelete }: { mappin
       const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
       const billableNights = sorted.filter((r) => sectionsFor(mapping, r).includes('overnight')).length;
       const dropOffTime = sorted.find((r) => r.dropOffTime)?.dropOffTime;
-      const pickUpTime = sorted.find((r) => r.pickUpTime)?.pickUpTime;
+      // Boarding's pickUpTime and standalone Day Care's collectionTime are
+      // different fields (see backend's day-booking.schema.ts) -- a
+      // stayId group can be either, so check both.
+      const pickUpTime = sorted.find((r) => r.pickUpTime)?.pickUpTime ?? sorted.find((r) => r.collectionTime)?.collectionTime;
       result.push({
         key: stayId,
         stayId,
@@ -1220,6 +1224,7 @@ function AssignmentCard({
   const [notes, setNotes] = useState(assignment.notes ?? '');
   const [notesDirty, setNotesDirty] = useState(false);
   const [savingSignature, setSavingSignature] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const allDone = assignment.items.length > 0 && assignment.completed.every(Boolean);
   const doneCount = assignment.completed.filter(Boolean).length;
 
@@ -1256,6 +1261,19 @@ function AssignmentCard({
       onError(err instanceof Error ? err.message : 'Failed to save signature');
     } finally {
       setSavingSignature(false);
+    }
+  }
+
+  async function handleExportPdf() {
+    setExportingPdf(true);
+    try {
+      const doc = await buildChecklistPdf(assignment);
+      const dateLabel = dateKey(new Date(assignment.date));
+      doc.save(`${assignment.name} - ${dateLabel}.pdf`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Failed to generate the PDF');
+    } finally {
+      setExportingPdf(false);
     }
   }
 
@@ -1305,17 +1323,32 @@ function AssignmentCard({
             )}
           </div>
         </div>
-        <button
-          type="button"
-          className="icon-btn icon-btn-danger"
-          title="Remove"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-        >
-          <TrashIcon />
-        </button>
+        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+          <button
+            type="button"
+            className="btn-link"
+            style={{ fontSize: '0.78rem' }}
+            title="Export this checklist as a PDF"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleExportPdf();
+            }}
+            disabled={exportingPdf}
+          >
+            {exportingPdf ? 'Exporting…' : 'Export PDF'}
+          </button>
+          <button
+            type="button"
+            className="icon-btn icon-btn-danger"
+            title="Remove"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+          >
+            <TrashIcon />
+          </button>
+        </div>
       </div>
 
       {!expanded ? null : assignment.items.map((item, i) => (
@@ -1357,6 +1390,7 @@ function AssignmentCard({
             }}
             onBlur={() => notesDirty && saveNotes()}
             rows={2}
+            disabled={allDone}
             style={{ fontSize: '0.85rem', width: '100%' }}
           />
         </div>

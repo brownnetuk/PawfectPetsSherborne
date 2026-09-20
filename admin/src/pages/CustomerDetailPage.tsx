@@ -1036,7 +1036,11 @@ function BookingsTab({ customer, animals }: { customer: Customer; animals: Anima
 
   function StayRow({ stay }: { stay: StayGroup }) {
     const dropOffTime = stay.rows.find((r) => r.dropOffTime)?.dropOffTime;
-    const pickUpTime = stay.rows.find((r) => r.pickUpTime)?.pickUpTime;
+    // Boarding's pickUpTime and standalone Day Care's collectionTime are
+    // different fields (see backend's day-booking.schema.ts) -- this stayId
+    // group can be either, so check both.
+    const pickUpTime =
+      stay.rows.find((r) => r.pickUpTime)?.pickUpTime ?? stay.rows.find((r) => r.collectionTime)?.collectionTime;
     return (
       <div style={{ padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
