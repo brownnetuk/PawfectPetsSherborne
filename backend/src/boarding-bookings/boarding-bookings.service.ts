@@ -525,8 +525,14 @@ export class BoardingBookingsService {
     return current.label;
   }
 
-  async withStatus(booking: BoardingBooking) {
-    const invoice = booking.invoice ? await this.invoicesService.findOne(booking.invoice.toString()).catch(() => null) : null;
+  // findAll()/findOne() above already .populate('invoice'), so `booking.invoice`
+  // is the full Invoice document, not just an id -- re-fetching it here would
+  // (and, before this fix, actually did: booking.invoice.toString() on a
+  // populated subdocument isn't a valid id, so InvoicesService.findOne() threw
+  // and the .catch(() => null) silently produced a null invoice) be redundant
+  // at best. Just use what's already there.
+  withStatus(booking: BoardingBooking) {
+    const invoice = (booking.invoice as unknown as Invoice) ?? null;
     const stages = this.computeStages(booking, invoice);
     return { booking, invoice, stages, status: this.statusLabel(stages) };
   }
