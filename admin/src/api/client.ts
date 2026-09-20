@@ -8,6 +8,9 @@ import type {
   BankAccountType,
   BankHoliday,
   BankTransfer,
+  BoardingBooking,
+  BoardingBookingWithStatus,
+  BoardingWorkflowSettings,
   Booking,
   BusinessInfo,
   ChecklistAssignment,
@@ -27,6 +30,7 @@ import type {
   ExpenseCategoryTotal,
   FormField,
   FormRecord,
+  FormSubmissionPublic,
   FormSubmissionRecord,
   IncomeExpenseMonth,
   IncomeMonth,
@@ -462,6 +466,56 @@ export function sendQuoteEmail(id: string): Promise<Quote> {
   return request(`/quotes/${id}/send`, { method: 'POST' });
 }
 
+// --- boarding bookings (the new reference-numbered Boarding & Day Care
+// workflow -- a separate entity from Booking above, which mobile still uses) ---
+export function listBoardingBookings(): Promise<BoardingBookingWithStatus[]> {
+  return request('/boarding-bookings');
+}
+export function getBoardingBooking(id: string): Promise<BoardingBookingWithStatus> {
+  return request(`/boarding-bookings/${id}`);
+}
+export interface CreateBoardingBookingInput {
+  customer: string;
+  animals: string[];
+  type: 'boarding' | 'dayCare';
+  startDate: string;
+  dropOffTime: string;
+  endDate?: string;
+  pickUpTime: string;
+  dropOffPeriod?: 'AM' | 'PM';
+  collectionPeriod?: 'AM' | 'PM';
+  notes?: string;
+}
+export function createBoardingBooking(input: CreateBoardingBookingInput): Promise<BoardingBooking> {
+  return request('/boarding-bookings', { method: 'POST', body: JSON.stringify(input) });
+}
+export interface AmendBoardingBookingDatesInput {
+  startDate: string;
+  dropOffTime: string;
+  endDate?: string;
+  pickUpTime: string;
+  dropOffPeriod?: 'AM' | 'PM';
+  collectionPeriod?: 'AM' | 'PM';
+}
+export function amendBoardingBookingDates(id: string, input: AmendBoardingBookingDatesInput): Promise<BoardingBooking> {
+  return request(`/boarding-bookings/${id}/amend-dates`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function requestBoardingBookingPayment(
+  id: string,
+  type: 'deposit' | 'full',
+): Promise<{ depositAmount: number; depositPercentage: number }> {
+  return request(`/boarding-bookings/${id}/request-payment`, { method: 'POST', body: JSON.stringify({ type }) });
+}
+export function sendBoardingBookingPreCheckIn(id: string): Promise<BoardingBooking> {
+  return request(`/boarding-bookings/${id}/send-pre-check-in`, { method: 'POST' });
+}
+export function recordBoardingBookingCheckIn(id: string, submissionId: string): Promise<BoardingBooking> {
+  return request(`/boarding-bookings/${id}/check-in`, { method: 'POST', body: JSON.stringify({ submission: submissionId }) });
+}
+export function recordBoardingBookingCheckOut(id: string, submissionId: string): Promise<BoardingBooking> {
+  return request(`/boarding-bookings/${id}/check-out`, { method: 'POST', body: JSON.stringify({ submission: submissionId }) });
+}
+
 // --- invoice terms ---
 export function listInvoiceTerms(): Promise<InvoiceTerm[]> {
   return request('/invoice-terms');
@@ -809,6 +863,14 @@ export function getVisitMapping(): Promise<VisitMapping> {
 export function updateVisitMapping(patch: Partial<VisitMapping>): Promise<VisitMapping> {
   return request('/settings/visits', { method: 'PATCH', body: JSON.stringify(patch) });
 }
+export function getBoardingWorkflowSettings(): Promise<BoardingWorkflowSettings> {
+  return request('/settings/boarding');
+}
+export function updateBoardingWorkflowSettings(
+  patch: Partial<BoardingWorkflowSettings>,
+): Promise<BoardingWorkflowSettings> {
+  return request('/settings/boarding', { method: 'PATCH', body: JSON.stringify(patch) });
+}
 export function previewTerms(termsFile: string): Promise<{ html: string }> {
   return request('/settings/terms/preview', { method: 'POST', body: JSON.stringify({ termsFile }) });
 }
@@ -922,6 +984,16 @@ export function updateFormSubmission(
 }
 export function deleteFormSubmission(id: string): Promise<void> {
   return request(`/form-submissions/${id}`, { method: 'DELETE' });
+}
+// Public endpoints, same ones the customer-facing intake app's FormFillPage
+// uses to fill a pre-check-in link -- reused here for the new staff-facing
+// FormFillModal (check-in/check-out), since @Public() just skips the auth
+// check, it doesn't refuse an authenticated caller.
+export function fetchFormSubmissionPublic(id: string): Promise<FormSubmissionPublic> {
+  return request(`/form-submissions/${id}/public`);
+}
+export function submitFormSubmission(id: string, answers: Record<string, unknown>): Promise<void> {
+  return request(`/form-submissions/${id}/submit`, { method: 'POST', body: JSON.stringify({ answers }) });
 }
 
 // --- enquiries ---

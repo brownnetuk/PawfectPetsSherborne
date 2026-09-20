@@ -446,6 +446,77 @@ export interface Quote {
   boardingPlan?: QuoteBoardingPlan | null;
 }
 
+// The new reference-numbered Boarding & Day Care booking entity -- a
+// separate collection from Booking above (which mobile still uses), behind
+// the Booking quote -> Confirmed -> Invoice raised -> Payment received ->
+// Pre-check-in -> Checked in -> In progress -> Checked out -> Invoice paid
+// workflow. See backend's boarding-bookings module.
+export interface BoardingBooking {
+  _id: string;
+  reference: string;
+  customer: CustomerRef | string;
+  animals: ({ _id: string; name: string; species?: string } | string)[];
+  type: 'boarding' | 'dayCare';
+  startDate: string;
+  dropOffTime: string;
+  endDate: string;
+  pickUpTime: string;
+  notes?: string;
+  quote?: { _id: string; quoteNumber: string } | string;
+  stayId?: string;
+  invoice?: Invoice | string;
+  paymentRequestType?: 'deposit' | 'full';
+  preCheckInSentAt?: string;
+  preCheckInSubmission?: string;
+  checkInSubmission?: string;
+  checkInAt?: string;
+  checkInBy?: string;
+  checkOutSubmission?: string;
+  checkOutAt?: string;
+  checkOutBy?: string;
+  createdAt: string;
+}
+
+export interface BoardingBookingStage {
+  key:
+    | 'quote'
+    | 'confirmed'
+    | 'invoiceRaised'
+    | 'paymentReceived'
+    | 'preCheckIn'
+    | 'checkedIn'
+    | 'inProgress'
+    | 'checkedOut'
+    | 'invoicePaid';
+  label: string;
+  done: boolean;
+  current: boolean;
+  sub?: string;
+}
+
+// GET /boarding-bookings (list) and GET /boarding-bookings/:id (detail) both
+// wrap the raw record with its derived status -- see backend's
+// BoardingBookingsService.withStatus().
+export interface BoardingBookingWithStatus {
+  booking: BoardingBooking;
+  invoice: Invoice | null;
+  stages: BoardingBookingStage[];
+  status: string;
+}
+
+export interface BoardingWorkflowSettings {
+  preCheckInDaysBefore: number;
+  preCheckInFormBoarding: string | null;
+  preCheckInFormDayCare: string | null;
+  checkInFormBoarding: string | null;
+  checkInFormDayCare: string | null;
+  checkInRequirePhoto: boolean;
+  checkInRequireSignature: boolean;
+  checkOutFormBoarding: string | null;
+  checkOutFormDayCare: string | null;
+  checkOutRequireSignature: boolean;
+}
+
 export interface CrmActivity {
   _id: string;
   customer: CustomerRef | string;
@@ -559,6 +630,8 @@ export interface BusinessInfo {
   paymentNextNumber: number;
   creditNoteNumberTemplate: string;
   creditNoteNextNumber: number;
+  bookingRefTemplate: string;
+  bookingRefNextNumber: number;
   invoicePdfTemplate: PdfTemplateElement[];
   trustedIps: string[];
   qrCodeUrl: string;
@@ -814,6 +887,19 @@ export interface FormSubmissionRecord {
   answers?: Record<string, unknown>;
   submittedAt?: string;
   createdAt: string;
+}
+
+// The shape GET /form-submissions/:id/public returns -- {{token}} placeholders
+// already resolved, internal mapping/optionsSource stripped. Same as
+// frontend/src/types.ts's FormSubmissionPublic, used here by FormFillModal.
+export interface FormSubmissionPublic {
+  _id: string;
+  formName: string;
+  formDescription?: string;
+  fields: FormField[];
+  status: 'pending' | 'completed';
+  recipientName?: string;
+  answers?: Record<string, unknown>;
 }
 
 // --- Checklists (Settings > Boarding, and Boarding & DayCare > Checklists) ---
