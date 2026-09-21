@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { CurrentUserShape } from '../auth/current-user.decorator';
+import { RequirePermission } from '../auth/require-permission.decorator';
 import { BoardingBookingsService } from './boarding-bookings.service';
 import { AmendBoardingBookingDatesDto } from './dto/amend-boarding-booking-dates.dto';
 import { CreateBoardingBookingDto } from './dto/create-boarding-booking.dto';
@@ -76,4 +77,9 @@ export class BoardingBookingsController {
     return this.boardingBookingsService.recordCheckOut(id, submissionId, user.name);
   }
 
+  @RequirePermission('bookings.manage')
+  @Delete(':id')
+  remove(@Param('id') id: string, @CurrentUser() user: CurrentUserShape) {
+    return this.boardingBookingsService.remove(id, user.name);
+  }
 }

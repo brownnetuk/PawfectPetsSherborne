@@ -1348,6 +1348,9 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
   const [savingStatus, setSavingStatus] = useState(false);
   const [fillFor, setFillFor] = useState<{ stage: 'checkIn' | 'checkOut'; submissionId: string } | null>(null);
   const [viewSubmission, setViewSubmission] = useState<FormSubmissionRecord | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function refresh() {
     api
@@ -1385,6 +1388,19 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
       setError(err instanceof Error ? err.message : 'Failed to change the status');
     } finally {
       setSavingStatus(false);
+    }
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await api.deleteBoardingBooking(id);
+      onChanged();
+      onBack();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete this booking');
+      setDeleting(false);
     }
   }
 
@@ -1511,11 +1527,16 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
             ))}
           </select>
         </div>
-        {booking.invoice && (
-          <button className="btn btn-secondary" onClick={() => setShowAmend(true)}>
-            Amend dates
+        <div style={{ display: 'flex', gap: 10 }}>
+          {booking.invoice && (
+            <button className="btn btn-secondary" onClick={() => setShowAmend(true)}>
+              Amend dates
+            </button>
+          )}
+          <button className="btn btn-danger" onClick={() => setConfirmDelete(true)}>
+            Delete booking
           </button>
-        )}
+        </div>
       </div>
       {error && <div className="error-banner">{error}</div>}
 
@@ -1657,6 +1678,24 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
         />
       )}
       {viewSubmission && <ViewFormSubmissionModal submission={viewSubmission} onClose={() => setViewSubmission(null)} />}
+      {confirmDelete && (
+        <Modal title="Delete this booking?" onClose={() => setConfirmDelete(false)}>
+          <p>
+            This permanently removes {booking.reference}, its calendar entries, and its invoice
+            {invoice ? ` (${invoice.invoiceNumber})` : ''}. If that invoice has payments recorded against it, remove
+            those first.
+          </p>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => setConfirmDelete(false)}>
+              Cancel
+            </button>
+            <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'Deleting…' : 'Delete booking'}
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

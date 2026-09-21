@@ -280,6 +280,24 @@ export class BoardingBookingsService {
     }).save();
   }
 
+  // Deletes the invoice first (reusing InvoicesService.remove()'s own
+  // guard against payments/credit notes recorded against it -- if that
+  // throws, the booking and its DayBooking rows are left untouched,
+  // same "remove those first" behaviour as deleting an invoice anywhere
+  // else in the app), then the stay's DayBooking rows, then the booking
+  // itself.
+  async remove(id: string, actor = 'Staff'): Promise<void> {
+    const booking = await this.boardingBookingModel.findById(id).exec();
+    if (!booking) throw new NotFoundException(`Boarding booking ${id} not found`);
+    if (booking.invoice) {
+      await this.invoicesService.remove(booking.invoice.toString(), actor);
+    }
+    if (booking.stayId) {
+      await this.dayBookingsService.removeStay(booking.stayId);
+    }
+    await this.boardingBookingModel.findByIdAndDelete(id).exec();
+  }
+
   // Requests either a deposit (existing InvoicesService.requestDeposit(), the
   // configured Settings > Deposit percentage) or the full balance -- staff
   // choose one from the Booking Detail page once the invoice exists,

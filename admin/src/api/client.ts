@@ -523,6 +523,9 @@ export function setBoardingBookingStatus(
 ): Promise<BoardingBookingWithStatus> {
   return request(`/boarding-bookings/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
 }
+export function deleteBoardingBooking(id: string): Promise<void> {
+  return request(`/boarding-bookings/${id}`, { method: 'DELETE' });
+}
 
 // --- invoice terms ---
 export function listInvoiceTerms(): Promise<InvoiceTerm[]> {
