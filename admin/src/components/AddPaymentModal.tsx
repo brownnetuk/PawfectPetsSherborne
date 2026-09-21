@@ -23,14 +23,23 @@ export default function AddPaymentModal({ onClose, onSaved, initialInvoiceId }: 
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
   const [accounts, setAccounts] = useState<BankAccount[] | null>(null);
   const [methods, setMethods] = useState<PaymentMethod[] | null>(null);
+  const [depositPercentage, setDepositPercentage] = useState(20);
   const [invoiceId, setInvoiceId] = useState(initialInvoiceId ?? '');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [amount, setAmount] = useState('');
+  const [isDeposit, setIsDeposit] = useState(false);
   const [charges, setCharges] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [account, setAccount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Same £-via-cents rounding InvoicesService.requestDeposit() uses server-side,
+  // against the invoice's total (not its remaining balance) -- matches what
+  // "Request deposit" on a Boarding & Day Care booking already asks for.
+  function depositAmountFor(invoice: Invoice): number {
+    return Math.round(invoice.total * depositPercentage) / 100;
+  }
 
   useEffect(() => {
     api.listInvoices().then((list) => {
@@ -49,13 +58,29 @@ export default function AddPaymentModal({ onClose, onSaved, initialInvoiceId }: 
       setMethods(list);
       if (list.length > 0) setPaymentMethod((cur) => cur || list[0].name);
     });
+    api.getBusinessInfo().then((info) => setDepositPercentage(info.depositPercentage));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function handleInvoiceChange(id: string) {
     setInvoiceId(id);
     const invoice = invoices?.find((inv) => inv._id === id);
-    if (invoice) {
+    if (!invoice) return;
+    if (isDeposit) {
+      setAmount(depositAmountFor(invoice).toFixed(2));
+    } else {
+      const balanceDue = invoice.total - (invoice.amountPaid ?? 0);
+      setAmount(balanceDue > 0 ? balanceDue.toFixed(2) : '');
+    }
+  }
+
+  function handleIsDepositChange(checked: boolean) {
+    setIsDeposit(checked);
+    const invoice = invoices?.find((inv) => inv._id === invoiceId);
+    if (!invoice) return;
+    if (checked) {
+      setAmount(depositAmountFor(invoice).toFixed(2));
+    } else {
       const balanceDue = invoice.total - (invoice.amountPaid ?? 0);
       setAmount(balanceDue > 0 ? balanceDue.toFixed(2) : '');
     }
@@ -110,6 +135,10 @@ export default function AddPaymentModal({ onClose, onSaved, initialInvoiceId }: 
           <label>Date *</label>
           <DateInput value={date} onChange={setDate} required />
         </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '10px 0', fontWeight: 400 }}>
+          <input type="checkbox" checked={isDeposit} onChange={(e) => handleIsDepositChange(e.target.checked)} />
+          Is deposit ({depositPercentage}% of the invoice total)
+        </label>
         <div className="field-row">
           <div className="field">
             <label>Amount (£) *</label>
@@ -120,6 +149,7 @@ export default function AddPaymentModal({ onClose, onSaved, initialInvoiceId }: 
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00"
+              readOnly={isDeposit}
               required
             />
           </div>
