@@ -1,3 +1,6 @@
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useRef, useState } from 'react';
 import * as api from '../api/client';
 import type {
@@ -11,8 +14,8 @@ import type {
 } from '../types';
 import { mappingTargetsFor } from '../utils/formFieldCatalog';
 import { FORM_PLACEHOLDERS } from '../utils/formPlaceholders';
-import FormPreviewModal from './FormPreviewModal';
-import { PencilIcon, PlusIcon, TrashIcon } from './icons';
+import FormPreviewBody from './FormPreviewBody';
+import { DragHandleIcon, PencilIcon, PlusIcon, TrashIcon } from './icons';
 
 const SIMPLE_TYPES: { type: FormField['type']; label: string }[] = [
   { type: 'text', label: 'Text' },
@@ -76,7 +79,6 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showPreview, setShowPreview] = useState(false);
 
   function updateFieldById(id: string, updater: (f: FormField) => FormField) {
     setFields((prev) =>
@@ -113,25 +115,26 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
     if (selectedId === id) setSelectedId(null);
   }
 
-  function moveFieldById(id: string, dir: -1 | 1) {
+  // parentGroupId identifies which list is being reordered -- the top-level
+  // fields array (null) or one specific group's own child fields array.
+  // Mirrors the two-branch shape of the old up/down-arrow swap logic, just
+  // driven by a drag's start/end ids (via dnd-kit's arrayMove) instead of a
+  // single index + direction.
+  function reorderFields(parentGroupId: string | null, activeId: string, overId: string) {
+    if (activeId === overId) return;
     setFields((prev) => {
-      const topIndex = prev.findIndex((f) => f.id === id);
-      if (topIndex !== -1) {
-        const swapWith = topIndex + dir;
-        if (swapWith < 0 || swapWith >= prev.length) return prev;
-        const next = [...prev];
-        [next[topIndex], next[swapWith]] = [next[swapWith], next[topIndex]];
-        return next;
+      if (parentGroupId === null) {
+        const oldIndex = prev.findIndex((f) => f.id === activeId);
+        const newIndex = prev.findIndex((f) => f.id === overId);
+        if (oldIndex === -1 || newIndex === -1) return prev;
+        return arrayMove(prev, oldIndex, newIndex);
       }
       return prev.map((f) => {
-        if (f.type !== 'group') return f;
-        const idx = f.fields.findIndex((c) => c.id === id);
-        if (idx === -1) return f;
-        const swapWith = idx + dir;
-        if (swapWith < 0 || swapWith >= f.fields.length) return f;
-        const nextChildren = [...f.fields];
-        [nextChildren[idx], nextChildren[swapWith]] = [nextChildren[swapWith], nextChildren[idx]];
-        return { ...f, fields: nextChildren };
+        if (f.id !== parentGroupId || f.type !== 'group') return f;
+        const oldIndex = f.fields.findIndex((c) => c.id === activeId);
+        const newIndex = f.fields.findIndex((c) => c.id === overId);
+        if (oldIndex === -1 || newIndex === -1) return f;
+        return { ...f, fields: arrayMove(f.fields, oldIndex, newIndex) };
       });
     });
   }
@@ -180,7 +183,7 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
   }
 
   return (
-    <div className="card">
+    <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
         <div>
           <h2>{form ? 'Edit form' : 'New form'}</h2>
@@ -191,9 +194,6 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-secondary btn-sm" onClick={onClose} disabled={saving}>
             Back to list
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => setShowPreview(true)} disabled={fields.length === 0}>
-            Preview
           </button>
           <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : 'Save form'}
@@ -220,63 +220,119 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
         </div>
       )}
 
-      <div className="field" style={{ marginTop: 16 }}>
-        <label>Name</label>
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
-      </div>
-      <div className="field">
-        <label>Description</label>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} />
-      </div>
+      <div style={{ display: 'flex', gap: 16, marginTop: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <div className="card" style={{ flex: '2 1 480px', minWidth: 0 }}>
+          <div className="field">
+            <label>Name</label>
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+          </div>
+          <div className="field">
+            <label>Description</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
-        {fields.map((field, index) => (
-          <FieldRow
-            key={field.id}
-            field={field}
-            index={index}
-            total={fields.length}
+          <TopLevelFieldList
+            fields={fields}
             siblings={fields}
-            parentGroupId={null}
             selectedId={selectedId}
             onSelect={setSelectedId}
             onUpdate={updateFieldById}
             onRemove={removeFieldById}
-            onMove={moveFieldById}
+            onReorder={reorderFields}
             onAddField={addField}
           />
-        ))}
-      </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
-        {SIMPLE_TYPES.map((t) => (
-          <button key={t.type} type="button" className="btn btn-secondary btn-sm" onClick={() => addField(t.type, null)}>
-            <PlusIcon /> {t.label}
-          </button>
-        ))}
-        <button type="button" className="btn btn-secondary btn-sm" onClick={() => addField('group', null)}>
-          <PlusIcon /> Repeatable group (e.g. pets)
-        </button>
-      </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
+            {SIMPLE_TYPES.map((t) => (
+              <button key={t.type} type="button" className="btn btn-secondary btn-sm" onClick={() => addField(t.type, null)}>
+                <PlusIcon /> {t.label}
+              </button>
+            ))}
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => addField('group', null)}>
+              <PlusIcon /> Repeatable group (e.g. pets)
+            </button>
+          </div>
+        </div>
 
-      {showPreview && (
-        <FormPreviewModal name={name} description={description} fields={fields} onClose={() => setShowPreview(false)} />
-      )}
+        <div className="card" style={{ flex: '1 1 320px', minWidth: 0, position: 'sticky', top: 16 }}>
+          <div className="section-title">Live preview</div>
+          <p className="hint" style={{ marginTop: -6 }}>
+            Updates as you edit -- nothing entered here is saved.
+          </p>
+          <FormPreviewBody name={name} description={description} fields={fields} />
+        </div>
+      </div>
     </div>
+  );
+}
+
+// Wraps the top-level fields list in its own drag-and-drop scope, separate
+// from each group's own child-field list (see the "group" branch inside
+// FieldRow below) -- fields can be reordered within either list, but not
+// dragged between them.
+function TopLevelFieldList({
+  fields,
+  siblings,
+  selectedId,
+  onSelect,
+  onUpdate,
+  onRemove,
+  onReorder,
+  onAddField,
+}: {
+  fields: FormField[];
+  siblings: FormField[];
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onUpdate: (id: string, updater: (f: FormField) => FormField) => void;
+  onRemove: (id: string) => void;
+  onReorder: (parentGroupId: string | null, activeId: string, overId: string) => void;
+  onAddField: (type: FormField['type'], parentGroupId: string | null) => void;
+}) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      onReorder(null, String(active.id), String(over.id));
+    }
+  }
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={fields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+          {fields.map((field, index) => (
+            <FieldRow
+              key={field.id}
+              field={field}
+              index={index}
+              siblings={siblings}
+              parentGroupId={null}
+              selectedId={selectedId}
+              onSelect={onSelect}
+              onUpdate={onUpdate}
+              onRemove={onRemove}
+              onReorder={onReorder}
+              onAddField={onAddField}
+            />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
   );
 }
 
 interface RowProps {
   field: FormField;
   index: number;
-  total: number;
   siblings: FormField[];
   parentGroupId: string | null;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onUpdate: (id: string, updater: (f: FormField) => FormField) => void;
   onRemove: (id: string) => void;
-  onMove: (id: string, dir: -1 | 1) => void;
+  onReorder: (parentGroupId: string | null, activeId: string, overId: string) => void;
   onAddField: (type: FormField['type'], parentGroupId: string | null) => void;
 }
 
@@ -284,11 +340,17 @@ function typeLabel(type: FormField['type']): string {
   return SIMPLE_TYPES.find((t) => t.type === type)?.label ?? (type === 'group' ? 'Repeatable group' : type);
 }
 
-function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, onSelect, onUpdate, onRemove, onMove, onAddField }: RowProps) {
+function FieldRow({ field, index, siblings, parentGroupId, selectedId, onSelect, onUpdate, onRemove, onReorder, onAddField }: RowProps) {
   const isSelected = selectedId === field.id;
   const target: FieldTarget = parentGroupId ? 'animal' : 'customer';
   const labelRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const defaultValueRef = useRef<HTMLInputElement>(null);
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: field.id });
+  const sortableStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
 
   // Splices a {{token}} into the label/free-text editor at its current
   // cursor position -- same shape as SettingsPage.tsx's plain-<textarea>
@@ -330,9 +392,22 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
   }
 
   return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px' }}>
+    <div
+      ref={setNodeRef}
+      style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', background: 'var(--card)', ...sortableStyle }}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="icon-btn"
+            title="Drag to reorder"
+            style={{ cursor: 'grab', touchAction: 'none', color: 'var(--muted)' }}
+            {...attributes}
+            {...listeners}
+          >
+            <DragHandleIcon />
+          </button>
           <strong>
             {field.type === 'display'
               ? (field.label || '(empty text)').slice(0, 60) + (field.label.length > 60 ? '…' : '')
@@ -363,12 +438,6 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
           )}
         </div>
         <div style={{ display: 'flex', gap: 2 }}>
-          <button type="button" className="icon-btn" title="Move up" disabled={index === 0} onClick={() => onMove(field.id, -1)}>
-            ↑
-          </button>
-          <button type="button" className="icon-btn" title="Move down" disabled={index === total - 1} onClick={() => onMove(field.id, 1)}>
-            ↓
-          </button>
           <button type="button" className="icon-btn" title="Edit" onClick={() => onSelect(isSelected ? null : field.id)}>
             <PencilIcon />
           </button>
@@ -603,24 +672,16 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
 
       {field.type === 'group' && (
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {field.fields.map((child, childIndex) => (
-              <FieldRow
-                key={child.id}
-                field={child}
-                index={childIndex}
-                total={field.fields.length}
-                siblings={field.fields}
-                parentGroupId={field.id}
-                selectedId={selectedId}
-                onSelect={onSelect}
-                onUpdate={onUpdate}
-                onRemove={onRemove}
-                onMove={onMove}
-                onAddField={onAddField}
-              />
-            ))}
-          </div>
+          <GroupFieldList
+            groupId={field.id}
+            fields={field.fields}
+            selectedId={selectedId}
+            onSelect={onSelect}
+            onUpdate={onUpdate}
+            onRemove={onRemove}
+            onReorder={onReorder}
+            onAddField={onAddField}
+          />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
             {SIMPLE_TYPES.map((t) => (
               <button
@@ -636,6 +697,62 @@ function FieldRow({ field, index, total, siblings, parentGroupId, selectedId, on
         </div>
       )}
     </div>
+  );
+}
+
+// Same idea as TopLevelFieldList, but scoped to one group's own children --
+// a separate drag-and-drop context so a child field can be reordered
+// within its group without ever being draggable out of it.
+function GroupFieldList({
+  groupId,
+  fields,
+  selectedId,
+  onSelect,
+  onUpdate,
+  onRemove,
+  onReorder,
+  onAddField,
+}: {
+  groupId: string;
+  fields: FormField[];
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onUpdate: (id: string, updater: (f: FormField) => FormField) => void;
+  onRemove: (id: string) => void;
+  onReorder: (parentGroupId: string | null, activeId: string, overId: string) => void;
+  onAddField: (type: FormField['type'], parentGroupId: string | null) => void;
+}) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      onReorder(groupId, String(active.id), String(over.id));
+    }
+  }
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={fields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {fields.map((child, childIndex) => (
+            <FieldRow
+              key={child.id}
+              field={child}
+              index={childIndex}
+              siblings={fields}
+              parentGroupId={groupId}
+              selectedId={selectedId}
+              onSelect={onSelect}
+              onUpdate={onUpdate}
+              onRemove={onRemove}
+              onReorder={onReorder}
+              onAddField={onAddField}
+            />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
   );
 }
 
