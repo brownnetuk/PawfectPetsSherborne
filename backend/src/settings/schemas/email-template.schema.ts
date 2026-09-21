@@ -30,6 +30,12 @@ export enum EmailTrigger {
   // registration -- carries a PDF snapshot of what they just submitted as
   // an attachment (see CustomersService.sendRegistrationCopy).
   POST_REGISTRATION = 'post_registration',
+  // Same "copy of what was just completed" idea as POST_REGISTRATION above,
+  // but for any other form -- staff request this after filling in e.g. a
+  // Boarding & Day Care check-in/check-out (see
+  // FormSubmissionsService.sendCopy()), so the customer gets a PDF record
+  // of it by email.
+  FORM_COPY = 'form_copy',
 }
 
 // One document per trigger (enforced via the unique index below) -- avoids

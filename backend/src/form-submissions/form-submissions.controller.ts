@@ -12,6 +12,7 @@ import {
 import type { Request } from 'express';
 import { Public } from '../auth/public.decorator';
 import { CreateFormSubmissionDto } from './dto/create-form-submission.dto';
+import { SendFormSubmissionCopyDto } from './dto/send-form-submission-copy.dto';
 import { SubmitFormSubmissionDto } from './dto/submit-form-submission.dto';
 import { UpdateFormSubmissionDto } from './dto/update-form-submission.dto';
 import { FormSubmissionsService } from './form-submissions.service';
@@ -46,6 +47,11 @@ export class FormSubmissionsController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.formSubmissionsService.remove(id);
+  }
+
+  @Post(':id/send-copy')
+  sendCopy(@Param('id') id: string, @Body() dto: SendFormSubmissionCopyDto) {
+    return this.formSubmissionsService.sendCopy(id, dto);
   }
 
   // Public: the form-fill page fetches by id (from its emailed link).

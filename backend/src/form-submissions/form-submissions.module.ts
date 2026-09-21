@@ -4,6 +4,7 @@ import { AnimalsModule } from '../animals/animals.module';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { CustomersModule } from '../customers/customers.module';
 import { FormsModule } from '../forms/forms.module';
+import { SettingsModule } from '../settings/settings.module';
 import { FormSubmissionsController } from './form-submissions.controller';
 import { FormSubmissionsService } from './form-submissions.service';
 import {
@@ -20,6 +21,7 @@ import {
     CustomersModule,
     AnimalsModule,
     AuditLogModule,
+    SettingsModule,
   ],
   controllers: [FormSubmissionsController],
   providers: [FormSubmissionsService],

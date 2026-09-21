@@ -20,7 +20,10 @@ import { UpdateCustomerDto } from '../customers/dto/update-customer.dto';
 import { FormField } from '../forms/form-field.types';
 import { buildCustomerPlaceholders, interpolatePlaceholders } from '../forms/form-placeholders.util';
 import { FormsService } from '../forms/forms.service';
+import { EmailTrigger } from '../settings/schemas/email-template.schema';
+import { SettingsService } from '../settings/settings.service';
 import { CreateFormSubmissionDto } from './dto/create-form-submission.dto';
+import { SendFormSubmissionCopyDto } from './dto/send-form-submission-copy.dto';
 import { UpdateFormSubmissionDto } from './dto/update-form-submission.dto';
 import {
   buildAnimalPatch,
@@ -145,6 +148,7 @@ export class FormSubmissionsService {
     private readonly customersService: CustomersService,
     private readonly animalsService: AnimalsService,
     private readonly auditLogService: AuditLogService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   async create(dto: CreateFormSubmissionDto): Promise<FormSubmission> {
@@ -187,6 +191,37 @@ export class FormSubmissionsService {
     if (dto.recipientEmail !== undefined)
       submission.recipientEmail = dto.recipientEmail;
     return submission.save();
+  }
+
+  // Emails a PDF the caller already built client-side (buildFormSubmissionPdf,
+  // admin/src/pdf/formSubmissionPdf.ts) of this submission to its recipient --
+  // same "generate PDF client-side, POST the base64 data: URI, backend just
+  // attaches and sends" shape as CustomersService.sendRegistrationCopy /
+  // PaymentsService.sendReceipt. Used after staff complete a check-in/
+  // check-out on a customer's behalf, so the customer gets a copy by email.
+  async sendCopy(id: string, dto: SendFormSubmissionCopyDto): Promise<void> {
+    const submission = await this.findOne(id);
+    if (!submission.recipientEmail) {
+      throw new BadRequestException('This submission has no recipient email on file.');
+    }
+    await this.settingsService.sendTemplatedEmail(
+      EmailTrigger.FORM_COPY,
+      submission.recipientEmail,
+      { name: submission.recipientName || submission.recipientEmail, form_name: submission.formName },
+      {},
+      '',
+      { data: dto.attachmentData, name: dto.attachmentName },
+    );
+    if (submission.customer) {
+      await this.auditLogService.record(
+        submission.customer,
+        AuditEventType.REGISTRATION_EMAIL_SENT,
+        'Form copy emailed',
+        `${submission.formName} emailed to ${submission.recipientEmail}`,
+        undefined,
+        'Staff',
+      );
+    }
   }
 
   // Removes the link/record only -- never touches whatever Customer/Animal a

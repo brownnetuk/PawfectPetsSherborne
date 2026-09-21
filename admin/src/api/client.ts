@@ -475,6 +475,9 @@ export function listBoardingBookings(): Promise<BoardingBookingWithStatus[]> {
 export function getBoardingBooking(id: string): Promise<BoardingBookingWithStatus> {
   return request(`/boarding-bookings/${id}`);
 }
+export function getBoardingBookingByStay(stayId: string): Promise<BoardingBooking | null> {
+  return request(`/boarding-bookings/by-stay/${stayId}`);
+}
 export interface CreateBoardingBookingInput {
   customer: string;
   animals: string[];
@@ -995,6 +998,12 @@ export function updateFormSubmission(
 }
 export function deleteFormSubmission(id: string): Promise<void> {
   return request(`/form-submissions/${id}`, { method: 'DELETE' });
+}
+export function sendFormSubmissionCopy(id: string, attachmentData: string, attachmentName: string): Promise<void> {
+  return request(`/form-submissions/${id}/send-copy`, {
+    method: 'POST',
+    body: JSON.stringify({ attachmentData, attachmentName }),
+  });
 }
 // Public endpoints, same ones the customer-facing intake app's FormFillPage
 // uses to fill a pre-check-in link -- reused here for the new staff-facing

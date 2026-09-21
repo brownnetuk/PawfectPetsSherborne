@@ -18,6 +18,14 @@ export class BoardingBookingsController {
     return Promise.all(bookings.map((b) => this.boardingBookingsService.withStatus(b)));
   }
 
+  // Not gated: the Dashboard tab's Arriving/Departing/Day Care Today lists
+  // use this to find which booking (if any) a stayId belongs to, so a click
+  // can jump straight to its detail page.
+  @Get('by-stay/:stayId')
+  findByStayId(@Param('stayId') stayId: string) {
+    return this.boardingBookingsService.findByStayId(stayId);
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     const booking = await this.boardingBookingsService.findOne(id);

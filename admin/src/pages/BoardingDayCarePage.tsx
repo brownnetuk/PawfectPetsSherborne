@@ -184,6 +184,15 @@ export default function BoardingDayCarePage() {
   // -- simpler than threading a shared cache between two independently
   // data-fetching tabs.
   const [refreshSignal, setRefreshSignal] = useState(0);
+  // One-shot: set to jump the Bookings tab straight to a specific booking's
+  // detail (e.g. clicking a name in the Dashboard's Arriving Today list) --
+  // BookingsTab consumes it once and reports back via onOpenBookingConsumed.
+  const [openBookingId, setOpenBookingId] = useState<string | null>(null);
+
+  function handleNavigateToBooking(bookingId: string) {
+    setTab('bookings');
+    setOpenBookingId(bookingId);
+  }
 
   useEffect(() => {
     api.listAnimals().then(setAnimals).catch(() => {});
@@ -264,10 +273,19 @@ export default function BoardingDayCarePage() {
         ))}
       </div>
       {editError && <div className="error-banner">{editError}</div>}
-      {tab === 'dashboard' && <DashboardTab mapping={mapping} refreshSignal={refreshSignal} {...editHandlers} />}
+      {tab === 'dashboard' && (
+        <DashboardTab mapping={mapping} refreshSignal={refreshSignal} onNavigateToBooking={handleNavigateToBooking} {...editHandlers} />
+      )}
       {tab === 'upcoming' && <UpcomingStaysTab mapping={mapping} refreshSignal={refreshSignal} {...editHandlers} />}
       {tab === 'occupancy' && <OccupancyTab mapping={mapping} />}
-      {tab === 'bookings' && <BookingsTab animals={animals} customers={customers} />}
+      {tab === 'bookings' && (
+        <BookingsTab
+          animals={animals}
+          customers={customers}
+          openBookingId={openBookingId}
+          onOpenBookingConsumed={() => setOpenBookingId(null)}
+        />
+      )}
       {tab === 'checklists' && <ChecklistsTab />}
 
       {(boardingEdit || dayCareEdit) && (
@@ -291,7 +309,13 @@ export default function BoardingDayCarePage() {
   );
 }
 
-function DashboardTab({ mapping, refreshSignal, onEdit, onDelete }: { mapping: VisitMapping | null; refreshSignal: number } & StayEditHandlers) {
+function DashboardTab({
+  mapping,
+  refreshSignal,
+  onEdit,
+  onDelete,
+  onNavigateToBooking,
+}: { mapping: VisitMapping | null; refreshSignal: number; onNavigateToBooking: (bookingId: string) => void } & StayEditHandlers) {
   const [dayBookings, setDayBookings] = useState<DayBooking[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -443,6 +467,7 @@ function DashboardTab({ mapping, refreshSignal, onEdit, onDelete }: { mapping: V
             detail={(b) => b.dropOffTime || undefined}
             onEdit={onEdit}
             onDelete={onDelete}
+            onNavigateToBooking={onNavigateToBooking}
           />
           <DashboardList
             title="Departing Today"
@@ -451,6 +476,7 @@ function DashboardTab({ mapping, refreshSignal, onEdit, onDelete }: { mapping: V
             detail={(b) => b.pickUpTime || undefined}
             onEdit={onEdit}
             onDelete={onDelete}
+            onNavigateToBooking={onNavigateToBooking}
           />
           <DashboardList
             title="Day Care Today"
@@ -464,6 +490,7 @@ function DashboardTab({ mapping, refreshSignal, onEdit, onDelete }: { mapping: V
             }}
             onEdit={onEdit}
             onDelete={onDelete}
+            onNavigateToBooking={onNavigateToBooking}
           />
         </div>
       )}
@@ -478,13 +505,31 @@ function DashboardList({
   detail,
   onEdit,
   onDelete,
+  onNavigateToBooking,
 }: {
   title: string;
   rows: DayBooking[];
   empty: string;
   /** A short piece of extra info shown between the dog and customer name -- a time or an AM/PM/Full Day label. */
   detail: (b: DayBooking) => string | undefined;
+  onNavigateToBooking: (bookingId: string) => void;
 } & StayEditHandlers) {
+  // A stayId either belongs to the new reference-numbered BoardingBooking
+  // workflow (jump straight to its detail page) or predates it/was created
+  // outside it (fall back to the legacy edit-modal behaviour).
+  async function handleRowClick(stayId: string) {
+    try {
+      const booking = await api.getBoardingBookingByStay(stayId);
+      if (booking) {
+        onNavigateToBooking(booking._id);
+        return;
+      }
+    } catch {
+      // fall through to legacy edit
+    }
+    onEdit(stayId);
+  }
+
   return (
     <div className="card" style={{ flex: '1 1 260px', minWidth: 260 }}>
       <div className="section-title" style={{ marginTop: 0 }}>
@@ -499,7 +544,7 @@ function DashboardList({
               type="button"
               className="btn-link"
               disabled={!b.stayId}
-              onClick={() => b.stayId && onEdit(b.stayId)}
+              onClick={() => b.stayId && handleRowClick(b.stayId)}
               style={{ flex: 1, minWidth: 0, textAlign: 'left', padding: 0, display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem' }}
             >
               <span style={{ fontWeight: 600, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1225,7 +1270,21 @@ const STATUS_PILL_COLORS: Record<BookingStatusLabel, { bg: string; color: string
   'Booking Complete': { bg: 'var(--sage-badge)', color: 'var(--brand-green)' },
 };
 
-function BookingsTab({ animals, customers }: { animals: Animal[]; customers: Customer[] }) {
+function BookingsTab({
+  animals,
+  customers,
+  openBookingId,
+  onOpenBookingConsumed,
+}: {
+  animals: Animal[];
+  customers: Customer[];
+  // Set by another tab (e.g. Dashboard's Arriving Today) to jump straight to
+  // a specific booking's detail -- consumed once, then cleared via
+  // onOpenBookingConsumed so navigating back to the list afterward behaves
+  // normally.
+  openBookingId?: string | null;
+  onOpenBookingConsumed?: () => void;
+}) {
   const [items, setItems] = useState<BoardingBookingWithStatus[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -1235,6 +1294,14 @@ function BookingsTab({ animals, customers }: { animals: Animal[]; customers: Cus
   useEffect(() => {
     api.listBoardingBookings().then(setItems).catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bookings'));
   }, [refreshSignal]);
+
+  useEffect(() => {
+    if (openBookingId) {
+      setSelectedId(openBookingId);
+      onOpenBookingConsumed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openBookingId]);
 
   if (selectedId) {
     return (
@@ -1348,7 +1415,11 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
   const [showAddPayment, setShowAddPayment] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
-  const [fillFor, setFillFor] = useState<{ stage: 'checkIn' | 'checkOut'; submissionId: string } | null>(null);
+  const [fillFor, setFillFor] = useState<{
+    stage: 'checkIn' | 'checkOut';
+    submissionId: string;
+    referenceSubmission?: FormSubmissionRecord | null;
+  } | null>(null);
   const [viewSubmission, setViewSubmission] = useState<FormSubmissionRecord | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -1486,7 +1557,12 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
       recipientEmail: typeof customer === 'string' ? '' : customer.email,
       recipientName: typeof customer === 'string' ? undefined : customer.name,
     });
-    setFillFor({ stage: 'checkOut', submissionId: submission._id });
+    // Shown read-only above the check-out form, so staff can see what was
+    // recorded at drop-off while filling in collection details.
+    const referenceSubmission = data.booking.checkInSubmission
+      ? await api.getFormSubmission(data.booking.checkInSubmission).catch(() => null)
+      : null;
+    setFillFor({ stage: 'checkOut', submissionId: submission._id, referenceSubmission });
   }
 
   async function handleFormSubmitted(submissionId: string) {
@@ -1720,6 +1796,8 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
         <FormFillModal
           submissionId={fillFor.submissionId}
           title={fillFor.stage === 'checkIn' ? 'Check-in' : 'Check-out'}
+          referenceSubmission={fillFor.referenceSubmission}
+          referenceLabel="Check-in details"
           onClose={() => setFillFor(null)}
           onSubmitted={handleFormSubmitted}
         />

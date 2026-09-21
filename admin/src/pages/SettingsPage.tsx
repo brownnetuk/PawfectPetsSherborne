@@ -1995,6 +1995,12 @@ export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: 
     description:
       'Sent when a customer clicks "Send a copy by Email" on the intake form\'s own thank-you screen, right after completing their registration -- carries a PDF of what they just submitted as an attachment.',
   },
+  {
+    value: 'form_copy',
+    label: 'Form Copy',
+    description:
+      'Sent when staff choose "Email a copy to customer" after completing a form on the customer\'s behalf (e.g. a Boarding & Day Care check-in/check-out) -- carries a PDF of what was just submitted as an attachment.',
+  },
 ];
 
 // Every trigger is edited as raw HTML (RichTextEditor) and sent through as-is
@@ -2295,6 +2301,11 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
   ],
   post_registration: [
     { key: 'name', hint: "the customer's name" },
+    ...BUSINESS_PLACEHOLDERS,
+  ],
+  form_copy: [
+    { key: 'name', hint: "the customer's name" },
+    { key: 'form_name', hint: 'the name of the completed form (e.g. "Arrival Check-In")' },
     ...BUSINESS_PLACEHOLDERS,
   ],
 };

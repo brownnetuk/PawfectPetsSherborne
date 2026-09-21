@@ -114,6 +114,19 @@ export class BoardingBookingsService {
     return booking;
   }
 
+  // Used by the Dashboard tab's Arriving/Departing/Day Care Today lists (a
+  // stayId is all a DayBooking row carries) to find which BoardingBooking,
+  // if any, a click should jump to -- null (not a 404) when the stay
+  // predates this feature or was created outside it, so callers can fall
+  // back to the legacy edit-modal behaviour instead of erroring.
+  findByStayId(stayId: string): Promise<BoardingBooking | null> {
+    return this.boardingBookingModel
+      .findOne({ stayId })
+      .populate('customer', 'name email')
+      .populate('animals', 'name species')
+      .exec();
+  }
+
   // Called from QuotesService.acceptAndConvert() once the quote's invoice has
   // already been created -- builds this stay's DayBooking rows via the
   // shared DayBookingsService methods and links everything under one new

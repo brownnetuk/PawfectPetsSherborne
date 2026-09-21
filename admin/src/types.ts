@@ -741,7 +741,8 @@ export type EmailTrigger =
   | 'portal_login_code'
   | 'portal_password_reset'
   | 'portal_enabled'
-  | 'post_registration';
+  | 'post_registration'
+  | 'form_copy';
 
 export interface EmailTemplate {
   trigger: EmailTrigger;
