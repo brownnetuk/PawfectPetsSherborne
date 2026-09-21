@@ -153,6 +153,39 @@ function spacerBlock(h: number): Block {
   return { height: h, draw: () => {} };
 }
 
+// A multichoice answer's selected items, one per line with a tick -- a
+// long comma-joined list (e.g. every belongings item on one wrapped line)
+// reads far worse than a short checklist. The tick is drawn as two line
+// segments (same technique checklistPdf.ts's checklistItemBlock uses), not
+// a "✓" text character -- jsPDF's standard fonts don't reliably have that
+// glyph, so text()-ing it can render blank or as the wrong character.
+function checklistBlock(label: string, items: string[]): Block {
+  const lineHeight = 13;
+  const height = 13 + items.length * lineHeight + 6;
+  return {
+    height,
+    draw(doc, y) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...MUTED);
+      doc.text(label.toUpperCase(), MARGIN, y);
+      doc.setTextColor(...INK);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      items.forEach((item, i) => {
+        const lineY = y + 13 + i * lineHeight;
+        doc.setDrawColor(...GREEN);
+        doc.setLineWidth(1.1);
+        doc.line(MARGIN + 1, lineY - 3, MARGIN + 3, lineY - 1);
+        doc.line(MARGIN + 3, lineY - 1, MARGIN + 7, lineY - 6);
+        doc.setDrawColor(...BORDER);
+        doc.setLineWidth(1);
+        doc.text(item, MARGIN + 14, lineY);
+      });
+    },
+  };
+}
+
 async function loadLogoDataUrl(): Promise<string | null> {
   try {
     const res = await fetch(logoUrl);
@@ -319,6 +352,10 @@ function fieldFlowBlocks(doc: jsPDF, fields: FormField[], answers: Record<string
     }
     if (field.type === 'file' && Array.isArray(value) && value.length > 0) {
       blocks.push(photosBlock(field.label, value as string[]));
+      continue;
+    }
+    if (field.type === 'multichoice' && Array.isArray(value) && value.length > 0) {
+      blocks.push(checklistBlock(field.label, value as string[]));
       continue;
     }
     blocks.push(fieldBlock(doc, field.label, formatAnswer(field, value)));

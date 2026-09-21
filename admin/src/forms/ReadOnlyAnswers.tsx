@@ -72,6 +72,15 @@ export default function ReadOnlyAnswers({
                   />
                 ))}
               </div>
+            ) : field.type === 'multichoice' && Array.isArray(value) && value.length > 0 ? (
+              <div>
+                {(value as string[]).map((item) => (
+                  <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ color: 'var(--brand-green)' }}>✓</span>
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
             ) : (
               <p style={{ margin: 0 }}>{formatAnswer(field, value)}</p>
             )}
