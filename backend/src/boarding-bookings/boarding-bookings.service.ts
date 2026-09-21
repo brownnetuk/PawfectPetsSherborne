@@ -290,7 +290,16 @@ export class BoardingBookingsService {
     const booking = await this.boardingBookingModel.findById(id).exec();
     if (!booking) throw new NotFoundException(`Boarding booking ${id} not found`);
     if (booking.invoice) {
-      await this.invoicesService.remove(booking.invoice.toString(), actor);
+      try {
+        await this.invoicesService.remove(booking.invoice.toString(), actor);
+      } catch (err) {
+        // A booking pointing at an invoice that's already gone (deleted
+        // some other way) has nothing left to guard -- don't let that block
+        // deleting the booking itself. A real blocker (payments/credit
+        // notes still recorded against an invoice that DOES exist) throws
+        // ConflictException, which still propagates and blocks as normal.
+        if (!(err instanceof NotFoundException)) throw err;
+      }
     }
     if (booking.stayId) {
       await this.dayBookingsService.removeStay(booking.stayId);
