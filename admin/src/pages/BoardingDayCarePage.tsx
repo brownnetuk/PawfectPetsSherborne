@@ -10,6 +10,8 @@ import NewBoardingBookingModal from '../components/NewBoardingBookingModal';
 import NewBookingModal from '../components/NewBookingModal';
 import type { BoardingEditInitial, DayCareEditInitial } from '../components/NewBookingModal';
 import SignaturePad from '../components/SignaturePad';
+import ViewAnimalModal from '../components/ViewAnimalModal';
+import ViewCustomerModal from '../components/ViewCustomerModal';
 import ViewFormSubmissionModal from '../components/ViewFormSubmissionModal';
 import { ChevronDownIcon, TrashIcon } from '../components/icons';
 import { buildChecklistPdf, buildChecklistsPdf } from '../pdf/checklistPdf';
@@ -1351,6 +1353,8 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [viewCustomer, setViewCustomer] = useState<Customer | null>(null);
+  const [viewAnimal, setViewAnimal] = useState<Animal | null>(null);
 
   function refresh() {
     api
@@ -1401,6 +1405,28 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete this booking');
       setDeleting(false);
+    }
+  }
+
+  async function handleViewCustomer() {
+    if (!data) return;
+    const customerId = typeof data.booking.customer === 'string' ? data.booking.customer : data.booking.customer._id;
+    try {
+      setViewCustomer(await api.getCustomer(customerId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load this customer');
+    }
+  }
+
+  async function handleViewAnimal(animalId: string) {
+    if (!data) return;
+    const customerId = typeof data.booking.customer === 'string' ? data.booking.customer : data.booking.customer._id;
+    try {
+      const animals = await api.listAnimals(customerId);
+      const animal = animals.find((a) => a._id === animalId);
+      if (animal) setViewAnimal(animal);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load this pet');
     }
   }
 
@@ -1571,8 +1597,29 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
           <div className="card">
             <div className="section-title">Booking details</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Customer</span><span style={{ fontWeight: 600 }}>{boardingCustomerLabel(booking.customer)}</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Dog(s)</span><span style={{ fontWeight: 600 }}>{boardingAnimalNames(booking.animals)}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}>
+                <span style={{ color: 'var(--muted)' }}>Customer</span>
+                <a onClick={handleViewCustomer} style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--accent)' }}>
+                  {boardingCustomerLabel(booking.customer)}
+                </a>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}>
+                <span style={{ color: 'var(--muted)' }}>Dog(s)</span>
+                <span style={{ fontWeight: 600 }}>
+                  {booking.animals.map((a, i) => {
+                    const animalId = typeof a === 'string' ? a : a._id;
+                    const animalName = typeof a === 'string' ? a : a.name;
+                    return (
+                      <span key={animalId}>
+                        {i > 0 && ', '}
+                        <a onClick={() => handleViewAnimal(animalId)} style={{ cursor: 'pointer', color: 'var(--accent)' }}>
+                          {animalName}
+                        </a>
+                      </span>
+                    );
+                  })}
+                </span>
+              </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Type</span><span>{booking.type === 'boarding' ? 'Boarding' : 'Day Care'}</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Notes</span><span>{booking.notes || '—'}</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Drop off</span><span>{new Date(booking.startDate).toLocaleDateString('en-GB')}, {booking.dropOffTime}</span></div>
@@ -1696,6 +1743,8 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
           </div>
         </Modal>
       )}
+      {viewCustomer && <ViewCustomerModal customer={viewCustomer} onClose={() => setViewCustomer(null)} />}
+      {viewAnimal && <ViewAnimalModal animal={viewAnimal} onClose={() => setViewAnimal(null)} />}
     </div>
   );
 }
