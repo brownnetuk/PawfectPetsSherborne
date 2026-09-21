@@ -28,6 +28,7 @@ export default function FormFillModal({
   title,
   referenceSubmission,
   referenceLabel,
+  presetPetNames,
   onClose,
   onSubmitted,
 }: {
@@ -37,6 +38,12 @@ export default function FormFillModal({
   // answers, for context while filling in check-out.
   referenceSubmission?: FormSubmissionRecord | null;
   referenceLabel?: string;
+  // The dog(s) already known from context (e.g. the booking this form was
+  // opened from) -- any repeatable group whose fields include a "which pet"
+  // choice field (optionsSource: 'customerPets') gets pre-populated with one
+  // repetition per name here instead of starting empty, so staff aren't
+  // re-picking a pet the app already knows.
+  presetPetNames?: string[];
   onClose: () => void;
   onSubmitted: (submissionId: string) => void;
 }) {
@@ -61,15 +68,24 @@ export default function FormFillModal({
         const initial: Record<string, unknown> = defaultAnswersFor(s.fields.filter((f) => f.type !== 'group'));
         for (const field of s.fields) {
           if (field.type === 'group') {
-            initial[field.id] = Array.from({ length: Math.max(field.minRepeats, 0) }, () =>
-              defaultAnswersFor(field.fields),
-            );
+            const petNameField = field.fields.find((f) => f.type === 'choice' && f.optionsSource === 'customerPets');
+            if (petNameField && presetPetNames && presetPetNames.length > 0) {
+              initial[field.id] = presetPetNames.map((name) => ({
+                ...defaultAnswersFor(field.fields),
+                [petNameField.id]: name,
+              }));
+            } else {
+              initial[field.id] = Array.from({ length: Math.max(field.minRepeats, 0) }, () =>
+                defaultAnswersFor(field.fields),
+              );
+            }
           }
         }
         setAnswers(initial);
         setLoadState('ready');
       })
       .catch(() => setLoadState('error'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submissionId]);
 
   function setAnswer(id: string, value: unknown) {

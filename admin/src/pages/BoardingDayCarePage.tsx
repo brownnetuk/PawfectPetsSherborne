@@ -1250,6 +1250,12 @@ function boardingCustomerLabel(customer: BoardingBookingWithStatus['booking']['c
 function boardingAnimalNames(animals: BoardingBookingWithStatus['booking']['animals']): string {
   return animals.map((a) => (typeof a === 'string' ? a : a.name)).join(', ');
 }
+// Names only, dropping any unpopulated (bare-id) entries -- used to
+// pre-populate a check-in/check-out form's "Pet" group so staff aren't
+// re-selecting a dog the booking already names.
+function boardingPetNames(animals: BoardingBookingWithStatus['booking']['animals']): string[] {
+  return animals.map((a) => (typeof a === 'string' ? null : a.name)).filter((n): n is string => !!n);
+}
 function formatDateRange(booking: BoardingBookingWithStatus['booking']): string {
   const start = new Date(booking.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   if (booking.type === 'dayCare' || booking.startDate === booking.endDate) return start;
@@ -1419,6 +1425,7 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
     stage: 'checkIn' | 'checkOut';
     submissionId: string;
     referenceSubmission?: FormSubmissionRecord | null;
+    presetPetNames?: string[];
   } | null>(null);
   const [viewSubmission, setViewSubmission] = useState<FormSubmissionRecord | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -1537,7 +1544,7 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
       recipientEmail: typeof customer === 'string' ? '' : customer.email,
       recipientName: typeof customer === 'string' ? undefined : customer.name,
     });
-    setFillFor({ stage: 'checkIn', submissionId: submission._id });
+    setFillFor({ stage: 'checkIn', submissionId: submission._id, presetPetNames: boardingPetNames(data.booking.animals) });
   }
 
   async function startCheckOut() {
@@ -1562,7 +1569,12 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
     const referenceSubmission = data.booking.checkInSubmission
       ? await api.getFormSubmission(data.booking.checkInSubmission).catch(() => null)
       : null;
-    setFillFor({ stage: 'checkOut', submissionId: submission._id, referenceSubmission });
+    setFillFor({
+      stage: 'checkOut',
+      submissionId: submission._id,
+      referenceSubmission,
+      presetPetNames: boardingPetNames(data.booking.animals),
+    });
   }
 
   async function handleFormSubmitted(submissionId: string) {
@@ -1798,6 +1810,7 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
           title={fillFor.stage === 'checkIn' ? 'Check-in' : 'Check-out'}
           referenceSubmission={fillFor.referenceSubmission}
           referenceLabel="Check-in details"
+          presetPetNames={fillFor.presetPetNames}
           onClose={() => setFillFor(null)}
           onSubmitted={handleFormSubmitted}
         />

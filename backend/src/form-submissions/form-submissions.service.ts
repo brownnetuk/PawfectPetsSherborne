@@ -76,11 +76,16 @@ function resolveFieldsForRecipient(
   fields: FormField[],
   placeholders: Record<string, string>,
   petNames: string[],
-): Omit<FormField, 'mapping' | 'optionsSource'>[] {
+): Omit<FormField, 'mapping'>[] {
   return fields.map((field) => {
     const copy = { ...field } as Record<string, unknown>;
     delete copy.mapping;
-    delete copy.optionsSource;
+    // optionsSource ('static'|'customerPets') is kept, unlike mapping above --
+    // it's not a DB path name to hide, and the admin's staff-facing
+    // FormFillModal reads it to know which repeatable group's fields
+    // represent "which pet", so it can pre-populate one repetition per pet
+    // already known from context (e.g. the booking this form was opened
+    // from) instead of starting empty.
     copy.label = interpolatePlaceholders(field.label, placeholders);
     if (
       (field.type === 'text' || field.type === 'textarea' || field.type === 'number' || field.type === 'date') &&

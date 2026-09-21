@@ -23,13 +23,16 @@ interface Block {
   draw: (doc: jsPDF, y: number) => void;
 }
 
-const FIELD_LABEL_WIDTH = 170;
-
+// Label stacked above its value (not side-by-side columns) -- a long label
+// (e.g. "Vaccination record checked and current") has nowhere near enough
+// room in a fixed-width label column at readable size, and would otherwise
+// run on into the value text next to it. Stacking is robust to any label
+// length and matches ReadOnlyAnswers' own on-screen label-above-value layout.
 function fieldBlock(doc: jsPDF, label: string, value: string): Block {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
-  const lines = doc.splitTextToSize(value || '—', CONTENT_WIDTH - FIELD_LABEL_WIDTH) as string[];
-  const height = lines.length * 13 + 6;
+  const lines = doc.splitTextToSize(value || '—', CONTENT_WIDTH) as string[];
+  const height = 13 + lines.length * 13 + 6;
   return {
     height,
     draw(doc, y) {
@@ -40,7 +43,7 @@ function fieldBlock(doc: jsPDF, label: string, value: string): Block {
       doc.setTextColor(...INK);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
-      lines.forEach((line, i) => doc.text(line, MARGIN + FIELD_LABEL_WIDTH, y + i * 13));
+      lines.forEach((line, i) => doc.text(line, MARGIN, y + 13 + i * 13));
     },
   };
 }
@@ -132,7 +135,7 @@ function signatureBlock(dataUrl: string, label: string): Block {
 
 function photosBlock(label: string, photos: string[]): Block {
   return {
-    height: 20,
+    height: 33,
     draw(doc, y) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8.5);
@@ -141,7 +144,7 @@ function photosBlock(label: string, photos: string[]): Block {
       doc.setTextColor(...INK);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
-      doc.text(`${photos.length} photo${photos.length === 1 ? '' : 's'} attached`, MARGIN + FIELD_LABEL_WIDTH, y);
+      doc.text(`${photos.length} photo${photos.length === 1 ? '' : 's'} attached`, MARGIN, y + 13);
     },
   };
 }
