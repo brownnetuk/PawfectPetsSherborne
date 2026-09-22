@@ -98,19 +98,6 @@ function subheadingBlock(text: string): Block {
   };
 }
 
-// One repetition's own label within a group (e.g. "Medication 1").
-function repetitionLabelBlock(text: string): Block {
-  return {
-    height: 18,
-    draw(doc, y) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9.5);
-      doc.setTextColor(...INK);
-      doc.text(text, MARGIN, y);
-    },
-  };
-}
-
 function signatureBlock(dataUrl: string, label: string): Block {
   const w = 200;
   const h = 65;
@@ -317,53 +304,105 @@ function formatAnswer(field: FormField, value: unknown): string {
   return String(value);
 }
 
-// Walks a form's fields in their actual authored order and produces one
-// flat, ordered list of blocks -- this is a legal record of what the signer
-// was shown and agreed to, so it has to match the live form's own layout
-// exactly: free text (e.g. consent wording) included verbatim in place, and
-// a repeatable group rendered inline at the position it actually appears in,
-// not gathered into a separate pass at the end (the group's fields never
-// nest a further group, so this doesn't need to recurse into itself).
-function fieldFlowBlocks(doc: jsPDF, fields: FormField[], answers: Record<string, unknown>): Block[] {
-  const blocks: Block[] = [];
+// One (non-group) field's answer as a single block -- shared by the
+// top-level walk in buildSections and by repetitionBlocks below for a
+// group's own per-repetition fields, so the two only ever differ in how they
+// handle a *group* itself, not in how they render a plain field.
+function singleFieldBlock(doc: jsPDF, field: FormField, value: unknown): Block {
+  if (field.type === 'signature' && typeof value === 'string' && value) {
+    return signatureBlock(value, field.label);
+  }
+  if (field.type === 'file' && Array.isArray(value) && value.length > 0) {
+    return photosBlock(field.label, value as string[]);
+  }
+  if (field.type === 'multichoice' && Array.isArray(value) && value.length > 0) {
+    return checklistBlock(field.label, value as string[]);
+  }
+  return fieldBlock(doc, field.label, formatAnswer(field, value));
+}
+
+// One repetition's own fields, flat -- a nested "display" field (the Forms
+// engine never nests a group inside a group, so this is as deep as it goes)
+// is a lighter sub-heading within this section rather than a new top-level
+// page section, e.g. the pre-check-in form's "Boarding-specific questions"
+// marker inside its "Pet" group. Promoting a *top-level* display field to a
+// full section is buildSections' job below.
+function repetitionBlocks(doc: jsPDF, fields: FormField[], answers: Record<string, unknown>): Block[] {
+  return fields.map((field) =>
+    field.type === 'display' ? subheadingBlock(field.label) : singleFieldBlock(doc, field, answers[field.id]),
+  );
+}
+
+interface PdfSection {
+  title: string;
+  blocks: Block[];
+}
+
+// Splits a form's TOP-LEVEL fields into one PdfSection per conceptual group,
+// each rendered as its own w.section() call (own heading, own "keep
+// together or start a fresh page" packing) -- mirrors customerFormPdf.ts's
+// hand-written w.section() calls (Client details / Emergency contact / one
+// per pet / ...), but derived generically from the form's own structure
+// since this renders any form built in FormBuilder, not just the fixed
+// Customer/Animal shape that one knows about:
+//  - A top-level "display" field starts a new section titled with its own
+//    (already-{{token}}-resolved) label, instead of being shown as body
+//    text -- see default-pre-checkin-form.ts's "Client details"/"Emergency
+//    contact"/etc. markers.
+//  - A repeatable group becomes one section per repetition, titled
+//    "<group label> — <repetition label>" when repetitionLabels are set
+//    (matching customerFormPdf.ts's "Pet — <name>"), else "<group label>
+//    <n>". An empty group still gets its own (empty, "None provided.")
+//    section rather than vanishing.
+//  - Everything else accumulates as body content under whichever title is
+//    currently active, defaulting to the form's own name until the first
+//    display/group marker takes over.
+// A form with no display fields and no groups (most simple ones) ends up as
+// a single section, same as before this existed.
+function buildSections(
+  doc: jsPDF,
+  fields: FormField[],
+  answers: Record<string, unknown>,
+  formName: string,
+): PdfSection[] {
+  const sections: PdfSection[] = [];
+  let title: string | null = null;
+  let blocks: Block[] = [];
+  const flush = () => {
+    if (title !== null) sections.push({ title, blocks });
+    blocks = [];
+  };
   for (const field of fields) {
     if (field.type === 'display') {
-      blocks.push(paragraphBlock(doc, field.label));
+      flush();
+      title = field.label;
       continue;
     }
     if (field.type === 'group') {
-      blocks.push(subheadingBlock(field.label));
+      flush();
+      title = null;
       const repetitions = (answers[field.id] as Record<string, unknown>[] | undefined) ?? [];
       if (repetitions.length === 0) {
-        blocks.push(mutedNoteBlock('None provided.'));
+        sections.push({ title: field.label, blocks: [mutedNoteBlock('None provided.')] });
       } else {
         repetitions.forEach((rep, i) => {
-          blocks.push(repetitionLabelBlock(field.repetitionLabels?.[i] ?? `${field.label} ${i + 1}`));
-          blocks.push(...fieldFlowBlocks(doc, field.fields, rep));
-          blocks.push(spacerBlock(6));
+          const repetitionLabel = field.repetitionLabels?.[i];
+          sections.push({
+            title: repetitionLabel ? `${field.label} — ${repetitionLabel}` : `${field.label} ${i + 1}`,
+            blocks: repetitionBlocks(doc, field.fields, rep),
+          });
         });
       }
       continue;
     }
-    const value = answers[field.id];
-    if (field.type === 'signature' && typeof value === 'string' && value) {
-      blocks.push(signatureBlock(value, field.label));
-      continue;
-    }
-    if (field.type === 'file' && Array.isArray(value) && value.length > 0) {
-      blocks.push(photosBlock(field.label, value as string[]));
-      continue;
-    }
-    if (field.type === 'multichoice' && Array.isArray(value) && value.length > 0) {
-      blocks.push(checklistBlock(field.label, value as string[]));
-      continue;
-    }
-    blocks.push(fieldBlock(doc, field.label, formatAnswer(field, value)));
+    if (title === null) title = formName;
+    blocks.push(singleFieldBlock(doc, field, answers[field.id]));
   }
-  return blocks;
+  flush();
+  return sections;
 }
 
-/** Renders a completed (or in-progress) form submission as a branded PDF, mirroring customerFormPdf.ts's look. */
+/** Renders a completed (or in-progress) form submission as a branded, multi-section PDF, mirroring customerFormPdf.ts's look. */
 export async function buildFormSubmissionPdf(submission: FormSubmissionRecord): Promise<jsPDF> {
   const logo = await loadLogoDataUrl();
   const w = new PdfWriter();
@@ -375,11 +414,13 @@ export async function buildFormSubmissionPdf(submission: FormSubmissionRecord): 
     : who;
   w.drawHeader(logo, subtitle);
 
-  const blocks = fieldFlowBlocks(doc, submission.formFieldsSnapshot, submission.answers ?? {});
-  if (submission.formDescription) {
-    blocks.unshift(paragraphBlock(doc, submission.formDescription), spacerBlock(4));
+  const sections = buildSections(doc, submission.formFieldsSnapshot, submission.answers ?? {}, submission.formName);
+  if (submission.formDescription && sections.length > 0) {
+    sections[0].blocks.unshift(paragraphBlock(doc, submission.formDescription), spacerBlock(4));
   }
-  w.section(submission.formName, blocks);
+  for (const section of sections) {
+    w.section(section.title, section.blocks);
+  }
 
   w.finish(`Generated ${now.toLocaleDateString('en-GB')} · PawfectPets Sherborne`);
   return w.doc;

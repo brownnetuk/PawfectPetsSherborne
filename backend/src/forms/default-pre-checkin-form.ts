@@ -43,6 +43,14 @@ import { FormField } from './form-field.types';
 // overwrite that historical record. This stay-specific consent is kept as
 // plain submission answers only (visible in the admin's submission view/PDF),
 // same as e.g. check-in's "Consent forms completed" toggle.
+//
+// The "Client details"/"Emergency contact"/"Emergency vet"/"Boarding-specific
+// questions"/"Additional consent" display fields do double duty: shown as a
+// plain heading on the live form, AND read by admin/src/pdf/formSubmissionPdf.ts
+// as a marker that starts a new PDF page section titled with that field's own
+// label -- a *top-level* display field becomes a full section heading; one
+// nested inside the "Pet" group (pc-pet-boardingHeading) becomes a lighter
+// sub-heading within that pet's own section instead.
 export const DEFAULT_PRE_CHECKIN_FORM: {
   name: string;
   description: string;
@@ -59,6 +67,12 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
       required: false,
     },
 
+    {
+      id: 'pc-clientHeading',
+      type: 'display',
+      label: 'Client details',
+      required: false,
+    },
     {
       id: 'pc-firstName',
       type: 'text',
@@ -123,6 +137,12 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
       mapping: { target: 'customer', path: 'email' },
     },
 
+    {
+      id: 'pc-ecHeading',
+      type: 'display',
+      label: 'Emergency contact',
+      required: false,
+    },
     {
       id: 'pc-ec-sameAsClient',
       type: 'toggle',
@@ -194,6 +214,12 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
       mapping: { target: 'customer', path: 'emergencyContact.email' },
     },
 
+    {
+      id: 'pc-evHeading',
+      type: 'display',
+      label: 'Emergency vet',
+      required: false,
+    },
     {
       id: 'pc-ev-practiceName',
       type: 'text',
