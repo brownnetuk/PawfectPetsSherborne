@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/boarding_booking.dart';
+import 'customer_forms_screen.dart';
+import 'invoice_detail_screen.dart';
 
 /// The reference-numbered Boarding & Day Care bookings, mirroring the admin's
 /// Boarding & Day Care > Bookings tab: one card per booking with reference,
@@ -162,14 +164,60 @@ class BoardingStatusChip extends StatelessWidget {
 }
 
 /// Read-only booking detail: the workflow stage tracker (quote -> confirmed ->
-/// ... -> invoice paid) plus the booking's own fields. Managing the booking
-/// (check in/out forms, payments, amend dates) stays in the admin.
-class BoardingBookingDetailScreen extends StatelessWidget {
+/// ... -> invoice paid) plus the booking's own fields, with buttons to open
+/// the linked invoice and any completed pre-check-in/check-in/check-out form.
+/// Managing the booking (filling forms, payments, amend dates) stays in the
+/// admin.
+class BoardingBookingDetailScreen extends StatefulWidget {
   final BoardingBookingWithStatus item;
   const BoardingBookingDetailScreen({super.key, required this.item});
 
   @override
+  State<BoardingBookingDetailScreen> createState() => _BoardingBookingDetailScreenState();
+}
+
+class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScreen> {
+  bool _openingForm = false;
+
+  /// Fetches a completed workflow form by its submission id and shows it in a
+  /// full-screen modal (the same read-only renderer the customer Forms area
+  /// uses).
+  Future<void> _openForm(String submissionId) async {
+    if (_openingForm) return;
+    setState(() => _openingForm = true);
+    try {
+      final submission = await context.read<Repository>().getFormSubmission(submissionId);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => FormResponseScreen(submission: submission),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        final message = e is ApiException ? e.message : 'Failed to load the form';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
+    } finally {
+      if (mounted) setState(() => _openingForm = false);
+    }
+  }
+
+  Widget _actionButton(IconData icon, String label, VoidCallback onPressed) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: OutlinedButton.icon(
+        onPressed: _openingForm ? null : onPressed,
+        icon: Icon(icon, size: 18),
+        label: Text(label),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final item = widget.item;
     final b = item.booking;
     return Scaffold(
       appBar: AppBar(title: Text(b.reference)),
@@ -194,6 +242,27 @@ class BoardingBookingDetailScreen extends StatelessWidget {
           _row('Pick up', b.pickUpTime.isEmpty ? '—' : b.pickUpTime),
           _row('Invoiced', b.invoiced ? 'Yes' : 'No'),
           if ((b.notes ?? '').trim().isNotEmpty) _row('Notes', b.notes!),
+          if (b.invoiceId != null ||
+              b.preCheckInSubmission != null ||
+              b.checkInSubmission != null ||
+              b.checkOutSubmission != null) ...[
+            const SizedBox(height: 8),
+            if (b.invoiceId != null)
+              _actionButton(
+                Icons.receipt_long_outlined,
+                'View invoice',
+                () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => InvoiceDetailScreen(invoiceId: b.invoiceId!)),
+                ),
+              ),
+            if (b.preCheckInSubmission != null)
+              _actionButton(Icons.assignment_turned_in_outlined, 'View pre-check-in form',
+                  () => _openForm(b.preCheckInSubmission!)),
+            if (b.checkInSubmission != null)
+              _actionButton(Icons.login_outlined, 'View check-in form', () => _openForm(b.checkInSubmission!)),
+            if (b.checkOutSubmission != null)
+              _actionButton(Icons.logout_outlined, 'View check-out form', () => _openForm(b.checkOutSubmission!)),
+          ],
           _sectionTitle('Progress'),
           for (final stage in item.stages) _stageRow(stage),
         ],

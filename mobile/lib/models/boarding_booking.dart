@@ -15,6 +15,16 @@ class BoardingBooking {
   final String? notes;
   final bool invoiced;
 
+  /// The linked invoice's id (booking.invoice may arrive populated or as a
+  /// bare id) -- lets the detail screen open the invoice.
+  final String? invoiceId;
+
+  // Completed workflow forms, by form-submission id -- set once the customer
+  // (pre-check-in) or staff (check in/out) have filled each in.
+  final String? preCheckInSubmission;
+  final String? checkInSubmission;
+  final String? checkOutSubmission;
+
   bool get isBoarding => type == 'boarding';
 
   BoardingBooking({
@@ -29,11 +39,16 @@ class BoardingBooking {
     required this.pickUpTime,
     this.notes,
     required this.invoiced,
+    this.invoiceId,
+    this.preCheckInSubmission,
+    this.checkInSubmission,
+    this.checkOutSubmission,
   });
 
   factory BoardingBooking.fromJson(Map<String, dynamic> json) {
     final customer = json['customer'];
     final animals = (json['animals'] as List<dynamic>? ?? []);
+    final invoice = json['invoice'];
     return BoardingBooking(
       id: json['_id'] as String,
       reference: json['reference'] as String? ?? '',
@@ -49,7 +64,11 @@ class BoardingBooking {
       endDate: DateTime.parse(json['endDate'] as String),
       pickUpTime: json['pickUpTime'] as String? ?? '',
       notes: json['notes'] as String?,
-      invoiced: json['invoice'] != null,
+      invoiced: invoice != null,
+      invoiceId: invoice is Map<String, dynamic> ? invoice['_id'] as String? : invoice as String?,
+      preCheckInSubmission: json['preCheckInSubmission'] as String?,
+      checkInSubmission: json['checkInSubmission'] as String?,
+      checkOutSubmission: json['checkOutSubmission'] as String?,
     );
   }
 }

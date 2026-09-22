@@ -124,6 +124,12 @@ class Repository {
           .map((e) => FormSubmission.fromJson(e as Map<String, dynamic>))
           .toList();
 
+  /// One form submission by id -- used to open a boarding booking's
+  /// pre-check-in/check-in/check-out form from the submission id the booking
+  /// carries.
+  Future<FormSubmission> getFormSubmission(String id) async =>
+      FormSubmission.fromJson(await _client.get('/form-submissions/$id'));
+
   /// Creates a pending form submission and returns its id -- the public
   /// /forms/:id link the customer fills in points at this.
   Future<String> createFormSubmission({
