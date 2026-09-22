@@ -428,6 +428,42 @@ class Repository {
           .map((e) => BoardingBookingWithStatus.fromJson(e as Map<String, dynamic>))
           .toList();
 
+  /// Creates a reference-numbered Boarding & Day Care booking directly (no
+  /// quote) -- the same "+ New booking" as the admin's Bookings tab. The
+  /// server books the stay on the calendar and raises its invoice
+  /// immediately. Dates are 'YYYY-MM-DD'; endDate applies to boarding only,
+  /// dropOffPeriod/collectionPeriod to day care only.
+  Future<void> createBoardingBooking({
+    required String customerId,
+    required List<String> animalIds,
+    required String type, // 'boarding' | 'dayCare'
+    required String startDate,
+    required String dropOffTime,
+    String? endDate,
+    required String pickUpTime,
+    String? dropOffPeriod,
+    String? collectionPeriod,
+    String? notes,
+  }) =>
+      _client.post('/boarding-bookings', {
+        'customer': customerId,
+        'animals': animalIds,
+        'type': type,
+        'startDate': startDate,
+        'dropOffTime': dropOffTime,
+        if (endDate != null) 'endDate': endDate,
+        'pickUpTime': pickUpTime,
+        if (dropOffPeriod != null) 'dropOffPeriod': dropOffPeriod,
+        if (collectionPeriod != null) 'collectionPeriod': collectionPeriod,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      });
+
+  /// Emails the customer a pre-check-in fill-in link for a boarding booking --
+  /// the same "Send now" action as the admin. The server picks the configured
+  /// pre-check-in form for the booking's type and pre-fills it from the
+  /// customer/pet records.
+  Future<void> sendBoardingPreCheckIn(String id) => _client.post('/boarding-bookings/$id/send-pre-check-in', {});
+
   /// The product breakdown for a boarding stay (whole 24h boarding days plus a
   /// leftover half day), resolved to the products configured in Settings >
   /// Bookings > Boarding -- the same endpoint the admin's New Booking modal

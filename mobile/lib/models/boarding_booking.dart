@@ -19,6 +19,10 @@ class BoardingBooking {
   /// bare id) -- lets the detail screen open the invoice.
   final String? invoiceId;
 
+  /// When the pre-check-in link was last emailed to the customer (null =
+  /// never sent).
+  final DateTime? preCheckInSentAt;
+
   // Completed workflow forms, by form-submission id -- set once the customer
   // (pre-check-in) or staff (check in/out) have filled each in.
   final String? preCheckInSubmission;
@@ -40,6 +44,7 @@ class BoardingBooking {
     this.notes,
     required this.invoiced,
     this.invoiceId,
+    this.preCheckInSentAt,
     this.preCheckInSubmission,
     this.checkInSubmission,
     this.checkOutSubmission,
@@ -66,6 +71,8 @@ class BoardingBooking {
       notes: json['notes'] as String?,
       invoiced: invoice != null,
       invoiceId: invoice is Map<String, dynamic> ? invoice['_id'] as String? : invoice as String?,
+      preCheckInSentAt:
+          json['preCheckInSentAt'] != null ? DateTime.tryParse(json['preCheckInSentAt'] as String) : null,
       preCheckInSubmission: json['preCheckInSubmission'] as String?,
       checkInSubmission: json['checkInSubmission'] as String?,
       checkOutSubmission: json['checkOutSubmission'] as String?,

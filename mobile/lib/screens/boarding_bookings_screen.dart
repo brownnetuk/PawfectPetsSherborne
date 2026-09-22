@@ -6,6 +6,7 @@ import '../api/repository.dart';
 import '../models/boarding_booking.dart';
 import 'customer_forms_screen.dart';
 import 'invoice_detail_screen.dart';
+import 'new_boarding_booking_screen.dart';
 
 /// The reference-numbered Boarding & Day Care bookings, mirroring the admin's
 /// Boarding & Day Care > Bookings tab: one card per booking with reference,
@@ -36,7 +37,21 @@ class _BoardingBookingsScreenState extends State<BoardingBookingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Boarding & Day Care')),
+      appBar: AppBar(
+        title: const Text('Boarding & Day Care'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline),
+            tooltip: 'New booking',
+            onPressed: () async {
+              final created = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(builder: (_) => const NewBoardingBookingScreen()),
+              );
+              if (created == true && mounted) _refresh();
+            },
+          ),
+        ],
+      ),
       body: FutureBuilder<List<BoardingBookingWithStatus>>(
         future: _future,
         builder: (context, snapshot) {
@@ -178,6 +193,36 @@ class BoardingBookingDetailScreen extends StatefulWidget {
 
 class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScreen> {
   bool _openingForm = false;
+  bool _sendingPreCheckIn = false;
+  DateTime? _preCheckInSentAt;
+
+  @override
+  void initState() {
+    super.initState();
+    _preCheckInSentAt = widget.item.booking.preCheckInSentAt;
+  }
+
+  /// Emails the customer the pre-check-in link (same as the admin's "Send
+  /// now") -- the server picks the configured form and pre-fills it.
+  Future<void> _sendPreCheckIn() async {
+    if (_sendingPreCheckIn) return;
+    setState(() => _sendingPreCheckIn = true);
+    try {
+      await context.read<Repository>().sendBoardingPreCheckIn(widget.item.booking.id);
+      if (!mounted) return;
+      setState(() => _preCheckInSentAt = DateTime.now());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Pre-check-in link sent to ${widget.item.booking.customerName}.')),
+      );
+    } catch (e) {
+      if (mounted) {
+        final message = e is ApiException ? e.message : 'Failed to send the pre-check-in link';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
+    } finally {
+      if (mounted) setState(() => _sendingPreCheckIn = false);
+    }
+  }
 
   /// Fetches a completed workflow form by its submission id and shows it in a
   /// full-screen modal (the same read-only renderer the customer Forms area
@@ -208,7 +253,7 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: OutlinedButton.icon(
-        onPressed: _openingForm ? null : onPressed,
+        onPressed: _openingForm || _sendingPreCheckIn ? null : onPressed,
         icon: Icon(icon, size: 18),
         label: Text(label),
       ),
@@ -255,6 +300,27 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
                   MaterialPageRoute(builder: (_) => InvoiceDetailScreen(invoiceId: b.invoiceId!)),
                 ),
               ),
+            // Same gating as the admin's "Send now": only once invoiced, and
+            // only until the customer has completed it (then View takes over).
+            if (b.preCheckInSubmission == null && b.invoiceId != null) ...[
+              _actionButton(
+                Icons.send_outlined,
+                _sendingPreCheckIn
+                    ? 'Sending…'
+                    : _preCheckInSentAt != null
+                        ? 'Re-send pre-check-in form'
+                        : 'Send pre-check-in form',
+                _sendPreCheckIn,
+              ),
+              if (_preCheckInSentAt != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Sent ${DateFormat('d MMM yyyy').format(_preCheckInSentAt!.toLocal())}',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  ),
+                ),
+            ],
             if (b.preCheckInSubmission != null)
               _actionButton(Icons.assignment_turned_in_outlined, 'View pre-check-in form',
                   () => _openForm(b.preCheckInSubmission!)),
