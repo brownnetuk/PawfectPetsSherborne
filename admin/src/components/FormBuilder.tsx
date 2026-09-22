@@ -12,6 +12,7 @@ import type {
   GroupFormField,
   VisibilityRule,
 } from '../types';
+import { useWideLayout } from '../layout/layoutContext';
 import { mappingTargetsFor } from '../utils/formFieldCatalog';
 import { FORM_PLACEHOLDERS } from '../utils/formPlaceholders';
 import FormPreviewBody from './FormPreviewBody';
@@ -73,6 +74,9 @@ interface Props {
 }
 
 export default function FormBuilder({ form, onClose, onSaved }: Props) {
+  // The two-column field-list-plus-live-preview layout below wants more
+  // than Settings' usual single-column reading width.
+  useWideLayout();
   const [name, setName] = useState(form?.name ?? '');
   const [description, setDescription] = useState(form?.description ?? '');
   const [fields, setFields] = useState<FormField[]>(form?.fields ?? []);
@@ -221,7 +225,7 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
       )}
 
       <div style={{ display: 'flex', gap: 16, marginTop: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <div className="card" style={{ flex: '2 1 480px', minWidth: 0 }}>
+        <div className="card" style={{ flex: '1 1 480px', minWidth: 0 }}>
           <div className="field">
             <label>Name</label>
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -254,7 +258,7 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
           </div>
         </div>
 
-        <div className="card" style={{ flex: '1 1 320px', minWidth: 0, position: 'sticky', top: 16 }}>
+        <div className="card" style={{ flex: '0 1 420px', minWidth: 320, maxWidth: 420, position: 'sticky', top: 16 }}>
           <div className="section-title">Live preview</div>
           <p className="hint" style={{ marginTop: -6 }}>
             Updates as you edit -- nothing entered here is saved.

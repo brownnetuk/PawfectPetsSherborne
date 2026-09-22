@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import type { LayoutOutletContext } from './layoutContext';
 import { useAuth } from '../auth/AuthContext';
 import * as api from '../api/client';
 import logo from '../assets/logo.png';
@@ -42,6 +43,13 @@ export default function Layout() {
   const location = useLocation();
   const [showQrLogin, setShowQrLogin] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [wideRequested, setWideRequested] = useState(false);
+
+  // Safety net alongside useWideLayout's own unmount cleanup, in case a
+  // page changes without that cleanup running (e.g. a hard navigation).
+  useEffect(() => {
+    setWideRequested(false);
+  }, [location.pathname]);
 
   // Poll the unread-message count for the nav badge.
   useEffect(() => {
@@ -68,7 +76,8 @@ export default function Layout() {
   const isWide =
     location.pathname.startsWith('/invoices') ||
     location.pathname.startsWith('/bookings') ||
-    location.pathname.startsWith('/boarding-daycare');
+    location.pathname.startsWith('/boarding-daycare') ||
+    wideRequested;
 
   function handleLogout() {
     logout();
@@ -159,7 +168,7 @@ export default function Layout() {
           </button>
         </div>
         <div className={isWide ? 'content content-wide' : 'content'}>
-          <Outlet />
+          <Outlet context={{ setWideRequested } satisfies LayoutOutletContext} />
         </div>
       </div>
       {showQrLogin && <QrLoginModal onClose={() => setShowQrLogin(false)} />}
