@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import AddPaymentModal from '../components/AddPaymentModal';
@@ -163,10 +163,9 @@ interface StayEditHandlers {
   onDelete: (stayId: string) => void;
 }
 
-type Tab = 'dashboard' | 'upcoming' | 'occupancy' | 'bookings' | 'checklists';
+type Tab = 'dashboard' | 'occupancy' | 'bookings' | 'checklists';
 const TAB_LABELS: Record<Tab, string> = {
   dashboard: 'Dashboard',
-  upcoming: 'Upcoming Stays',
   occupancy: 'Occupancy',
   bookings: 'Bookings',
   checklists: 'Checklists',
@@ -188,10 +187,16 @@ export default function BoardingDayCarePage() {
   // detail (e.g. clicking a name in the Dashboard's Arriving Today list) --
   // BookingsTab consumes it once and reports back via onOpenBookingConsumed.
   const [openBookingId, setOpenBookingId] = useState<string | null>(null);
+  // Set alongside openBookingId when the Dashboard's "Check In"/"Check Out"
+  // button (not just the row itself) was clicked -- BookingDetail consumes
+  // this once too, to jump straight into that form instead of just opening
+  // the booking's detail page.
+  const [openBookingAutoStage, setOpenBookingAutoStage] = useState<'checkIn' | 'checkOut' | undefined>(undefined);
 
-  function handleNavigateToBooking(bookingId: string) {
+  function handleNavigateToBooking(bookingId: string, autoStage?: 'checkIn' | 'checkOut') {
     setTab('bookings');
     setOpenBookingId(bookingId);
+    setOpenBookingAutoStage(autoStage);
   }
 
   useEffect(() => {
@@ -266,7 +271,7 @@ export default function BoardingDayCarePage() {
         <h1>Boarding &amp; Day Care</h1>
       </div>
       <div className="tabs">
-        {(['dashboard', 'upcoming', 'occupancy', 'bookings', 'checklists'] as Tab[]).map((t) => (
+        {(['dashboard', 'occupancy', 'bookings', 'checklists'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -276,14 +281,17 @@ export default function BoardingDayCarePage() {
       {tab === 'dashboard' && (
         <DashboardTab mapping={mapping} refreshSignal={refreshSignal} onNavigateToBooking={handleNavigateToBooking} {...editHandlers} />
       )}
-      {tab === 'upcoming' && <UpcomingStaysTab mapping={mapping} refreshSignal={refreshSignal} {...editHandlers} />}
       {tab === 'occupancy' && <OccupancyTab mapping={mapping} />}
       {tab === 'bookings' && (
         <BookingsTab
           animals={animals}
           customers={customers}
           openBookingId={openBookingId}
-          onOpenBookingConsumed={() => setOpenBookingId(null)}
+          openBookingAutoStage={openBookingAutoStage}
+          onOpenBookingConsumed={() => {
+            setOpenBookingId(null);
+            setOpenBookingAutoStage(undefined);
+          }}
         />
       )}
       {tab === 'checklists' && <ChecklistsTab />}
@@ -315,7 +323,11 @@ function DashboardTab({
   onEdit,
   onDelete,
   onNavigateToBooking,
-}: { mapping: VisitMapping | null; refreshSignal: number; onNavigateToBooking: (bookingId: string) => void } & StayEditHandlers) {
+}: {
+  mapping: VisitMapping | null;
+  refreshSignal: number;
+  onNavigateToBooking: (bookingId: string, autoStage?: 'checkIn' | 'checkOut') => void;
+} & StayEditHandlers) {
   const [dayBookings, setDayBookings] = useState<DayBooking[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -465,6 +477,7 @@ function DashboardTab({
             rows={arrivals}
             empty="No arrivals today."
             detail={(b) => b.dropOffTime || undefined}
+            checkStage="checkIn"
             onEdit={onEdit}
             onDelete={onDelete}
             onNavigateToBooking={onNavigateToBooking}
@@ -474,6 +487,7 @@ function DashboardTab({
             rows={departures}
             empty="No departures today."
             detail={(b) => b.pickUpTime || undefined}
+            checkStage="checkOut"
             onEdit={onEdit}
             onDelete={onDelete}
             onNavigateToBooking={onNavigateToBooking}
@@ -503,6 +517,7 @@ function DashboardList({
   rows,
   empty,
   detail,
+  checkStage,
   onEdit,
   onDelete,
   onNavigateToBooking,
@@ -512,16 +527,23 @@ function DashboardList({
   empty: string;
   /** A short piece of extra info shown between the dog and customer name -- a time or an AM/PM/Full Day label. */
   detail: (b: DayBooking) => string | undefined;
-  onNavigateToBooking: (bookingId: string) => void;
+  // Set for Arriving/Departing Today (not Day Care Today) -- shows a
+  // "Check In"/"Check Out" button next to Remove that jumps straight into
+  // that form, skipping the "open the booking, find the Forms card, click
+  // Fill in" detour.
+  checkStage?: 'checkIn' | 'checkOut';
+  onNavigateToBooking: (bookingId: string, autoStage?: 'checkIn' | 'checkOut') => void;
 } & StayEditHandlers) {
   // A stayId either belongs to the new reference-numbered BoardingBooking
-  // workflow (jump straight to its detail page) or predates it/was created
-  // outside it (fall back to the legacy edit-modal behaviour).
-  async function handleRowClick(stayId: string) {
+  // workflow (jump straight to its detail page, optionally straight into
+  // autoStage's form) or predates it/was created outside it (fall back to
+  // the legacy edit-modal behaviour -- which has no check-in/check-out
+  // concept, so autoStage is simply dropped in that case).
+  async function handleRowClick(stayId: string, autoStage?: 'checkIn' | 'checkOut') {
     try {
       const booking = await api.getBoardingBookingByStay(stayId);
       if (booking) {
-        onNavigateToBooking(booking._id);
+        onNavigateToBooking(booking._id, autoStage);
         return;
       }
     } catch {
@@ -553,6 +575,16 @@ function DashboardList({
               {detail(b) && <span style={{ color: 'var(--accent-dark)', fontWeight: 600, flexShrink: 0 }}>{detail(b)}</span>}
               <span style={{ color: 'var(--muted)', flexShrink: 0 }}>{customerLabel(b.customer)}</span>
             </button>
+            {checkStage && b.stayId && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ flexShrink: 0 }}
+                onClick={() => handleRowClick(b.stayId!, checkStage)}
+              >
+                {checkStage === 'checkIn' ? 'Check In' : 'Check Out'}
+              </button>
+            )}
             {b.stayId && (
               <button type="button" className="icon-btn icon-btn-danger" title="Remove" style={{ flexShrink: 0 }} onClick={() => onDelete(b.stayId!)}>
                 <TrashIcon />
@@ -560,168 +592,6 @@ function DashboardList({
             )}
           </div>
         ))
-      )}
-    </div>
-  );
-}
-
-interface StayEntry {
-  key: string;
-  stayId?: string;
-  animal: string;
-  customer: string;
-  type: string;
-  startDate: Date;
-  endDate: Date;
-  dropOffTime?: string | null;
-  pickUpTime?: string | null;
-  invoiced: boolean;
-}
-
-const RANGE_OPTIONS = [
-  { value: 30, label: 'Next 30 Days' },
-  { value: 60, label: 'Next 60 Days' },
-  { value: 90, label: 'Next 90 Days' },
-];
-
-function UpcomingStaysTab({ mapping, refreshSignal, onEdit, onDelete }: { mapping: VisitMapping | null; refreshSignal: number } & StayEditHandlers) {
-  const [rangeDays, setRangeDays] = useState(30);
-  const [dayBookings, setDayBookings] = useState<DayBooking[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const from = new Date();
-    const to = addDays(from, rangeDays);
-    api
-      .listDayBookings(dateKey(from), dateKey(addDays(to, 1)))
-      .then(setDayBookings)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bookings'));
-  }, [rangeDays, refreshSignal]);
-
-  const entries: StayEntry[] = useMemo(() => {
-    if (!dayBookings || !mapping) return [];
-    const stays = new Map<string, DayBooking[]>();
-    const standalone: DayBooking[] = [];
-    for (const b of dayBookings) {
-      if (b.stayId) {
-        const rows = stays.get(b.stayId) ?? [];
-        rows.push(b);
-        stays.set(b.stayId, rows);
-      } else if (sectionsFor(mapping, b).length > 0) {
-        standalone.push(b);
-      }
-    }
-    const result: StayEntry[] = [];
-    for (const [stayId, rows] of stays) {
-      // A boarding stay's own rows aren't all "Boarding" (the trailing day
-      // can be a real Day Care product) -- only non-placeholder boarding
-      // rows count as billable nights for the summary label.
-      const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date));
-      const billableNights = sorted.filter((r) => sectionsFor(mapping, r).includes('overnight')).length;
-      const dropOffTime = sorted.find((r) => r.dropOffTime)?.dropOffTime;
-      // Boarding's pickUpTime and standalone Day Care's collectionTime are
-      // different fields (see backend's day-booking.schema.ts) -- a
-      // stayId group can be either, so check both.
-      const pickUpTime = sorted.find((r) => r.pickUpTime)?.pickUpTime ?? sorted.find((r) => r.collectionTime)?.collectionTime;
-      result.push({
-        key: stayId,
-        stayId,
-        animal: animalLabel(sorted[0].animal),
-        customer: customerLabel(sorted[0].customer),
-        type: billableNights > 0 ? `Boarding × ${billableNights} night${billableNights === 1 ? '' : 's'}` : 'Day Care',
-        startDate: new Date(sorted[0].date),
-        endDate: stayEndDate(new Date(sorted[sorted.length - 1].date), dropOffTime, pickUpTime),
-        dropOffTime,
-        pickUpTime,
-        invoiced: sorted.filter((r) => !r.placeholder).every((r) => !!r.invoice),
-      });
-    }
-    for (const b of standalone) {
-      // A Half Day row occupies exactly one section, worth naming (the
-      // product name alone doesn't say which half) -- a Full Day row
-      // occupies both AM and PM, and the product name already says "Full
-      // Day" unambiguously, so nothing more is appended for it.
-      const sections = sectionsFor(mapping, b);
-      const type = sections.length === 1 ? `${productLabel(b.product)} (${SECTION_LABELS[sections[0]]})` : productLabel(b.product);
-      result.push({
-        key: b._id,
-        stayId: undefined,
-        animal: animalLabel(b.animal),
-        customer: customerLabel(b.customer),
-        type,
-        startDate: new Date(b.date),
-        endDate: new Date(b.date),
-        dropOffTime: b.dropOffTime ?? (b.dropOffPeriod ? b.dropOffPeriod : undefined),
-        pickUpTime: b.pickUpTime ?? (b.collectionTime ?? (b.collectionPeriod ? b.collectionPeriod : undefined)),
-        invoiced: !!b.invoice,
-      });
-    }
-    result.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
-    return result;
-  }, [dayBookings, mapping]);
-
-  return (
-    <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-        <p style={{ color: 'var(--muted)', margin: 0 }}>Every upcoming boarding stay and day-care booking, soonest first.</p>
-        <select className="select-inline" value={rangeDays} onChange={(e) => setRangeDays(Number(e.target.value))}>
-          {RANGE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      {error && <div className="error-banner">{error}</div>}
-      {!dayBookings || !mapping ? (
-        <div className="empty-state">Loading…</div>
-      ) : entries.length === 0 ? (
-        <div className="empty-state">No boarding or day-care bookings in this period.</div>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Dog</th>
-              <th>Customer</th>
-              <th>Type</th>
-              <th>Dates</th>
-              <th>Drop off</th>
-              <th>Pick up</th>
-              <th></th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map((e) => (
-              <tr key={e.key} onClick={() => e.stayId && onEdit(e.stayId)} style={{ cursor: e.stayId ? 'pointer' : undefined }}>
-                <td>{e.animal}</td>
-                <td>{e.customer}</td>
-                <td>{e.type}</td>
-                <td>
-                  {e.startDate.getTime() === e.endDate.getTime()
-                    ? e.startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                    : `${e.startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${e.endDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`}
-                </td>
-                <td>{e.dropOffTime || '—'}</td>
-                <td>{e.pickUpTime || '—'}</td>
-                <td>
-                  {e.invoiced && (
-                    <span title="Invoiced" style={{ color: 'var(--brand-green)' }}>
-                      ✓
-                    </span>
-                  )}
-                </td>
-                <td onClick={(ev) => ev.stopPropagation()}>
-                  {e.stayId && (
-                    <button type="button" className="icon-btn icon-btn-danger" title="Remove" onClick={() => onDelete(e.stayId!)}>
-                      <TrashIcon />
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       )}
     </div>
   );
@@ -1280,6 +1150,7 @@ function BookingsTab({
   animals,
   customers,
   openBookingId,
+  openBookingAutoStage,
   onOpenBookingConsumed,
 }: {
   animals: Animal[];
@@ -1289,11 +1160,20 @@ function BookingsTab({
   // onOpenBookingConsumed so navigating back to the list afterward behaves
   // normally.
   openBookingId?: string | null;
+  // Set alongside openBookingId to also jump straight into that booking's
+  // Check In/Check Out form (see BookingDetail's autoStage prop) rather than
+  // just opening its detail page.
+  openBookingAutoStage?: 'checkIn' | 'checkOut';
   onOpenBookingConsumed?: () => void;
 }) {
   const [items, setItems] = useState<BoardingBookingWithStatus[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Captured from openBookingAutoStage at the same moment selectedId is set
+  // below -- openBookingId/openBookingAutoStage themselves get cleared
+  // (via onOpenBookingConsumed) right after, so comparing against the props
+  // on a later render would always see them already reset to null.
+  const [autoStage, setAutoStage] = useState<'checkIn' | 'checkOut' | undefined>(undefined);
   const [showNew, setShowNew] = useState(false);
   const [refreshSignal, setRefreshSignal] = useState(0);
 
@@ -1304,6 +1184,7 @@ function BookingsTab({
   useEffect(() => {
     if (openBookingId) {
       setSelectedId(openBookingId);
+      setAutoStage(openBookingAutoStage);
       onOpenBookingConsumed?.();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1313,6 +1194,7 @@ function BookingsTab({
     return (
       <BookingDetail
         id={selectedId}
+        autoStage={autoStage}
         onBack={() => {
           setSelectedId(null);
           setRefreshSignal((n) => n + 1);
@@ -1344,17 +1226,36 @@ function BookingsTab({
                 <th>Dog(s)</th>
                 <th>Type</th>
                 <th>Dates</th>
+                <th>Drop off</th>
+                <th>Pick up</th>
+                <th>Invoiced</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
               {items.map(({ booking, status }) => (
-                <tr key={booking._id} onClick={() => setSelectedId(booking._id)} style={{ cursor: 'pointer' }}>
+                <tr
+                  key={booking._id}
+                  onClick={() => {
+                    setAutoStage(undefined);
+                    setSelectedId(booking._id);
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
                   <td style={{ fontWeight: 600, color: 'var(--accent)' }}>{booking.reference}</td>
                   <td>{boardingCustomerLabel(booking.customer)}</td>
                   <td>{boardingAnimalNames(booking.animals)}</td>
                   <td>{booking.type === 'boarding' ? 'Boarding' : 'Day Care'}</td>
                   <td>{formatDateRange(booking)}</td>
+                  <td>{booking.dropOffTime || '—'}</td>
+                  <td>{booking.pickUpTime || '—'}</td>
+                  <td>
+                    {booking.invoice && (
+                      <span title="Invoiced" style={{ color: 'var(--brand-green)' }}>
+                        ✓
+                      </span>
+                    )}
+                  </td>
                   <td>
                     <span
                       style={{
@@ -1382,6 +1283,7 @@ function BookingsTab({
           onClose={() => setShowNew(false)}
           onCreated={(id) => {
             setRefreshSignal((n) => n + 1);
+            setAutoStage(undefined);
             setSelectedId(id);
           }}
         />
@@ -1414,7 +1316,21 @@ function StageDot({ stage }: { stage: BoardingBookingStage }) {
   return <div style={{ ...base, background: '#fff', border: '2px solid var(--border)', color: 'var(--muted)' }} />;
 }
 
-function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => void; onChanged: () => void }) {
+function BookingDetail({
+  id,
+  autoStage,
+  onBack,
+  onChanged,
+}: {
+  id: string;
+  // Set by the Dashboard's "Check In"/"Check Out" button -- jumps straight
+  // into that form (or, if it's already done, straight to viewing what was
+  // submitted) once this booking's data has loaded, instead of leaving staff
+  // to find and click "Fill in" themselves in the Forms card below.
+  autoStage?: 'checkIn' | 'checkOut';
+  onBack: () => void;
+  onChanged: () => void;
+}) {
   const [data, setData] = useState<BoardingBookingWithStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAmend, setShowAmend] = useState(false);
@@ -1590,6 +1506,26 @@ function BookingDetail({ id, onBack, onChanged }: { id: string; onBack: () => vo
       setFillFor(null);
     }
   }
+
+  // Fires once, as soon as data first loads -- guarded by a ref rather than
+  // just checking autoStage (a prop, stays set for this component's whole
+  // lifetime) so it doesn't re-fire every time refresh() runs afterward
+  // (e.g. once handleFormSubmitted's own refresh() lands). Mirrors exactly
+  // what clicking the matching Forms-card row would do: already done ->
+  // view what was submitted, otherwise start filling it in.
+  const autoStageFired = useRef(false);
+  useEffect(() => {
+    if (!data || !autoStage || autoStageFired.current) return;
+    autoStageFired.current = true;
+    if (autoStage === 'checkIn') {
+      if (data.booking.checkInSubmission) handleViewSubmission(data.booking.checkInSubmission);
+      else startCheckIn();
+    } else {
+      if (data.booking.checkOutSubmission) handleViewSubmission(data.booking.checkOutSubmission);
+      else startCheckOut();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, autoStage]);
 
   if (error && !data) {
     return (
