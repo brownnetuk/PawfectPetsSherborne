@@ -137,15 +137,30 @@ class Repository {
     required String customerId,
     required String recipientEmail,
     String? recipientName,
+    // Which of the customer's pets the form is for (shapes a per-pet group).
+    List<String>? animalIds,
   }) async {
     final json = await _client.post('/form-submissions', {
       'form': formId,
       'customer': customerId,
       'recipientEmail': recipientEmail,
       if (recipientName != null && recipientName.isNotEmpty) 'recipientName': recipientName,
+      if (animalIds != null && animalIds.isNotEmpty) 'animals': animalIds,
     });
     return json['_id'] as String;
   }
+
+  /// The fill-page view of a submission: fields resolved for the recipient
+  /// (placeholders substituted, customerPets options resolved) -- the same
+  /// GET /form-submissions/:id/public the intake app and the admin's
+  /// check-in/check-out fill modal use.
+  Future<Map<String, dynamic>> getFormSubmissionPublic(String id) =>
+      _client.get('/form-submissions/$id/public');
+
+  /// Submits a filled-in form (answers keyed by field id) -- the same
+  /// endpoint the customer's fill page posts to.
+  Future<void> submitFormSubmission(String id, Map<String, dynamic> answers) =>
+      _client.post('/form-submissions/$id/submit', {'answers': answers});
 
   /// Emails the customer the 'form' triggered email with the fill-in link. The
   /// backend rebuilds the link host from PUBLIC_INTAKE_URL, so the exact base
@@ -457,6 +472,18 @@ class Repository {
         if (collectionPeriod != null) 'collectionPeriod': collectionPeriod,
         if (notes != null && notes.isNotEmpty) 'notes': notes,
       });
+
+  /// The Settings > Boarding workflow configuration (which forms to use for
+  /// pre-check-in/check-in/check-out, per booking type).
+  Future<Map<String, dynamic>> getBoardingWorkflowSettings() => _client.get('/settings/boarding');
+
+  /// Links a completed check-in form onto the booking and marks it checked in.
+  Future<void> recordBoardingCheckIn(String id, String submissionId) =>
+      _client.post('/boarding-bookings/$id/check-in', {'submission': submissionId});
+
+  /// Links a completed check-out form onto the booking and marks it checked out.
+  Future<void> recordBoardingCheckOut(String id, String submissionId) =>
+      _client.post('/boarding-bookings/$id/check-out', {'submission': submissionId});
 
   /// Emails the customer a pre-check-in fill-in link for a boarding booking --
   /// the same "Send now" action as the admin. The server picks the configured

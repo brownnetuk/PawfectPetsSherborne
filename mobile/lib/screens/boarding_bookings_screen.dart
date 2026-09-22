@@ -5,6 +5,7 @@ import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/boarding_booking.dart';
 import 'customer_forms_screen.dart';
+import 'form_fill_screen.dart';
 import 'invoice_detail_screen.dart';
 import 'new_boarding_booking_screen.dart';
 
@@ -88,9 +89,12 @@ class _BoardingBookingsScreenState extends State<BoardingBookingsScreen> {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () async {
-          await Navigator.of(context).push(
+          final changed = await Navigator.of(context).push<bool>(
             MaterialPageRoute(builder: (_) => BoardingBookingDetailScreen(item: item)),
           );
+          // The detail pops true after a check-in/check-out so the status
+          // pill and buttons here reflect the new stage.
+          if (changed == true && mounted) _refresh();
         },
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -194,6 +198,7 @@ class BoardingBookingDetailScreen extends StatefulWidget {
 class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScreen> {
   bool _openingForm = false;
   bool _sendingPreCheckIn = false;
+  bool _startingCheck = false;
   DateTime? _preCheckInSentAt;
 
   @override
@@ -253,11 +258,73 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: OutlinedButton.icon(
-        onPressed: _openingForm || _sendingPreCheckIn ? null : onPressed,
+        onPressed: _openingForm || _sendingPreCheckIn || _startingCheck ? null : onPressed,
         icon: Icon(icon, size: 18),
         label: Text(label),
       ),
     );
+  }
+
+  /// The admin's Fill-in flow: look up the configured form for this booking's
+  /// type, create a pending submission for this customer/pets, open it in the
+  /// in-app form filler, and on submit link it onto the booking (check-in or
+  /// check-out). Pops the detail with `true` afterwards so the list refreshes
+  /// with the new status.
+  Future<void> _startCheck({required bool isCheckIn}) async {
+    if (_startingCheck) return;
+    setState(() => _startingCheck = true);
+    final b = widget.item.booking;
+    try {
+      final repo = context.read<Repository>();
+      final workflow = await repo.getBoardingWorkflowSettings();
+      final formId = (isCheckIn
+          ? (b.isBoarding ? workflow['checkInFormBoarding'] : workflow['checkInFormDayCare'])
+          : (b.isBoarding ? workflow['checkOutFormBoarding'] : workflow['checkOutFormDayCare'])) as String?;
+      if (formId == null) {
+        throw ApiException(
+            'No ${isCheckIn ? 'check-in' : 'check-out'} form is configured for ${b.isBoarding ? 'Boarding' : 'Day Care'} yet -- set one in Settings > Boarding first.');
+      }
+      final submissionId = await repo.createFormSubmission(
+        formId: formId,
+        customerId: b.customerId,
+        recipientEmail: b.customerEmail,
+        recipientName: b.customerName,
+        animalIds: b.animalIds,
+      );
+      if (!mounted) return;
+      final submitted = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => FormFillScreen(
+            submissionId: submissionId,
+            title: isCheckIn ? 'Check-in' : 'Check-out',
+            presetPetNames: b.animalNames,
+            // Shown as a "View check-in details" button while filling in
+            // check-out, same context the admin gives.
+            referenceSubmissionId: isCheckIn ? null : b.checkInSubmission,
+          ),
+        ),
+      );
+      if (submitted != true || !mounted) return;
+      if (isCheckIn) {
+        await repo.recordBoardingCheckIn(b.id, submissionId);
+      } else {
+        await repo.recordBoardingCheckOut(b.id, submissionId);
+      }
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop(true);
+      messenger.showSnackBar(SnackBar(content: Text(isCheckIn ? 'Checked in.' : 'Checked out.')));
+    } catch (e) {
+      if (mounted) {
+        final message = e is ApiException
+            ? e.message
+            : 'Failed to ${isCheckIn ? 'check in' : 'check out'}';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
+    } finally {
+      if (mounted) setState(() => _startingCheck = false);
+    }
   }
 
   @override
@@ -287,10 +354,7 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
           _row('Pick up', b.pickUpTime.isEmpty ? '—' : b.pickUpTime),
           _row('Invoiced', b.invoiced ? 'Yes' : 'No'),
           if ((b.notes ?? '').trim().isNotEmpty) _row('Notes', b.notes!),
-          if (b.invoiceId != null ||
-              b.preCheckInSubmission != null ||
-              b.checkInSubmission != null ||
-              b.checkOutSubmission != null) ...[
+          ...[
             const SizedBox(height: 8),
             if (b.invoiceId != null)
               _actionButton(
@@ -324,8 +388,14 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
             if (b.preCheckInSubmission != null)
               _actionButton(Icons.assignment_turned_in_outlined, 'View pre-check-in form',
                   () => _openForm(b.preCheckInSubmission!)),
+            if (b.checkInSubmission == null)
+              _actionButton(Icons.login_outlined, _startingCheck ? 'Preparing…' : 'Check in',
+                  () => _startCheck(isCheckIn: true)),
             if (b.checkInSubmission != null)
               _actionButton(Icons.login_outlined, 'View check-in form', () => _openForm(b.checkInSubmission!)),
+            if (b.checkOutSubmission == null)
+              _actionButton(Icons.logout_outlined, _startingCheck ? 'Preparing…' : 'Check out',
+                  () => _startCheck(isCheckIn: false)),
             if (b.checkOutSubmission != null)
               _actionButton(Icons.logout_outlined, 'View check-out form', () => _openForm(b.checkOutSubmission!)),
           ],

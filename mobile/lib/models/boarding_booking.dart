@@ -5,7 +5,10 @@
 class BoardingBooking {
   final String id;
   final String reference;
+  final String customerId;
   final String customerName;
+  final String customerEmail;
+  final List<String> animalIds;
   final List<String> animalNames;
   final String type; // 'boarding' | 'dayCare'
   final DateTime startDate;
@@ -34,7 +37,10 @@ class BoardingBooking {
   BoardingBooking({
     required this.id,
     required this.reference,
+    required this.customerId,
     required this.customerName,
+    required this.customerEmail,
+    required this.animalIds,
     required this.animalNames,
     required this.type,
     required this.startDate,
@@ -57,7 +63,14 @@ class BoardingBooking {
     return BoardingBooking(
       id: json['_id'] as String,
       reference: json['reference'] as String? ?? '',
+      customerId: customer is Map<String, dynamic> ? (customer['_id'] as String? ?? '') : (customer as String? ?? ''),
       customerName: customer is Map<String, dynamic> ? (customer['name'] as String? ?? '') : '',
+      customerEmail: customer is Map<String, dynamic> ? (customer['email'] as String? ?? '') : '',
+      animalIds: animals
+          .whereType<Map<String, dynamic>>()
+          .map((a) => a['_id'] as String? ?? '')
+          .where((v) => v.isNotEmpty)
+          .toList(),
       animalNames: animals
           .whereType<Map<String, dynamic>>()
           .map((a) => a['name'] as String? ?? '')
