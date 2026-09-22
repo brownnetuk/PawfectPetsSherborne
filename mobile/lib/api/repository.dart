@@ -6,6 +6,7 @@ import '../models/audit_log_entry.dart';
 import '../models/bank_account.dart';
 import '../models/bank_holiday.dart';
 import '../models/bank_transfer.dart';
+import '../models/boarding_booking.dart';
 import '../models/booking.dart';
 import '../models/day_booking.dart';
 import '../models/finance_report.dart';
@@ -403,6 +404,14 @@ class Repository {
         if (dayCarePlan != null) 'dayCarePlan': dayCarePlan,
         if (boardingPlan != null) 'boardingPlan': boardingPlan,
       }));
+
+  /// The reference-numbered Boarding & Day Care bookings with their derived
+  /// workflow status -- same list the admin's Boarding & Day Care > Bookings
+  /// tab shows.
+  Future<List<BoardingBookingWithStatus>> listBoardingBookings() async =>
+      (await _client.getList('/boarding-bookings'))
+          .map((e) => BoardingBookingWithStatus.fromJson(e as Map<String, dynamic>))
+          .toList();
 
   /// The product breakdown for a boarding stay (whole 24h boarding days plus a
   /// leftover half day), resolved to the products configured in Settings >

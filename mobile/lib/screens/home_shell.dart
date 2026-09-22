@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/push_service.dart';
 import '../state/auth_provider.dart';
+import 'boarding_screen.dart';
 import 'bookings_screen.dart';
+import 'business_screen.dart';
 import 'customers_screen.dart';
-import 'financial_screen.dart';
-import 'invoicing_screen.dart';
 import 'messages_screen.dart';
 
 class HomeShell extends StatefulWidget {
@@ -36,9 +36,9 @@ class _HomeShellState extends State<HomeShell> {
 
   static const _screens = [
     CustomersScreen(),
-    InvoicingScreen(),
+    BusinessScreen(),
     BookingsScreen(),
-    FinancialScreen(),
+    BoardingScreen(),
     MessagesScreen(),
   ];
 
@@ -60,9 +60,9 @@ class _HomeShellState extends State<HomeShell> {
         }),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.people_outline), label: 'Customers'),
-          NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Invoicing'),
+          NavigationDestination(icon: Icon(Icons.business_center_outlined), label: 'Business'),
           NavigationDestination(icon: Icon(Icons.event_note_outlined), label: 'Bookings'),
-          NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Financial'),
+          NavigationDestination(icon: Icon(Icons.hotel_outlined), label: 'Boarding'),
           NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Messages'),
         ],
       ),
