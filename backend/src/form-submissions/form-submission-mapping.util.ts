@@ -44,6 +44,26 @@ export function setPath(
   });
 }
 
+// The read direction of setPath above -- same dot-path/[N] segment parsing,
+// used to pull a current value off a real Customer/Animal document (e.g.
+// BoardingBookingsService.sendPreCheckIn() pre-filling a pre-check-in
+// submission's answers from the record each mapped field points at).
+export function getPath(source: Record<string, unknown> | null | undefined, path: string): unknown {
+  let cursor: unknown = source;
+  for (const segment of path.split('.')) {
+    if (cursor === null || cursor === undefined) return undefined;
+    const match = segment.match(ARRAY_SEGMENT);
+    if (match) {
+      const [, key, indexStr] = match;
+      const arr = (cursor as Record<string, unknown>)[key];
+      cursor = Array.isArray(arr) ? arr[Number(indexStr)] : undefined;
+    } else {
+      cursor = (cursor as Record<string, unknown>)[segment];
+    }
+  }
+  return cursor;
+}
+
 function coerceFieldValue(field: FormField, raw: unknown): unknown {
   if (raw === undefined || raw === null || raw === '') return undefined;
   switch (field.type) {

@@ -12,6 +12,7 @@ import { Model } from 'mongoose';
 import { actorFromRequest } from '../auth/actor.util';
 import { AnimalsService } from '../animals/animals.service';
 import { CreateAnimalDto } from '../animals/dto/create-animal.dto';
+import { PublicUpdateAnimalDto } from '../animals/dto/public-update-animal.dto';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
 import { CustomersService } from '../customers/customers.service';
@@ -371,6 +372,41 @@ export class FormSubmissionsService {
       }
     }
 
+    // The other half of createsAnimal:false: a group whose fields ARE
+    // mapped to 'animal' AND whose submission is already tied to real
+    // existing animals (e.g. the pre-check-in form's per-pet section, built
+    // by BoardingBookingsService.sendPreCheckIn() with one repetition per
+    // booking animal, in that same order) patches that existing Animal
+    // instead of creating a new one -- same "existing record, partial
+    // patch" shape buildCustomerPatch/UpdateCustomerDto already gets above,
+    // just for Animal (PublicUpdateAnimalDto, not the stricter
+    // create-shaped ValidateAnimalDto used for animalInstances above: a
+    // partial patch legitimately omits fields like species/breed/age that
+    // aren't part of this form at all). A group with no animal-mapped
+    // fields (check-in/check-out's pet groups, which only capture unmapped
+    // belongings/condition notes) produces an empty patch and is skipped --
+    // no behaviour change for those.
+    const orderedAnimalIds = (
+      submission.animals?.length ? submission.animals : submission.animal ? [submission.animal] : []
+    ).map((a) => a.toString());
+    const animalPatches: { animalId: string; instance: PublicUpdateAnimalDto }[] = [];
+    for (const group of groupFields) {
+      if (group.type !== 'group' || group.createsAnimal !== false) continue;
+      const repetitions = (answers[group.id] as Record<string, unknown>[] | undefined) ?? [];
+      for (let i = 0; i < repetitions.length; i++) {
+        const animalId = orderedAnimalIds[i];
+        if (!animalId) continue;
+        const raw = buildAnimalPatch(group.fields, repetitions[i]);
+        if (Object.keys(raw).length === 0) continue;
+        const instance = plainToInstance(PublicUpdateAnimalDto, raw);
+        const errors = await validate(instance as object, { whitelist: true });
+        if (errors.length) {
+          throw new BadRequestException(flattenValidationErrors(errors));
+        }
+        animalPatches.push({ animalId, instance });
+      }
+    }
+
     // Everything validated -- now write. Customer id is persisted onto the
     // submission immediately after its own write succeeds (before any pet
     // writes), so a retried submit (e.g. after a late failure creating a
@@ -400,6 +436,10 @@ export class FormSubmissionsService {
         { ...animalInstance, customer: customerId },
         actor,
       );
+    }
+
+    for (const { animalId, instance } of animalPatches) {
+      await this.animalsService.updateForCustomer(animalId, customerId, instance, actor);
     }
 
     submission.answers = answers;

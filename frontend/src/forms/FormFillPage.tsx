@@ -32,12 +32,25 @@ export default function FormFillPage({ submissionId }: { submissionId: string })
           setLoadState('already-completed');
           return;
         }
-        const initial: Record<string, unknown> = defaultAnswersFor(s.fields.filter((f) => f.type !== 'group'));
+        // A submission can already carry pre-filled answers (e.g. a
+        // pre-check-in form pre-populated from the customer's/each booking
+        // pet's own record by BoardingBookingsService.sendPreCheckIn()) --
+        // layered over defaultAnswersFor()'s usual blank/defaultValue-driven
+        // start so a field with nothing pre-filled still gets its normal
+        // default. A plain, un-pre-filled submission has answers: {}, so
+        // this is a no-op for every other form.
+        const provided = s.answers ?? {};
+        const initial: Record<string, unknown> = {
+          ...defaultAnswersFor(s.fields.filter((f) => f.type !== 'group')),
+          ...provided,
+        };
         for (const field of s.fields) {
           if (field.type === 'group') {
-            initial[field.id] = Array.from({ length: Math.max(field.minRepeats, 0) }, () =>
-              defaultAnswersFor(field.fields),
-            );
+            const providedRepetitions = provided[field.id] as Record<string, unknown>[] | undefined;
+            initial[field.id] = Array.from({ length: Math.max(field.minRepeats, 0) }, (_, i) => ({
+              ...defaultAnswersFor(field.fields),
+              ...(providedRepetitions?.[i] ?? {}),
+            }));
           }
         }
         setAnswers(initial);

@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { Animal, AnimalSchema } from '../animals/schemas/animal.schema';
 import { AuditLogModule } from '../audit-log/audit-log.module';
+import { Customer, CustomerSchema } from '../customers/schemas/customer.schema';
 import { DayBookingsModule } from '../day-bookings/day-bookings.module';
 import {
   FormSubmission,
@@ -31,6 +33,11 @@ import { BoardingBooking, BoardingBookingSchema } from './schemas/boarding-booki
       // BoardingBookings), so importing it here would be circular. See
       // BoardingBookingsService.sendPreCheckIn()'s comment.
       { name: FormSubmission.name, schema: FormSubmissionSchema },
+      // Same reasoning as FormSubmission above -- read-only here (pre-check-in
+      // pre-fill), so there's no need for CustomersModule/AnimalsModule's
+      // full services (validation, audit logging), just their models.
+      { name: Customer.name, schema: CustomerSchema },
+      { name: Animal.name, schema: AnimalSchema },
     ]),
     // For DayBookingsService.createDayCareStay()/createBoardingStay() --
     // the single place both this module and QuotesModule now build a stay's

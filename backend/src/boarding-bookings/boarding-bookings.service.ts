@@ -2,8 +2,10 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model } from 'mongoose';
+import { Animal } from '../animals/schemas/animal.schema';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
+import { Customer } from '../customers/schemas/customer.schema';
 import {
   BoardingStayPlan,
   DayBookingsService,
@@ -15,6 +17,8 @@ import {
   nextSequenceNumber,
 } from '../common/document-number.util';
 import { publicFrontendUrl } from '../common/tracking-pixel.util';
+import { FormField } from '../forms/form-field.types';
+import { getPath } from '../form-submissions/form-submission-mapping.util';
 import { FormSubmission, FormSubmissionStatus } from '../form-submissions/schemas/form-submission.schema';
 import { FormsService } from '../forms/forms.service';
 import { Invoice, InvoiceStatus } from '../invoices/schemas/invoice.schema';
@@ -44,6 +48,67 @@ export interface BoardingBookingStage {
   sub?: string;
 }
 
+// Substitutes {{bookingReference}} (not one of form-placeholders.util.ts's
+// customer tokens -- a booking has no customer-record analog there) into
+// every top-level field's label, and resizes every group field to exactly
+// this booking's animals -- one fixed repetition per pet, in booking order,
+// no add/remove (mirrors FormSubmissionsService's own wrapFieldsForPets()
+// shape: minRepeats === maxRepeats === count, repetitionLabels === names).
+// Only the pre-check-in form actually has a group needing this today (its
+// "Pet" section), but applying it to every group is simplest and harmless
+// if a form with more than one group is ever sent this way.
+function shapeSnapshotForBooking(fields: FormField[], reference: string, petNames: string[]): FormField[] {
+  return fields.map((field) => {
+    const label = field.label.split('{{bookingReference}}').join(reference);
+    if (field.type === 'group') {
+      return { ...field, label, minRepeats: petNames.length, maxRepeats: petNames.length, repetitionLabels: petNames };
+    }
+    return { ...field, label };
+  });
+}
+
+function toAnswerValue(fieldType: FormField['type'], raw: unknown): unknown {
+  if (raw === undefined || raw === null) return undefined;
+  if (fieldType === 'date' && raw instanceof Date) return raw.toISOString().slice(0, 10);
+  if (fieldType === 'toggle') return !!raw;
+  return raw;
+}
+
+// The read-direction mirror of form-submission-mapping.util.ts's
+// buildCustomerPatch/buildAnimalPatch (which build a Customer/Animal PATCH
+// from submitted answers) -- this builds the pre-check-in submission's
+// initial answers FROM the customer's/each booking animal's current record,
+// via the same field.mapping.path each field already carries, so "please
+// review and correct" pre-population and "edits sync back to the record"
+// (FormSubmissionsService.submit()) stay driven by one shared source of
+// truth (this form's own field definitions) rather than two hand-maintained
+// lists that could drift apart.
+function buildPreCheckInAnswers(
+  fields: FormField[],
+  customer: Record<string, unknown>,
+  animals: Record<string, unknown>[],
+): Record<string, unknown> {
+  const answers: Record<string, unknown> = {};
+  for (const field of fields) {
+    if (field.type === 'group') {
+      answers[field.id] = animals.map((animal) => {
+        const repetition: Record<string, unknown> = {};
+        for (const child of field.fields) {
+          if (child.type === 'group' || !child.mapping || child.mapping.target !== 'animal') continue;
+          const value = toAnswerValue(child.type, getPath(animal, child.mapping.path));
+          if (value !== undefined) repetition[child.id] = value;
+        }
+        return repetition;
+      });
+      continue;
+    }
+    if (!field.mapping || field.mapping.target !== 'customer') continue;
+    const value = toAnswerValue(field.type, getPath(customer, field.mapping.path));
+    if (value !== undefined) answers[field.id] = value;
+  }
+  return answers;
+}
+
 @Injectable()
 export class BoardingBookingsService {
   constructor(
@@ -53,6 +118,13 @@ export class BoardingBookingsService {
     private readonly businessInfoModel: Model<BusinessInfo>,
     @InjectModel(FormSubmission.name)
     private readonly formSubmissionModel: Model<FormSubmission>,
+    // Read-only here (pre-check-in pre-fill) -- see boarding-bookings.module.ts's
+    // comment for why these are registered directly rather than importing
+    // CustomersModule/AnimalsModule (would be circular).
+    @InjectModel(Customer.name)
+    private readonly customerModel: Model<Customer>,
+    @InjectModel(Animal.name)
+    private readonly animalModel: Model<Animal>,
     private readonly dayBookingsService: DayBookingsService,
     private readonly invoicesService: InvoicesService,
     private readonly formsService: FormsService,
@@ -448,22 +520,43 @@ export class BoardingBookingsService {
     // (rather than importing FormSubmissionsModule) to avoid a circular
     // module dependency: FormSubmissionsModule already imports CustomersModule,
     // which sits upstream of this module via Customers -> Animals -> Bookings ->
-    // Quotes -> BoardingBookings. Doesn't do FormSubmissionsService.create()'s
-    // per-pet field wrapping for a multi-animal submission -- an accepted
-    // simplification for now, since most bookings are a single dog.
+    // Quotes -> BoardingBookings (see boarding-bookings.module.ts). Unlike
+    // FormSubmissionsService.create()'s per-pet field WRAPPING (for a form
+    // with no group of its own), this shapes the form's OWN "Pet" group to
+    // this booking's animals via shapeSnapshotForBooking() below, and
+    // pre-fills answers from the live Customer/Animal records so the
+    // customer reviews/corrects rather than retypes everything.
     const form = await this.formsService.findOne(String(formId));
     const animalIds = booking.animals.map((a) => this.idOf(a));
+    const [fullCustomer, animalDocs] = await Promise.all([
+      this.customerModel.findById(customer._id).exec(),
+      Promise.all(animalIds.map((animalId) => this.animalModel.findById(animalId).exec())),
+    ]);
+    const animals = animalDocs.filter((a): a is NonNullable<typeof a> => a !== null);
+    const formFieldsSnapshot = shapeSnapshotForBooking(
+      form.fields as unknown as FormField[],
+      booking.reference,
+      animals.map((a) => a.name),
+    );
+    const answers = fullCustomer
+      ? buildPreCheckInAnswers(
+          formFieldsSnapshot,
+          fullCustomer.toObject() as unknown as Record<string, unknown>,
+          animals.map((a) => a.toObject() as unknown as Record<string, unknown>),
+        )
+      : {};
     const submission = await new this.formSubmissionModel({
       form: form._id,
       formName: form.name,
       formDescription: form.description,
-      formFieldsSnapshot: form.fields,
+      formFieldsSnapshot,
       status: FormSubmissionStatus.PENDING,
       customer: customer._id,
       animal: animalIds.length === 1 ? animalIds[0] : undefined,
       animals: animalIds.length > 1 ? animalIds : undefined,
       recipientEmail: customer.email,
       recipientName: customer.name,
+      answers,
     }).save();
     const link = `${publicFrontendUrl()}/forms/${(submission._id as { toString(): string }).toString()}`;
     await this.settingsService.sendTriggeredEmail({

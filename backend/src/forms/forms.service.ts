@@ -5,6 +5,7 @@ import { CreateFormDto } from './dto/create-form.dto';
 import { UpdateFormDto } from './dto/update-form.dto';
 import { DEFAULT_CUSTOMER_INTAKE_FORM } from './default-customer-intake-form';
 import { DEFAULT_CHECKIN_FORM, DEFAULT_CHECKOUT_FORM } from './default-boarding-checkin-checkout-forms';
+import { DEFAULT_PRE_CHECKIN_FORM } from './default-pre-checkin-form';
 import { Form } from './schemas/form.schema';
 
 @Injectable()
@@ -13,8 +14,8 @@ export class FormsService implements OnModuleInit {
     @InjectModel(Form.name) private readonly formModel: Model<Form>,
   ) {}
 
-  // Seeds the "Customer Intake", "Arrival Check-In", and "Departure
-  // Check-Out" forms once, on boot -- a first-of-its-kind seed-on-init
+  // Seeds the "Customer Intake", "Arrival Check-In", "Departure Check-Out",
+  // and "Pre-Check-In" forms once, on boot -- a first-of-its-kind seed-on-init
   // pattern in this codebase (no existing module does this), so each is a
   // single atomic upsert ($setOnInsert) rather than a find-then-insert pair,
   // which would otherwise race across multiple app instances. Staff can
@@ -22,7 +23,12 @@ export class FormsService implements OnModuleInit {
   // none is ever re-created once it exists (findOneAndUpdate with upsert
   // only ever inserts when its {name} filter matches nothing).
   async onModuleInit(): Promise<void> {
-    for (const seed of [DEFAULT_CUSTOMER_INTAKE_FORM, DEFAULT_CHECKIN_FORM, DEFAULT_CHECKOUT_FORM]) {
+    for (const seed of [
+      DEFAULT_CUSTOMER_INTAKE_FORM,
+      DEFAULT_CHECKIN_FORM,
+      DEFAULT_CHECKOUT_FORM,
+      DEFAULT_PRE_CHECKIN_FORM,
+    ]) {
       await this.formModel
         .findOneAndUpdate({ name: seed.name }, { $setOnInsert: seed }, { upsert: true })
         .exec();
