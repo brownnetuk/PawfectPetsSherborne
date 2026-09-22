@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
+import '../models/form_submission.dart';
 import '../state/auth_provider.dart';
 import '../widgets/signature_pad.dart';
 import 'customer_forms_screen.dart';
@@ -51,6 +52,12 @@ class _FormFillScreenState extends State<FormFillScreen> {
   bool _submitting = false;
   bool _busy = false; // photo pick / reference view in flight
 
+  /// The completed reference (check-in) submission, loaded up front so each
+  /// pet's section can show its check-in answers inline while filling in the
+  /// check-out. Null when there's no reference or it failed to load (the
+  /// "View" button still reports on-demand failures).
+  FormSubmission? _reference;
+
   static final _dateFmt = DateFormat('d MMM yyyy');
   static final _dateTimeFmt = DateFormat('d MMM yyyy, HH:mm');
 
@@ -62,7 +69,16 @@ class _FormFillScreenState extends State<FormFillScreen> {
 
   Future<void> _load() async {
     try {
-      final json = await context.read<Repository>().getFormSubmissionPublic(widget.submissionId);
+      final repo = context.read<Repository>();
+      final json = await repo.getFormSubmissionPublic(widget.submissionId);
+      FormSubmission? reference;
+      if (widget.referenceSubmissionId != null) {
+        try {
+          reference = await repo.getFormSubmission(widget.referenceSubmissionId!);
+        } catch (_) {
+          // Inline check-in context is a nicety; the form still fills fine.
+        }
+      }
       if (!mounted) return;
       final staffName = context.read<AuthProvider>().staff?.name ?? 'Staff';
       final fields = (json['fields'] as List<dynamic>? ?? [])
@@ -76,6 +92,7 @@ class _FormFillScreenState extends State<FormFillScreen> {
         }
         _fields = fields;
         _formDescription = json['formDescription'] as String?;
+        _reference = reference;
         _initAnswers(fields);
       });
     } catch (e) {
@@ -501,6 +518,151 @@ class _FormFillScreenState extends State<FormFillScreen> {
     );
   }
 
+  // --- inline check-in context inside each pet's check-out section ---
+
+  /// The reference (check-in) submission's per-pet group: the first group
+  /// field with answered repetitions, plus the id of its "which pet" choice
+  /// (the snapshot keeps optionsSource, unlike the public fields).
+  ({List<Map<String, dynamic>> fields, List<Map<String, dynamic>> repetitions, String? petFieldId})?
+      _referenceGroup() {
+    final ref = _reference;
+    if (ref == null) return null;
+    for (final f in ref.fields) {
+      if (f['type'] != 'group') continue;
+      final repetitions = (ref.answers[f['id']] as List<dynamic>? ?? [])
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
+      if (repetitions.isEmpty) continue;
+      final groupFields = _groupFields(f);
+      String? petFieldId;
+      for (final gf in groupFields) {
+        if (gf['type'] == 'choice' && gf['optionsSource'] == 'customerPets') petFieldId = gf['id'] as String?;
+      }
+      return (fields: groupFields, repetitions: repetitions, petFieldId: petFieldId);
+    }
+    return null;
+  }
+
+  /// This check-out repetition's pet name: any choice answer that matches one
+  /// of the booking's pets (the public fields have optionsSource stripped, so
+  /// the value itself is the only reliable signal).
+  String? _petNameOf(List<Map<String, dynamic>> groupFields, Map<String, dynamic> repetition) {
+    for (final f in groupFields) {
+      if (f['type'] != 'choice') continue;
+      final v = repetition[f['id']]?.toString();
+      if (v != null && widget.presetPetNames.contains(v)) return v;
+    }
+    return null;
+  }
+
+  /// The read-only check-in answers for one pet, shown inside that pet's
+  /// check-out section. Matches by pet name when both sides carry one, else
+  /// by repetition order (both forms pre-fill one section per booked dog in
+  /// the same order).
+  Widget? _checkInBlock(List<Map<String, dynamic>> groupFields, Map<String, dynamic> repetition, int index) {
+    final ref = _referenceGroup();
+    if (ref == null) return null;
+    final petName = _petNameOf(groupFields, repetition);
+    Map<String, dynamic>? refRepetition;
+    if (petName != null && ref.petFieldId != null) {
+      for (final rep in ref.repetitions) {
+        if (rep[ref.petFieldId]?.toString() == petName) refRepetition = rep;
+      }
+    }
+    refRepetition ??= index < ref.repetitions.length ? ref.repetitions[index] : null;
+    if (refRepetition == null) return null;
+
+    final rows = <Widget>[];
+    for (final f in ref.fields) {
+      final type = f['type'] as String? ?? 'text';
+      if (type == 'display' || type == 'group') continue;
+      final label = f['label'] as String? ?? '';
+      final value = refRepetition[f['id']];
+      if (type == 'signature' && value is String && value.isNotEmpty) {
+        rows.add(_refImageRow(label, [value], height: 48));
+        continue;
+      }
+      if (type == 'file' && value is List && value.isNotEmpty) {
+        rows.add(_refImageRow(label, value.whereType<String>().toList(), height: 56));
+        continue;
+      }
+      rows.add(Padding(
+        padding: const EdgeInsets.only(bottom: 3),
+        child: Text.rich(TextSpan(children: [
+          TextSpan(text: '$label  ', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+          TextSpan(text: _formatRefAnswer(type, value), style: const TextStyle(fontSize: 13)),
+        ])),
+      ));
+    }
+    if (rows.isEmpty) return null;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.green.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.green.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.login_outlined, size: 14, color: Colors.green.shade800),
+              const SizedBox(width: 6),
+              Text(
+                'At check-in${petName != null ? ' · $petName' : ''}',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.green.shade800),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ...rows,
+        ],
+      ),
+    );
+  }
+
+  Widget _refImageRow(String label, List<String> sources, {required double height}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+          const SizedBox(height: 3),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final src in sources)
+                if (src.startsWith('data:') && src.contains(','))
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: Image.memory(base64Decode(src.split(',').last), height: height, fit: BoxFit.contain),
+                  ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatRefAnswer(String type, dynamic value) {
+    if (value == null || value == '') return '—';
+    if (type == 'toggle') return value == true || value == 'true' ? 'Yes' : 'No';
+    if (type == 'multichoice' && value is List) return value.isEmpty ? '—' : value.join(', ');
+    if ((type == 'date' || type == 'today' || type == 'datetime') && value is String) {
+      final parsed = DateTime.tryParse(value);
+      if (parsed != null) {
+        return type == 'datetime' ? _dateTimeFmt.format(parsed.toLocal()) : _dateFmt.format(parsed.toLocal());
+      }
+    }
+    return '$value';
+  }
+
   Widget _groupField(Map<String, dynamic> field) {
     final id = field['id'] as String;
     final label = field['label'] as String? ?? '';
@@ -541,6 +703,7 @@ class _FormFillScreenState extends State<FormFillScreen> {
                           ),
                       ],
                     ),
+                    if (_checkInBlock(groupFields, repetitions[i], i) case final Widget block) block,
                     ...groupFields.where((gf) => _isFieldVisible(gf, repetitions[i])).map(
                           (gf) => _buildField(
                             gf,
