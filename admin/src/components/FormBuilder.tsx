@@ -225,7 +225,7 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
       )}
 
       <div style={{ display: 'flex', gap: 16, marginTop: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <div className="card" style={{ flex: '1 1 480px', minWidth: 0 }}>
+        <div className="card" style={{ flex: '1 1 0%', minWidth: 320 }}>
           <div className="field">
             <label>Name</label>
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -258,7 +258,7 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
           </div>
         </div>
 
-        <div className="card" style={{ flex: '0 1 420px', minWidth: 320, maxWidth: 420, position: 'sticky', top: 16 }}>
+        <div className="card" style={{ flex: '1 1 0%', minWidth: 320, position: 'sticky', top: 16 }}>
           <div className="section-title">Live preview</div>
           <p className="hint" style={{ marginTop: -6 }}>
             Updates as you edit -- nothing entered here is saved.
