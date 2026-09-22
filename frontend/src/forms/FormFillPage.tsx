@@ -24,6 +24,15 @@ export default function FormFillPage({ submissionId }: { submissionId: string })
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    // Resets immediately (not just on the eventual response) so navigating
+    // between two different submission links in the same tab -- e.g. a
+    // customer with two bookings opening one pre-check-in link right after
+    // another -- never shows the *previous* submission's already-completed
+    // view (or its answers) for even a moment while the new one loads.
+    setLoadState('loading');
+    setSubmission(null);
+    setAnswers({});
+    setError(null);
     api
       .fetchFormSubmission(submissionId)
       .then((s) => {

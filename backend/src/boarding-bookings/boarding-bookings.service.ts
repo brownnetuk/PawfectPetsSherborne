@@ -559,13 +559,23 @@ export class BoardingBookingsService {
       answers,
     }).save();
     const link = `${publicFrontendUrl()}/forms/${(submission._id as { toString(): string }).toString()}`;
+    // Includes the booking reference (not just the fixed literal
+    // 'Pre-check-in') -- this is the only thing that ends up in the
+    // customer's inbox subject line (via the {{form_name}} placeholder) and
+    // in the customer's own Activity log distinguishing one send from
+    // another. Without it, a customer with two bookings gets two
+    // identical-looking "Pre-check-in" emails and can't tell which link is
+    // for which stay -- reopening an already-completed one shows as blocked
+    // to them, while the *other* booking's admin view correctly still shows
+    // "not filled out" (it's a different, still-pending submission), which
+    // reads as a bug even though nothing is actually broken server-side.
     await this.settingsService.sendTriggeredEmail({
       trigger: EmailTrigger.FORM,
       to: customer.email,
       name: customer.name ?? customer.email,
       link,
       customerId: String(customer._id),
-      formName: 'Pre-check-in',
+      formName: `Pre-check-in (${booking.reference})`,
     });
     booking.preCheckInSentAt = new Date();
     booking.preCheckInSubmission = submission._id as unknown as BoardingBooking['preCheckInSubmission'];
