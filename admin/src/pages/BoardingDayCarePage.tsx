@@ -163,11 +163,11 @@ interface StayEditHandlers {
   onDelete: (stayId: string) => void;
 }
 
-type Tab = 'dashboard' | 'occupancy' | 'bookings' | 'checklists';
+type Tab = 'dashboard' | 'bookings' | 'occupancy' | 'checklists';
 const TAB_LABELS: Record<Tab, string> = {
   dashboard: 'Dashboard',
-  occupancy: 'Occupancy',
   bookings: 'Bookings',
+  occupancy: 'Occupancy',
   checklists: 'Checklists',
 };
 
@@ -271,7 +271,7 @@ export default function BoardingDayCarePage() {
         <h1>Boarding &amp; Day Care</h1>
       </div>
       <div className="tabs">
-        {(['dashboard', 'occupancy', 'bookings', 'checklists'] as Tab[]).map((t) => (
+        {(['dashboard', 'bookings', 'occupancy', 'checklists'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
