@@ -316,6 +316,15 @@ class Repository {
   Future<void> registerPushToken(String token) =>
       _client.post('/push/register', {'token': token, 'platform': 'ios'});
 
+  /// The deposit percentage configured in the admin's Settings > Deposit
+  /// (from GET /settings/business) -- the same figure the backend's "Request
+  /// Deposit" flow applies to an invoice total. Null if the server response
+  /// carries none.
+  Future<double?> getDepositPercentage() async {
+    final json = await _client.get('/settings/business');
+    return (json['depositPercentage'] as num?)?.toDouble();
+  }
+
   // --- notification settings (global push preferences) ---
   Future<NotificationSettings> getNotificationSettings() async =>
       NotificationSettings.fromJson(await _client.get('/settings/notifications'));

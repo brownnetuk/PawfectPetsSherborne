@@ -26,6 +26,11 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
   bool _submitting = false;
   late Future<(List<BankAccountRef>, List<PaymentMethod>)> _lookups;
 
+  // The Full amount / Deposit sliding pill. The deposit percentage comes from
+  // the admin's Settings > Deposit; the pill is hidden until it has loaded.
+  double? _depositPercentage;
+  bool _payingDeposit = false;
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +46,89 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
       }
       return (accounts, methods);
     }();
+    // Fetched separately so a failure just hides the pill rather than
+    // blocking the whole sheet.
+    repo.getDepositPercentage().then((pct) {
+      if (mounted && pct != null && pct > 0) setState(() => _depositPercentage = pct);
+    }).catchError((_) {});
+  }
+
+  /// Cents-based rounding, matching the backend's requestDeposit() maths
+  /// (Math.round(total * percentage) / 100) so the two never disagree by a
+  /// penny.
+  double get _depositAmount => (widget.invoice.total * _depositPercentage!).roundToDouble() / 100;
+
+  void _setPayingDeposit(bool deposit) {
+    setState(() {
+      _payingDeposit = deposit;
+      _amountController.text =
+          deposit ? _depositAmount.toStringAsFixed(2) : widget.invoice.balanceDue.toStringAsFixed(2);
+    });
+  }
+
+  /// "25%" or "22.5%" -- no trailing .0 on whole percentages.
+  String get _pctLabel {
+    final pct = _depositPercentage!;
+    return pct == pct.roundToDouble() ? '${pct.toStringAsFixed(0)}%' : '$pct%';
+  }
+
+  Widget _amountPill() {
+    const duration = Duration(milliseconds: 180);
+    return Container(
+      height: 40,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Stack(
+        children: [
+          AnimatedAlign(
+            duration: duration,
+            curve: Curves.easeOut,
+            alignment: _payingDeposit ? Alignment.centerRight : Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: 0.5,
+              heightFactor: 1,
+              child: Container(
+                margin: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(999),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 3, offset: const Offset(0, 1)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              _pillOption('Full amount', !_payingDeposit, () => _setPayingDeposit(false)),
+              _pillOption('Deposit ($_pctLabel)', _payingDeposit, () => _setPayingDeposit(true)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pillOption(String label, bool selected, VoidCallback onTap) {
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              color: selected ? Theme.of(context).colorScheme.primary : Colors.grey.shade600,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -126,6 +214,10 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
             children: [
               Text('Record payment', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 16),
+              if (_depositPercentage != null) ...[
+                _amountPill(),
+                const SizedBox(height: 12),
+              ],
               Row(
                 children: [
                   Expanded(
