@@ -19,6 +19,10 @@ export const FORM_PLACEHOLDERS: { key: string; hint: string }[] = [
     key: 'petName',
     hint: 'The one pet this link was generated for -- only set when sent via "Which pet(s) is this for?" in SendFormModal, empty otherwise',
   },
+  {
+    key: 'staffMemberSignedIn',
+    hint: 'The staff member filling the form in -- only resolves on a staff-filled form (e.g. Check-in/Check-out in admin), never here (this module only knows the customer record); admin/src/components/FormFillModal.tsx substitutes it client-side after fetching, using the logged-in staff\'s own name. Shows as literal text on a customer-facing form.',
+  },
 ];
 
 // Only ever built for a submission with a known, real customer -- a
@@ -46,10 +50,15 @@ export function buildCustomerPlaceholders(
   };
 }
 
-// Substitutes every {{token}} in `text` from `vars`, leaving an unknown token
-// as an empty string -- same simple (no {{#if}} conditionals) approach as
-// the intake form's own {{petName}} substitution in off-lead consent text,
-// since a form field's label is plain text, not an email body.
+// Substitutes every {{token}} in `text` that's actually in `vars`, leaving
+// anything else (an unrecognised key, or one like {{staffMemberSignedIn}}
+// that's resolved elsewhere/later rather than here) as literal {{token}}
+// text rather than blanking it -- matches the "show as literal text" promise
+// FormBuilder's own placeholder-picker hint already makes, and lets a later
+// resolution step (e.g. FormFillModal's client-side staff-name substitution)
+// still find and replace it. Same simple (no {{#if}} conditionals) approach
+// as the intake form's own {{petName}} substitution in off-lead consent
+// text, since a form field's label is plain text, not an email body.
 export function interpolatePlaceholders(text: string, vars: Record<string, string>): string {
-  return text.replace(/\{\{(\w+)\}\}/g, (_, key: string) => vars[key] ?? '');
+  return text.replace(/\{\{(\w+)\}\}/g, (match, key: string) => (key in vars ? vars[key] : match));
 }

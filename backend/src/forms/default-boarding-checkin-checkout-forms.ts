@@ -37,7 +37,7 @@ export const DEFAULT_CHECKIN_FORM: { name: string; description: string; fields: 
   description: 'Completed by staff when a dog arrives for boarding or day care.',
   fields: [
     { id: 'ci-arrivalDateTime', type: 'datetime', label: 'Date & time of arrival', required: false },
-    { id: 'ci-receivedBy', type: 'text', label: 'Received by (staff)', required: true },
+    { id: 'ci-receivedBy', type: 'text', label: 'Received by (staff)', required: true, defaultValue: '{{staffMemberSignedIn}}' },
     { id: 'ci-vaccinationChecked', type: 'toggle', label: 'Vaccination record checked and current', required: false },
     { id: 'ci-feedingConfirmed', type: 'toggle', label: 'Feeding instructions confirmed with owner', required: false },
     { id: 'ci-emergencyContactConfirmed', type: 'toggle', label: 'Emergency contact confirmed', required: false },
@@ -72,7 +72,7 @@ export const DEFAULT_CHECKOUT_FORM: { name: string; description: string; fields:
   description: 'Completed by staff when a dog is collected from boarding or day care.',
   fields: [
     { id: 'co-departureDateTime', type: 'datetime', label: 'Date & time of departure', required: false },
-    { id: 'co-releasedBy', type: 'text', label: 'Released by (staff)', required: true },
+    { id: 'co-releasedBy', type: 'text', label: 'Released by (staff)', required: true, defaultValue: '{{staffMemberSignedIn}}' },
     { id: 'co-incidents', type: 'toggle', label: 'Any incidents during the stay', required: false },
     { id: 'co-vetTreatment', type: 'toggle', label: 'Any veterinary treatment during the stay', required: false },
     { id: 'co-medicationAdministered', type: 'toggle', label: 'Any medication administered during the stay', required: false },

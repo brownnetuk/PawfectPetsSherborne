@@ -21,4 +21,8 @@ export const FORM_PLACEHOLDERS: { key: string; hint: string }[] = [
     key: 'petName',
     hint: 'The one pet this link was generated for -- only set when sent for a specific pet via "Which pet(s) is this for?" in Send, empty otherwise',
   },
+  {
+    key: 'staffMemberSignedIn',
+    hint: 'The staff member filling the form in -- only resolves on a staff-filled form opened from Boarding & Day Care (e.g. Check-in/Check-out), shows as literal text on a form sent to a customer to fill in themselves',
+  },
 ];

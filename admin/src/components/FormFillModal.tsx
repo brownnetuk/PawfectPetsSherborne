@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { buildFormSubmissionPdf } from '../pdf/formSubmissionPdf';
 import FieldRenderer from '../forms/FieldRenderer';
 import { defaultAnswersFor, isFieldVisible } from '../forms/formDefaults';
@@ -14,6 +15,30 @@ function isEmpty(field: FormField, value: unknown): boolean {
   }
   if (field.type === 'toggle') return false;
   return value === undefined || value === null || value === '';
+}
+
+// {{staffMemberSignedIn}} is deliberately never resolved server-side (see
+// backend/src/forms/form-placeholders.util.ts) -- that endpoint is also
+// used by the customer-facing public fill page, which has no staff to name,
+// and it's @Public() so it never sees who's logged in here anyway. Instead
+// it comes through as literal text and this substitutes it client-side,
+// using the identity this admin session already has, right after fetching
+// and before anything reads a field's label/defaultValue.
+function resolveStaffPlaceholder(fields: FormField[], staffName: string): FormField[] {
+  const replace = (text: string) => text.split('{{staffMemberSignedIn}}').join(staffName);
+  return fields.map((field) => {
+    if (field.type === 'group') {
+      return { ...field, label: replace(field.label), fields: resolveStaffPlaceholder(field.fields, staffName) };
+    }
+    const next = { ...field, label: replace(field.label) };
+    if (
+      (next.type === 'text' || next.type === 'textarea' || next.type === 'number' || next.type === 'date') &&
+      next.defaultValue
+    ) {
+      next.defaultValue = replace(next.defaultValue);
+    }
+    return next;
+  });
 }
 
 // Staff-facing fill flow for check-in/check-out -- reuses the same public
@@ -55,11 +80,13 @@ export default function FormFillModal({
   const [emailing, setEmailing] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const { staff } = useAuth();
 
   useEffect(() => {
     api
       .fetchFormSubmissionPublic(submissionId)
-      .then((s) => {
+      .then((raw) => {
+        const s = { ...raw, fields: resolveStaffPlaceholder(raw.fields, staff?.name ?? 'Staff') };
         setSubmission(s);
         if (s.status === 'completed') {
           setLoadState('already-completed');
