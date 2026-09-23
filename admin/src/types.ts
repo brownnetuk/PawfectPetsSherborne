@@ -491,6 +491,7 @@ export interface BoardingBooking {
   checkOutAt?: string;
   checkOutBy?: string;
   statusOverride?: BookingStatusLabel;
+  archived?: boolean;
   createdAt: string;
 }
 

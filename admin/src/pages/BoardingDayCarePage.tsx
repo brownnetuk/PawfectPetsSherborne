@@ -1176,10 +1176,25 @@ function BookingsTab({
   const [autoStage, setAutoStage] = useState<'checkIn' | 'checkOut' | undefined>(undefined);
   const [showNew, setShowNew] = useState(false);
   const [refreshSignal, setRefreshSignal] = useState(0);
+  const [viewTab, setViewTab] = useState<'current' | 'archive'>('current');
+  const [archiving, setArchiving] = useState<string | null>(null);
 
   useEffect(() => {
     api.listBoardingBookings().then(setItems).catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bookings'));
   }, [refreshSignal]);
+
+  async function handleArchive(id: string, archived: boolean) {
+    setArchiving(id);
+    setError(null);
+    try {
+      await api.archiveBoardingBooking(id, archived);
+      setRefreshSignal((n) => n + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update this booking');
+    } finally {
+      setArchiving(null);
+    }
+  }
 
   useEffect(() => {
     if (openBookingId) {
@@ -1211,70 +1226,92 @@ function BookingsTab({
           + New booking
         </button>
       </div>
+      <div className="tabs">
+        <button className={viewTab === 'current' ? 'active' : ''} onClick={() => setViewTab('current')}>
+          Current
+        </button>
+        <button className={viewTab === 'archive' ? 'active' : ''} onClick={() => setViewTab('archive')}>
+          Archive
+        </button>
+      </div>
       {error && <div className="error-banner">{error}</div>}
       <div className="card">
-        {!items ? (
-          <div className="empty-state">Loading…</div>
-        ) : items.length === 0 ? (
-          <div className="empty-state">No bookings yet.</div>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Reference</th>
-                <th>Customer</th>
-                <th>Dog(s)</th>
-                <th>Type</th>
-                <th>Dates</th>
-                <th>Drop off</th>
-                <th>Pick up</th>
-                <th>Invoiced</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map(({ booking, status }) => (
-                <tr
-                  key={booking._id}
-                  onClick={() => {
-                    setAutoStage(undefined);
-                    setSelectedId(booking._id);
-                  }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <td style={{ fontWeight: 600, color: 'var(--accent)' }}>{booking.reference}</td>
-                  <td>{boardingCustomerLabel(booking.customer)}</td>
-                  <td>{boardingAnimalNames(booking.animals)}</td>
-                  <td>{booking.type === 'boarding' ? 'Boarding' : 'Day Care'}</td>
-                  <td>{formatDateRange(booking)}</td>
-                  <td>{booking.dropOffTime || '—'}</td>
-                  <td>{booking.pickUpTime || '—'}</td>
-                  <td>
-                    {booking.invoice && (
-                      <span title="Invoiced" style={{ color: 'var(--brand-green)' }}>
-                        ✓
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        padding: '3px 10px',
-                        borderRadius: 999,
-                        fontSize: '0.78rem',
-                        fontWeight: 600,
-                        ...STATUS_PILL_COLORS[status],
-                      }}
-                    >
-                      {status}
-                    </span>
-                  </td>
+        {(() => {
+          if (!items) return <div className="empty-state">Loading…</div>;
+          const filtered = items.filter(({ booking }) => (viewTab === 'archive' ? booking.archived : !booking.archived));
+          if (filtered.length === 0) {
+            return <div className="empty-state">{viewTab === 'archive' ? 'No archived bookings.' : 'No bookings yet.'}</div>;
+          }
+          return (
+            <table>
+              <thead>
+                <tr>
+                  <th>Reference</th>
+                  <th>Customer</th>
+                  <th>Dog(s)</th>
+                  <th>Type</th>
+                  <th>Dates</th>
+                  <th>Drop off</th>
+                  <th>Pick up</th>
+                  <th>Invoiced</th>
+                  <th>Status</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              </thead>
+              <tbody>
+                {filtered.map(({ booking, status }) => (
+                  <tr
+                    key={booking._id}
+                    onClick={() => {
+                      setAutoStage(undefined);
+                      setSelectedId(booking._id);
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td style={{ fontWeight: 600, color: 'var(--accent)' }}>{booking.reference}</td>
+                    <td>{boardingCustomerLabel(booking.customer)}</td>
+                    <td>{boardingAnimalNames(booking.animals)}</td>
+                    <td>{booking.type === 'boarding' ? 'Boarding' : 'Day Care'}</td>
+                    <td>{formatDateRange(booking)}</td>
+                    <td>{booking.dropOffTime || '—'}</td>
+                    <td>{booking.pickUpTime || '—'}</td>
+                    <td>
+                      {booking.invoice && (
+                        <span title="Invoiced" style={{ color: 'var(--brand-green)' }}>
+                          ✓
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          padding: '3px 10px',
+                          borderRadius: 999,
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          ...STATUS_PILL_COLORS[status],
+                        }}
+                      >
+                        {status}
+                      </span>
+                    </td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        disabled={archiving === booking._id}
+                        onClick={() => handleArchive(booking._id, !booking.archived)}
+                      >
+                        {booking.archived ? 'Unarchive' : 'Archive'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          );
+        })()}
       </div>
       {showNew && (
         <NewBoardingBookingModal

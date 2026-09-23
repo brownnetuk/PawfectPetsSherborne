@@ -526,6 +526,9 @@ export function setBoardingBookingStatus(
 ): Promise<BoardingBookingWithStatus> {
   return request(`/boarding-bookings/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
 }
+export function archiveBoardingBooking(id: string, archived: boolean): Promise<BoardingBookingWithStatus> {
+  return request(`/boarding-bookings/${id}/archive`, { method: 'PATCH', body: JSON.stringify({ archived }) });
+}
 export function deleteBoardingBooking(id: string): Promise<void> {
   return request(`/boarding-bookings/${id}`, { method: 'DELETE' });
 }

@@ -6,6 +6,7 @@ import { BoardingBookingsService } from './boarding-bookings.service';
 import { AmendBoardingBookingDatesDto } from './dto/amend-boarding-booking-dates.dto';
 import { CreateBoardingBookingDto } from './dto/create-boarding-booking.dto';
 import { RequestPaymentDto } from './dto/request-payment.dto';
+import { SetBoardingBookingArchivedDto } from './dto/set-boarding-booking-archived.dto';
 import { SetBoardingBookingStatusDto } from './dto/set-boarding-booking-status.dto';
 
 @Controller('boarding-bookings')
@@ -49,6 +50,13 @@ export class BoardingBookingsController {
     // same reasoning as withStatus()'s own comment about not trusting an
     // unpopulated `invoice` field.
     await this.boardingBookingsService.setStatus(id, dto.status);
+    const booking = await this.boardingBookingsService.findOne(id);
+    return this.boardingBookingsService.withStatus(booking);
+  }
+
+  @Patch(':id/archive')
+  async setArchived(@Param('id') id: string, @Body() dto: SetBoardingBookingArchivedDto) {
+    await this.boardingBookingsService.setArchived(id, dto.archived);
     const booking = await this.boardingBookingsService.findOne(id);
     return this.boardingBookingsService.withStatus(booking);
   }

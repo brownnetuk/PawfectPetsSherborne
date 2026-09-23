@@ -755,4 +755,13 @@ export class BoardingBookingsService {
     booking.statusOverride = status ?? undefined;
     return booking.save();
   }
+
+  // Moves a booking between the Bookings tab's "Current"/"Archive" lists --
+  // a display-only toggle, doesn't touch statusOverride or anything else.
+  async setArchived(id: string, archived: boolean): Promise<BoardingBooking> {
+    const booking = await this.boardingBookingModel.findById(id).exec();
+    if (!booking) throw new NotFoundException(`Boarding booking ${id} not found`);
+    booking.archived = archived;
+    return booking.save();
+  }
 }

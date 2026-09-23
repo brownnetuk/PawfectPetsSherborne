@@ -112,6 +112,13 @@ export class BoardingBooking extends Document {
   // progress) until cleared back to automatic or changed again.
   @Prop({ enum: BOOKING_STATUS_LABELS })
   statusOverride?: BookingStatusLabel;
+
+  // Unset/false (the default) means this booking still shows on the
+  // Bookings tab's "Current" list -- set true to move it to "Archive"
+  // instead (see BoardingBookingsService.setArchived()). Purely a
+  // display-list toggle; doesn't affect invoice/status/stage computation.
+  @Prop({ default: false })
+  archived?: boolean;
 }
 
 export const BoardingBookingSchema = SchemaFactory.createForClass(BoardingBooking);
