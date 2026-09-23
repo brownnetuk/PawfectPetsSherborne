@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import logoUrl from '../assets/logo.png';
 import type { FormField, FormSubmissionRecord } from '../types';
+import { parseRichLabelRuns } from '../utils/richLabel';
 
 const MARGIN = 40;
 const PAGE_WIDTH = 595.28; // A4, points
@@ -23,27 +24,102 @@ interface Block {
   draw: (doc: jsPDF, y: number) => void;
 }
 
+// Word-wraps richLabel.tsx's **bold**/__underline__ markup for jsPDF, which
+// has no built-in support for mixed-formatting-within-a-line text --
+// doc.splitTextToSize()/doc.text() only know plain strings. Splits each
+// **bold**/__underline__ run into individual words (so wrapping can still
+// break between words *inside* a run), measures each word's width at the
+// given size (bold words use the bold font's own, wider metrics), then
+// greedily packs words onto lines up to maxWidth -- same greedy algorithm
+// doc.splitTextToSize() itself uses, just aware of per-word formatting.
+interface RichWord {
+  text: string;
+  bold: boolean;
+  underline: boolean;
+  width: number;
+}
+
+function richWords(doc: jsPDF, raw: string, fontSize: number): RichWord[] {
+  const words: RichWord[] = [];
+  for (const run of parseRichLabelRuns(raw)) {
+    for (const part of run.text.split(/(\s+)/).filter((p) => p.length > 0)) {
+      doc.setFont('helvetica', run.bold ? 'bold' : 'normal');
+      doc.setFontSize(fontSize);
+      words.push({ text: part, bold: run.bold, underline: run.underline, width: doc.getTextWidth(part) });
+    }
+  }
+  return words;
+}
+
+function wrapRichWords(words: RichWord[], maxWidth: number): RichWord[][] {
+  const lines: RichWord[][] = [];
+  let current: RichWord[] = [];
+  let currentWidth = 0;
+  for (const word of words) {
+    const isSpace = /^\s+$/.test(word.text);
+    if (isSpace && current.length === 0) continue; // never start a line with a space
+    if (currentWidth + word.width > maxWidth && current.length > 0) {
+      lines.push(current);
+      current = [];
+      currentWidth = 0;
+      if (isSpace) continue;
+    }
+    current.push(word);
+    currentWidth += word.width;
+  }
+  if (current.length > 0) lines.push(current);
+  return lines;
+}
+
+// Draws one already-wrapped line of RichWords, switching bold/normal per
+// word and underlining with a drawn rule (same reasoning as checklistBlock's
+// hand-drawn tick above -- not every glyph jsPDF's standard fonts carry
+// renders reliably, but a plain line under the text always does).
+function drawRichLine(doc: jsPDF, words: RichWord[], x: number, y: number, fontSize: number, color: [number, number, number]) {
+  let cursorX = x;
+  doc.setFontSize(fontSize);
+  for (const word of words) {
+    doc.setFont('helvetica', word.bold ? 'bold' : 'normal');
+    doc.setTextColor(...color);
+    doc.text(word.text, cursorX, y);
+    if (word.underline && word.text.trim().length > 0) {
+      doc.setDrawColor(...color);
+      doc.setLineWidth(0.6);
+      doc.line(cursorX, y + 2, cursorX + word.width, y + 2);
+    }
+    cursorX += word.width;
+  }
+}
+
 // Label stacked above its value (not side-by-side columns) -- a long label
 // (e.g. "Vaccination record checked and current") has nowhere near enough
 // room in a fixed-width label column at readable size, and would otherwise
 // run on into the value text next to it. Stacking is robust to any label
 // length and matches ReadOnlyAnswers' own on-screen label-above-value layout.
+// The label itself is word-wrapped (not just uppercased on one line) and
+// richLabel.tsx-aware, since a toggle/consent field's *label* is often the
+// long prose (e.g. "I consent to my dog being boarded...") with a short
+// value ("Yes") -- the reverse of a typical text-field answer.
 function fieldBlock(doc: jsPDF, label: string, value: string): Block {
+  const labelLines = wrapRichWords(richWords(doc, label.toUpperCase(), 8.5), CONTENT_WIDTH);
+  const labelLineHeight = 11;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
-  const lines = doc.splitTextToSize(value || '—', CONTENT_WIDTH) as string[];
-  const height = 13 + lines.length * 13 + 6;
+  const valueLines = doc.splitTextToSize(value || '—', CONTENT_WIDTH) as string[];
+  const height = labelLines.length * labelLineHeight + 6 + valueLines.length * 13 + 6;
   return {
     height,
     draw(doc, y) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(...MUTED);
-      doc.text(label.toUpperCase(), MARGIN, y);
+      let cursorY = y;
+      labelLines.forEach((line) => {
+        drawRichLine(doc, line, MARGIN, cursorY, 8.5, MUTED);
+        cursorY += labelLineHeight;
+      });
+      cursorY += 6;
       doc.setTextColor(...INK);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
-      lines.forEach((line, i) => doc.text(line, MARGIN, y + 13 + i * 13));
+      valueLines.forEach((line, i) => doc.text(line, MARGIN, cursorY + i * 13));
     },
   };
 }
@@ -51,19 +127,16 @@ function fieldBlock(doc: jsPDF, label: string, value: string): Block {
 // Used for a form's "display" (free text) fields -- often the exact wording
 // of what the signer consented to, so this renders in normal ink, not muted,
 // same as customerFormPdf.ts's own paragraphBlock (e.g. the vet authorisation
-// wording that precedes its signature).
+// wording that precedes its signature). richLabel.tsx-aware, same reasoning
+// as fieldBlock above.
 function paragraphBlock(doc: jsPDF, text: string): Block {
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9.5);
-  const lines = doc.splitTextToSize(text, CONTENT_WIDTH) as string[];
-  const height = lines.length * 12 + 8;
+  const lines = wrapRichWords(richWords(doc, text, 9.5), CONTENT_WIDTH);
+  const lineHeight = 12;
+  const height = lines.length * lineHeight + 8;
   return {
     height,
     draw(doc, y) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9.5);
-      doc.setTextColor(...INK);
-      lines.forEach((line, i) => doc.text(line, MARGIN, y + i * 12));
+      lines.forEach((line, i) => drawRichLine(doc, line, MARGIN, y + i * lineHeight, 9.5, INK));
     },
   };
 }
@@ -84,15 +157,26 @@ function mutedNoteBlock(text: string): Block {
 }
 
 // A repeatable group's own heading (e.g. "Medication"), one step down from a
-// section title -- mirrors customerFormPdf.ts's subheadingBlock.
+// section title -- mirrors customerFormPdf.ts's subheadingBlock. Single
+// line (unlike fieldBlock/paragraphBlock above) -- these are short headings
+// (e.g. the pre-check-in form's "Boarding-specific questions"), not prose.
 function subheadingBlock(text: string): Block {
   return {
     height: 20,
     draw(doc, y) {
+      // Always-bold text, so measure at bold weight directly (rather than
+      // richWords()'s usual per-run bold/normal) -- otherwise a plain-run
+      // word measured at normal weight would render at bold's wider metrics,
+      // drifting the line out of alignment with its own measured width.
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
-      doc.setTextColor(...ACCENT);
-      doc.text(text, MARGIN, y);
+      const words: RichWord[] = [];
+      for (const run of parseRichLabelRuns(text)) {
+        for (const part of run.text.split(/(\s+)/).filter((p) => p.length > 0)) {
+          words.push({ text: part, bold: true, underline: run.underline, width: doc.getTextWidth(part) });
+        }
+      }
+      drawRichLine(doc, words, MARGIN, y, 11, ACCENT);
       doc.setTextColor(...INK);
     },
   };
@@ -231,6 +315,13 @@ class PdfWriter {
     this.y = MARGIN;
   }
 
+  /** Forces the next section onto a fresh page, unless one's already blank -- see FormBuilder's "+ New page" field. */
+  startNewPage() {
+    if (this.y > MARGIN) {
+      this.newPage();
+    }
+  }
+
   private ensureSpace(h: number) {
     if (this.y + h > CONTENT_BOTTOM) {
       this.newPage();
@@ -336,6 +427,12 @@ function repetitionBlocks(doc: jsPDF, fields: FormField[], answers: Record<strin
 interface PdfSection {
   title: string;
   blocks: Block[];
+  // Set when this section came from a "+ New page" display field
+  // (startsNewPage) -- forces a literal page break before it regardless of
+  // whether it would otherwise fit in the remaining space on the current
+  // page (unlike section()'s own "keep together, else fresh page" packing,
+  // which only breaks when content doesn't fit).
+  forceNewPage?: boolean;
 }
 
 // Splits a form's TOP-LEVEL fields into one PdfSection per conceptual group,
@@ -368,14 +465,17 @@ function buildSections(
   const sections: PdfSection[] = [];
   let title: string | null = null;
   let blocks: Block[] = [];
+  let forceNewPage = false;
   const flush = () => {
-    if (title !== null) sections.push({ title, blocks });
+    if (title !== null) sections.push({ title, blocks, forceNewPage });
     blocks = [];
+    forceNewPage = false;
   };
   for (const field of fields) {
     if (field.type === 'display') {
       flush();
       title = field.label;
+      forceNewPage = !!field.startsNewPage;
       continue;
     }
     if (field.type === 'group') {
@@ -419,6 +519,7 @@ export async function buildFormSubmissionPdf(submission: FormSubmissionRecord): 
     sections[0].blocks.unshift(paragraphBlock(doc, submission.formDescription), spacerBlock(4));
   }
   for (const section of sections) {
+    if (section.forceNewPage) w.startNewPage();
     w.section(section.title, section.blocks);
   }
 

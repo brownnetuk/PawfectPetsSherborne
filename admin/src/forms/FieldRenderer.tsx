@@ -1,6 +1,7 @@
 import PhotoUpload from '../components/PhotoUpload';
 import SignaturePad from '../components/SignaturePad';
 import type { FormField } from '../types';
+import RichLabel from '../utils/richLabel';
 
 interface Props {
   field: FormField;
@@ -16,7 +17,17 @@ interface Props {
 export default function FieldRenderer({ field, value, onChange }: Props) {
   switch (field.type) {
     case 'display':
-      return <p style={{ whiteSpace: 'pre-wrap' }}>{field.label}</p>;
+      return field.startsNewPage ? (
+        <div style={{ marginTop: 28, paddingTop: 20, borderTop: '2px solid var(--border)' }}>
+          <h3 style={{ margin: 0 }}>
+            <RichLabel text={field.label} />
+          </h3>
+        </div>
+      ) : (
+        <p style={{ whiteSpace: 'pre-wrap' }}>
+          <RichLabel text={field.label} />
+        </p>
+      );
     case 'today':
       return (
         <div className="field">
@@ -35,7 +46,7 @@ export default function FieldRenderer({ field, value, onChange }: Props) {
       return (
         <div className="field">
           <label>
-            {field.label} {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
+            <RichLabel text={field.label} /> {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
           </label>
           <input type="text" value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />
         </div>
@@ -44,7 +55,7 @@ export default function FieldRenderer({ field, value, onChange }: Props) {
       return (
         <div className="field">
           <label>
-            {field.label} {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
+            <RichLabel text={field.label} /> {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
           </label>
           <textarea value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />
         </div>
@@ -53,7 +64,7 @@ export default function FieldRenderer({ field, value, onChange }: Props) {
       return (
         <div className="field">
           <label>
-            {field.label} {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
+            <RichLabel text={field.label} /> {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
           </label>
           <input
             type="number"
@@ -66,7 +77,7 @@ export default function FieldRenderer({ field, value, onChange }: Props) {
       return (
         <div className="field">
           <label>
-            {field.label} {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
+            <RichLabel text={field.label} /> {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
           </label>
           <input type="date" value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />
         </div>
@@ -75,14 +86,14 @@ export default function FieldRenderer({ field, value, onChange }: Props) {
       return (
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '10px 0' }}>
           <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} />
-          {field.label}
+          <RichLabel text={field.label} />
         </label>
       );
     case 'choice':
       return (
         <div className="field">
           <label>
-            {field.label} {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
+            <RichLabel text={field.label} /> {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
           </label>
           <select value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)}>
             <option value="" disabled>
@@ -104,7 +115,7 @@ export default function FieldRenderer({ field, value, onChange }: Props) {
       return (
         <div className="field">
           <label>
-            {field.label} {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
+            <RichLabel text={field.label} /> {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
           </label>
           {field.options.map((o) => (
             <label key={o} style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0' }}>
@@ -121,7 +132,7 @@ export default function FieldRenderer({ field, value, onChange }: Props) {
       return (
         <div className="field">
           <label>
-            {field.label} {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
+            <RichLabel text={field.label} /> {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
           </label>
           <SignaturePad value={value as string | undefined} onChange={onChange} />
         </div>

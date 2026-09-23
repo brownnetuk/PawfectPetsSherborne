@@ -1,5 +1,6 @@
 import FieldRenderer from './FieldRenderer';
 import { isFieldVisible } from './formDefaults';
+import RichLabel from '../utils/richLabel';
 import type { GroupFormField } from '../types';
 
 interface Props {
@@ -19,7 +20,11 @@ export default function RepeatableGroup({ field, value, onFieldChange, onAdd, on
 
   return (
     <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
-      {!hasFixedLabels && <h3 style={{ fontSize: '1rem' }}>{field.label}</h3>}
+      {!hasFixedLabels && (
+        <h3 style={{ fontSize: '1rem' }}>
+          <RichLabel text={field.label} />
+        </h3>
+      )}
       {value.map((repetition, index) => (
         <div key={index} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 14, marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>

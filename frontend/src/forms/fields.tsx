@@ -1,10 +1,12 @@
+import type { ReactNode } from 'react';
+
 // Re-exports the intake wizard's own field primitives -- they're already
 // generic, not intake-specific -- plus one genuinely new field: a checkbox
 // group for "multichoice" answers, which nothing in this app has needed before.
 export { TextField, ToggleField, ChoiceGroup, SelectField } from '../intake/fields';
 
 interface MultiChoiceFieldProps {
-  label: string;
+  label: ReactNode;
   value: string[];
   options: string[];
   onChange: (v: string[]) => void;

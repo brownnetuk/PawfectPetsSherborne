@@ -69,9 +69,20 @@ export type AutoDateFormField = FormFieldBase & {
 
 // Read-only, non-interactive block of staff-authored text (instructions,
 // context, etc.) -- `label` holds the displayed text itself. Never mapped,
-// never required, never contributes an answer.
+// never required, never contributes an answer. `label` may contain the
+// admin's tiny **bold**/__underline__ markup (see admin/src/utils/richLabel.tsx
+// and its frontend/ mirror) -- rendered on every fill/preview/read-only
+// surface and in the PDF export, not just here.
 export type DisplayFormField = FormFieldBase & {
   type: 'display';
+  // Set from FormBuilder's "+ New page" button (a plain 'display' field
+  // under the hood, just pre-flagged) -- forces the PDF export to start a
+  // literal new page here (formSubmissionPdf.ts), rather than only breaking
+  // when the current page happens to run out of room, and renders as a
+  // stronger section-divider style (not just another paragraph) on the
+  // live fill form/preview, which has no real multi-page pagination of its
+  // own to break.
+  startsNewPage?: boolean;
 };
 
 export type FileFormField = FormFieldBase & {

@@ -1,4 +1,5 @@
 import type { FormField } from '../types';
+import RichLabel from '../utils/richLabel';
 
 // Direct port of frontend/src/forms/ReadOnlyAnswers.tsx -- no CSS
 // dependencies beyond .field/var(--border)/var(--muted), which admin
@@ -32,9 +33,15 @@ export default function ReadOnlyAnswers({
     <div>
       {fields.map((field) => {
         if (field.type === 'display') {
-          return (
+          return field.startsNewPage ? (
+            <div key={field.id} style={{ marginTop: 28, paddingTop: 20, borderTop: '2px solid var(--border)' }}>
+              <h3 style={{ margin: 0 }}>
+                <RichLabel text={field.label} />
+              </h3>
+            </div>
+          ) : (
             <p key={field.id} style={{ whiteSpace: 'pre-wrap' }}>
-              {field.label}
+              <RichLabel text={field.label} />
             </p>
           );
         }
@@ -43,7 +50,11 @@ export default function ReadOnlyAnswers({
           const hasFixedLabels = !!field.repetitionLabels;
           return (
             <div key={field.id} style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
-              {!hasFixedLabels && <h3 style={{ fontSize: '1rem' }}>{field.label}</h3>}
+              {!hasFixedLabels && (
+                <h3 style={{ fontSize: '1rem' }}>
+                  <RichLabel text={field.label} />
+                </h3>
+              )}
               {repetitions.length === 0 && <p style={{ color: 'var(--muted)' }}>None provided.</p>}
               {repetitions.map((rep, i) => (
                 <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 14, marginBottom: 12 }}>
@@ -58,7 +69,9 @@ export default function ReadOnlyAnswers({
         const value = answers[field.id];
         return (
           <div key={field.id} className="field">
-            <label>{field.label}</label>
+            <label>
+              <RichLabel text={field.label} />
+            </label>
             {field.type === 'signature' && typeof value === 'string' && value ? (
               <img src={value} alt="Signature" style={{ maxWidth: 220, border: '1px solid var(--border)', borderRadius: 6 }} />
             ) : field.type === 'file' && Array.isArray(value) && value.length > 0 ? (

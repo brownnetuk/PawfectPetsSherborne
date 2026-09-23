@@ -1,3 +1,4 @@
+import RichLabel from './richLabel';
 import type { FormField } from '../types';
 
 function formatAnswer(field: FormField, value: unknown): string {
@@ -32,9 +33,15 @@ export default function ReadOnlyAnswers({
     <div>
       {fields.map((field) => {
         if (field.type === 'display') {
-          return (
+          return field.startsNewPage ? (
+            <div key={field.id} style={{ marginTop: 28, paddingTop: 20, borderTop: '2px solid var(--border)' }}>
+              <h3 style={{ margin: 0 }}>
+                <RichLabel text={field.label} />
+              </h3>
+            </div>
+          ) : (
             <p key={field.id} style={{ whiteSpace: 'pre-wrap' }}>
-              {field.label}
+              <RichLabel text={field.label} />
             </p>
           );
         }
@@ -43,7 +50,11 @@ export default function ReadOnlyAnswers({
           const hasFixedLabels = !!field.repetitionLabels;
           return (
             <div key={field.id} style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
-              {!hasFixedLabels && <h2 style={{ fontSize: '1.15rem' }}>{field.label}</h2>}
+              {!hasFixedLabels && (
+                <h2 style={{ fontSize: '1.15rem' }}>
+                  <RichLabel text={field.label} />
+                </h2>
+              )}
               {repetitions.length === 0 && <p style={{ color: 'var(--muted)' }}>None provided.</p>}
               {repetitions.map((rep, i) => (
                 <div
@@ -63,7 +74,9 @@ export default function ReadOnlyAnswers({
         const value = answers[field.id];
         return (
           <div key={field.id} className="field">
-            <label>{field.label}</label>
+            <label>
+              <RichLabel text={field.label} />
+            </label>
             {field.type === 'signature' && typeof value === 'string' && value ? (
               <img
                 src={value}

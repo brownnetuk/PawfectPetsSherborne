@@ -227,6 +227,9 @@ export type SimpleFormField = FormFieldBase & {
 // the displayed text itself.
 export type DisplayFormField = FormFieldBase & {
   type: 'display';
+  // Set by the admin's "+ New page" button -- a stronger section-divider
+  // style here on the live fill form (no real pagination of its own).
+  startsNewPage?: boolean;
 };
 
 // Auto-filled, non-editable -- the answer is the date (or date+time) at the

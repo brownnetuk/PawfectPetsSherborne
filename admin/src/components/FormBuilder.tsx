@@ -15,6 +15,7 @@ import type {
 import { useWideLayout } from '../layout/layoutContext';
 import { mappingTargetsFor } from '../utils/formFieldCatalog';
 import { FORM_PLACEHOLDERS } from '../utils/formPlaceholders';
+import RichLabel from '../utils/richLabel';
 import FormPreviewBody from './FormPreviewBody';
 import { DragHandleIcon, PencilIcon, PlusIcon, TrashIcon } from './icons';
 
@@ -37,20 +38,20 @@ function genId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function newField(type: FormField['type']): FormField {
+function newField(type: FormField['type'], extra?: Record<string, unknown>): FormField {
   const base = { id: genId(type), label: 'New field', required: false };
   switch (type) {
     case 'choice':
     case 'multichoice':
-      return { ...base, type, options: ['Option 1', 'Option 2'] } as ChoiceFormField;
+      return { ...base, type, options: ['Option 1', 'Option 2'], ...extra } as ChoiceFormField;
     case 'file':
-      return { ...base, type: 'file', maxFiles: 2 } as FileFormField;
+      return { ...base, type: 'file', maxFiles: 2, ...extra } as FileFormField;
     case 'display':
-      return { ...base, type: 'display', label: 'Enter your text here…' } as FormField;
+      return { ...base, type: 'display', label: 'Enter your text here…', ...extra } as FormField;
     case 'today':
-      return { ...base, type: 'today', label: 'Date' } as FormField;
+      return { ...base, type: 'today', label: 'Date', ...extra } as FormField;
     case 'datetime':
-      return { ...base, type: 'datetime', label: 'Date & time' } as FormField;
+      return { ...base, type: 'datetime', label: 'Date & time', ...extra } as FormField;
     case 'group':
       return {
         ...base,
@@ -59,9 +60,10 @@ function newField(type: FormField['type']): FormField {
         minRepeats: 1,
         createsAnimal: false,
         fields: [],
+        ...extra,
       } as GroupFormField;
     default:
-      return { ...base, type } as FormField;
+      return { ...base, type, ...extra } as FormField;
   }
 }
 
@@ -143,8 +145,8 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
     });
   }
 
-  function addField(type: FormField['type'], parentGroupId: string | null) {
-    const field = newField(type);
+  function addField(type: FormField['type'], parentGroupId: string | null, extra?: Record<string, unknown>) {
+    const field = newField(type, extra);
     if (parentGroupId) {
       setFields((prev) =>
         prev.map((f) => (f.id === parentGroupId && f.type === 'group' ? { ...f, fields: [...f.fields, field] } : f)),
@@ -255,6 +257,13 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => addField('group', null)}>
               <PlusIcon /> Repeatable group (e.g. pets)
             </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => addField('display', null, { label: 'New section', startsNewPage: true })}
+            >
+              <PlusIcon /> New page
+            </button>
           </div>
         </div>
 
@@ -291,7 +300,7 @@ function TopLevelFieldList({
   onUpdate: (id: string, updater: (f: FormField) => FormField) => void;
   onRemove: (id: string) => void;
   onReorder: (parentGroupId: string | null, activeId: string, overId: string) => void;
-  onAddField: (type: FormField['type'], parentGroupId: string | null) => void;
+  onAddField: (type: FormField['type'], parentGroupId: string | null, extra?: Record<string, unknown>) => void;
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -337,7 +346,7 @@ interface RowProps {
   onUpdate: (id: string, updater: (f: FormField) => FormField) => void;
   onRemove: (id: string) => void;
   onReorder: (parentGroupId: string | null, activeId: string, overId: string) => void;
-  onAddField: (type: FormField['type'], parentGroupId: string | null) => void;
+  onAddField: (type: FormField['type'], parentGroupId: string | null, extra?: Record<string, unknown>) => void;
 }
 
 function typeLabel(type: FormField['type']): string {
@@ -370,6 +379,24 @@ function FieldRow({ field, index, siblings, parentGroupId, selectedId, onSelect,
     requestAnimationFrame(() => {
       el?.focus();
       el?.setSelectionRange(start + token.length, start + token.length);
+    });
+  }
+
+  // Wraps the label/free-text editor's current SELECTION in **/__ markers
+  // (richLabel.tsx's tiny bold/underline markup) instead of inserting at
+  // the cursor -- if nothing's selected, wraps an empty span and leaves the
+  // cursor between the markers so typing starts already-formatted.
+  function wrapLabelSelection(marker: string) {
+    const el = labelRef.current;
+    const current = field.label;
+    const start = el?.selectionStart ?? current.length;
+    const end = el?.selectionEnd ?? current.length;
+    const selected = current.slice(start, end);
+    const next = current.slice(0, start) + marker + selected + marker + current.slice(end);
+    onUpdate(field.id, (f) => ({ ...f, label: next }));
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(start + marker.length, start + marker.length + selected.length);
     });
   }
 
@@ -413,9 +440,13 @@ function FieldRow({ field, index, siblings, parentGroupId, selectedId, onSelect,
             <DragHandleIcon />
           </button>
           <strong>
-            {field.type === 'display'
-              ? (field.label || '(empty text)').slice(0, 60) + (field.label.length > 60 ? '…' : '')
-              : field.label || '(untitled field)'}
+            <RichLabel
+              text={
+                field.type === 'display'
+                  ? (field.label || '(empty text)').slice(0, 60) + (field.label.length > 60 ? '…' : '')
+                  : field.label || '(untitled field)'
+              }
+            />
           </strong>
           <span className="badge" style={{ background: 'var(--sage-badge)', color: 'var(--brand-green)' }}>
             {typeLabel(field.type)}
@@ -423,6 +454,11 @@ function FieldRow({ field, index, siblings, parentGroupId, selectedId, onSelect,
           {field.required && (
             <span className="badge" style={{ background: 'var(--accent-light)', color: 'var(--accent-dark)' }}>
               Required
+            </span>
+          )}
+          {field.type === 'display' && field.startsNewPage && (
+            <span className="badge" style={{ background: 'var(--sage-badge)', color: 'var(--brand-green)' }}>
+              New page
             </span>
           )}
           {field.type !== 'group' && field.mapping && (
@@ -454,25 +490,45 @@ function FieldRow({ field, index, siblings, parentGroupId, selectedId, onSelect,
       {isSelected && (
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
           <div className="field">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
               <label>{field.type === 'display' ? 'Text' : 'Label'}</label>
-              <select
-                className="insert-var-select"
-                defaultValue=""
-                onChange={(e) => {
-                  if (e.target.value) insertPlaceholder(e.target.value);
-                  e.target.value = '';
-                }}
-              >
-                <option value="" disabled>
-                  Insert placeholder…
-                </option>
-                {FORM_PLACEHOLDERS.map((p) => (
-                  <option key={p.key} value={`{{${p.key}}}`}>
-                    {`{{${p.key}}}`} — {p.hint}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  title="Bold the selected text"
+                  style={{ fontWeight: 700 }}
+                  onClick={() => wrapLabelSelection('**')}
+                >
+                  B
+                </button>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  title="Underline the selected text"
+                  style={{ textDecoration: 'underline' }}
+                  onClick={() => wrapLabelSelection('__')}
+                >
+                  U
+                </button>
+                <select
+                  className="insert-var-select"
+                  defaultValue=""
+                  onChange={(e) => {
+                    if (e.target.value) insertPlaceholder(e.target.value);
+                    e.target.value = '';
+                  }}
+                >
+                  <option value="" disabled>
+                    Insert placeholder…
                   </option>
-                ))}
-              </select>
+                  {FORM_PLACEHOLDERS.map((p) => (
+                    <option key={p.key} value={`{{${p.key}}}`}>
+                      {`{{${p.key}}}`} — {p.hint}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             {field.type === 'display' ? (
               <textarea
@@ -509,6 +565,17 @@ function FieldRow({ field, index, siblings, parentGroupId, selectedId, onSelect,
               Filled in automatically with {field.type === 'today' ? "today's date" : 'the date and time'} when the
               form is opened -- not editable by whoever fills the form in.
             </p>
+          )}
+
+          {field.type === 'display' && (
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={field.startsNewPage ?? false}
+                onChange={(e) => onUpdate(field.id, (f) => (f.type === 'display' ? { ...f, startsNewPage: e.target.checked } : f))}
+              />
+              Start a new page here (PDF and printed forms)
+            </label>
           )}
 
           {(field.type === 'text' || field.type === 'textarea' || field.type === 'number' || field.type === 'date') && (
@@ -724,7 +791,7 @@ function GroupFieldList({
   onUpdate: (id: string, updater: (f: FormField) => FormField) => void;
   onRemove: (id: string) => void;
   onReorder: (parentGroupId: string | null, activeId: string, overId: string) => void;
-  onAddField: (type: FormField['type'], parentGroupId: string | null) => void;
+  onAddField: (type: FormField['type'], parentGroupId: string | null, extra?: Record<string, unknown>) => void;
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 

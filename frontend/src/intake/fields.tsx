@@ -1,7 +1,8 @@
+import type { ReactNode } from 'react';
 import DateInput from '../components/DateInput';
 
 interface TextFieldProps {
-  label: string;
+  label: ReactNode;
   value: string;
   onChange: (v: string) => void;
   required?: boolean;
@@ -44,7 +45,7 @@ export function TextField({
 }
 
 interface ToggleFieldProps {
-  label: string;
+  label: ReactNode;
   value: boolean;
   onChange: (v: boolean) => void;
 }
@@ -64,7 +65,7 @@ export function ToggleField({ label, value, onChange }: ToggleFieldProps) {
 }
 
 interface ChoiceGroupProps<T extends string> {
-  label: string;
+  label: ReactNode;
   value: T | '' | null;
   options: { value: T; label: string }[];
   onChange: (v: T) => void;
@@ -100,7 +101,7 @@ export function ChoiceGroup<T extends string>({
 }
 
 interface SelectFieldProps<T extends string> {
-  label: string;
+  label: ReactNode;
   value: T | '';
   options: { value: T; label: string }[];
   onChange: (v: T) => void;

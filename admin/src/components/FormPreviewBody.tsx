@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormField, GroupFormField, VisibilityRule } from '../types';
+import RichLabel from '../utils/richLabel';
 import DateInput from './DateInput';
 
 interface Props {
@@ -123,7 +124,11 @@ export default function FormPreviewBody({ name, description, fields }: Props) {
         .map((field) =>
           field.type === 'group' ? (
             <div key={field.id} style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-              {!field.repetitionLabels && <div className="section-title">{field.label}</div>}
+              {!field.repetitionLabels && (
+                <div className="section-title">
+                  <RichLabel text={field.label} />
+                </div>
+              )}
               {(groupAnswers[field.id] ?? []).map((repetition, index) => (
                 <div
                   key={index}
@@ -175,14 +180,22 @@ function PreviewField({
   onChange: (value: unknown) => void;
 }) {
   if (field.type === 'display') {
-    return (
-      <p style={{ whiteSpace: 'pre-wrap', margin: '14px 0' }}>{field.label}</p>
+    return field.startsNewPage ? (
+      <div style={{ marginTop: 28, paddingTop: 20, borderTop: '2px solid var(--border)' }}>
+        <h3 style={{ margin: 0 }}>
+          <RichLabel text={field.label} />
+        </h3>
+      </div>
+    ) : (
+      <p style={{ whiteSpace: 'pre-wrap', margin: '14px 0' }}>
+        <RichLabel text={field.label} />
+      </p>
     );
   }
 
   const label = (
     <label>
-      {field.label} {field.required && <span className="required">*</span>}
+      <RichLabel text={field.label} /> {field.required && <span className="required">*</span>}
     </label>
   );
 
@@ -237,7 +250,7 @@ function PreviewField({
       return (
         <label className="checkbox-label">
           <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} />
-          {field.label}
+          <RichLabel text={field.label} />
         </label>
       );
     case 'choice':

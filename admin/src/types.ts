@@ -834,6 +834,10 @@ export type SimpleFormField = FormFieldBase & {
 // the displayed text itself. Never mapped, never required.
 export type DisplayFormField = FormFieldBase & {
   type: 'display';
+  // Set by FormBuilder's "+ New page" button -- forces a literal new PDF
+  // page here (formSubmissionPdf.ts) and a stronger section-divider style
+  // on the live fill form/preview.
+  startsNewPage?: boolean;
 };
 
 // Auto-filled, non-editable -- the answer is the date (or date+time) at the
