@@ -29,5 +29,10 @@ import { Payment, PaymentSchema } from './schemas/payment.schema';
   ],
   controllers: [PaymentsController],
   providers: [PaymentsService],
+  // So BoardingBookingsModule can call PaymentsService.remove() (reusing its
+  // invoice-reversal/expense/audit-log logic) as part of "Delete all" on a
+  // booking whose invoice has payments recorded against it -- see
+  // BoardingBookingsService.remove()'s deleteAll option.
+  exports: [PaymentsService],
 })
 export class PaymentsModule {}

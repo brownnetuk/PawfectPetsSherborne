@@ -1426,11 +1426,11 @@ function BookingDetail({
     }
   }
 
-  async function handleDelete() {
+  async function handleDelete(deleteAll = false) {
     setDeleting(true);
     setDeleteError(null);
     try {
-      await api.deleteBoardingBooking(id);
+      await api.deleteBoardingBooking(id, deleteAll);
       onChanged();
       onBack();
     } catch (err) {
@@ -1796,12 +1796,27 @@ function BookingDetail({
             {invoice ? ` (${invoice.invoiceNumber})` : ''}. If that invoice has payments recorded against it, remove
             those first.
           </p>
-          {deleteError && <div className="error-banner">{deleteError}</div>}
+          {deleteError && (
+            <>
+              <div className="error-banner">{deleteError}</div>
+              {deleteError.includes('recorded against it') && (
+                <p className="hint">
+                  "Delete all" below removes those payments/credit notes first (each properly reversed off the
+                  invoice and bank balances, not just deleted), then the booking as normal.
+                </p>
+              )}
+            </>
+          )}
           <div className="modal-actions">
             <button type="button" className="btn btn-secondary" onClick={() => setConfirmDelete(false)}>
               Cancel
             </button>
-            <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
+            {deleteError?.includes('recorded against it') && (
+              <button type="button" className="btn btn-danger" onClick={() => handleDelete(true)} disabled={deleting}>
+                {deleting ? 'Deleting…' : 'Delete all'}
+              </button>
+            )}
+            <button type="button" className="btn btn-danger" onClick={() => handleDelete(false)} disabled={deleting}>
               {deleting ? 'Deleting…' : 'Delete booking'}
             </button>
           </div>

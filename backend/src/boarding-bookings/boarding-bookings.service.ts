@@ -5,6 +5,8 @@ import { Model } from 'mongoose';
 import { Animal } from '../animals/schemas/animal.schema';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
+import { CreditNote } from '../credit-notes/schemas/credit-note.schema';
+import { CreditNotesService } from '../credit-notes/credit-notes.service';
 import { Customer } from '../customers/schemas/customer.schema';
 import {
   BoardingStayPlan,
@@ -23,6 +25,8 @@ import { FormSubmission, FormSubmissionStatus } from '../form-submissions/schema
 import { FormsService } from '../forms/forms.service';
 import { Invoice, InvoiceStatus } from '../invoices/schemas/invoice.schema';
 import { InvoicesService } from '../invoices/invoices.service';
+import { Payment } from '../payments/schemas/payment.schema';
+import { PaymentsService } from '../payments/payments.service';
 import { Quote } from '../quotes/schemas/quote.schema';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
@@ -125,8 +129,17 @@ export class BoardingBookingsService {
     private readonly customerModel: Model<Customer>,
     @InjectModel(Animal.name)
     private readonly animalModel: Model<Animal>,
+    // Read-only here too -- see remove()'s deleteAll option, which only
+    // needs to find which payments/credit notes exist against an invoice
+    // before deleting each one via paymentsService/creditNotesService below.
+    @InjectModel(Payment.name)
+    private readonly paymentModel: Model<Payment>,
+    @InjectModel(CreditNote.name)
+    private readonly creditNoteModel: Model<CreditNote>,
     private readonly dayBookingsService: DayBookingsService,
     private readonly invoicesService: InvoicesService,
+    private readonly paymentsService: PaymentsService,
+    private readonly creditNotesService: CreditNotesService,
     private readonly formsService: FormsService,
     private readonly settingsService: SettingsService,
     private readonly auditLogService: AuditLogService,
@@ -370,13 +383,32 @@ export class BoardingBookingsService {
   // throws, the booking and its DayBooking rows are left untouched,
   // same "remove those first" behaviour as deleting an invoice anywhere
   // else in the app), then the stay's DayBooking rows, then the booking
-  // itself.
-  async remove(id: string, actor = 'Staff'): Promise<void> {
+  // itself. `deleteAll` (the Booking Detail page's "Delete all" follow-up,
+  // offered once staff hit that exact block) removes every payment/credit
+  // note against the invoice FIRST, each via its own service method (so the
+  // invoice balance, bank account balance, and any linked charges expense
+  // all get reversed correctly, and each removal is still audit-logged) --
+  // once none are left, InvoicesService.remove() no longer has anything to
+  // block on.
+  async remove(id: string, actor = 'Staff', deleteAll = false): Promise<void> {
     const booking = await this.boardingBookingModel.findById(id).exec();
     if (!booking) throw new NotFoundException(`Boarding booking ${id} not found`);
     if (booking.invoice) {
+      const invoiceId = booking.invoice.toString();
+      if (deleteAll) {
+        const [payments, creditNotes] = await Promise.all([
+          this.paymentModel.find({ invoice: invoiceId }).exec(),
+          this.creditNoteModel.find({ invoice: invoiceId }).exec(),
+        ]);
+        for (const payment of payments) {
+          await this.paymentsService.remove(payment._id.toString(), actor);
+        }
+        for (const creditNote of creditNotes) {
+          await this.creditNotesService.remove(creditNote._id.toString(), actor);
+        }
+      }
       try {
-        await this.invoicesService.remove(booking.invoice.toString(), actor);
+        await this.invoicesService.remove(invoiceId, actor);
       } catch (err) {
         // A booking pointing at an invoice that's already gone (deleted
         // some other way) has nothing left to guard -- don't let that block

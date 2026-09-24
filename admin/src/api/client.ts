@@ -529,8 +529,11 @@ export function setBoardingBookingStatus(
 export function archiveBoardingBooking(id: string, archived: boolean): Promise<BoardingBookingWithStatus> {
   return request(`/boarding-bookings/${id}/archive`, { method: 'PATCH', body: JSON.stringify({ archived }) });
 }
-export function deleteBoardingBooking(id: string): Promise<void> {
-  return request(`/boarding-bookings/${id}`, { method: 'DELETE' });
+// `deleteAll` also removes every payment/credit note recorded against the
+// booking's invoice first (each properly reversed, not just deleted) --
+// offered as a follow-up once the plain delete blocks on exactly that.
+export function deleteBoardingBooking(id: string, deleteAll?: boolean): Promise<void> {
+  return request(`/boarding-bookings/${id}${deleteAll ? '?deleteAll=true' : ''}`, { method: 'DELETE' });
 }
 
 // --- invoice terms ---
