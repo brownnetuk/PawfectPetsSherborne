@@ -5,9 +5,16 @@ import ExpensesByCategoryChart from '../components/ExpensesByCategoryChart';
 import IncomeExpenseChart from '../components/IncomeExpenseChart';
 import { DragHandleIcon } from '../components/icons';
 import { bankAccountTypeLabel } from '../utils/bankAccountType';
-import type { BankAccount, ExpenseCategoryTotal, IncomeExpenseMonth, Invoice } from '../types';
+import type { BankAccount, Customer, ExpenseCategoryTotal, IncomeExpenseMonth, Invoice, Product } from '../types';
 
-type CardId = 'receivables' | 'payables' | 'cashFlow' | 'incomeExpense' | 'topExpenses' | 'bankAccounts';
+type CardId =
+  | 'receivables'
+  | 'payables'
+  | 'cashFlow'
+  | 'incomeExpense'
+  | 'topExpenses'
+  | 'bankAccounts'
+  | 'expectedRevenue';
 
 const DEFAULT_ORDER: CardId[] = [
   'receivables',
@@ -16,6 +23,7 @@ const DEFAULT_ORDER: CardId[] = [
   'incomeExpense',
   'topExpenses',
   'bankAccounts',
+  'expectedRevenue',
 ];
 
 // Cash Flow reads better spanning both grid columns; everything else is a
@@ -69,6 +77,7 @@ export default function FinancialSnapshotTab() {
     incomeExpense: IncomeExpenseCard,
     topExpenses: TopExpensesCard,
     bankAccounts: BankAccountsCard,
+    expectedRevenue: ExpectedRevenueCard,
   };
 
   return (
@@ -364,6 +373,155 @@ function BankAccountsCard() {
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+// JS Date.getDay() index (0=Sunday) for each of Customer.regularDays' lowercase
+// weekday strings.
+const WEEKDAY_JS_INDEX: Record<string, number> = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+};
+
+// Counts how many times a given weekday (0=Sunday) falls in a calendar month
+// -- walks every day rather than assuming a flat "4 or 5 per month", since
+// that varies month to month.
+function countWeekdayInMonth(year: number, month: number, weekdayIndex: number): number {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  let count = 0;
+  for (let day = 1; day <= daysInMonth; day++) {
+    if (new Date(year, month, day).getDay() === weekdayIndex) count++;
+  }
+  return count;
+}
+
+function monthOptions(): { value: string; label: string }[] {
+  const now = new Date();
+  const options: { value: string; label: string }[] = [];
+  // 3 months back (for reviewing a recently-finished month) through 11 months
+  // ahead (a full year of forward projection).
+  for (let offset = -3; offset <= 11; offset++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    options.push({ value, label });
+  }
+  return options;
+}
+
+function currentMonthValue(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+interface ExpectedRevenueRow {
+  customerId: string;
+  customerName: string;
+  productName: string;
+  occurrences: number;
+  revenue: number;
+}
+
+function ExpectedRevenueCard() {
+  const [month, setMonth] = useState(currentMonthValue);
+  const [customers, setCustomers] = useState<Customer[] | null>(null);
+  const [products, setProducts] = useState<Product[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .listCustomers()
+      .then(setCustomers)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load customers'));
+    api.listProducts().then(setProducts).catch(() => setProducts([]));
+  }, []);
+
+  const [yearStr, monthStr] = month.split('-');
+  const year = Number(yearStr);
+  const monthIndex = Number(monthStr) - 1;
+
+  const rows: ExpectedRevenueRow[] = [];
+  if (customers && products) {
+    const productById = new Map(products.map((p) => [p._id, p]));
+    for (const customer of customers) {
+      if (customer.status !== 'active') continue;
+      if (!customer.defaultProduct || !customer.regularDays?.length) continue;
+      const product = productById.get(customer.defaultProduct);
+      if (!product) continue;
+      const occurrences = customer.regularDays.reduce((sum, day) => {
+        const weekdayIndex = WEEKDAY_JS_INDEX[day];
+        return weekdayIndex === undefined ? sum : sum + countWeekdayInMonth(year, monthIndex, weekdayIndex);
+      }, 0);
+      if (occurrences === 0) continue;
+      rows.push({
+        customerId: customer._id,
+        customerName: customer.name,
+        productName: product.name,
+        occurrences,
+        revenue: occurrences * product.price,
+      });
+    }
+    rows.sort((a, b) => b.revenue - a.revenue);
+  }
+  const total = rows.reduce((sum, r) => sum + r.revenue, 0);
+
+  return (
+    <div className="card" style={{ margin: 0, height: '100%' }}>
+      <CardHeader
+        title="Expected Revenue"
+        subtitle="From customers' regular days and default product"
+        right={
+          <select className="select-inline" value={month} onChange={(e) => setMonth(e.target.value)}>
+            {monthOptions().map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        }
+      />
+      {error && <div className="error-banner">{error}</div>}
+      {!customers || !products ? (
+        <div className="empty-state">Loading…</div>
+      ) : rows.length === 0 ? (
+        <div className="empty-state">
+          No active customers have both a default product and regular days set up.
+        </div>
+      ) : (
+        <>
+          <div style={{ fontSize: '1.6rem', fontWeight: 700, margin: '4px 0 14px' }}>£{total.toFixed(2)}</div>
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            {rows.map((r) => (
+              <div
+                key={r.customerId}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'baseline',
+                  padding: '8px 0',
+                  borderBottom: '1px solid var(--border)',
+                  fontSize: '0.88rem',
+                }}
+              >
+                <span>
+                  {r.customerName}
+                  <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>
+                    {' '}
+                    — {r.productName} × {r.occurrences}
+                  </span>
+                </span>
+                <span style={{ fontWeight: 600 }}>£{r.revenue.toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
