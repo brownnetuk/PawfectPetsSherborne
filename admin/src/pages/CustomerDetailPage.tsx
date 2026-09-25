@@ -84,6 +84,9 @@ export default function CustomerDetailPage() {
   const [showDelete, setShowDelete] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [forceChallenge, setForceChallenge] = useState<{ a: number; b: number } | null>(null);
+  const [forceAnswer, setForceAnswer] = useState('');
+  const [forceAnswerError, setForceAnswerError] = useState<string | null>(null);
   const [showEdit, setShowEdit] = useState(false);
   const [showPdf, setShowPdf] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -188,18 +191,39 @@ export default function CustomerDetailPage() {
     setAlarmInstructions(value ?? '(none provided)');
   }
 
-  async function handleDelete() {
+  async function handleDelete(force = false) {
     if (!id) return;
     setDeleting(true);
     setDeleteError(null);
     try {
-      await api.deleteCustomer(id);
+      await api.deleteCustomer(id, force);
       navigate('/customers');
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete customer');
     } finally {
       setDeleting(false);
     }
+  }
+
+  function newForceChallenge() {
+    return { a: 1 + Math.floor(Math.random() * 9), b: 1 + Math.floor(Math.random() * 9) };
+  }
+
+  function startForceChallenge() {
+    setForceAnswer('');
+    setForceAnswerError(null);
+    setForceChallenge(newForceChallenge());
+  }
+
+  function submitForceChallenge() {
+    if (!forceChallenge) return;
+    if (Number(forceAnswer) !== forceChallenge.a + forceChallenge.b) {
+      setForceAnswerError("That's not correct -- try again.");
+      setForceAnswer('');
+      setForceChallenge(newForceChallenge());
+      return;
+    }
+    handleDelete(true);
   }
 
   async function handleViewPdf() {
@@ -374,20 +398,65 @@ export default function CustomerDetailPage() {
       {tab === 'defaults' && <CustomerDefaultsTab customer={customer} onChange={refresh} />}
 
       {showDelete && (
-        <Modal title="Delete customer?" onClose={() => setShowDelete(false)}>
+        <Modal
+          title="Delete customer?"
+          onClose={() => {
+            setShowDelete(false);
+            setForceChallenge(null);
+          }}
+        >
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
             This permanently deletes <strong>{customer.name}</strong>'s record. If they still have
             pets, bookings, invoices, quotes, or CRM activity on file, deletion is blocked until
             those are removed first.
           </p>
+          {deleteError && !forceChallenge && (
+            <p className="hint">
+              "Force delete" bypasses that check and permanently removes everything on file for
+              this customer -- pets, bookings, invoices (and their payments/credit notes), quotes,
+              and CRM activity -- along with the customer record itself. This can't be undone.
+            </p>
+          )}
+          {forceChallenge && (
+            <div style={{ margin: '4px 0 16px' }}>
+              <label>
+                To confirm, what is {forceChallenge.a} + {forceChallenge.b}?
+              </label>
+              <input
+                type="number"
+                value={forceAnswer}
+                onChange={(e) => setForceAnswer(e.target.value)}
+                autoFocus
+              />
+              {forceAnswerError && <div className="error-banner">{forceAnswerError}</div>}
+            </div>
+          )}
           <div className="modal-actions">
-            <button className="btn btn-secondary" onClick={() => setShowDelete(false)} disabled={deleting}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                setShowDelete(false);
+                setForceChallenge(null);
+              }}
+              disabled={deleting}
+            >
               Cancel
             </button>
-            <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
-              {deleting ? 'Deleting…' : 'Delete customer'}
-            </button>
+            {deleteError && !forceChallenge && (
+              <button className="btn btn-danger" onClick={startForceChallenge} disabled={deleting}>
+                Force delete
+              </button>
+            )}
+            {forceChallenge ? (
+              <button className="btn btn-danger" onClick={submitForceChallenge} disabled={deleting}>
+                {deleting ? 'Deleting…' : 'Confirm force delete'}
+              </button>
+            ) : (
+              <button className="btn btn-danger" onClick={() => handleDelete()} disabled={deleting}>
+                {deleting ? 'Deleting…' : 'Delete customer'}
+              </button>
+            )}
           </div>
         </Modal>
       )}

@@ -181,8 +181,8 @@ export function createLead(
     body: JSON.stringify({ firstName, surname: surname || undefined, email, sendEmail }),
   });
 }
-export function deleteCustomer(id: string): Promise<void> {
-  return request(`/customers/${id}`, { method: 'DELETE' });
+export function deleteCustomer(id: string, force?: boolean): Promise<void> {
+  return request(`/customers/${id}${force ? '?force=true' : ''}`, { method: 'DELETE' });
 }
 export async function getAlarmInstructions(id: string): Promise<string | null> {
   const { instructions } = await request<{ instructions: string | null }>(

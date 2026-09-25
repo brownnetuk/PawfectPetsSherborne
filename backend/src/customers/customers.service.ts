@@ -7,15 +7,25 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Animal } from '../animals/schemas/animal.schema';
+import { AnimalsService } from '../animals/animals.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
 import { Booking } from '../bookings/schemas/booking.schema';
+import { BookingsService } from '../bookings/bookings.service';
+import { BoardingBooking } from '../boarding-bookings/schemas/boarding-booking.schema';
+import { BoardingBookingsService } from '../boarding-bookings/boarding-bookings.service';
 import { describeBlockers } from '../common/delete-guard.util';
 import { publicFrontendUrl } from '../common/tracking-pixel.util';
 import { EncryptionService } from '../common/encryption/encryption.service';
+import { CreditNote } from '../credit-notes/schemas/credit-note.schema';
+import { CreditNotesService } from '../credit-notes/credit-notes.service';
 import { CrmActivity } from '../crm/schemas/crm-activity.schema';
 import { Invoice } from '../invoices/schemas/invoice.schema';
+import { InvoicesService } from '../invoices/invoices.service';
+import { Payment } from '../payments/schemas/payment.schema';
+import { PaymentsService } from '../payments/payments.service';
 import { Quote } from '../quotes/schemas/quote.schema';
+import { QuotesService } from '../quotes/quotes.service';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
 import { NotificationService } from '../notifications/notification.service';
@@ -42,10 +52,25 @@ export class CustomersService {
     @InjectModel(Quote.name) private readonly quoteModel: Model<Quote>,
     @InjectModel(CrmActivity.name)
     private readonly crmActivityModel: Model<CrmActivity>,
+    // Read-only here -- force-delete's own cascade (remove()'s force option)
+    // only needs to *find* which payments/credit notes/boarding bookings exist
+    // for this customer before removing each one properly via the services
+    // below, same "declare your own copy" reasoning as BoardingBookingsModule.
+    @InjectModel(Payment.name) private readonly paymentModel: Model<Payment>,
+    @InjectModel(CreditNote.name) private readonly creditNoteModel: Model<CreditNote>,
+    @InjectModel(BoardingBooking.name)
+    private readonly boardingBookingModel: Model<BoardingBooking>,
     private readonly encryptionService: EncryptionService,
     private readonly auditLogService: AuditLogService,
     private readonly settingsService: SettingsService,
     private readonly notificationService: NotificationService,
+    private readonly animalsService: AnimalsService,
+    private readonly bookingsService: BookingsService,
+    private readonly invoicesService: InvoicesService,
+    private readonly paymentsService: PaymentsService,
+    private readonly creditNotesService: CreditNotesService,
+    private readonly quotesService: QuotesService,
+    private readonly boardingBookingsService: BoardingBookingsService,
   ) {}
 
   private validateEmergencyContact(emergencyContact: EmergencyContactDto) {
@@ -464,31 +489,84 @@ export class CustomersService {
     );
   }
 
-  async remove(id: string): Promise<void> {
-    const [petCount, bookingCount, invoiceCount, quoteCount, activityCount] =
-      await Promise.all([
-        this.animalModel.countDocuments({ customer: id }).exec(),
-        this.bookingModel.countDocuments({ customer: id }).exec(),
-        this.invoiceModel.countDocuments({ customer: id }).exec(),
-        this.quoteModel.countDocuments({ customer: id }).exec(),
-        this.crmActivityModel.countDocuments({ customer: id }).exec(),
-      ]);
-    const blockers = describeBlockers({
-      pet: petCount,
-      booking: bookingCount,
-      invoice: invoiceCount,
-      quote: quoteCount,
-      'activity record': activityCount,
-    });
-    if (blockers) {
-      throw new ConflictException(
-        `Can't delete this customer: they have ${blockers} on file. Remove those first.`,
-      );
+  async remove(id: string, actor = 'Staff', force = false): Promise<void> {
+    if (force) {
+      await this.forceRemoveCascade(id, actor);
+    } else {
+      const [petCount, bookingCount, invoiceCount, quoteCount, activityCount] =
+        await Promise.all([
+          this.animalModel.countDocuments({ customer: id }).exec(),
+          this.bookingModel.countDocuments({ customer: id }).exec(),
+          this.invoiceModel.countDocuments({ customer: id }).exec(),
+          this.quoteModel.countDocuments({ customer: id }).exec(),
+          this.crmActivityModel.countDocuments({ customer: id }).exec(),
+        ]);
+      const blockers = describeBlockers({
+        pet: petCount,
+        booking: bookingCount,
+        invoice: invoiceCount,
+        quote: quoteCount,
+        'activity record': activityCount,
+      });
+      if (blockers) {
+        throw new ConflictException(
+          `Can't delete this customer: they have ${blockers} on file. Remove those first.`,
+        );
+      }
     }
     const result = await this.customerModel.findByIdAndDelete(id).exec();
     if (!result) {
       throw new NotFoundException(`Customer ${id} not found`);
     }
+  }
+
+  // Force-delete's cascade -- removes everything the normal guard above would
+  // otherwise block on, each via its own service's remove() so balances,
+  // linked expenses, and audit-log entries all stay correct rather than just
+  // leaving dangling references. Order matters: boarding bookings (and the
+  // payments/credit notes/day bookings they themselves cascade) go first
+  // since their own invoice would otherwise still show up in the plain
+  // invoice sweep below; invoices (and their payments/credit notes) before
+  // quotes/bookings, since BookingsService.remove() guards on both; bookings
+  // before animals, since AnimalsService.remove() guards on bookings.
+  private async forceRemoveCascade(id: string, actor: string): Promise<void> {
+    const boardingBookings = await this.boardingBookingModel.find({ customer: id }).exec();
+    for (const booking of boardingBookings) {
+      await this.boardingBookingsService.remove(booking._id.toString(), actor, true);
+    }
+
+    const invoices = await this.invoiceModel.find({ customer: id }).exec();
+    for (const invoice of invoices) {
+      const invoiceId = invoice._id.toString();
+      const [payments, creditNotes] = await Promise.all([
+        this.paymentModel.find({ invoice: invoiceId }).exec(),
+        this.creditNoteModel.find({ invoice: invoiceId }).exec(),
+      ]);
+      for (const payment of payments) {
+        await this.paymentsService.remove(payment._id.toString(), actor);
+      }
+      for (const creditNote of creditNotes) {
+        await this.creditNotesService.remove(creditNote._id.toString(), actor);
+      }
+      await this.invoicesService.remove(invoiceId, actor);
+    }
+
+    const quotes = await this.quoteModel.find({ customer: id }).exec();
+    for (const quote of quotes) {
+      await this.quotesService.remove(quote._id.toString(), actor);
+    }
+
+    const bookings = await this.bookingModel.find({ customer: id }).exec();
+    for (const booking of bookings) {
+      await this.bookingsService.remove(booking._id.toString(), actor);
+    }
+
+    const animals = await this.animalModel.find({ customer: id }).exec();
+    for (const animal of animals) {
+      await this.animalsService.remove(animal._id.toString(), actor);
+    }
+
+    await this.crmActivityModel.deleteMany({ customer: id }).exec();
   }
 
   /** Decrypts alarm instructions for authorised operational use (e.g. dispatching staff to the property). */

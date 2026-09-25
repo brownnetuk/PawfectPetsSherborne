@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
@@ -134,7 +135,11 @@ export class CustomersController {
 
   @RequirePermission('customers.manage')
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.customersService.remove(id);
+  remove(
+    @Param('id') id: string,
+    @Query('force') force: string | undefined,
+    @CurrentUser() user: CurrentUserShape,
+  ) {
+    return this.customersService.remove(id, user.name, force === 'true');
   }
 }
