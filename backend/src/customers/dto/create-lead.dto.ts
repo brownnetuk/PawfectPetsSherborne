@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 // Minimal record staff create ahead of sending the customer their intake-form link.
 // The public form fetches this by id to pre-fill screen 1, then completes it via
@@ -17,4 +17,11 @@ export class CreateLeadDto {
   @IsNotEmpty()
   @IsEmail()
   email: string;
+
+  // Defaults to true (unset) so existing callers -- EnquiriesPage's "Convert
+  // to Customer" -- keep auto-sending. CustomersPage's "New customer" modal
+  // is the only caller that ever sends false, via its "Send email" toggle.
+  @IsOptional()
+  @IsBoolean()
+  sendEmail?: boolean;
 }

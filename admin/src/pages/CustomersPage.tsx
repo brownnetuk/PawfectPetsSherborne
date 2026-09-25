@@ -138,17 +138,18 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const [firstName, setFirstName] = useState('');
   const [surname, setSurname] = useState('');
   const [email, setEmail] = useState('');
+  const [sendEmail, setSendEmail] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [created, setCreated] = useState<{ id: string; name: string; link: string } | null>(null);
+  const [created, setCreated] = useState<{ id: string; name: string; link: string; emailed: boolean } | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      const customer = await api.createLead(firstName, surname, email);
-      setCreated({ id: customer._id, name: customer.name, link: `${INTAKE_URL}/intake/${customer._id}` });
+      const customer = await api.createLead(firstName, surname, email, sendEmail);
+      setCreated({ id: customer._id, name: customer.name, link: `${INTAKE_URL}/intake/${customer._id}`, emailed: sendEmail });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create customer');
     } finally {
@@ -163,7 +164,7 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
         email={email}
         link={created.link}
         customerId={created.id}
-        autoSent
+        autoSent={created.emailed}
         onDone={onCreated}
       />
     );
@@ -191,6 +192,10 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
           This creates a pending record and gives you a link to send the customer, so they can
           complete the rest of their details themselves.
         </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 16px' }}>
+          <SendEmailToggle checked={sendEmail} onChange={setSendEmail} />
+          <span style={{ fontSize: '0.9rem' }}>Send email</span>
+        </div>
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel
@@ -201,5 +206,45 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
         </div>
       </form>
     </Modal>
+  );
+}
+
+// iOS-style sliding toggle (visually-hidden checkbox under a custom track/thumb
+// so it stays keyboard/screen-reader accessible). Mirrors PortalToggle in
+// CustomerDetailPage.tsx -- there's still no shared toggle-switch component.
+function SendEmailToggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <span style={{ position: 'relative', width: 36, height: 20, flexShrink: 0 }}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{ position: 'absolute', inset: 0, opacity: 0, margin: 0, cursor: 'pointer' }}
+      />
+      <span
+        style={{
+          position: 'absolute',
+          inset: 0,
+          borderRadius: 999,
+          background: checked ? 'var(--brand-green)' : 'var(--border)',
+          transition: 'background 0.15s ease',
+          pointerEvents: 'none',
+        }}
+      />
+      <span
+        style={{
+          position: 'absolute',
+          top: 2,
+          left: checked ? 18 : 2,
+          width: 16,
+          height: 16,
+          borderRadius: '50%',
+          background: 'white',
+          transition: 'left 0.15s ease',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
+          pointerEvents: 'none',
+        }}
+      />
+    </span>
   );
 }

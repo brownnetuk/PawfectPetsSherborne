@@ -184,16 +184,18 @@ export class CustomersService {
       email: dto.email,
       status: CustomerStatus.PENDING,
     }).save();
-    try {
-      await this.settingsService.sendTriggeredEmail({
-        trigger: EmailTrigger.REGISTRATION,
-        to: dto.email,
-        name,
-        link: `${publicFrontendUrl()}/intake/${(created._id as { toString(): string }).toString()}`,
-        customerId: (created._id as { toString(): string }).toString(),
-      });
-    } catch (err) {
-      console.error(`Failed to send registration email for new lead ${created._id}:`, err);
+    if (dto.sendEmail !== false) {
+      try {
+        await this.settingsService.sendTriggeredEmail({
+          trigger: EmailTrigger.REGISTRATION,
+          to: dto.email,
+          name,
+          link: `${publicFrontendUrl()}/intake/${(created._id as { toString(): string }).toString()}`,
+          customerId: (created._id as { toString(): string }).toString(),
+        });
+      } catch (err) {
+        console.error(`Failed to send registration email for new lead ${created._id}:`, err);
+      }
     }
     return created;
   }

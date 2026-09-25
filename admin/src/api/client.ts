@@ -170,10 +170,15 @@ export function listCustomers(): Promise<Customer[]> {
 export function getCustomer(id: string): Promise<Customer> {
   return request(`/customers/${id}`);
 }
-export function createLead(firstName: string, surname: string | undefined, email: string): Promise<Customer> {
+export function createLead(
+  firstName: string,
+  surname: string | undefined,
+  email: string,
+  sendEmail = true,
+): Promise<Customer> {
   return request('/customers/leads', {
     method: 'POST',
-    body: JSON.stringify({ firstName, surname: surname || undefined, email }),
+    body: JSON.stringify({ firstName, surname: surname || undefined, email, sendEmail }),
   });
 }
 export function deleteCustomer(id: string): Promise<void> {
