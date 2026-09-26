@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import ActionsMenu from './ActionsMenu';
 import Badge from './Badge';
 import Modal from './Modal';
 import {
@@ -109,9 +110,33 @@ export default function PolicyDetailModal({
   const iNeedToSign = !!mySignOff && !mySignOff.signedAt;
   const anyOutstanding = current?.signOffs.some((s) => !s.signedAt) ?? false;
 
+  const menuItems = [
+    ...(anyOutstanding ? [{ label: 'Send Reminder', onClick: handleSendReminder, disabled: busy }] : []),
+    { label: 'Publish New Version', onClick: () => setShowPublishVersion(true) },
+    { label: 'Edit Details', onClick: () => setShowEditDetails(true) },
+    { label: 'Audit', onClick: () => setShowAudit(true) },
+    ...(policy.versions.length > 1
+      ? [{ label: 'Reset to v1', onClick: () => setShowResetConfirm(true), danger: true, dividerBefore: true }]
+      : []),
+  ];
+
   return (
     <>
-      <Modal title={policy.name} onClose={onClose} xl>
+      <Modal
+        title={policy.name}
+        onClose={onClose}
+        xl
+        headerActions={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {iNeedToSign && (
+              <button className="btn btn-primary btn-sm" onClick={() => setShowReviewModal(true)} disabled={busy}>
+                Policy Review
+              </button>
+            )}
+            <ActionsMenu items={menuItems} />
+          </div>
+        }
+      >
         {error && <div className="error-banner">{error}</div>}
 
         <div
@@ -163,32 +188,6 @@ export default function PolicyDetailModal({
             )}
           </article>
           <aside style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {iNeedToSign && (
-                <button className="btn btn-primary btn-sm" onClick={() => setShowReviewModal(true)} disabled={busy}>
-                  Policy Review
-                </button>
-              )}
-              {anyOutstanding && (
-                <button className="btn btn-secondary btn-sm" onClick={handleSendReminder} disabled={busy}>
-                  Send Reminder
-                </button>
-              )}
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowPublishVersion(true)}>
-                Publish New Version
-              </button>
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowEditDetails(true)}>
-                Edit Details
-              </button>
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowAudit(true)}>
-                Audit
-              </button>
-              {policy.versions.length > 1 && (
-                <button className="btn btn-danger btn-sm" onClick={() => setShowResetConfirm(true)}>
-                  Reset to v1
-                </button>
-              )}
-            </div>
             <section className="card" style={{ margin: 0 }}>
               <h2 style={{ marginTop: 0 }}>{current ? `Policy Reviews for v${current.version}` : 'Policy Reviews'}</h2>
               {!current || current.signOffs.length === 0 ? (
@@ -218,21 +217,6 @@ export default function PolicyDetailModal({
                   ))}
                 </div>
               )}
-            </section>
-            <section className="card" style={{ margin: 0 }}>
-              <h2 style={{ marginTop: 0 }}>Version history</h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {[...policy.versions].reverse().map((v) => (
-                  <div key={v._id}>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>
-                      v{v.version} · {new Date(v.publishedAt).toLocaleDateString('en-GB')}
-                    </div>
-                    <div style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>
-                      {v.changeSummary || 'No summary'} — {v.publishedBy}
-                    </div>
-                  </div>
-                ))}
-              </div>
             </section>
           </aside>
         </div>
