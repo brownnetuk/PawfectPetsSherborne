@@ -1049,6 +1049,7 @@ export interface PolicySignOff {
   staff: string;
   staffName: string;
   signedAt?: string;
+  signedName?: string;
   reminderSentAt?: string;
 }
 

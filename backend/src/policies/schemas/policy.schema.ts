@@ -26,6 +26,13 @@ export class PolicySignOff {
   @Prop()
   signedAt?: Date;
 
+  // The name typed into the "Policy Review" confirmation modal at the moment
+  // of signing -- kept as its own field (not just re-derived from staffName)
+  // since it's the literal text the reviewer typed to confirm, same
+  // "capture what was actually entered" reasoning as Customer.agreement.signedName.
+  @Prop()
+  signedName?: string;
+
   @Prop()
   reminderSentAt?: Date;
 }

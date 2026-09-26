@@ -1258,8 +1258,8 @@ export function publishPolicyVersion(
 ): Promise<Policy> {
   return request(`/policies/${id}/versions`, { method: 'POST', body: JSON.stringify(input) });
 }
-export function signOffPolicy(id: string): Promise<Policy> {
-  return request(`/policies/${id}/sign`, { method: 'POST' });
+export function signOffPolicy(id: string, signedName: string): Promise<Policy> {
+  return request(`/policies/${id}/sign`, { method: 'POST', body: JSON.stringify({ signedName }) });
 }
 export function sendPolicyReminder(id: string): Promise<Policy> {
   return request(`/policies/${id}/remind`, { method: 'POST' });

@@ -23,7 +23,7 @@ export function currentVersion(policy: Policy) {
 }
 
 // Shared by NewPolicyModal (here) and PublishVersionModal
-// (PolicyDetailModal.tsx) -- who's required to sign off a version. Purely
+// (PolicyDetailModal.tsx) -- who's required to review a version. Purely
 // presentational; the parent owns fetching the staff list and the selection.
 export function StaffSignOffPicker({
   staff,
@@ -68,7 +68,7 @@ export function policyStatusBadge(policy: Policy): string {
   const today = new Date().toISOString().slice(0, 10);
   if (policy.nextReviewDate && policy.nextReviewDate <= today) return 'due';
   const current = currentVersion(policy);
-  if (current?.signOffs.some((s) => !s.signedAt)) return 'pending_signoff';
+  if (current?.signOffs.some((s) => !s.signedAt)) return 'pending_review';
   return 'current';
 }
 
@@ -131,7 +131,7 @@ export default function PoliciesTab() {
         </button>
       </div>
       <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -8 }}>
-        Double-click a row to open the full policy, publish a new version, or manage sign-offs.
+        Double-click a row to open the full policy, publish a new version, or manage policy reviews.
       </p>
 
       {error && <div className="error-banner">{error}</div>}
@@ -149,7 +149,7 @@ export default function PoliciesTab() {
           )}
         </div>
         <div className="card" style={{ margin: 0 }}>
-          <div style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Awaiting sign-off</div>
+          <div style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Awaiting review</div>
           <div style={{ fontSize: '1.8rem', fontWeight: 700 }}>{awaitingSignOff.length}</div>
           {awaitingSignOff.length > 0 && (
             <div style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>
@@ -192,7 +192,7 @@ export default function PoliciesTab() {
                 <th>Version</th>
                 <th>Last reviewed</th>
                 <th>Next review</th>
-                <th>Signed</th>
+                <th>Reviewed</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -374,7 +374,7 @@ function NewPolicyModal({
         </div>
         <div className="field">
           <label>
-            Who needs to sign off?{' '}
+            Who needs to review this policy?{' '}
             {signOffStaffIds.size > 0 && (
               <span style={{ fontWeight: 400, color: 'var(--muted)' }}>({signOffStaffIds.size} selected)</span>
             )}

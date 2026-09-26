@@ -4,6 +4,7 @@ import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { CreatePolicyDto } from './dto/create-policy.dto';
 import { PublishVersionDto } from './dto/publish-version.dto';
+import { SignPolicyDto } from './dto/sign-policy.dto';
 import { UpdatePolicyDto } from './dto/update-policy.dto';
 import { PoliciesService } from './policies.service';
 
@@ -57,10 +58,11 @@ export class PoliciesController {
     return this.policiesService.publishVersion(id, dto, user.name);
   }
 
-  // No @RequirePermission -- any logged-in staff member signs off for themselves.
+  // No @RequirePermission -- any logged-in staff member completes their own
+  // Policy Review.
   @Post(':id/sign')
-  signOff(@Param('id') id: string, @CurrentUser() user: CurrentUserShape) {
-    return this.policiesService.signOff(id, user.id, user.name);
+  signOff(@Param('id') id: string, @Body() dto: SignPolicyDto, @CurrentUser() user: CurrentUserShape) {
+    return this.policiesService.signOff(id, user.id, user.name, dto.signedName);
   }
 
   @RequirePermission('bookings.manage')

@@ -189,9 +189,11 @@ export class PoliciesService {
     return policy;
   }
 
-  // Self-service -- a staff member signs off the current version for
-  // themselves (there's no "sign on someone else's behalf").
-  async signOff(id: string, actorId: string, actor: string): Promise<Policy> {
+  // Self-service -- a staff member completes the Policy Review for the
+  // current version themselves (there's no "review on someone else's
+  // behalf"). signedName is whatever they typed into the confirmation
+  // modal's "type your name" field, not re-derived from their account name.
+  async signOff(id: string, actorId: string, actor: string, signedName: string): Promise<Policy> {
     const policy = await this.findOne(id);
     const current = policy.versions[policy.versions.length - 1];
     if (!current) {
@@ -199,13 +201,14 @@ export class PoliciesService {
     }
     const row = current.signOffs.find((s) => String(s.staff) === actorId);
     if (!row) {
-      throw new NotFoundException('You are not listed as a required sign-off for this policy.');
+      throw new NotFoundException('You are not listed as a required reviewer for this policy.');
     }
     if (!row.signedAt) {
       row.signedAt = new Date();
+      row.signedName = signedName;
       policy.auditLog.push({
-        action: 'Signed Off',
-        changes: `${actor} signed v${current.version}`,
+        action: 'Policy Reviewed',
+        changes: `${actor} reviewed v${current.version}, signed as "${signedName}"`,
         actor,
         at: new Date(),
       });

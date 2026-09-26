@@ -37,6 +37,7 @@ export default function PolicyDetailModal({
   const [showEditDetails, setShowEditDetails] = useState(false);
   const [showPublishVersion, setShowPublishVersion] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
   const [busy, setBusy] = useState(false);
 
   function refresh() {
@@ -48,15 +49,16 @@ export default function PolicyDetailModal({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(refresh, [policyId]);
 
-  async function handleSignOff() {
+  async function handleSignOff(signedName: string) {
     setBusy(true);
     setError(null);
     try {
-      const updated = await api.signOffPolicy(policyId);
+      const updated = await api.signOffPolicy(policyId, signedName);
       setPolicy(updated);
+      setShowReviewModal(false);
       onChanged();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sign off');
+      setError(err instanceof Error ? err.message : 'Failed to submit your review');
     } finally {
       setBusy(false);
     }
@@ -138,8 +140,8 @@ export default function PolicyDetailModal({
           <aside style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {iNeedToSign && (
-                <button className="btn btn-primary btn-sm" onClick={handleSignOff} disabled={busy}>
-                  {busy ? 'Working…' : 'Sign Off'}
+                <button className="btn btn-primary btn-sm" onClick={() => setShowReviewModal(true)} disabled={busy}>
+                  Policy Review
                 </button>
               )}
               {anyOutstanding && (
@@ -158,9 +160,9 @@ export default function PolicyDetailModal({
               </button>
             </div>
             <section className="card" style={{ margin: 0 }}>
-              <h2 style={{ marginTop: 0 }}>{current ? `Sign-offs for v${current.version}` : 'Sign-offs'}</h2>
+              <h2 style={{ marginTop: 0 }}>{current ? `Policy Reviews for v${current.version}` : 'Policy Reviews'}</h2>
               {!current || current.signOffs.length === 0 ? (
-                <div className="empty-state">No staff to sign off.</div>
+                <div className="empty-state">No staff need to review this policy.</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {current.signOffs.map((s, i) => (
@@ -168,7 +170,7 @@ export default function PolicyDetailModal({
                       <span>{s.staffName}</span>
                       {s.signedAt ? (
                         <span style={{ color: 'var(--brand-green)', fontWeight: 600, fontSize: '0.8rem' }}>
-                          Signed{' '}
+                          Reviewed{' '}
                           {new Date(s.signedAt).toLocaleString('en-GB', {
                             day: 'numeric',
                             month: 'short',
@@ -179,7 +181,7 @@ export default function PolicyDetailModal({
                         </span>
                       ) : (
                         <span style={{ color: 'var(--warn)', fontWeight: 600, fontSize: '0.8rem' }} title={s.reminderSentAt ? `Reminder sent ${new Date(s.reminderSentAt).toLocaleString('en-GB')}` : undefined}>
-                          Not yet signed
+                          Not yet reviewed
                         </span>
                       )}
                     </div>
@@ -261,7 +263,66 @@ export default function PolicyDetailModal({
           )}
         </Modal>
       )}
+
+      {showReviewModal && (
+        <PolicyReviewModal
+          defaultName={staff?.name ?? ''}
+          busy={busy}
+          error={error}
+          onClose={() => setShowReviewModal(false)}
+          onAgree={handleSignOff}
+        />
+      )}
     </>
+  );
+}
+
+function PolicyReviewModal({
+  defaultName,
+  busy,
+  error,
+  onClose,
+  onAgree,
+}: {
+  defaultName: string;
+  busy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onAgree: (signedName: string) => void;
+}) {
+  const [signedName, setSignedName] = useState(defaultName);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!signedName.trim()) return;
+    onAgree(signedName.trim());
+  }
+
+  return (
+    <Modal title="Policy Review" onClose={onClose}>
+      {error && <div className="error-banner">{error}</div>}
+      <form onSubmit={handleSubmit}>
+        <p>I have read the policy and agree to the information contained within.</p>
+        <div className="field">
+          <label>Type your name to confirm</label>
+          <input
+            type="text"
+            value={signedName}
+            onChange={(e) => setSignedName(e.target.value)}
+            required
+            autoFocus
+          />
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={busy || !signedName.trim()}>
+            {busy ? 'Submitting…' : 'Agree'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -407,8 +468,8 @@ function PublishVersionModal({
     <Modal title="Publish New Version" onClose={onClose} wide>
       {error && <div className="error-banner">{error}</div>}
       <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: -6 }}>
-        Publishing resets sign-offs to whoever's selected below -- an old signature doesn't carry forward onto
-        changed content, and that includes you: you'll need to sign off again too.
+        Publishing resets Policy Review to whoever's selected below -- an old review doesn't carry forward onto
+        changed content, and that includes you: you'll need to review it again too.
       </p>
       <form onSubmit={handleSubmit}>
         <div className="field">
@@ -426,7 +487,7 @@ function PublishVersionModal({
         </div>
         <div className="field">
           <label>
-            Who needs to sign off?{' '}
+            Who needs to review this policy?{' '}
             {signOffStaffIds.size > 0 && (
               <span style={{ fontWeight: 400, color: 'var(--muted)' }}>({signOffStaffIds.size} selected)</span>
             )}
