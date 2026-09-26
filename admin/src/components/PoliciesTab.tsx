@@ -80,7 +80,7 @@ export default function PoliciesTab() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
-  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortKey, setSortKey] = useState<SortKey>('policyId');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [showForm, setShowForm] = useState(false);
   const [deleting, setDeleting] = useState<Policy | null>(null);
