@@ -161,13 +161,14 @@ export default function PoliciesTab() {
 
       <div className="card" style={{ padding: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-          <input
-            type="search"
-            placeholder="Search policies"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ flexGrow: 1, minWidth: 180 }}
-          />
+          <div className="field" style={{ flexGrow: 1, minWidth: 180, maxWidth: 420, marginBottom: 0 }}>
+            <input
+              type="text"
+              placeholder="Search policies"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
           {categories.map((c) => (
             <button
               key={c}
