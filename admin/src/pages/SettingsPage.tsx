@@ -27,6 +27,8 @@ import type {
   BankHoliday,
   BoardingWorkflowSettings,
   BusinessInfo,
+  Customer,
+  EmailGroup,
   EmailSettings,
   EmailTemplate,
   EmailTrigger,
@@ -1924,7 +1926,234 @@ function EmailTab() {
           {testing ? 'Sending…' : 'Send test email'}
         </button>
       </div>
+
+      <EmailGroupsCard />
     </div>
+  );
+}
+
+function EmailGroupsCard() {
+  const [groups, setGroups] = useState<EmailGroup[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState<{ mode: 'create' } | { mode: 'edit'; group: EmailGroup } | null>(null);
+  const [deleting, setDeleting] = useState<EmailGroup | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function refresh() {
+    api
+      .listEmailGroups()
+      .then(setGroups)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load email groups'));
+  }
+  useEffect(refresh, []);
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteEmailGroup(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete this group');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <h2>Email Groups</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+            Named lists of customers Communications &gt; Email can send to as a single recipient group.
+          </p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowForm({ mode: 'create' })}>
+          Create Group
+        </button>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      {!groups || groups.length === 0 ? (
+        <div className="empty-state">{groups === null ? 'Loading…' : 'No email groups yet.'}</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Customers</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map((g) => (
+              <tr key={g._id}>
+                <td>{g.name}</td>
+                <td>{g.customers.length}</td>
+                <td>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    <button className="icon-btn" title="Edit" onClick={() => setShowForm({ mode: 'edit', group: g })}>
+                      <PencilIcon />
+                    </button>
+                    <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(g)}>
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {showForm && (
+        <EditEmailGroupModal
+          initial={showForm.mode === 'edit' ? showForm.group : undefined}
+          onClose={() => setShowForm(null)}
+          onSaved={() => {
+            setShowForm(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {deleting && (
+        <Modal title="Delete this group?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently removes <strong>{deleting.name}</strong>. It doesn't affect the customers in it or any
+            emails already sent to it.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeleting(null)} disabled={deleteBusy}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete group'}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function EditEmailGroupModal({
+  initial,
+  onClose,
+  onSaved,
+}: {
+  initial?: EmailGroup;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(initial?.name ?? '');
+  const [customers, setCustomers] = useState<Customer[] | null>(null);
+  const [query, setQuery] = useState('');
+  const [selected, setSelected] = useState<Set<string>>(new Set(initial?.customers.map((c) => c._id) ?? []));
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api
+      .listCustomers()
+      .then(setCustomers)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load customers'));
+  }, []);
+
+  const q = query.trim().toLowerCase();
+  const filtered = (customers ?? []).filter(
+    (c) => c.name.toLowerCase().includes(q) || (c.email ?? '').toLowerCase().includes(q),
+  );
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const input = { name, customers: Array.from(selected) };
+      if (initial) {
+        await api.updateEmailGroup(initial._id, input);
+      } else {
+        await api.createEmailGroup(input);
+      }
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save this group');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title={initial ? 'Edit Email Group' : 'Create Email Group'} onClose={onClose} wide>
+      {error && <div className="error-banner">{error}</div>}
+      <form onSubmit={handleSubmit}>
+        <div className="field">
+          <label>Group name</label>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Newsletter subscribers" required autoFocus />
+        </div>
+        <div className="field">
+          <label>
+            Customers {selected.size > 0 && <span style={{ fontWeight: 400, color: 'var(--muted)' }}>({selected.size} selected)</span>}
+          </label>
+          <input
+            type="text"
+            placeholder="Search customers by name or email…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+        <div style={{ maxHeight: 260, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 16 }}>
+          {customers === null ? (
+            <div style={{ padding: 16, color: 'var(--muted)' }}>Loading…</div>
+          ) : filtered.length === 0 ? (
+            <div style={{ padding: 16, color: 'var(--muted)' }}>No matching customers.</div>
+          ) : (
+            filtered.map((c) => (
+              <label
+                key={c._id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 12px',
+                  borderBottom: '1px solid var(--border)',
+                  fontWeight: 400,
+                  cursor: 'pointer',
+                }}
+              >
+                <input type="checkbox" checked={selected.has(c._id)} onChange={() => toggle(c._id)} />
+                <span style={{ minWidth: 0 }}>
+                  <div>{c.name}</div>
+                  <div style={{ color: 'var(--muted)', fontSize: 12 }}>{c.email}</div>
+                </span>
+              </label>
+            ))
+          )}
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>
+            {saving ? 'Saving…' : initial ? 'Save Changes' : 'Create Group'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -2000,6 +2229,12 @@ export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: 
     label: 'Form Copy',
     description:
       'Sent when staff choose "Email a copy to customer" after completing a form on the customer\'s behalf (e.g. a Boarding & Day Care check-in/check-out) -- carries a PDF of what was just submitted as an attachment.',
+  },
+  {
+    value: 'generic',
+    label: 'Generic Email',
+    description:
+      'The wrapper used by Communications > Email for one-off emails to customers or groups -- {{emailBodyText}} is where the text and formatting composed there is inserted.',
   },
 ];
 
@@ -2308,6 +2543,12 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
     { key: 'form_name', hint: 'the name of the completed form (e.g. "Arrival Check-In")' },
     ...BUSINESS_PLACEHOLDERS,
   ],
+  generic: [
+    { key: 'name', hint: "the recipient's name" },
+    { key: 'campaignSubject', hint: 'the subject typed when composing the email in Communications > Email' },
+    { key: 'emailBodyText', hint: 'the text and formatting composed in Communications > Email -- put this where the message itself should appear' },
+    ...BUSINESS_PLACEHOLDERS,
+  ],
 };
 
 // Prefilled the first time staff "Set up" the Invoice/Quote template, so
@@ -2364,9 +2605,21 @@ function buildDocumentTemplateStarter(kind: 'invoice' | 'quote'): string {
 const INVOICE_TEMPLATE_STARTER = buildDocumentTemplateStarter('invoice');
 const QUOTE_TEMPLATE_STARTER = buildDocumentTemplateStarter('quote');
 
+// A light header/footer wrapper around {{emailBodyText}} -- the actual
+// message text/formatting composed in Communications > Email is inserted
+// there untouched, so this starter mostly just needs to not leave the
+// placeholder looking bare on a blank white background.
+const GENERIC_TEMPLATE_STARTER = `<div style="max-width:600px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;">
+<div style="padding:8px 0 20px;">{{logo}}<strong style="font-size:1.15rem;">{{businessName}}</strong></div>
+<p style="margin:0 0 16px;">Hi {{name}},</p>
+{{emailBodyText}}
+<p style="margin:24px 0 0;color:#6b7280;font-size:0.85rem;">{{businessName}} · {{businessAddress}}, {{businessTown}} {{businessPostcode}} · {{businessTelephone}}</p>
+</div>`;
+
 function starterBody(trigger: EmailTrigger): string {
   if (trigger === 'invoice') return INVOICE_TEMPLATE_STARTER;
   if (trigger === 'quote') return QUOTE_TEMPLATE_STARTER;
+  if (trigger === 'generic') return GENERIC_TEMPLATE_STARTER;
   return '';
 }
 
@@ -2385,7 +2638,8 @@ function EditTemplateModal({
   const [label, setLabel] = useState(template?.label ?? meta.label);
   const [name, setName] = useState(template?.name ?? (isHtmlBodyTrigger(trigger) ? meta.label : ''));
   const [subject, setSubject] = useState(
-    template?.subject ?? (isHtmlBodyTrigger(trigger) ? `Your ${trigger} from {{businessName}}` : ''),
+    template?.subject ??
+      (trigger === 'generic' ? '{{campaignSubject}}' : isHtmlBodyTrigger(trigger) ? `Your ${trigger} from {{businessName}}` : ''),
   );
   const [body, setBody] = useState(() => {
     if (!template?.body) return starterBody(trigger);
@@ -2641,13 +2895,16 @@ function TemplatePreviewModal({
           name: 'Jane Smith',
           link: `${INTAKE_URL}/intake/sample-id`,
           form_name: trigger === 'form' ? 'Medication Authentication' : undefined,
+          campaignSubject: trigger === 'generic' ? 'A note from the team' : undefined,
         };
   const logoTag = businessInfo.logoImage
     ? `<img src="${businessInfo.logoImage}" alt="${escapeHtml(businessInfo.name)}" style="max-height:60px;max-width:220px;display:block;" />`
     : '';
   const rawVars: Record<string, string> = isDocumentTrigger
     ? { logo: logoTag, items_table: buildItemsTableHtml(SAMPLE_LINE_ITEMS) }
-    : { logo: logoTag };
+    : trigger === 'generic'
+      ? { logo: logoTag, emailBodyText: '<p>This is a sample of the message text staff would compose in Communications &gt; Email.</p>' }
+      : { logo: logoTag };
   const renderedSubject = interpolateSubject(subject, vars);
   // Wrapped the same way SettingsService.sendTemplatedEmail wraps every
   // htmlBody trigger's body before actually sending it.

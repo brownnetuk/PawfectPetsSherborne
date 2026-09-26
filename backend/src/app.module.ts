@@ -46,6 +46,8 @@ import { RolesModule } from './roles/roles.module';
 import { StaffModule } from './staff/staff.module';
 import { ChecklistsModule } from './checklists/checklists.module';
 import { RiskAssessmentsModule } from './risk-assessments/risk-assessments.module';
+import { EmailGroupsModule } from './email-groups/email-groups.module';
+import { EmailMessagesModule } from './email-messages/email-messages.module';
 
 @Module({
   imports: [
@@ -104,6 +106,8 @@ import { RiskAssessmentsModule } from './risk-assessments/risk-assessments.modul
     FormSubmissionsModule,
     ChecklistsModule,
     RiskAssessmentsModule,
+    EmailGroupsModule,
+    EmailMessagesModule,
     RolesModule,
     PortalModule,
     MessagesModule,

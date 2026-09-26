@@ -743,7 +743,8 @@ export type EmailTrigger =
   | 'portal_password_reset'
   | 'portal_enabled'
   | 'post_registration'
-  | 'form_copy';
+  | 'form_copy'
+  | 'generic';
 
 export interface EmailTemplate {
   trigger: EmailTrigger;
@@ -789,6 +790,35 @@ export interface PushMessage {
   body: string;
   recipients: PushMessageRecipient[];
   acknowledgementRequired?: boolean;
+  sentBy?: { _id: string; name: string } | string;
+  createdAt: string;
+}
+
+// --- Email Groups (Settings > Email) ---
+
+export interface EmailGroup {
+  _id: string;
+  name: string;
+  customers: { _id: string; name: string; email: string }[];
+  createdAt: string;
+}
+
+// --- Email Messages (Communications > Email) ---
+
+export interface EmailMessageRecipient {
+  customer: { _id: string; name: string; email: string } | string;
+  email: string;
+  name: string;
+  status: 'sent' | 'failed';
+  reason?: string;
+  openedAt?: string;
+}
+
+export interface EmailMessage {
+  _id: string;
+  subject: string;
+  bodyHtml: string;
+  recipients: EmailMessageRecipient[];
   sentBy?: { _id: string; name: string } | string;
   createdAt: string;
 }

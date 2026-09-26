@@ -1,10 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import * as api from '../api/client';
 import Modal from '../components/Modal';
+import RichTextEditor from '../components/RichTextEditor';
 import { TrashIcon } from '../components/icons';
-import type { Conversation, Customer, Message, PushMessage, PushMessageRecipient } from '../types';
+import type {
+  Conversation,
+  Customer,
+  EmailGroup,
+  EmailMessage,
+  EmailMessageRecipient,
+  Message,
+  PushMessage,
+  PushMessageRecipient,
+} from '../types';
 
-type Tab = 'conversations' | 'push';
+type Tab = 'conversations' | 'push' | 'email';
 
 // A person we can have a thread with — either an existing conversation or a
 // customer picked to start a new one.
@@ -27,9 +37,13 @@ export default function CommunicationsPage() {
         <button className={tab === 'push' ? 'active' : ''} onClick={() => setTab('push')}>
           Push Messages
         </button>
+        <button className={tab === 'email' ? 'active' : ''} onClick={() => setTab('email')}>
+          Email
+        </button>
       </div>
       {tab === 'conversations' && <ConversationsTab />}
       {tab === 'push' && <PushMessagesTab />}
+      {tab === 'email' && <EmailTab />}
     </div>
   );
 }
@@ -869,6 +883,414 @@ function SendPushModal({ onClose, onSent }: { onClose: () => void; onSent: () =>
           </button>
           <button type="submit" className="btn btn-primary" disabled={sending}>
             {sending ? 'Sending…' : `Send${selected.size > 0 ? ` (${selected.size})` : ''}`}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function emailSenderName(sentBy: EmailMessage['sentBy']): string {
+  if (!sentBy) return 'Unknown';
+  return typeof sentBy === 'string' ? sentBy : sentBy.name;
+}
+function emailRecipientId(r: EmailMessageRecipient): string {
+  return typeof r.customer === 'string' ? r.customer : r.customer._id;
+}
+
+function EmailTab() {
+  const [sends, setSends] = useState<EmailMessage[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showCompose, setShowCompose] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState<EmailMessage | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function refresh() {
+    api
+      .listEmailMessages()
+      .then(setSends)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load emails'));
+  }
+  useEffect(refresh, []);
+
+  function toggleExpanded(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteEmailMessage(deleting._id);
+      setDeleting(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete this email');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+        <p style={{ color: 'var(--muted)', fontSize: '0.88rem', maxWidth: 520, margin: 0 }}>
+          Send a one-off email to customers or a saved group -- each recipient gets their own individually-addressed
+          copy (nobody sees anyone else's email address), and each send is kept below showing who's read it.
+        </p>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowCompose(true)} style={{ flexShrink: 0 }}>
+          + New Email
+        </button>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      {!sends ? (
+        <div className="empty-state">Loading…</div>
+      ) : sends.length === 0 ? (
+        <div className="empty-state">No emails sent yet.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {sends.map((s) => {
+            const sent = s.recipients.filter((r) => r.status === 'sent').length;
+            const failed = s.recipients.length - sent;
+            const read = s.recipients.filter((r) => r.openedAt).length;
+            const isOpen = expanded.has(s._id);
+            return (
+              <div key={s._id} className="card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700 }}>{s.subject}</div>
+                    <div
+                      style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: 2, maxHeight: 40, overflow: 'hidden' }}
+                      dangerouslySetInnerHTML={{ __html: s.bodyHtml }}
+                    />
+                    <div style={{ color: 'var(--muted)', fontSize: '0.78rem', marginTop: 6 }}>
+                      {new Date(s.createdAt).toLocaleString('en-GB', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}{' '}
+                      · Sent by {emailSenderName(s.sentBy)}
+                    </div>
+                  </div>
+                  <div style={{ flexShrink: 0, textAlign: 'right' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                      <div style={{ fontSize: '0.85rem' }}>
+                        <span style={{ color: 'var(--brand-green)', fontWeight: 700 }}>{sent} sent</span>
+                        {failed > 0 && (
+                          <>
+                            {', '}
+                            <span style={{ color: 'var(--error, #c85a4a)', fontWeight: 700 }}>{failed} failed</span>
+                          </>
+                        )}
+                        {', '}
+                        <span style={{ color: 'var(--muted)' }}>{read} read</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="icon-btn icon-btn-danger"
+                        title="Delete"
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeleting(s);
+                        }}
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      style={{ marginTop: 4, fontSize: '0.8rem', width: 'auto', padding: '2px 8px' }}
+                      onClick={() => toggleExpanded(s._id)}
+                    >
+                      {isOpen ? 'Hide details' : `Show ${s.recipients.length} recipient${s.recipients.length === 1 ? '' : 's'}`}
+                    </button>
+                  </div>
+                </div>
+                {isOpen && (
+                  <table style={{ marginTop: 10 }}>
+                    <thead>
+                      <tr>
+                        <th>Customer</th>
+                        <th>Status</th>
+                        <th>Read</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {s.recipients.map((r) => (
+                        <tr key={emailRecipientId(r)}>
+                          <td>
+                            {r.name}
+                            <div style={{ color: 'var(--muted)', fontSize: 12 }}>{r.email}</div>
+                          </td>
+                          <td>
+                            <span
+                              style={{
+                                fontWeight: 600,
+                                color: r.status === 'sent' ? 'var(--brand-green)' : 'var(--error, #c85a4a)',
+                              }}
+                              title={r.reason}
+                            >
+                              {r.status === 'sent' ? 'Sent' : 'Failed'}
+                            </span>
+                            {r.reason && <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}> — {r.reason}</span>}
+                          </td>
+                          <td>
+                            {r.openedAt ? (
+                              <span style={{ color: 'var(--brand-green)', fontWeight: 700 }} title={new Date(r.openedAt).toLocaleString('en-GB')}>
+                                Read
+                              </span>
+                            ) : (
+                              <span style={{ color: 'var(--muted)' }}>Not read</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {showCompose && (
+        <ComposeEmailModal
+          onClose={() => setShowCompose(false)}
+          onSent={() => {
+            setShowCompose(false);
+            refresh();
+          }}
+        />
+      )}
+      {deleting && (
+        <Modal title="Delete this email?" onClose={() => setDeleting(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently removes <strong>{deleting.subject}</strong> from the history. It doesn't unsend the
+            emails that were already delivered.
+          </p>
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => setDeleting(null)} disabled={deleteBusy}>
+              Cancel
+            </button>
+            <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function ComposeEmailModal({ onClose, onSent }: { onClose: () => void; onSent: () => void }) {
+  const [recipientType, setRecipientType] = useState<'customers' | 'groups'>('customers');
+  const [customers, setCustomers] = useState<Customer[] | null>(null);
+  const [groups, setGroups] = useState<EmailGroup[] | null>(null);
+  const [query, setQuery] = useState('');
+  const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
+  const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
+  const [subject, setSubject] = useState('');
+  const [bodyHtml, setBodyHtml] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<EmailMessage | null>(null);
+
+  useEffect(() => {
+    api
+      .listCustomers()
+      .then(setCustomers)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load customers'));
+    api
+      .listEmailGroups()
+      .then(setGroups)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load email groups'));
+  }, []);
+
+  const q = query.trim().toLowerCase();
+  const filteredCustomers = (customers ?? []).filter(
+    (c) => c.name.toLowerCase().includes(q) || (c.email ?? '').toLowerCase().includes(q),
+  );
+  const allFilteredSelected = filteredCustomers.length > 0 && filteredCustomers.every((c) => selectedCustomers.has(c._id));
+
+  // Best-effort live count -- de-dupes a customer picked both individually and
+  // via a group, same as the backend does when it actually resolves the send.
+  const recipientCount = (() => {
+    const ids = new Set(selectedCustomers);
+    for (const groupId of selectedGroups) {
+      const group = groups?.find((g) => g._id === groupId);
+      group?.customers.forEach((c) => ids.add(c._id));
+    }
+    return ids.size;
+  })();
+
+  function toggleCustomer(id: string) {
+    setSelectedCustomers((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleSelectAllFiltered() {
+    setSelectedCustomers((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) filteredCustomers.forEach((c) => next.delete(c._id));
+      else filteredCustomers.forEach((c) => next.add(c._id));
+      return next;
+    });
+  }
+  function toggleGroup(id: string) {
+    setSelectedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    if (!subject.trim() || !bodyHtml.replace(/<[^>]*>/g, '').trim()) {
+      setError('Enter a subject and a message.');
+      return;
+    }
+    if (recipientCount === 0) {
+      setError('Choose at least one customer or group.');
+      return;
+    }
+    setSending(true);
+    setError(null);
+    try {
+      const sent = await api.sendEmailMessage({
+        subject: subject.trim(),
+        bodyHtml,
+        customerIds: Array.from(selectedCustomers),
+        groupIds: Array.from(selectedGroups),
+      });
+      setResult(sent);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send email');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  if (result) {
+    const sent = result.recipients.filter((r) => r.status === 'sent').length;
+    const failed = result.recipients.length - sent;
+    return (
+      <Modal title="Email sent" onClose={onSent}>
+        <div className="error-banner" style={{ background: 'var(--sage-badge, #d9f2e3)', color: 'var(--brand-green)' }}>
+          {sent} sent{failed > 0 ? `, ${failed} failed` : ''} out of {result.recipients.length}.
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-primary" onClick={onSent}>
+            Done
+          </button>
+        </div>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal title="New Email" onClose={onClose} wide>
+      <form onSubmit={handleSend}>
+        {error && <div className="error-banner">{error}</div>}
+        <div className="field">
+          <label>Subject</label>
+          <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. What's new this month" required />
+        </div>
+        <div className="field">
+          <label>Message</label>
+          <RichTextEditor value={bodyHtml} onChange={setBodyHtml} />
+        </div>
+        <div className="field">
+          <label>Send to</label>
+          <div className="tabs" style={{ marginBottom: 10 }}>
+            <button type="button" className={recipientType === 'customers' ? 'active' : ''} onClick={() => setRecipientType('customers')}>
+              Customers
+            </button>
+            <button type="button" className={recipientType === 'groups' ? 'active' : ''} onClick={() => setRecipientType('groups')}>
+              Groups
+            </button>
+          </div>
+        </div>
+        {recipientType === 'customers' ? (
+          <>
+            <input
+              type="text"
+              placeholder="Search customers by name or email…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '6px 0' }}>
+              <button type="button" className="icon-btn" style={{ width: 'auto', fontSize: '0.8rem', padding: '2px 8px' }} onClick={toggleSelectAllFiltered}>
+                {allFilteredSelected ? 'Clear all' : `Select all${query ? ' (matching)' : ''}`}
+              </button>
+            </div>
+            <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 16 }}>
+              {customers === null ? (
+                <div style={{ padding: 16, color: 'var(--muted)' }}>Loading…</div>
+              ) : filteredCustomers.length === 0 ? (
+                <div style={{ padding: 16, color: 'var(--muted)' }}>No matching customers.</div>
+              ) : (
+                filteredCustomers.map((c) => (
+                  <label
+                    key={c._id}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', fontWeight: 400, cursor: 'pointer' }}
+                  >
+                    <input type="checkbox" checked={selectedCustomers.has(c._id)} onChange={() => toggleCustomer(c._id)} />
+                    <span style={{ minWidth: 0 }}>
+                      <div>{c.name}</div>
+                      <div style={{ color: 'var(--muted)', fontSize: 12 }}>{c.email}</div>
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+          </>
+        ) : (
+          <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 16 }}>
+            {groups === null ? (
+              <div style={{ padding: 16, color: 'var(--muted)' }}>Loading…</div>
+            ) : groups.length === 0 ? (
+              <div style={{ padding: 16, color: 'var(--muted)' }}>
+                No email groups yet -- create one in Settings &gt; Email.
+              </div>
+            ) : (
+              groups.map((g) => (
+                <label
+                  key={g._id}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', fontWeight: 400, cursor: 'pointer' }}
+                >
+                  <input type="checkbox" checked={selectedGroups.has(g._id)} onChange={() => toggleGroup(g._id)} />
+                  <span style={{ minWidth: 0 }}>
+                    <div>{g.name}</div>
+                    <div style={{ color: 'var(--muted)', fontSize: 12 }}>{g.customers.length} customers</div>
+                  </span>
+                </label>
+              ))
+            )}
+          </div>
+        )}
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={sending}>
+            {sending ? 'Sending…' : `Send${recipientCount > 0 ? ` (${recipientCount})` : ''}`}
           </button>
         </div>
       </form>

@@ -22,6 +22,8 @@ import type {
   Customer,
   CrmActivity,
   DayBooking,
+  EmailGroup,
+  EmailMessage,
   EmailSettings,
   EmailTemplate,
   EmailTrigger,
@@ -262,6 +264,40 @@ export function sendPushMessage(input: SendPushMessageInput): Promise<PushMessag
 }
 export function deletePushMessage(id: string): Promise<void> {
   return request(`/push-messages/${id}`, { method: 'DELETE' });
+}
+
+// --- email groups (Settings > Email > Email Groups) ---
+export function listEmailGroups(): Promise<EmailGroup[]> {
+  return request('/email-groups');
+}
+export function createEmailGroup(input: { name: string; customers?: string[] }): Promise<EmailGroup> {
+  return request('/email-groups', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateEmailGroup(
+  id: string,
+  input: Partial<{ name: string; customers: string[] }>,
+): Promise<EmailGroup> {
+  return request(`/email-groups/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deleteEmailGroup(id: string): Promise<void> {
+  return request(`/email-groups/${id}`, { method: 'DELETE' });
+}
+
+// --- email messages (Communications > Email, bulk emails to customers/groups) ---
+export function listEmailMessages(): Promise<EmailMessage[]> {
+  return request('/email-messages');
+}
+export interface SendEmailMessageInput {
+  subject: string;
+  bodyHtml: string;
+  customerIds?: string[];
+  groupIds?: string[];
+}
+export function sendEmailMessage(input: SendEmailMessageInput): Promise<EmailMessage> {
+  return request('/email-messages', { method: 'POST', body: JSON.stringify(input) });
+}
+export function deleteEmailMessage(id: string): Promise<void> {
+  return request(`/email-messages/${id}`, { method: 'DELETE' });
 }
 export function logFormSnapshot(
   id: string,

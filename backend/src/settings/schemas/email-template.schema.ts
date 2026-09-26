@@ -36,6 +36,11 @@ export enum EmailTrigger {
   // FormSubmissionsService.sendCopy()), so the customer gets a PDF record
   // of it by email.
   FORM_COPY = 'form_copy',
+  // The one-off bulk email composed from Communications > Email
+  // (EmailMessagesService.send()) -- {{emailBodyText}} is where that
+  // composed body (rich text, sent as raw HTML) is inserted, and
+  // {{campaignSubject}} is the subject staff typed when composing it.
+  GENERIC = 'generic',
 }
 
 // One document per trigger (enforced via the unique index below) -- avoids
