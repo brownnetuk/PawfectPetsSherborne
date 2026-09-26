@@ -69,23 +69,29 @@ export class PoliciesService {
     return this.staffModel.find({ locked: { $ne: true } }).select('name').exec();
   }
 
-  // Snapshots the current active staff list into a fresh, all-unsigned set of
-  // PolicySignOff rows for a version about to be published -- except the
-  // publishing staff member's own row, which is pre-signed (they've
-  // necessarily just read/written it).
-  private buildSignOffs(staffList: { _id: unknown; name: string }[], actorId: string, now: Date): PolicySignOff[] {
-    return staffList.map(
-      (s) =>
-        ({
-          staff: s._id,
-          staffName: s.name,
-          signedAt: String(s._id) === actorId ? now : undefined,
-        }) as PolicySignOff,
-    );
+  // Ungated (see PoliciesController) -- just names, for the sign-off picker
+  // shown when creating a policy or publishing a new version. Any staff
+  // member can pick who else needs to sign, not just those with
+  // staff.manage.
+  listStaffOptions(): Promise<{ _id: unknown; name: string }[]> {
+    return this.activeStaff();
   }
 
-  async create(dto: CreatePolicyDto, actor: string, actorId: string): Promise<Policy> {
-    const staffList = await this.activeStaff();
+  private async resolveSignOffStaff(staffIds?: string[]): Promise<{ _id: unknown; name: string }[]> {
+    if (!staffIds?.length) return this.activeStaff();
+    return this.staffModel.find({ _id: { $in: staffIds } }).select('name').exec();
+  }
+
+  // A fresh, all-unsigned set of PolicySignOff rows for a version about to be
+  // published -- nobody is pre-signed, including whoever is publishing it:
+  // they must sign off through the same explicit action as everyone else, so
+  // it shows in the audit log like any other sign-off.
+  private buildSignOffs(staffList: { _id: unknown; name: string }[]): PolicySignOff[] {
+    return staffList.map((s) => ({ staff: s._id, staffName: s.name }) as PolicySignOff);
+  }
+
+  async create(dto: CreatePolicyDto, actor: string): Promise<Policy> {
+    const staffList = await this.resolveSignOffStaff(dto.signOffStaffIds);
     const now = new Date();
     const status = (dto.status ?? 'draft') as PolicyStatus;
     const version: PolicyVersion = {
@@ -94,7 +100,7 @@ export class PoliciesService {
       changeSummary: dto.changeSummary,
       publishedAt: now,
       publishedBy: actor,
-      signOffs: this.buildSignOffs(staffList, actorId, now),
+      signOffs: this.buildSignOffs(staffList),
     } as PolicyVersion;
     const policy = new this.policyModel({
       name: dto.name,
@@ -156,9 +162,9 @@ export class PoliciesService {
   // Appends a new, immutable version -- never edits an existing one -- and
   // re-snapshots sign-offs for the current active staff list, so an old
   // signature never silently carries forward onto changed content.
-  async publishVersion(id: string, dto: PublishVersionDto, actor: string, actorId: string): Promise<Policy> {
+  async publishVersion(id: string, dto: PublishVersionDto, actor: string): Promise<Policy> {
     const policy = await this.findOne(id);
-    const staffList = await this.activeStaff();
+    const staffList = await this.resolveSignOffStaff(dto.signOffStaffIds);
     const now = new Date();
     const nextVersionNumber = (policy.versions[policy.versions.length - 1]?.version ?? 0) + 1;
     policy.versions.push({
@@ -167,7 +173,7 @@ export class PoliciesService {
       changeSummary: dto.changeSummary,
       publishedAt: now,
       publishedBy: actor,
-      signOffs: this.buildSignOffs(staffList, actorId, now),
+      signOffs: this.buildSignOffs(staffList),
     } as PolicyVersion);
     if (policy.reviewFrequency) {
       policy.nextReviewDate = addReviewInterval(policy.reviewFrequency);

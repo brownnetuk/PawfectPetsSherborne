@@ -22,6 +22,47 @@ export function currentVersion(policy: Policy) {
   return policy.versions[policy.versions.length - 1];
 }
 
+// Shared by NewPolicyModal (here) and PublishVersionModal
+// (PolicyDetailModal.tsx) -- who's required to sign off a version. Purely
+// presentational; the parent owns fetching the staff list and the selection.
+export function StaffSignOffPicker({
+  staff,
+  selected,
+  onToggle,
+}: {
+  staff: { _id: string; name: string }[] | null;
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+      {staff === null ? (
+        <div style={{ padding: 16, color: 'var(--muted)' }}>Loading…</div>
+      ) : staff.length === 0 ? (
+        <div style={{ padding: 16, color: 'var(--muted)' }}>No active staff found.</div>
+      ) : (
+        staff.map((s) => (
+          <label
+            key={s._id}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '8px 12px',
+              borderBottom: '1px solid var(--border)',
+              fontWeight: 400,
+              cursor: 'pointer',
+            }}
+          >
+            <input type="checkbox" checked={selected.has(s._id)} onChange={() => onToggle(s._id)} />
+            <span>{s.name}</span>
+          </label>
+        ))
+      )}
+    </div>
+  );
+}
+
 export function policyStatusBadge(policy: Policy): string {
   if (policy.status === 'draft') return 'draft';
   const today = new Date().toISOString().slice(0, 10);
@@ -241,8 +282,27 @@ function NewPolicyModal({
   const [reviewFrequency, setReviewFrequency] = useState('');
   const [status, setStatus] = useState('draft');
   const [content, setContent] = useState('');
+  const [staffOptions, setStaffOptions] = useState<{ _id: string; name: string }[] | null>(null);
+  const [signOffStaffIds, setSignOffStaffIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.listPolicyStaffOptions().then((list) => {
+      setStaffOptions(list);
+      // Defaults to everyone -- staff can uncheck anyone who doesn't need to sign this one.
+      setSignOffStaffIds(new Set(list.map((s) => s._id)));
+    });
+  }, []);
+
+  function toggleSignOffStaff(id: string) {
+    setSignOffStaffIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -259,6 +319,7 @@ function NewPolicyModal({
         reviewFrequency: reviewFrequency || undefined,
         content,
         status,
+        signOffStaffIds: Array.from(signOffStaffIds),
       });
       onSaved();
     } catch (err) {
@@ -310,6 +371,15 @@ function NewPolicyModal({
         <div className="field">
           <label>Content</label>
           <RichTextEditor value={content} onChange={setContent} />
+        </div>
+        <div className="field">
+          <label>
+            Who needs to sign off?{' '}
+            {signOffStaffIds.size > 0 && (
+              <span style={{ fontWeight: 400, color: 'var(--muted)' }}>({signOffStaffIds.size} selected)</span>
+            )}
+          </label>
+          <StaffSignOffPicker staff={staffOptions} selected={signOffStaffIds} onToggle={toggleSignOffStaff} />
         </div>
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>

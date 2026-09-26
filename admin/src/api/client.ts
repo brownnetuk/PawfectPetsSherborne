@@ -1228,6 +1228,9 @@ export function listPolicies(): Promise<Policy[]> {
 export function getPolicy(id: string): Promise<Policy> {
   return request(`/policies/${id}`);
 }
+export function listPolicyStaffOptions(): Promise<{ _id: string; name: string }[]> {
+  return request('/policies/staff');
+}
 export interface CreatePolicyInput {
   name: string;
   category?: string;
@@ -1235,6 +1238,7 @@ export interface CreatePolicyInput {
   content: string;
   changeSummary?: string;
   status?: string;
+  signOffStaffIds?: string[];
 }
 export function createPolicy(input: CreatePolicyInput): Promise<Policy> {
   return request('/policies', { method: 'POST', body: JSON.stringify(input) });
@@ -1250,7 +1254,7 @@ export function deletePolicy(id: string): Promise<void> {
 }
 export function publishPolicyVersion(
   id: string,
-  input: { content: string; changeSummary?: string },
+  input: { content: string; changeSummary?: string; signOffStaffIds?: string[] },
 ): Promise<Policy> {
   return request(`/policies/${id}/versions`, { method: 'POST', body: JSON.stringify(input) });
 }

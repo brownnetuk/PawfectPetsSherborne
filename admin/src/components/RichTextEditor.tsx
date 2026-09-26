@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { escapeHtml } from '../utils/emailTemplate';
 
 const BLOCKS = [
   { value: 'p', label: 'Paragraph' },
@@ -20,6 +21,42 @@ const FONTS = [
 ];
 
 const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 40];
+
+// Kept when pasting rich content -- everything else is unwrapped (tag
+// removed, children kept) rather than dropped outright, since pasted HTML
+// from Word/Google Docs/web pages otherwise carries over its own inline
+// styling (fonts, colours, and -- the specific bug this fixes -- a squiggly
+// red "spelling suggestion" text-decoration baked into <span style="..."> as
+// a permanent visual artifact once pasted here).
+const PASTE_ALLOWED_TAGS = new Set([
+  'P', 'BR', 'H1', 'H2', 'H3', 'UL', 'OL', 'LI', 'B', 'STRONG', 'I', 'EM', 'U', 'A',
+  'TABLE', 'THEAD', 'TBODY', 'TR', 'TD', 'TH', 'DIV',
+]);
+
+// Strips every attribute (so no inline style/class/lang/mso-* survives) from
+// allowed tags, and unwraps anything else (e.g. <span>, <font>) -- keeping
+// its text/children in place rather than deleting the content entirely.
+function sanitizePastedHtml(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  function clean(node: ChildNode) {
+    Array.from(node.childNodes).forEach((child) => clean(child as ChildNode));
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const el = node as HTMLElement;
+    if (!PASTE_ALLOWED_TAGS.has(el.tagName)) {
+      el.replaceWith(...Array.from(el.childNodes));
+      return;
+    }
+    const href = el.tagName === 'A' ? el.getAttribute('href') : null;
+    Array.from(el.attributes).forEach((attr) => el.removeAttribute(attr.name));
+    if (href) {
+      el.setAttribute('href', href);
+      el.setAttribute('target', '_blank');
+      el.setAttribute('rel', 'noopener');
+    }
+  }
+  Array.from(doc.body.childNodes).forEach((child) => clean(child as ChildNode));
+  return doc.body.innerHTML;
+}
 
 export interface RichTextEditorHandle {
   /** Inserts text at the current cursor position (falls back to the end if nothing's focused/selected). */
@@ -68,6 +105,19 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, { value: string; onChang
 
     function handleInput() {
       if (ref.current) onChange(ref.current.innerHTML);
+    }
+
+    // Pasting anything richer than plain text otherwise inserts the
+    // clipboard's own HTML as-is, carrying over whatever styling the source
+    // (Word, Google Docs, a web page) baked in -- see sanitizePastedHtml().
+    function handlePaste(e: React.ClipboardEvent<HTMLDivElement>) {
+      e.preventDefault();
+      const html = e.clipboardData.getData('text/html');
+      const cleaned = html
+        ? sanitizePastedHtml(html)
+        : escapeHtml(e.clipboardData.getData('text/plain')).replace(/\n/g, '<br>');
+      document.execCommand('insertHTML', false, cleaned);
+      handleInput();
     }
 
     function exec(command: string, arg?: string) {
@@ -488,6 +538,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, { value: string; onChang
             className="rte-content"
             contentEditable
             onInput={handleInput}
+            onPaste={handlePaste}
             onClick={handleContainerClick}
             suppressContentEditableWarning
           />

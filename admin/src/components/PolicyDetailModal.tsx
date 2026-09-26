@@ -3,7 +3,13 @@ import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import Badge from './Badge';
 import Modal from './Modal';
-import { currentVersion, policyStatusBadge, REVIEW_FREQUENCY_OPTIONS, reviewFrequencyLabel } from './PoliciesTab';
+import {
+  currentVersion,
+  policyStatusBadge,
+  REVIEW_FREQUENCY_OPTIONS,
+  reviewFrequencyLabel,
+  StaffSignOffPicker,
+} from './PoliciesTab';
 import RichTextEditor from './RichTextEditor';
 import type { Policy } from '../types';
 
@@ -167,8 +173,15 @@ export default function PolicyDetailModal({
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem' }}>
                       <span>{s.staffName}</span>
                       {s.signedAt ? (
-                        <span style={{ color: 'var(--brand-green)', fontWeight: 600, fontSize: '0.8rem' }} title={new Date(s.signedAt).toLocaleString('en-GB')}>
-                          Signed {new Date(s.signedAt).toLocaleDateString('en-GB')}
+                        <span style={{ color: 'var(--brand-green)', fontWeight: 600, fontSize: '0.8rem' }}>
+                          Signed{' '}
+                          {new Date(s.signedAt).toLocaleString('en-GB', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
                         </span>
                       ) : (
                         <span style={{ color: 'var(--warn)', fontWeight: 600, fontSize: '0.8rem' }} title={s.reminderSentAt ? `Reminder sent ${new Date(s.reminderSentAt).toLocaleString('en-GB')}` : undefined}>
@@ -353,8 +366,26 @@ function PublishVersionModal({
 }) {
   const [content, setContent] = useState(initialContent);
   const [changeSummary, setChangeSummary] = useState('');
+  const [staffOptions, setStaffOptions] = useState<{ _id: string; name: string }[] | null>(null);
+  const [signOffStaffIds, setSignOffStaffIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.listPolicyStaffOptions().then((list) => {
+      setStaffOptions(list);
+      setSignOffStaffIds(new Set(list.map((s) => s._id)));
+    });
+  }, []);
+
+  function toggleSignOffStaff(id: string) {
+    setSignOffStaffIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -365,7 +396,11 @@ function PublishVersionModal({
     setSaving(true);
     setError(null);
     try {
-      const updated = await api.publishPolicyVersion(policyId, { content, changeSummary: changeSummary || undefined });
+      const updated = await api.publishPolicyVersion(policyId, {
+        content,
+        changeSummary: changeSummary || undefined,
+        signOffStaffIds: Array.from(signOffStaffIds),
+      });
       onSaved(updated);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to publish this version');
@@ -378,8 +413,8 @@ function PublishVersionModal({
     <Modal title="Publish New Version" onClose={onClose} wide>
       {error && <div className="error-banner">{error}</div>}
       <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: -6 }}>
-        Publishing resets sign-offs for every active staff member -- an old signature doesn't carry forward onto
-        changed content.
+        Publishing resets sign-offs to whoever's selected below -- an old signature doesn't carry forward onto
+        changed content, and that includes you: you'll need to sign off again too.
       </p>
       <form onSubmit={handleSubmit}>
         <div className="field">
@@ -394,6 +429,15 @@ function PublishVersionModal({
         <div className="field">
           <label>Content</label>
           <RichTextEditor value={content} onChange={setContent} />
+        </div>
+        <div className="field">
+          <label>
+            Who needs to sign off?{' '}
+            {signOffStaffIds.size > 0 && (
+              <span style={{ fontWeight: 400, color: 'var(--muted)' }}>({signOffStaffIds.size} selected)</span>
+            )}
+          </label>
+          <StaffSignOffPicker staff={staffOptions} selected={signOffStaffIds} onToggle={toggleSignOffStaff} />
         </div>
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>

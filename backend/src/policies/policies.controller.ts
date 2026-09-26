@@ -16,6 +16,14 @@ export class PoliciesController {
     return this.policiesService.findAll();
   }
 
+  // Ungated, and declared before ':id' so "staff" isn't swallowed as an id --
+  // any staff member composing a policy/version needs this for the sign-off
+  // picker, not just those with staff.manage.
+  @Get('staff')
+  listStaffOptions() {
+    return this.policiesService.listStaffOptions();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.policiesService.findOne(id);
@@ -24,7 +32,7 @@ export class PoliciesController {
   @RequirePermission('bookings.manage')
   @Post()
   create(@Body() dto: CreatePolicyDto, @CurrentUser() user: CurrentUserShape) {
-    return this.policiesService.create(dto, user.name, user.id);
+    return this.policiesService.create(dto, user.name);
   }
 
   @RequirePermission('bookings.manage')
@@ -46,7 +54,7 @@ export class PoliciesController {
     @Body() dto: PublishVersionDto,
     @CurrentUser() user: CurrentUserShape,
   ) {
-    return this.policiesService.publishVersion(id, dto, user.name, user.id);
+    return this.policiesService.publishVersion(id, dto, user.name);
   }
 
   // No @RequirePermission -- any logged-in staff member signs off for themselves.
