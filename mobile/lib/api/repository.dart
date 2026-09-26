@@ -477,6 +477,13 @@ class Repository {
   /// pre-check-in/check-in/check-out, per booking type).
   Future<Map<String, dynamic>> getBoardingWorkflowSettings() => _client.get('/settings/boarding');
 
+  /// Emails the customer a payment request for the booking's invoice -- a
+  /// deposit (the configured percentage) or the full amount -- and records
+  /// which was sent on the booking. Same action as the admin's Request
+  /// deposit / Request full payment buttons.
+  Future<void> requestBoardingPayment(String id, String type) =>
+      _client.post('/boarding-bookings/$id/request-payment', {'type': type});
+
   /// Links a completed check-in form onto the booking and marks it checked in.
   Future<void> recordBoardingCheckIn(String id, String submissionId) =>
       _client.post('/boarding-bookings/$id/check-in', {'submission': submissionId});

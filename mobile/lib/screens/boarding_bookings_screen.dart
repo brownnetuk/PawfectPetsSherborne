@@ -199,12 +199,72 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
   bool _openingForm = false;
   bool _sendingPreCheckIn = false;
   bool _startingCheck = false;
+  bool _requestingPayment = false;
   DateTime? _preCheckInSentAt;
+  String? _paymentRequestType;
 
   @override
   void initState() {
     super.initState();
     _preCheckInSentAt = widget.item.booking.preCheckInSentAt;
+    _paymentRequestType = widget.item.booking.paymentRequestType;
+  }
+
+  /// Prompts Deposit vs Full amount, then emails the payment request for the
+  /// booking's invoice -- the same one-shot request the admin offers (the
+  /// button hides once either has been sent).
+  Future<void> _requestPayment() async {
+    if (_requestingPayment) return;
+    final type = await showModalBottomSheet<String>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Request payment', style: TextStyle(fontWeight: FontWeight.w600)),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.savings_outlined),
+              title: const Text('Deposit'),
+              subtitle: const Text('The configured deposit percentage of the invoice total'),
+              onTap: () => Navigator.of(sheetContext).pop('deposit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.payments_outlined),
+              title: const Text('Full amount'),
+              subtitle: const Text('The whole invoice total'),
+              onTap: () => Navigator.of(sheetContext).pop('full'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (type == null || !mounted) return;
+    setState(() => _requestingPayment = true);
+    try {
+      await context.read<Repository>().requestBoardingPayment(widget.item.booking.id, type);
+      if (!mounted) return;
+      setState(() => _paymentRequestType = type);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${type == 'deposit' ? 'Deposit' : 'Full payment'} request emailed to ${widget.item.booking.customerName}.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        final message = e is ApiException ? e.message : 'Failed to send the payment request';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
+    } finally {
+      if (mounted) setState(() => _requestingPayment = false);
+    }
   }
 
   /// Emails the customer the pre-check-in link (same as the admin's "Send
@@ -258,7 +318,7 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: OutlinedButton.icon(
-        onPressed: _openingForm || _sendingPreCheckIn || _startingCheck ? null : onPressed,
+        onPressed: _openingForm || _sendingPreCheckIn || _startingCheck || _requestingPayment ? null : onPressed,
         icon: Icon(icon, size: 18),
         label: Text(label),
       ),
@@ -356,6 +416,14 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
           if ((b.notes ?? '').trim().isNotEmpty) _row('Notes', b.notes!),
           ...[
             const SizedBox(height: 8),
+            // One-shot, same as the admin: only while invoiced and no request
+            // (deposit or full) has been emailed yet.
+            if (b.invoiceId != null && _paymentRequestType == null)
+              _actionButton(
+                Icons.request_quote_outlined,
+                _requestingPayment ? 'Sending…' : 'Request payment',
+                _requestPayment,
+              ),
             if (b.invoiceId != null)
               _actionButton(
                 Icons.receipt_long_outlined,

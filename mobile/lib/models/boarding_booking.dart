@@ -22,6 +22,11 @@ class BoardingBooking {
   /// bare id) -- lets the detail screen open the invoice.
   final String? invoiceId;
 
+  /// Which payment request has been emailed for this booking's invoice:
+  /// 'deposit', 'full', or null when none has been sent yet (the request
+  /// buttons only show while null -- one request per booking, as the admin).
+  final String? paymentRequestType;
+
   /// When the pre-check-in link was last emailed to the customer (null =
   /// never sent).
   final DateTime? preCheckInSentAt;
@@ -50,6 +55,7 @@ class BoardingBooking {
     this.notes,
     required this.invoiced,
     this.invoiceId,
+    this.paymentRequestType,
     this.preCheckInSentAt,
     this.preCheckInSubmission,
     this.checkInSubmission,
@@ -84,6 +90,7 @@ class BoardingBooking {
       notes: json['notes'] as String?,
       invoiced: invoice != null,
       invoiceId: invoice is Map<String, dynamic> ? invoice['_id'] as String? : invoice as String?,
+      paymentRequestType: json['paymentRequestType'] as String?,
       preCheckInSentAt:
           json['preCheckInSentAt'] != null ? DateTime.tryParse(json['preCheckInSentAt'] as String) : null,
       preCheckInSubmission: json['preCheckInSubmission'] as String?,
