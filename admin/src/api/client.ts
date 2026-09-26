@@ -48,6 +48,7 @@ import type {
   QuoteBoardingPlan,
   QuoteDayCarePlan,
   QuoteVisitPlan,
+  RiskAssessment,
   Role,
   Staff,
   VendorOption,
@@ -1122,4 +1123,64 @@ export function updateChecklistAssignment(
 }
 export function deleteChecklistAssignment(id: string): Promise<void> {
   return request(`/checklist-assignments/${id}`, { method: 'DELETE' });
+}
+
+export function listRiskAssessments(): Promise<RiskAssessment[]> {
+  return request('/risk-assessments');
+}
+export function getRiskAssessment(id: string): Promise<RiskAssessment> {
+  return request(`/risk-assessments/${id}`);
+}
+export function createRiskAssessment(input: {
+  name: string;
+  regulationReference?: string;
+  reviewFrequency?: string;
+  scope?: string;
+  status?: string;
+}): Promise<RiskAssessment> {
+  return request('/risk-assessments', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateRiskAssessment(
+  id: string,
+  input: Partial<{
+    name: string;
+    regulationReference: string;
+    reviewFrequency: string;
+    scope: string;
+    status: string;
+  }>,
+): Promise<RiskAssessment> {
+  return request(`/risk-assessments/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deleteRiskAssessment(id: string): Promise<void> {
+  return request(`/risk-assessments/${id}`, { method: 'DELETE' });
+}
+export function reviewRiskAssessmentPolicy(id: string): Promise<RiskAssessment> {
+  return request(`/risk-assessments/${id}/review`, { method: 'POST' });
+}
+export interface RiskItemInput {
+  hazard: string;
+  whoAtRisk?: string;
+  existingControls?: string[];
+  furtherActions?: string[];
+  likelihood: number;
+  severity: number;
+  residualRisk: string;
+  reviewPeriod?: string;
+}
+export function addRiskItem(assessmentId: string, input: RiskItemInput): Promise<RiskAssessment> {
+  return request(`/risk-assessments/${assessmentId}/risks`, { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateRiskItem(
+  assessmentId: string,
+  riskId: string,
+  input: Partial<RiskItemInput>,
+): Promise<RiskAssessment> {
+  return request(`/risk-assessments/${assessmentId}/risks/${riskId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+export function deleteRiskItem(assessmentId: string, riskId: string): Promise<RiskAssessment> {
+  return request(`/risk-assessments/${assessmentId}/risks/${riskId}`, { method: 'DELETE' });
 }

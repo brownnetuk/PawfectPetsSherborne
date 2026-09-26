@@ -9,6 +9,7 @@ import Modal from '../components/Modal';
 import NewBoardingBookingModal from '../components/NewBoardingBookingModal';
 import NewBookingModal from '../components/NewBookingModal';
 import type { BoardingEditInitial, DayCareEditInitial } from '../components/NewBookingModal';
+import RiskAssessmentsTab from '../components/RiskAssessmentsTab';
 import SignaturePad from '../components/SignaturePad';
 import ViewAnimalModal from '../components/ViewAnimalModal';
 import ViewCustomerModal from '../components/ViewCustomerModal';
@@ -163,11 +164,12 @@ interface StayEditHandlers {
   onDelete: (stayId: string) => void;
 }
 
-type Tab = 'dashboard' | 'bookings' | 'occupancy' | 'checklists';
+type Tab = 'dashboard' | 'bookings' | 'occupancy' | 'riskAssessments' | 'checklists';
 const TAB_LABELS: Record<Tab, string> = {
   dashboard: 'Dashboard',
   bookings: 'Bookings',
   occupancy: 'Occupancy',
+  riskAssessments: 'Risk Assessments',
   checklists: 'Checklists',
 };
 
@@ -271,7 +273,7 @@ export default function BoardingDayCarePage() {
         <h1>Boarding &amp; Day Care</h1>
       </div>
       <div className="tabs">
-        {(['dashboard', 'bookings', 'occupancy', 'checklists'] as Tab[]).map((t) => (
+        {(['dashboard', 'bookings', 'occupancy', 'riskAssessments', 'checklists'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -294,6 +296,7 @@ export default function BoardingDayCarePage() {
           }}
         />
       )}
+      {tab === 'riskAssessments' && <RiskAssessmentsTab />}
       {tab === 'checklists' && <ChecklistsTab />}
 
       {(boardingEdit || dayCareEdit) && (

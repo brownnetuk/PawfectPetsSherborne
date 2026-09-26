@@ -45,6 +45,7 @@ import { FormSubmissionsModule } from './form-submissions/form-submissions.modul
 import { RolesModule } from './roles/roles.module';
 import { StaffModule } from './staff/staff.module';
 import { ChecklistsModule } from './checklists/checklists.module';
+import { RiskAssessmentsModule } from './risk-assessments/risk-assessments.module';
 
 @Module({
   imports: [
@@ -102,6 +103,7 @@ import { ChecklistsModule } from './checklists/checklists.module';
     FormsModule,
     FormSubmissionsModule,
     ChecklistsModule,
+    RiskAssessmentsModule,
     RolesModule,
     PortalModule,
     MessagesModule,

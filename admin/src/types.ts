@@ -971,3 +971,42 @@ export interface Enquiry {
   notes?: string;
   createdAt: string;
 }
+
+export type ReviewFrequency = 'weekly' | 'monthly' | 'quarterly' | '6-monthly' | 'annually';
+export type RiskAssessmentStatus = 'draft' | 'review' | 'live';
+export type ResidualRisk = 'low' | 'medium' | 'high';
+
+export interface RiskItem {
+  _id: string;
+  hazard: string;
+  whoAtRisk?: string;
+  existingControls: string[];
+  furtherActions: string[];
+  likelihood: number;
+  severity: number;
+  residualRisk: ResidualRisk;
+  reviewPeriod?: ReviewFrequency;
+}
+
+export interface RiskAssessmentAuditEntry {
+  action: string;
+  changes?: string;
+  actor: string;
+  at: string;
+}
+
+export interface RiskAssessment {
+  _id: string;
+  raId: string;
+  assessmentDate: string;
+  name: string;
+  regulationReference?: string;
+  reviewFrequency?: ReviewFrequency;
+  nextReviewDate?: string;
+  scope?: string;
+  status: RiskAssessmentStatus;
+  risks: RiskItem[];
+  auditLog: RiskAssessmentAuditEntry[];
+  createdAt: string;
+  updatedAt: string;
+}

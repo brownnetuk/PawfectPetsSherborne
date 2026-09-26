@@ -399,6 +399,11 @@ tbody tr:last-child td {
 .badge-declined { background: var(--error-light); color: var(--error); }
 .badge-expired { background: #eceff2; color: var(--muted); }
 .badge-partially_paid { background: var(--warn-light); color: var(--warn); margin-left: 6px; }
+.badge-review { background: var(--warn-light); color: var(--warn); }
+.badge-live { background: var(--sage-badge); color: var(--brand-green); }
+.badge-low { background: var(--sage-badge); color: var(--brand-green); }
+.badge-medium { background: var(--warn-light); color: var(--warn); }
+.badge-high { background: var(--error-light); color: var(--error); }
 
 /* A badge that wraps a native <select> so a status pill stays clickable to
    change -- the select is stripped of its default chrome and inherits the

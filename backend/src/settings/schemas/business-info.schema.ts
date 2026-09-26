@@ -146,6 +146,12 @@ export class BusinessInfo extends Document {
   @Prop({ default: 1 })
   bookingRefNextNumber?: number;
 
+  // Risk assessment IDs are just 'RA{n}' (RiskAssessmentsService.create()) --
+  // no staff-editable template, since there's no equivalent numbering
+  // customisation requirement for these the way there is for invoices/quotes.
+  @Prop({ default: 1 })
+  riskAssessmentNextNumber?: number;
+
   // Freeform layout for the invoice/quote PDF ("View" action, admin/src/pdf/invoicePdf.ts) --
   // an array of staff-positioned blocks (text/image/line/rect/qrcode/itemTable), edited via
   // the drag-and-drop designer at Settings > Invoices. Stored as opaque JSON (Mixed) since it's
