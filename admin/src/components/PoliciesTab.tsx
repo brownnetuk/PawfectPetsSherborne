@@ -112,7 +112,9 @@ export default function PoliciesTab() {
     const current = currentVersion(p);
     switch (key) {
       case 'policyId':
-        return p.policyId;
+        // Numeric part of 'POL{n}' -- plain string sort would put POL10
+        // before POL2.
+        return parseInt(p.policyId.replace(/\D/g, ''), 10) || 0;
       case 'name':
         return p.name.toLowerCase();
       case 'category':
