@@ -25,9 +25,9 @@ export class CreateExpenseDto {
   @IsString()
   paymentMethod?: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  description: string;
+  description?: string;
 
   @Type(() => Number)
   @IsNumber()

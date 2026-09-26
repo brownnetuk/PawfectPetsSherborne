@@ -15,7 +15,7 @@ function accountLabel(account: Expense['account']): string {
 
 export default function ViewExpenseModal({ expense, onClose, onEdit }: Props) {
   return (
-    <Modal title={expense.description} onClose={onClose}>
+    <Modal title={expense.description || expense.category} onClose={onClose}>
       <dl className="kv-grid">
         <dt>Date</dt>
         <dd>{new Date(expense.date).toLocaleDateString('en-GB')}</dd>
@@ -26,7 +26,7 @@ export default function ViewExpenseModal({ expense, onClose, onEdit }: Props) {
         <dt>Payment Method</dt>
         <dd>{expense.paymentMethod || '—'}</dd>
         <dt>Description</dt>
-        <dd>{expense.description}</dd>
+        <dd>{expense.description || '—'}</dd>
         <dt>Amount</dt>
         <dd style={{ fontWeight: 700 }}>£{expense.amount.toFixed(2)}</dd>
         <dt>Account</dt>

@@ -299,7 +299,7 @@ export class BankAccountsService {
       }),
       ...expenses.map((e): UnbalancedTransaction => ({
         date: e.date,
-        description: e.description,
+        description: e.description || e.category,
         amount: -e.amount,
         type: 'expense',
       })),

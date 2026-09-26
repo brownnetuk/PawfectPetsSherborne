@@ -23,8 +23,8 @@ export class Expense extends Document {
   @Prop()
   paymentMethod?: string;
 
-  @Prop({ required: true })
-  description: string;
+  @Prop()
+  description?: string;
 
   @Prop({ required: true, min: 0 })
   amount: number;

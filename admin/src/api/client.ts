@@ -714,7 +714,7 @@ export interface ExpenseInput {
   category: string;
   payee?: string;
   paymentMethod?: string;
-  description: string;
+  description?: string;
   amount: number;
   account?: string;
   receipt?: string;

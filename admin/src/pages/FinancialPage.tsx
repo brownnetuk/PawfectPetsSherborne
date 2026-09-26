@@ -319,6 +319,7 @@ function ExpensesCard() {
               <th>Description</th>
               <th>Amount</th>
               <th>Account</th>
+              <th>Attachment</th>
               <th></th>
             </tr>
           </thead>
@@ -328,9 +329,18 @@ function ExpensesCard() {
                 <td>{new Date(e.date).toLocaleDateString('en-GB')}</td>
                 <td>{e.category}</td>
                 <td>{e.payee || '—'}</td>
-                <td>{e.description}</td>
+                <td>{e.description || '—'}</td>
                 <td>£{e.amount.toFixed(2)}</td>
                 <td>{expenseAccountLabel(e.account)}</td>
+                <td>
+                  {e.receipt ? (
+                    <span style={{ color: 'var(--brand-green)', fontWeight: 700 }} title="Has an attachment">
+                      ✓
+                    </span>
+                  ) : (
+                    <span style={{ color: 'var(--muted)' }}>—</span>
+                  )}
+                </td>
                 <td onClick={(ev) => ev.stopPropagation()}>
                   <div style={{ display: 'flex', gap: 2 }}>
                     <button className="icon-btn" title="Edit" onClick={() => setEditing(e)}>

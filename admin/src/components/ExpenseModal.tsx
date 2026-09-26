@@ -34,6 +34,10 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showAddPayee, setShowAddPayee] = useState(false);
+  const [newPayeeName, setNewPayeeName] = useState('');
+  const [addPayeeBusy, setAddPayeeBusy] = useState(false);
+  const [addPayeeError, setAddPayeeError] = useState<string | null>(null);
 
   useEffect(() => {
     api.listBankAccounts().then((list) => {
@@ -64,6 +68,24 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function handleAddPayee() {
+    const name = newPayeeName.trim();
+    if (!name) return;
+    setAddPayeeBusy(true);
+    setAddPayeeError(null);
+    try {
+      const vendor = await api.createVendor({ name });
+      setVendors((prev) => [...(prev ?? []), vendor]);
+      setPayee(vendor.name);
+      setNewPayeeName('');
+      setShowAddPayee(false);
+    } catch (err) {
+      setAddPayeeError(err instanceof Error ? err.message : 'Failed to add this payee');
+    } finally {
+      setAddPayeeBusy(false);
+    }
+  }
+
   function handleReceiptChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -93,7 +115,7 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
         category,
         payee: payee || undefined,
         paymentMethod: paymentMethod || undefined,
-        description,
+        description: description || undefined,
         amount: Number(amount),
         account: account || undefined,
         receipt: receipt || undefined,
@@ -142,18 +164,84 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
         </div>
         <div className="field-row">
           <div className="field">
-            <label>Payee</label>
-            <select value={payee} onChange={(e) => setPayee(e.target.value)}>
-              <option value="">No payee</option>
-              {vendors?.map((v) => (
-                <option key={v._id} value={v.name}>
-                  {v.name}
-                </option>
-              ))}
-              {/* Keeps an existing expense's stored payee selectable even if it's since
-                  been renamed or removed from Settings > Finance. */}
-              {payee && !vendors?.some((v) => v.name === payee) && <option value={payee}>{payee}</option>}
-            </select>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Payee</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddPayee((v) => !v);
+                  setAddPayeeError(null);
+                }}
+                title="Add new payee"
+                aria-label="Add new payee"
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  border: '1px solid var(--border)',
+                  background: '#fff',
+                  color: 'var(--brand-green)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 14,
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                  padding: 0,
+                  fontWeight: 700,
+                }}
+              >
+                +
+              </button>
+            </label>
+            {showAddPayee ? (
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type="text"
+                  value={newPayeeName}
+                  onChange={(e) => setNewPayeeName(e.target.value)}
+                  placeholder="New payee name"
+                  autoFocus
+                  style={{ flexGrow: 1 }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleAddPayee}
+                  disabled={addPayeeBusy || !newPayeeName.trim()}
+                >
+                  {addPayeeBusy ? 'Adding…' : 'Add'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    setShowAddPayee(false);
+                    setNewPayeeName('');
+                    setAddPayeeError(null);
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <select value={payee} onChange={(e) => setPayee(e.target.value)}>
+                <option value="">No payee</option>
+                {vendors?.map((v) => (
+                  <option key={v._id} value={v.name}>
+                    {v.name}
+                  </option>
+                ))}
+                {/* Keeps an existing expense's stored payee selectable even if it's since
+                    been renamed or removed from Settings > Finance. */}
+                {payee && !vendors?.some((v) => v.name === payee) && <option value={payee}>{payee}</option>}
+              </select>
+            )}
+            {addPayeeError && (
+              <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--error)', marginTop: 4 }}>
+                {addPayeeError}
+              </div>
+            )}
           </div>
           <div className="field">
             <label>Payment Method</label>
@@ -173,8 +261,8 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
           </div>
         </div>
         <div className="field">
-          <label>Description *</label>
-          <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} required />
+          <label>Description</label>
+          <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
         <div className="field-row">
           <div className="field">
