@@ -38,6 +38,8 @@ export default function PolicyDetailModal({
   const [showPublishVersion, setShowPublishVersion] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   function refresh() {
@@ -73,6 +75,21 @@ export default function PolicyDetailModal({
       onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send reminder');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleResetToV1() {
+    setBusy(true);
+    setResetError(null);
+    try {
+      const updated = await api.resetPolicyToV1(policyId);
+      setPolicy(updated);
+      setShowResetConfirm(false);
+      onChanged();
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : 'Failed to reset this policy');
     } finally {
       setBusy(false);
     }
@@ -166,6 +183,11 @@ export default function PolicyDetailModal({
               <button className="btn btn-secondary btn-sm" onClick={() => setShowAudit(true)}>
                 Audit
               </button>
+              {policy.versions.length > 1 && (
+                <button className="btn btn-danger btn-sm" onClick={() => setShowResetConfirm(true)}>
+                  Reset to v1
+                </button>
+              )}
             </div>
             <section className="card" style={{ margin: 0 }}>
               <h2 style={{ marginTop: 0 }}>{current ? `Policy Reviews for v${current.version}` : 'Policy Reviews'}</h2>
@@ -280,6 +302,24 @@ export default function PolicyDetailModal({
           onClose={() => setShowReviewModal(false)}
           onAgree={handleSignOff}
         />
+      )}
+
+      {showResetConfirm && current && (
+        <Modal title="Reset this policy to v1?" onClose={() => setShowResetConfirm(false)}>
+          {resetError && <div className="error-banner">{resetError}</div>}
+          <p>
+            This permanently deletes {current.version === 2 ? 'v2' : `v2–v${current.version}`} and all of
+            their review history, leaving only v1's content and reviews. This can't be undone.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setShowResetConfirm(false)} disabled={busy}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleResetToV1} disabled={busy}>
+              {busy ? 'Resetting…' : 'Reset to v1'}
+            </button>
+          </div>
+        </Modal>
       )}
     </>
   );

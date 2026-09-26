@@ -260,6 +260,32 @@ export class PoliciesService {
     return policy;
   }
 
+  // Discards every version after v1, keeping only the original content --
+  // for undoing an unwanted burst of published versions without deleting the
+  // policy itself. v1's own sign-offs are left exactly as they were;
+  // nextReviewDate is recomputed the same way a first publish sets it.
+  async resetToV1(id: string, actor: string): Promise<Policy> {
+    const policy = await this.findOne(id);
+    if (policy.versions.length <= 1) {
+      return policy;
+    }
+    const removedFrom = policy.versions[1].version;
+    const removedTo = policy.versions[policy.versions.length - 1].version;
+    policy.versions = [policy.versions[0]];
+    if (policy.reviewFrequency) {
+      policy.nextReviewDate = addReviewInterval(policy.reviewFrequency);
+      policy.reviewDueNotified = false;
+    }
+    policy.auditLog.push({
+      action: 'Reset to v1',
+      changes: removedFrom === removedTo ? `Removed v${removedFrom}` : `Removed v${removedFrom}–v${removedTo}`,
+      actor,
+      at: new Date(),
+    });
+    await policy.save();
+    return policy;
+  }
+
   @Cron(CronExpression.EVERY_HOUR)
   private async notifyDueReviews(): Promise<void> {
     const due = await this.policyModel

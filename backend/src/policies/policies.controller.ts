@@ -70,4 +70,10 @@ export class PoliciesController {
   sendReminder(@Param('id') id: string, @CurrentUser() user: CurrentUserShape) {
     return this.policiesService.sendReminder(id, user.name);
   }
+
+  @RequirePermission('bookings.manage')
+  @Post(':id/reset-to-v1')
+  resetToV1(@Param('id') id: string, @CurrentUser() user: CurrentUserShape) {
+    return this.policiesService.resetToV1(id, user.name);
+  }
 }

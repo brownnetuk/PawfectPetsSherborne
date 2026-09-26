@@ -1265,3 +1265,6 @@ export function signOffPolicy(id: string, signedName: string): Promise<Policy> {
 export function sendPolicyReminder(id: string): Promise<Policy> {
   return request(`/policies/${id}/remind`, { method: 'POST' });
 }
+export function resetPolicyToV1(id: string): Promise<Policy> {
+  return request(`/policies/${id}/reset-to-v1`, { method: 'POST' });
+}
