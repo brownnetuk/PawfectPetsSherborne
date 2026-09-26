@@ -4,7 +4,10 @@ import Badge from './Badge';
 import Modal from './Modal';
 import PolicyDetailModal from './PolicyDetailModal';
 import RichTextEditor from './RichTextEditor';
+import SortableTh from './SortableTh';
 import type { Policy } from '../types';
+
+type SortKey = 'policyId' | 'name' | 'category' | 'version' | 'lastReviewed' | 'nextReview' | 'reviewed' | 'status';
 
 export const REVIEW_FREQUENCY_OPTIONS: { value: string; label: string }[] = [
   { value: 'weekly', label: 'Weekly' },
@@ -77,6 +80,8 @@ export default function PoliciesTab() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [showForm, setShowForm] = useState(false);
   const [deleting, setDeleting] = useState<Policy | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -90,6 +95,40 @@ export default function PoliciesTab() {
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load policies'));
   }
   useEffect(refresh, []);
+
+  function toggleSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
+
+  // Version/Last reviewed/Reviewed aren't direct Policy fields -- they're
+  // derived from the current (latest) version, same source the table cells
+  // themselves read from.
+  function sortValue(p: Policy, key: SortKey): string | number {
+    const current = currentVersion(p);
+    switch (key) {
+      case 'policyId':
+        return p.policyId;
+      case 'name':
+        return p.name.toLowerCase();
+      case 'category':
+        return (p.category ?? '').toLowerCase();
+      case 'version':
+        return current?.version ?? 0;
+      case 'lastReviewed':
+        return current ? new Date(current.publishedAt).getTime() : 0;
+      case 'nextReview':
+        return p.nextReviewDate ?? '';
+      case 'reviewed':
+        return current?.signOffs.filter((s) => s.signedAt).length ?? 0;
+      case 'status':
+        return policyStatusBadge(p);
+    }
+  }
 
   async function handleDelete() {
     if (!deleting) return;
@@ -108,11 +147,18 @@ export default function PoliciesTab() {
 
   const categories = ['All', ...Array.from(new Set((policies ?? []).map((p) => p.category).filter(Boolean)))] as string[];
   const q = search.trim().toLowerCase();
-  const filtered = (policies ?? []).filter((p) => {
-    if (category !== 'All' && p.category !== category) return false;
-    if (!q) return true;
-    return p.name.toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q);
-  });
+  const filtered = (policies ?? [])
+    .filter((p) => {
+      if (category !== 'All' && p.category !== category) return false;
+      if (!q) return true;
+      return p.name.toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q);
+    })
+    .sort((a, b) => {
+      const av = sortValue(a, sortKey);
+      const bv = sortValue(b, sortKey);
+      const cmp = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv));
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
 
   const publishedCount = (policies ?? []).filter((p) => p.status === 'published').length;
   const today = new Date();
@@ -188,14 +234,14 @@ export default function PoliciesTab() {
           <table>
             <thead>
               <tr>
-                <th>Policy ID</th>
-                <th>Policy</th>
-                <th>Category</th>
-                <th>Version</th>
-                <th>Last reviewed</th>
-                <th>Next review</th>
-                <th>Reviewed</th>
-                <th>Status</th>
+                <SortableTh label="Policy ID" sortKey="policyId" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Policy" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Category" sortKey="category" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Version" sortKey="version" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Last reviewed" sortKey="lastReviewed" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Next review" sortKey="nextReview" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Reviewed" sortKey="reviewed" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
                 <th>Actions</th>
               </tr>
             </thead>
