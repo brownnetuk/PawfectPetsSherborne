@@ -4,15 +4,18 @@ import Modal from '../components/Modal';
 import RichTextEditor from '../components/RichTextEditor';
 import { TrashIcon } from '../components/icons';
 import type {
+  BusinessInfo,
   Conversation,
   Customer,
   EmailGroup,
   EmailMessage,
   EmailMessageRecipient,
+  EmailTemplate,
   Message,
   PushMessage,
   PushMessageRecipient,
 } from '../types';
+import { interpolateBody, interpolateSubject } from '../utils/emailTemplate';
 
 type Tab = 'conversations' | 'push' | 'email';
 
@@ -1106,6 +1109,7 @@ function ComposeEmailModal({ onClose, onSent }: { onClose: () => void; onSent: (
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<EmailMessage | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     api
@@ -1119,9 +1123,9 @@ function ComposeEmailModal({ onClose, onSent }: { onClose: () => void; onSent: (
   }, []);
 
   const q = query.trim().toLowerCase();
-  const filteredCustomers = (customers ?? []).filter(
-    (c) => c.name.toLowerCase().includes(q) || (c.email ?? '').toLowerCase().includes(q),
-  );
+  const filteredCustomers = (customers ?? [])
+    .filter((c) => c.name.toLowerCase().includes(q) || (c.email ?? '').toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name));
   const allFilteredSelected = filteredCustomers.length > 0 && filteredCustomers.every((c) => selectedCustomers.has(c._id));
 
   // Best-effort live count -- de-dupes a customer picked both individually and
@@ -1160,7 +1164,7 @@ function ComposeEmailModal({ onClose, onSent }: { onClose: () => void; onSent: (
     });
   }
 
-  async function handleSend(e: React.FormEvent) {
+  function openPreview(e: React.FormEvent) {
     e.preventDefault();
     if (!subject.trim() || !bodyHtml.replace(/<[^>]*>/g, '').trim()) {
       setError('Enter a subject and a message.');
@@ -1170,6 +1174,11 @@ function ComposeEmailModal({ onClose, onSent }: { onClose: () => void; onSent: (
       setError('Choose at least one customer or group.');
       return;
     }
+    setError(null);
+    setShowPreview(true);
+  }
+
+  async function handleConfirmSend() {
     setSending(true);
     setError(null);
     try {
@@ -1180,12 +1189,26 @@ function ComposeEmailModal({ onClose, onSent }: { onClose: () => void; onSent: (
         groupIds: Array.from(selectedGroups),
       });
       setResult(sent);
+      setShowPreview(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send email');
     } finally {
       setSending(false);
     }
   }
+
+  // A representative name for the preview -- the actual send personalizes
+  // {{name}} per recipient, so this just shows what one of them will see.
+  const sampleRecipientName = (() => {
+    const firstCustomerId = Array.from(selectedCustomers)[0];
+    const fromCustomer = customers?.find((c) => c._id === firstCustomerId)?.name;
+    if (fromCustomer) return fromCustomer;
+    for (const groupId of selectedGroups) {
+      const name = groups?.find((g) => g._id === groupId)?.customers[0]?.name;
+      if (name) return name;
+    }
+    return 'Customer';
+  })();
 
   if (result) {
     const sent = result.recipients.filter((r) => r.status === 'sent').length;
@@ -1204,9 +1227,24 @@ function ComposeEmailModal({ onClose, onSent }: { onClose: () => void; onSent: (
     );
   }
 
+  if (showPreview) {
+    return (
+      <EmailPreviewModal
+        subject={subject.trim()}
+        bodyHtml={bodyHtml}
+        recipientCount={recipientCount}
+        sampleRecipientName={sampleRecipientName}
+        sending={sending}
+        error={error}
+        onBack={() => setShowPreview(false)}
+        onSend={handleConfirmSend}
+      />
+    );
+  }
+
   return (
     <Modal title="New Email" onClose={onClose} wide>
-      <form onSubmit={handleSend}>
+      <form onSubmit={openPreview}>
         {error && <div className="error-banner">{error}</div>}
         <div className="field">
           <label>Subject</label>
@@ -1229,12 +1267,14 @@ function ComposeEmailModal({ onClose, onSent }: { onClose: () => void; onSent: (
         </div>
         {recipientType === 'customers' ? (
           <>
-            <input
-              type="text"
-              placeholder="Search customers by name or email…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+            <div className="field" style={{ marginBottom: 0 }}>
+              <input
+                type="text"
+                placeholder="Search customers by name or email…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '6px 0' }}>
               <button type="button" className="icon-btn" style={{ width: 'auto', fontSize: '0.8rem', padding: '2px 8px' }} onClick={toggleSelectAllFiltered}>
                 {allFilteredSelected ? 'Clear all' : `Select all${query ? ' (matching)' : ''}`}
@@ -1289,11 +1329,112 @@ function ComposeEmailModal({ onClose, onSent }: { onClose: () => void; onSent: (
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary" disabled={sending}>
-            {sending ? 'Sending…' : `Send${recipientCount > 0 ? ` (${recipientCount})` : ''}`}
+          <button type="submit" className="btn btn-primary">
+            {`Preview${recipientCount > 0 ? ` (${recipientCount})` : ''}`}
           </button>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+// Shows exactly what the GENERIC email template renders this composed
+// message into (same "wrap the staff-authored body in the business's own
+// template" step EmailMessagesService.send() applies at send time), for one
+// representative recipient -- the real send personalizes {{name}} per
+// customer, so wording just after "Hi" may vary slightly per recipient.
+function EmailPreviewModal({
+  subject,
+  bodyHtml,
+  recipientCount,
+  sampleRecipientName,
+  sending,
+  error,
+  onBack,
+  onSend,
+}: {
+  subject: string;
+  bodyHtml: string;
+  recipientCount: number;
+  sampleRecipientName: string;
+  sending: boolean;
+  error: string | null;
+  onBack: () => void;
+  onSend: () => void;
+}) {
+  const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
+  const [template, setTemplate] = useState<EmailTemplate | null | undefined>(undefined);
+
+  useEffect(() => {
+    api.getBusinessInfo().then(setBusinessInfo).catch(() => {});
+    api
+      .listEmailTemplates()
+      .then((templates) => setTemplate(templates.find((t) => t.trigger === 'generic') ?? null))
+      .catch(() => setTemplate(null));
+  }, []);
+
+  let renderedSubject = subject;
+  let renderedBody = '';
+  if (businessInfo && template) {
+    const vars: Record<string, string | undefined> = {
+      businessName: businessInfo.name,
+      businessAddress: businessInfo.address,
+      businessTown: businessInfo.town,
+      businessPostcode: businessInfo.postcode,
+      businessTelephone: businessInfo.telephone,
+      businessEmail: businessInfo.email,
+      businessWebsite: businessInfo.website,
+      name: sampleRecipientName,
+      campaignSubject: subject,
+    };
+    const logoTag = businessInfo.logoImage
+      ? `<img src="${businessInfo.logoImage}" alt="" style="max-height:60px;max-width:220px;display:block;" />`
+      : '';
+    const rawVars = { logo: logoTag, emailBodyText: bodyHtml };
+    renderedSubject = interpolateSubject(template.subject, vars);
+    renderedBody = `<div style="max-width:600px;margin:0 auto;">${interpolateBody(template.body, vars, rawVars, true)}</div>`;
+  }
+
+  return (
+    <Modal title="Preview Email" onClose={onBack} wide>
+      {error && <div className="error-banner">{error}</div>}
+      {template === undefined && <div className="empty-state">Loading…</div>}
+      {template === null && (
+        <div className="error-banner">
+          No Generic Email Template is set up yet — add one in Settings &gt; Email Templates first.
+        </div>
+      )}
+      {template && businessInfo && (
+        <>
+          <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: -6 }}>
+            This is what {recipientCount === 1 ? sampleRecipientName : `each of the ${recipientCount} recipients`}{' '}
+            will see (personalized by name per recipient).
+          </p>
+          <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{ background: 'var(--sage)', padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--muted)', textTransform: 'uppercase' }}>Subject</div>
+              <div style={{ fontWeight: 600 }}>{renderedSubject}</div>
+            </div>
+            <div
+              style={{ padding: '16px 20px', background: '#fff', lineHeight: 1.5, maxHeight: 420, overflowY: 'auto' }}
+              dangerouslySetInnerHTML={{ __html: renderedBody }}
+            />
+          </div>
+        </>
+      )}
+      <div className="modal-actions">
+        <button type="button" className="btn btn-secondary" onClick={onBack} disabled={sending}>
+          Back
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={onSend}
+          disabled={sending || !template || !businessInfo}
+        >
+          {sending ? 'Sending…' : `Send (${recipientCount})`}
+        </button>
+      </div>
     </Modal>
   );
 }
