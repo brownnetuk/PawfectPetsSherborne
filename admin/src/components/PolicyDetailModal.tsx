@@ -179,47 +179,50 @@ export default function PolicyDetailModal({
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-          <article style={{ flexGrow: 1, background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '24px 28px' }}>
-            {current ? (
-              <div dangerouslySetInnerHTML={{ __html: current.content }} />
-            ) : (
-              <div className="empty-state">No version published yet.</div>
-            )}
-          </article>
-          <aside style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <section className="card" style={{ margin: 0 }}>
-              <h2 style={{ marginTop: 0 }}>{current ? `Policy Reviews for v${current.version}` : 'Policy Reviews'}</h2>
-              {!current || current.signOffs.length === 0 ? (
-                <div className="empty-state">No staff need to review this policy.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {current.signOffs.map((s, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem' }}>
-                      <span>{s.staffName}</span>
-                      {s.signedAt ? (
-                        <span style={{ color: 'var(--brand-green)', fontWeight: 600, fontSize: '0.8rem' }}>
-                          Reviewed{' '}
-                          {new Date(s.signedAt).toLocaleString('en-GB', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--warn)', fontWeight: 600, fontSize: '0.8rem' }} title={s.reminderSentAt ? `Reminder sent ${new Date(s.reminderSentAt).toLocaleString('en-GB')}` : undefined}>
-                          Not yet reviewed
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </aside>
-        </div>
+        {current && current.signOffs.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              rowGap: 6,
+              columnGap: 20,
+              padding: '0 0 16px',
+              borderBottom: '1px solid var(--border)',
+              marginBottom: 16,
+            }}
+          >
+            <div style={LABEL_CAPTION_STYLE}>Policy Reviews for v{current.version}</div>
+            {current.signOffs.map((s, i) => (
+              <span key={i} style={{ fontSize: '0.85rem' }}>
+                {s.staffName}:{' '}
+                {s.signedAt ? (
+                  <span
+                    style={{ color: 'var(--brand-green)', fontWeight: 600 }}
+                    title={new Date(s.signedAt).toLocaleString('en-GB')}
+                  >
+                    Reviewed
+                  </span>
+                ) : (
+                  <span
+                    style={{ color: 'var(--warn)', fontWeight: 600 }}
+                    title={s.reminderSentAt ? `Reminder sent ${new Date(s.reminderSentAt).toLocaleString('en-GB')}` : undefined}
+                  >
+                    Not yet reviewed
+                  </span>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <article style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '24px 28px' }}>
+          {current ? (
+            <div dangerouslySetInnerHTML={{ __html: current.content }} />
+          ) : (
+            <div className="empty-state">No version published yet.</div>
+          )}
+        </article>
       </Modal>
 
       {showEditDetails && (
