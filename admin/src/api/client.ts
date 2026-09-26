@@ -1234,6 +1234,7 @@ export function listPolicyStaffOptions(): Promise<{ _id: string; name: string }[
 export interface CreatePolicyInput {
   name: string;
   category?: string;
+  reference?: string;
   reviewFrequency?: string;
   content: string;
   changeSummary?: string;
@@ -1245,7 +1246,7 @@ export function createPolicy(input: CreatePolicyInput): Promise<Policy> {
 }
 export function updatePolicy(
   id: string,
-  input: Partial<{ name: string; category: string; reviewFrequency: string; status: string }>,
+  input: Partial<{ name: string; category: string; reference: string; reviewFrequency: string; status: string }>,
 ): Promise<Policy> {
   return request(`/policies/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
 }

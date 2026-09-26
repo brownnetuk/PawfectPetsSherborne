@@ -11,6 +11,10 @@ export class CreatePolicyDto {
   category?: string;
 
   @IsOptional()
+  @IsString()
+  reference?: string;
+
+  @IsOptional()
   @IsIn(REVIEW_FREQUENCIES)
   reviewFrequency?: string;
 

@@ -187,6 +187,7 @@ export default function PoliciesTab() {
           <table>
             <thead>
               <tr>
+                <th>Policy ID</th>
                 <th>Policy</th>
                 <th>Category</th>
                 <th>Version</th>
@@ -204,6 +205,7 @@ export default function PoliciesTab() {
                 const totalCount = current?.signOffs.length ?? 0;
                 return (
                   <tr key={p._id} onDoubleClick={() => setOpenId(p._id)} style={{ cursor: 'pointer' }}>
+                    <td style={{ color: 'var(--muted)' }}>{p.policyId}</td>
                     <td>
                       <strong>{p.name}</strong>
                     </td>
@@ -237,6 +239,7 @@ export default function PoliciesTab() {
       {showForm && (
         <NewPolicyModal
           categories={categories.filter((c) => c !== 'All')}
+          nextIdHint={`POL${(policies?.length ?? 0) + 1}`}
           onClose={() => setShowForm(false)}
           onSaved={() => {
             setShowForm(false);
@@ -270,15 +273,18 @@ export default function PoliciesTab() {
 
 function NewPolicyModal({
   categories,
+  nextIdHint,
   onClose,
   onSaved,
 }: {
   categories: string[];
+  nextIdHint: string;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
+  const [reference, setReference] = useState('');
   const [reviewFrequency, setReviewFrequency] = useState('');
   const [status, setStatus] = useState('draft');
   const [content, setContent] = useState('');
@@ -316,6 +322,7 @@ function NewPolicyModal({
       await api.createPolicy({
         name,
         category: category || undefined,
+        reference: reference || undefined,
         reviewFrequency: reviewFrequency || undefined,
         content,
         status,
@@ -335,9 +342,16 @@ function NewPolicyModal({
       <form onSubmit={handleSubmit}>
         <div className="field-row">
           <div className="field">
+            <label>Policy ID</label>
+            <input type="text" value={nextIdHint} disabled />
+            <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>Auto-assigned on save</span>
+          </div>
+          <div className="field">
             <label>Policy name *</label>
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Escaped dog procedure" required autoFocus />
           </div>
+        </div>
+        <div className="field-row">
           <div className="field">
             <label>Category</label>
             <input type="text" list="policy-categories" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Emergencies" />
@@ -346,6 +360,10 @@ function NewPolicyModal({
                 <option key={c} value={c} />
               ))}
             </datalist>
+          </div>
+          <div className="field">
+            <label>Reference</label>
+            <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. Schedule 2, paragraph 5.1" />
           </div>
         </div>
         <div className="field-row">

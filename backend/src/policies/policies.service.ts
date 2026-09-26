@@ -2,7 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model } from 'mongoose';
+import { nextSequenceNumber } from '../common/document-number.util';
 import { NotificationService } from '../notifications/notification.service';
+import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { Staff } from '../staff/schemas/staff.schema';
 import { CreatePolicyDto } from './dto/create-policy.dto';
 import { PublishVersionDto } from './dto/publish-version.dto';
@@ -50,6 +52,7 @@ export class PoliciesService {
   constructor(
     @InjectModel(Policy.name) private readonly policyModel: Model<Policy>,
     @InjectModel(Staff.name) private readonly staffModel: Model<Staff>,
+    @InjectModel(BusinessInfo.name) private readonly businessInfoModel: Model<BusinessInfo>,
     private readonly notificationService: NotificationService,
   ) {}
 
@@ -94,6 +97,7 @@ export class PoliciesService {
     const staffList = await this.resolveSignOffStaff(dto.signOffStaffIds);
     const now = new Date();
     const status = (dto.status ?? 'draft') as PolicyStatus;
+    const seq = await nextSequenceNumber(this.businessInfoModel, 'policyNextNumber');
     const version: PolicyVersion = {
       version: 1,
       content: dto.content,
@@ -103,8 +107,10 @@ export class PoliciesService {
       signOffs: this.buildSignOffs(staffList),
     } as PolicyVersion;
     const policy = new this.policyModel({
+      policyId: `POL${seq}`,
       name: dto.name,
       category: dto.category,
+      reference: dto.reference,
       reviewFrequency: dto.reviewFrequency,
       status,
       nextReviewDate:
@@ -129,6 +135,10 @@ export class PoliciesService {
     if (dto.category !== undefined && dto.category !== policy.category) {
       changed.push(`Category: "${dto.category}"`);
       policy.category = dto.category;
+    }
+    if (dto.reference !== undefined && dto.reference !== policy.reference) {
+      changed.push(`Reference: "${dto.reference}"`);
+      policy.reference = dto.reference;
     }
     if (dto.reviewFrequency !== undefined && dto.reviewFrequency !== policy.reviewFrequency) {
       changed.push(`Review Frequency: ${dto.reviewFrequency}`);

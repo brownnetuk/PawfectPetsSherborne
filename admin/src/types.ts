@@ -1072,8 +1072,10 @@ export interface PolicyAuditEntry {
 
 export interface Policy {
   _id: string;
+  policyId: string;
   name: string;
   category?: string;
+  reference?: string;
   status: PolicyStatus;
   reviewFrequency?: ReviewFrequency;
   nextReviewDate?: string;

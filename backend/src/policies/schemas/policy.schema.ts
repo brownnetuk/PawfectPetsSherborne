@@ -86,6 +86,12 @@ export const PolicyAuditEntrySchema = SchemaFactory.createForClass(PolicyAuditEn
 
 @Schema({ timestamps: true })
 export class Policy extends Document {
+  // 'POL{n}', assigned once on creation from BusinessInfo.policyNextNumber
+  // (see PoliciesService.create()) -- same atomic-counter convention as
+  // RiskAssessment.raId.
+  @Prop({ required: true, unique: true })
+  policyId: string;
+
   @Prop({ required: true })
   name: string;
 
@@ -94,6 +100,12 @@ export class Policy extends Document {
   // can introduce their own without a settings change.
   @Prop()
   category?: string;
+
+  // A regulation/licence clause this policy addresses, e.g. "Schedule 2,
+  // paragraph 5.1" -- same free-text convention as
+  // RiskAssessment.regulationReference.
+  @Prop()
+  reference?: string;
 
   @Prop({ type: String, enum: ['draft', 'published'], default: 'draft' })
   status: PolicyStatus;

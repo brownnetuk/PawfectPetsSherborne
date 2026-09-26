@@ -108,8 +108,16 @@ export default function PolicyDetailModal({
           }}
         >
           <div>
+            <div style={LABEL_CAPTION_STYLE}>Policy ID</div>
+            {policy.policyId}
+          </div>
+          <div>
             <div style={LABEL_CAPTION_STYLE}>Category</div>
             {policy.category || '—'}
+          </div>
+          <div>
+            <div style={LABEL_CAPTION_STYLE}>Reference</div>
+            {policy.reference || '—'}
           </div>
           <div>
             <div style={LABEL_CAPTION_STYLE}>Status</div>
@@ -337,6 +345,7 @@ function EditPolicyModal({
 }) {
   const [name, setName] = useState(policy.name);
   const [category, setCategory] = useState(policy.category ?? '');
+  const [reference, setReference] = useState(policy.reference ?? '');
   const [reviewFrequency, setReviewFrequency] = useState(policy.reviewFrequency ?? '');
   const [status, setStatus] = useState(policy.status);
   const [error, setError] = useState<string | null>(null);
@@ -350,6 +359,7 @@ function EditPolicyModal({
       const updated = await api.updatePolicy(policy._id, {
         name,
         category: category || undefined,
+        reference: reference || undefined,
         reviewFrequency: reviewFrequency || undefined,
         status,
       });
@@ -367,12 +377,22 @@ function EditPolicyModal({
       <form onSubmit={handleSubmit}>
         <div className="field-row">
           <div className="field">
+            <label>Policy ID</label>
+            <input type="text" value={policy.policyId} disabled />
+          </div>
+          <div className="field">
             <label>Policy name *</label>
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
           </div>
+        </div>
+        <div className="field-row">
           <div className="field">
             <label>Category</label>
             <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Reference</label>
+            <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} />
           </div>
         </div>
         <div className="field-row">
