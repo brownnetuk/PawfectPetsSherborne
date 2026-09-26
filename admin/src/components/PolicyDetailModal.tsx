@@ -78,7 +78,7 @@ export default function PolicyDetailModal({
 
   if (!policy) {
     return (
-      <Modal title="Policy" onClose={onClose} full>
+      <Modal title="Policy" onClose={onClose} xl>
         {error && <div className="error-banner">{error}</div>}
         <div className="empty-state">Loading…</div>
       </Modal>
@@ -92,34 +92,7 @@ export default function PolicyDetailModal({
 
   return (
     <>
-      <Modal
-        title={policy.name}
-        onClose={onClose}
-        full
-        headerActions={
-          <>
-            <button className="btn btn-secondary btn-sm" onClick={() => setShowAudit(true)}>
-              Audit
-            </button>
-            {iNeedToSign && (
-              <button className="btn btn-primary btn-sm" onClick={handleSignOff} disabled={busy}>
-                {busy ? 'Working…' : 'Sign Off'}
-              </button>
-            )}
-            {anyOutstanding && (
-              <button className="btn btn-secondary btn-sm" onClick={handleSendReminder} disabled={busy}>
-                Send Reminder
-              </button>
-            )}
-            <button className="btn btn-secondary btn-sm" onClick={() => setShowPublishVersion(true)}>
-              Publish New Version
-            </button>
-            <button className="btn btn-secondary btn-sm" onClick={() => setShowEditDetails(true)}>
-              Edit Details
-            </button>
-          </>
-        }
-      >
+      <Modal title={policy.name} onClose={onClose} xl>
         {error && <div className="error-banner">{error}</div>}
 
         <div
@@ -162,7 +135,28 @@ export default function PolicyDetailModal({
               <div className="empty-state">No version published yet.</div>
             )}
           </article>
-          <aside style={{ width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <aside style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {iNeedToSign && (
+                <button className="btn btn-primary btn-sm" onClick={handleSignOff} disabled={busy}>
+                  {busy ? 'Working…' : 'Sign Off'}
+                </button>
+              )}
+              {anyOutstanding && (
+                <button className="btn btn-secondary btn-sm" onClick={handleSendReminder} disabled={busy}>
+                  Send Reminder
+                </button>
+              )}
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowPublishVersion(true)}>
+                Publish New Version
+              </button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowEditDetails(true)}>
+                Edit Details
+              </button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowAudit(true)}>
+                Audit
+              </button>
+            </div>
             <section className="card" style={{ margin: 0 }}>
               <h2 style={{ marginTop: 0 }}>{current ? `Sign-offs for v${current.version}` : 'Sign-offs'}</h2>
               {!current || current.signOffs.length === 0 ? (
