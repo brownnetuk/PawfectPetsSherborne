@@ -11,6 +11,33 @@ interface Props {
   onRemove: (index: number) => void;
 }
 
+// Just the child fields of ONE repetition -- shared by this component's own
+// scrollable "every repetition inline" rendering and by FormFillPage.tsx's
+// paginated wizard, which shows one repetition at a time and needs the same
+// field markup without the surrounding "every repetition in one block" shell.
+export function GroupRepetitionFields({
+  field,
+  repetition,
+  onFieldChange,
+}: {
+  field: GroupFormField;
+  repetition: Record<string, unknown>;
+  onFieldChange: (fieldId: string, value: unknown) => void;
+}) {
+  return (
+    <>
+      {field.fields.filter((child) => isFieldVisible(child, repetition)).map((child) => (
+        <FieldRenderer
+          key={child.id}
+          field={child}
+          value={repetition[child.id]}
+          onChange={(v) => onFieldChange(child.id, v)}
+        />
+      ))}
+    </>
+  );
+}
+
 // Renders `minRepeats`+ blocks of a group inline on the page (not one per
 // wizard step, unlike IntakeForm.tsx's per-pet steps -- this is a single,
 // scrollable page) with "+ Add another"/"Remove" controls, closer in spirit
@@ -52,14 +79,11 @@ export default function RepeatableGroup({ field, value, onFieldChange, onAdd, on
               </button>
             )}
           </div>
-          {field.fields.filter((child) => isFieldVisible(child, repetition)).map((child) => (
-            <FieldRenderer
-              key={child.id}
-              field={child}
-              value={repetition[child.id]}
-              onChange={(v) => onFieldChange(index, child.id, v)}
-            />
-          ))}
+          <GroupRepetitionFields
+            field={field}
+            repetition={repetition}
+            onFieldChange={(fieldId, v) => onFieldChange(index, fieldId, v)}
+          />
         </div>
       ))}
       {canAdd && (

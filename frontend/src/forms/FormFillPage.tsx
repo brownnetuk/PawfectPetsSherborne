@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import FieldRenderer from './FieldRenderer';
 import { defaultAnswersFor, isFieldVisible } from './formDefaults';
+import ProgressBar from '../intake/ProgressBar';
 import ReadOnlyAnswers from './ReadOnlyAnswers';
-import RepeatableGroup from './RepeatableGroup';
-import type { FormField, FormSubmissionPublic } from '../types';
+import RepeatableGroup, { GroupRepetitionFields } from './RepeatableGroup';
+import type { FormField, FormSubmissionPublic, GroupFormField } from '../types';
 
 type LoadState = 'loading' | 'not-found' | 'already-completed' | 'ready' | 'submitted';
 
@@ -16,12 +17,66 @@ function isEmpty(field: FormField, value: unknown): boolean {
   return value === undefined || value === null || value === '';
 }
 
+type Page =
+  | { kind: 'fields'; key: string; fields: FormField[] }
+  | { kind: 'groupRepetition'; key: string; field: GroupFormField; index: number; isLast: boolean };
+
+// Splits a form's top-level fields into wizard pages, same look as the
+// hardcoded Customer Intake wizard (frontend/src/intake/) -- but purely
+// data-driven, so ANY form gets this once staff mark a section with "+ New
+// page" in the builder (a top-level `display` field with startsNewPage). A
+// `group` (e.g. "Pet") always gets one page per repetition regardless of
+// startsNewPage, mirroring intake's own one-step-per-pet pages -- a
+// repeatable section split across N pages reads far better than N copies of
+// the same block stacked on one page. A form with no startsNewPage fields at
+// all keeps rendering as a single scrollable page (see isPaginated below);
+// this only ever runs once that's true.
+function buildPages(fields: FormField[], answers: Record<string, unknown>): Page[] {
+  const pages: Page[] = [];
+  let current: FormField[] = [];
+  const flush = () => {
+    if (current.length > 0) {
+      pages.push({ kind: 'fields', key: `fields-${pages.length}`, fields: current });
+      current = [];
+    }
+  };
+  for (const field of fields) {
+    if (field.type === 'group') {
+      flush();
+      const value = (answers[field.id] as Record<string, unknown>[]) ?? [];
+      const count = Math.max(value.length, 1);
+      for (let i = 0; i < count; i++) {
+        pages.push({ kind: 'groupRepetition', key: `${field.id}-${i}`, field, index: i, isLast: i === count - 1 });
+      }
+      continue;
+    }
+    if (field.type === 'display' && field.startsNewPage && current.length > 0) {
+      flush();
+    }
+    current.push(field);
+  }
+  flush();
+  return pages;
+}
+
+// The most recent section heading in a "fields" page reads better as its
+// progress-bar label than the form's own name repeated on every page (e.g.
+// "Emergency contact" rather than "Pre-Check-In" for every single step).
+function pageLabel(page: Page, formName: string): string {
+  if (page.kind === 'groupRepetition') {
+    return page.field.repetitionLabels?.[page.index] ?? `${page.field.label} ${page.index + 1}`;
+  }
+  const headings = page.fields.filter((f) => f.type === 'display');
+  return headings[headings.length - 1]?.label ?? formName;
+}
+
 export default function FormFillPage({ submissionId }: { submissionId: string }) {
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [submission, setSubmission] = useState<FormSubmissionPublic | null>(null);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
 
   useEffect(() => {
     // Resets immediately (not just on the eventual response) so navigating
@@ -33,6 +88,7 @@ export default function FormFillPage({ submissionId }: { submissionId: string })
     setSubmission(null);
     setAnswers({});
     setError(null);
+    setCurrentPage(0);
     api
       .fetchFormSubmission(submissionId)
       .then((s) => {
@@ -143,6 +199,56 @@ export default function FormFillPage({ submissionId }: { submissionId: string })
     }
   }
 
+  // Validates just the page the customer is currently on -- Submit still
+  // runs the full validate() above as a final safety net regardless of how
+  // they navigated here, but per-page validation gives an earlier, more
+  // specific error right where the problem is instead of only at the very end.
+  function validateCurrentPage(page: Page): string | null {
+    if (page.kind === 'fields') {
+      for (const field of page.fields) {
+        if (!isFieldVisible(field, answers)) continue;
+        if (field.required && isEmpty(field, answers[field.id])) {
+          return `Please fill in "${field.label}".`;
+        }
+      }
+      return null;
+    }
+    const repetitions = (answers[page.field.id] as Record<string, unknown>[]) ?? [];
+    const repetition = repetitions[page.index] ?? {};
+    for (const child of page.field.fields) {
+      if (!isFieldVisible(child, repetition)) continue;
+      if (child.required && isEmpty(child, repetition[child.id])) {
+        return `Please fill in "${child.label}".`;
+      }
+    }
+    return null;
+  }
+
+  function handleNextPage(page: Page, lastIndex: number) {
+    const validationError = validateCurrentPage(page);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError(null);
+    setCurrentPage((p) => Math.min(p + 1, lastIndex));
+  }
+
+  function handleBackPage() {
+    setError(null);
+    setCurrentPage((p) => Math.max(p - 1, 0));
+  }
+
+  function handleAddRepetitionPage(field: GroupFormField) {
+    addGroupRepetition(field.id, field.fields);
+    setCurrentPage((p) => p + 1);
+  }
+
+  function handleRemoveRepetitionPage(field: GroupFormField, index: number, pagesLength: number) {
+    removeGroupRepetition(field.id, index);
+    setCurrentPage((p) => Math.min(p, pagesLength - 2));
+  }
+
   if (loadState === 'loading') {
     return <div className="center-message">Loading…</div>;
   }
@@ -184,31 +290,112 @@ export default function FormFillPage({ submissionId }: { submissionId: string })
     );
   }
 
+  const visibleFields = submission.fields.filter((field) => isFieldVisible(field, answers));
+  // Opt-in: a form only becomes a paginated wizard once it has at least one
+  // "+ New page" marker -- every other form keeps rendering exactly as
+  // before (see buildPages' comment above for why).
+  const isPaginated = submission.fields.some((field) => field.type === 'display' && field.startsNewPage);
+
+  if (!isPaginated) {
+    return (
+      <form onSubmit={handleSubmit} className="card">
+        <h1>{submission.formName}</h1>
+        {submission.formDescription && <p className="subtitle">{submission.formDescription}</p>}
+        {error && <div className="error-banner">{error}</div>}
+        {visibleFields.map((field) =>
+          field.type === 'group' ? (
+            <RepeatableGroup
+              key={field.id}
+              field={field}
+              value={(answers[field.id] as Record<string, unknown>[]) ?? []}
+              onFieldChange={(index, fieldId, v) => setGroupFieldAnswer(field.id, index, fieldId, v)}
+              onAdd={() => addGroupRepetition(field.id, field.fields)}
+              onRemove={(index) => removeGroupRepetition(field.id, index)}
+            />
+          ) : (
+            <FieldRenderer key={field.id} field={field} value={answers[field.id]} onChange={(v) => setAnswer(field.id, v)} />
+          ),
+        )}
+        <div className="actions">
+          <span />
+          <button className="btn btn-primary" type="submit" disabled={submitting}>
+            {submitting ? 'Submitting…' : 'Submit'}
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  const pages = buildPages(visibleFields, answers);
+  const pageIndex = Math.min(currentPage, pages.length - 1);
+  const page = pages[pageIndex];
+  const isLastPage = pageIndex === pages.length - 1;
+  const label = page ? pageLabel(page, submission.formName) : submission.formName;
+
   return (
-    <form onSubmit={handleSubmit} className="card">
-      <h1>{submission.formName}</h1>
-      {submission.formDescription && <p className="subtitle">{submission.formDescription}</p>}
-      {error && <div className="error-banner">{error}</div>}
-      {submission.fields.filter((field) => isFieldVisible(field, answers)).map((field) =>
-        field.type === 'group' ? (
-          <RepeatableGroup
-            key={field.id}
-            field={field}
-            value={(answers[field.id] as Record<string, unknown>[]) ?? []}
-            onFieldChange={(index, fieldId, v) => setGroupFieldAnswer(field.id, index, fieldId, v)}
-            onAdd={() => addGroupRepetition(field.id, field.fields)}
-            onRemove={(index) => removeGroupRepetition(field.id, index)}
-          />
-        ) : (
-          <FieldRenderer key={field.id} field={field} value={answers[field.id]} onChange={(v) => setAnswer(field.id, v)} />
-        ),
-      )}
-      <div className="actions">
-        <span />
-        <button className="btn btn-primary" type="submit" disabled={submitting}>
-          {submitting ? 'Submitting…' : 'Submit'}
-        </button>
-      </div>
-    </form>
+    <>
+      <ProgressBar current={pageIndex + 1} total={pages.length} label={label} />
+      <form onSubmit={handleSubmit} className="card">
+        {error && <div className="error-banner">{error}</div>}
+        {page?.kind === 'fields' &&
+          page.fields.map((field) => (
+            <FieldRenderer key={field.id} field={field} value={answers[field.id]} onChange={(v) => setAnswer(field.id, v)} />
+          ))}
+        {page?.kind === 'groupRepetition' &&
+          (() => {
+            const groupField = page.field;
+            const groupIndex = page.index;
+            const value = (answers[groupField.id] as Record<string, unknown>[]) ?? [];
+            const repetition = value[groupIndex] ?? {};
+            const canRemove = value.length > groupField.minRepeats;
+            const canAdd = groupField.maxRepeats === undefined || value.length < groupField.maxRepeats;
+            return (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <h2 style={{ fontSize: '1.15rem', margin: 0 }}>{label}</h2>
+                  {canRemove && (
+                    <button type="button" className="btn-link" onClick={() => handleRemoveRepetitionPage(groupField, groupIndex, pages.length)}>
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <GroupRepetitionFields
+                  field={groupField}
+                  repetition={repetition}
+                  onFieldChange={(fieldId, v) => setGroupFieldAnswer(groupField.id, groupIndex, fieldId, v)}
+                />
+                {page.isLast && canAdd && (
+                  <button type="button" className="btn-link" onClick={() => handleAddRepetitionPage(groupField)}>
+                    + Add another {groupField.label}
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+        <div className="actions">
+          {pageIndex > 0 ? (
+            <button className="btn btn-secondary" type="button" onClick={handleBackPage} disabled={submitting}>
+              Back
+            </button>
+          ) : (
+            <span />
+          )}
+          {isLastPage ? (
+            <button className="btn btn-primary" type="submit" disabled={submitting}>
+              {submitting ? 'Submitting…' : 'Submit'}
+            </button>
+          ) : (
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={() => page && handleNextPage(page, pages.length - 1)}
+              disabled={submitting}
+            >
+              Next
+            </button>
+          )}
+        </div>
+      </form>
+    </>
   );
 }

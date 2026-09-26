@@ -44,13 +44,26 @@ import { FormField } from './form-field.types';
 // plain submission answers only (visible in the admin's submission view/PDF),
 // same as e.g. check-in's "Consent forms completed" toggle.
 //
-// The "Client details"/"Emergency contact"/"Emergency vet"/"Boarding-specific
-// questions"/"Additional consent" display fields do double duty: shown as a
-// plain heading on the live form, AND read by admin/src/pdf/formSubmissionPdf.ts
-// as a marker that starts a new PDF page section titled with that field's own
-// label -- a *top-level* display field becomes a full section heading; one
-// nested inside the "Pet" group (pc-pet-boardingHeading) becomes a lighter
-// sub-heading within that pet's own section instead.
+// The "Emergency contact"/"Emergency vet"/"Additional consent" display fields
+// (startsNewPage: true) do double duty, same as every other form that uses
+// this flag: read by admin/src/pdf/formSubmissionPdf.ts as a marker that
+// starts a new PDF page section titled with that field's own label, AND now
+// (frontend/src/forms/FormFillPage.tsx) as a real page break on the live
+// customer-facing form itself -- any top-level display field with
+// startsNewPage turns the whole form into a paginated, Back/Next wizard
+// (matching the look of the hardcoded Customer Intake wizard,
+// frontend/src/intake/), one section per page. "Client details" and
+// "Boarding-specific questions" (pc-pet-boardingHeading, nested inside the
+// "Pet" group) deliberately don't set it -- the former stays on the first
+// page alongside pc-bookingRef, the latter is just a lighter sub-heading
+// within its own pet's page. The "Pet" group itself always gets one page per
+// pet regardless of startsNewPage (see FormFillPage.tsx), same as intake's
+// own one-step-per-pet wizard.
+//
+// The "Pet" group's field list mirrors every field (and mapping path) in
+// Customer Intake's own "Pet" group, so a customer can review and correct
+// the animal's full record ahead of the stay, not just the handful (vaccine/
+// allergies/medication/temperament) this form originally asked about.
 export const DEFAULT_PRE_CHECKIN_FORM: {
   name: string;
   description: string;
@@ -142,6 +155,7 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
       type: 'display',
       label: 'Emergency contact',
       required: false,
+      startsNewPage: true,
     },
     {
       id: 'pc-ec-sameAsClient',
@@ -219,6 +233,7 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
       type: 'display',
       label: 'Emergency vet',
       required: false,
+      startsNewPage: true,
     },
     {
       id: 'pc-ev-practiceName',
@@ -291,6 +306,54 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
       minRepeats: 1,
       createsAnimal: false,
       fields: [
+        // Same field set (and mapping paths) as Customer Intake's own "Pet"
+        // group below -- pre-filled from the animal's current record by
+        // BoardingBookingsService.buildPreCheckInAnswers(), so this reads as
+        // "please review and correct" rather than "please retype everything".
+        {
+          id: 'pc-pet-species',
+          type: 'choice',
+          label: 'Type',
+          required: true,
+          options: ['dog', 'cat', 'other'],
+          mapping: { target: 'animal', path: 'species' },
+        },
+        {
+          id: 'pc-pet-name',
+          type: 'text',
+          label: 'Name',
+          required: true,
+          mapping: { target: 'animal', path: 'name' },
+        },
+        {
+          id: 'pc-pet-breed',
+          type: 'text',
+          label: 'Breed / type of animal',
+          required: true,
+          mapping: { target: 'animal', path: 'breed' },
+        },
+        {
+          id: 'pc-pet-sex',
+          type: 'choice',
+          label: 'Sex',
+          required: true,
+          options: ['male', 'female'],
+          mapping: { target: 'animal', path: 'sex' },
+        },
+        {
+          id: 'pc-pet-age',
+          type: 'number',
+          label: 'Age',
+          required: true,
+          mapping: { target: 'animal', path: 'age' },
+        },
+        {
+          id: 'pc-pet-dateOfBirth',
+          type: 'date',
+          label: 'Date of birth',
+          required: false,
+          mapping: { target: 'animal', path: 'dateOfBirth' },
+        },
         {
           id: 'pc-pet-vaccinated',
           type: 'toggle',
@@ -305,6 +368,110 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
           required: false,
           mapping: { target: 'animal', path: 'vaccineExpiryDate' },
           visibleWhen: { mode: 'all', conditions: [{ fieldId: 'pc-pet-vaccinated', equals: 'true' }] },
+        },
+        {
+          id: 'pc-pet-photos',
+          type: 'file',
+          label: 'Photos',
+          required: false,
+          maxFiles: 2,
+          mapping: { target: 'animal', path: 'photos' },
+        },
+        {
+          id: 'pc-pet-colourMarkings',
+          type: 'text',
+          label: 'Colour / markings',
+          required: false,
+          mapping: { target: 'animal', path: 'colourMarkings' },
+        },
+        {
+          id: 'pc-pet-microchipNumber',
+          type: 'text',
+          label: 'Microchip number',
+          required: false,
+          mapping: { target: 'animal', path: 'microchipNumber' },
+        },
+        {
+          id: 'pc-pet-neuteredStatus',
+          type: 'choice',
+          label: 'Is your pet Spayed/Neutered?',
+          required: false,
+          options: ['neutered', 'spayed', 'no'],
+          mapping: { target: 'animal', path: 'neuteredStatus' },
+        },
+        {
+          id: 'pc-pet-lastSeasonEndDate',
+          type: 'date',
+          label: 'End date of last season?',
+          required: false,
+          mapping: { target: 'animal', path: 'lastSeasonEndDate' },
+          // Only intact (not spayed/neutered) females can have a "last
+          // season" -- a spayed dog doesn't have seasons.
+          visibleWhen: {
+            mode: 'all',
+            conditions: [
+              { fieldId: 'pc-pet-neuteredStatus', equals: 'no' },
+              { fieldId: 'pc-pet-sex', equals: 'female' },
+            ],
+          },
+        },
+        {
+          id: 'pc-pet-temperamentNotes',
+          type: 'textarea',
+          label: 'Temperament notes',
+          required: false,
+          mapping: { target: 'animal', path: 'temperamentNotes' },
+        },
+        {
+          id: 'pc-pet-aggressionToPeople',
+          type: 'toggle',
+          label: 'Aggression to people',
+          required: true,
+          mapping: { target: 'animal', path: 'aggressionToPeople' },
+        },
+        {
+          id: 'pc-pet-aggressionToPeopleDetails',
+          type: 'text',
+          label: 'Aggression to people -- details',
+          required: false,
+          mapping: { target: 'animal', path: 'aggressionToPeopleDetails' },
+        },
+        {
+          id: 'pc-pet-aggressionToOtherAnimals',
+          type: 'toggle',
+          label: 'Aggression to other animals (dogs/other only)',
+          required: false,
+          mapping: { target: 'animal', path: 'aggressionToOtherAnimals' },
+        },
+        {
+          id: 'pc-pet-aggressionToOtherAnimalsDetails',
+          type: 'text',
+          label: 'Aggression to other animals -- details',
+          required: false,
+          mapping: { target: 'animal', path: 'aggressionToOtherAnimalsDetails' },
+        },
+        {
+          id: 'pc-pet-travelsWellInCar',
+          type: 'choice',
+          label: 'Travels well in car (dogs/other only)',
+          required: false,
+          options: ['yes', 'no', 'unsure'],
+          mapping: { target: 'animal', path: 'travelsWellInCar' },
+        },
+        {
+          id: 'pc-pet-chasesLivestock',
+          type: 'choice',
+          label: 'Chases livestock (dogs only)',
+          required: false,
+          options: ['yes', 'no', 'unsure'],
+          mapping: { target: 'animal', path: 'chasesLivestock' },
+        },
+        {
+          id: 'pc-pet-chasesLivestockDetails',
+          type: 'text',
+          label: 'Chases livestock -- details',
+          required: false,
+          mapping: { target: 'animal', path: 'chasesLivestockDetails' },
         },
         {
           id: 'pc-pet-allergiesStatus',
@@ -357,11 +524,19 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
           mapping: { target: 'animal', path: 'medication.medications[0].administeredByPawfectPets' },
         },
         {
-          id: 'pc-pet-temperamentNotes',
-          type: 'textarea',
-          label: 'Temperament notes',
+          id: 'pc-pet-offLeadMode',
+          type: 'choice',
+          label: 'On lead / off lead (dogs only)',
           required: false,
-          mapping: { target: 'animal', path: 'temperamentNotes' },
+          options: ['on_lead', 'off_lead'],
+          mapping: { target: 'animal', path: 'offLeadConsent.mode' },
+        },
+        {
+          id: 'pc-pet-offLeadSignature',
+          type: 'signature',
+          label: 'Off-lead consent signature (dogs, off lead only)',
+          required: false,
+          mapping: { target: 'animal', path: 'offLeadConsent.signature' },
         },
         {
           id: 'pc-pet-boardingHeading',
@@ -390,6 +565,7 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
       type: 'display',
       label: 'Additional consent -- please confirm the following:',
       required: false,
+      startsNewPage: true,
     },
     {
       id: 'pc-consentAccurate',
