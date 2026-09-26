@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model } from 'mongoose';
 import { nextSequenceNumber } from '../common/document-number.util';
+import { NotificationService } from '../notifications/notification.service';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { CreateRiskAssessmentDto } from './dto/create-risk-assessment.dto';
 import { CreateRiskItemDto } from './dto/create-risk-item.dto';
@@ -72,6 +74,7 @@ export class RiskAssessmentsService {
   constructor(
     @InjectModel(RiskAssessment.name) private readonly riskAssessmentModel: Model<RiskAssessment>,
     @InjectModel(BusinessInfo.name) private readonly businessInfoModel: Model<BusinessInfo>,
+    private readonly notificationService: NotificationService,
   ) {}
 
   findAll(): Promise<RiskAssessment[]> {
@@ -103,6 +106,7 @@ export class RiskAssessmentsService {
 
   async update(id: string, dto: UpdateRiskAssessmentDto, actor: string): Promise<RiskAssessment> {
     const assessment = await this.findOne(id);
+    const wasLive = assessment.status === 'live';
     const changed: string[] = [];
     if (dto.name !== undefined && dto.name !== assessment.name) {
       changed.push(`Name: "${dto.name}"`);
@@ -123,6 +127,15 @@ export class RiskAssessmentsService {
     if (dto.status !== undefined && dto.status !== assessment.status) {
       changed.push(`Status: ${dto.status}`);
       assessment.status = dto.status as RiskAssessment['status'];
+    }
+    // Going live for the first time (or after being taken off live) schedules
+    // its first review from today, using whatever review frequency is set --
+    // otherwise "Next Review Date" would sit at "—" until someone happened to
+    // use "Review Policy" separately.
+    if (assessment.status === 'live' && !wasLive && assessment.reviewFrequency) {
+      assessment.nextReviewDate = addReviewInterval(assessment.reviewFrequency);
+      assessment.reviewDueNotified = false;
+      changed.push(`Next review date set to ${assessment.nextReviewDate}`);
     }
     if (changed.length > 0) {
       assessment.auditLog.push({
@@ -146,14 +159,35 @@ export class RiskAssessmentsService {
   async reviewPolicy(id: string, actor: string): Promise<RiskAssessment> {
     const assessment = await this.findOne(id);
     assessment.nextReviewDate = addReviewInterval(assessment.reviewFrequency);
+    assessment.reviewDueNotified = false;
     assessment.auditLog.push({
       action: 'Policy Reviewed',
-      changes: `Next review date set to ${assessment.nextReviewDate}`,
+      changes: `Signed off by ${actor} -- next review date set to ${assessment.nextReviewDate}`,
       actor,
       at: new Date(),
     });
     await assessment.save();
     return assessment;
+  }
+
+  // Notifies staff (admin feed + push) the first time a live assessment's
+  // next review date arrives -- reviewDueNotified stops this re-firing every
+  // hour once overdue, and is cleared again by reviewPolicy()/update() (going
+  // live) whenever nextReviewDate next moves forward.
+  @Cron(CronExpression.EVERY_HOUR)
+  private async notifyDueReviews(): Promise<void> {
+    const due = await this.riskAssessmentModel
+      .find({ status: 'live', nextReviewDate: { $lte: today() }, reviewDueNotified: { $ne: true } })
+      .exec();
+    for (const assessment of due) {
+      await this.notificationService.dispatch(
+        'Risk assessment review due',
+        `${assessment.name} (${assessment.raId}) is due for review.`,
+        'riskAssessmentReviewDue',
+      );
+      assessment.reviewDueNotified = true;
+      await assessment.save();
+    }
   }
 
   async addRisk(id: string, dto: CreateRiskItemDto, actor: string): Promise<RiskAssessment> {

@@ -31,6 +31,100 @@ function RiskScoreBadge({ likelihood, severity }: { likelihood: number; severity
   return <span className={`badge badge-${band}`}>{score} - {band.toUpperCase()}</span>;
 }
 
+// Shared by the full detail view (editable, onEdit/onDelete given) and the
+// read-only Review modal (neither given -- no Actions column shown).
+function RisksTable({
+  risks,
+  onEdit,
+  onDelete,
+}: {
+  risks: RiskItem[];
+  onEdit?: (risk: RiskItem) => void;
+  onDelete?: (risk: RiskItem) => void;
+}) {
+  const showActions = !!onEdit || !!onDelete;
+  if (risks.length === 0) {
+    return <div className="empty-state">No risks recorded yet.</div>;
+  }
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Hazard / Risk</th>
+            <th>Who At Risk</th>
+            <th>Existing Controls</th>
+            <th>Further Actions</th>
+            <th>L</th>
+            <th>S</th>
+            <th>Score</th>
+            <th>Residual Risk</th>
+            <th>Review</th>
+            {showActions && <th>Actions</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {risks.map((r, i) => (
+            <tr key={r._id}>
+              <td>{i + 1}</td>
+              <td>
+                <strong>{r.hazard}</strong>
+              </td>
+              <td>{r.whoAtRisk || '—'}</td>
+              <td>
+                {r.existingControls.length > 0 ? (
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    {r.existingControls.map((c, j) => (
+                      <li key={j}>{c}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  '—'
+                )}
+              </td>
+              <td>
+                {r.furtherActions.length > 0 ? (
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    {r.furtherActions.map((a, j) => (
+                      <li key={j}>{a}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  '—'
+                )}
+              </td>
+              <td>{r.likelihood}</td>
+              <td>{r.severity}</td>
+              <td>
+                <RiskScoreBadge likelihood={r.likelihood} severity={r.severity} />
+              </td>
+              <td>
+                <Badge value={r.residualRisk} />
+              </td>
+              <td>{reviewFrequencyLabel(r.reviewPeriod)}</td>
+              {showActions && (
+                <td>
+                  {onEdit && (
+                    <button className="btn btn-secondary btn-sm" onClick={() => onEdit(r)}>
+                      Edit
+                    </button>
+                  )}{' '}
+                  {onDelete && (
+                    <button className="btn btn-danger btn-sm" onClick={() => onDelete(r)}>
+                      Delete
+                    </button>
+                  )}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function RiskAssessmentDetailModal({
   assessmentId,
   onClose,
@@ -91,7 +185,7 @@ export default function RiskAssessmentDetailModal({
 
   if (!assessment) {
     return (
-      <Modal title="Risk Assessment" onClose={onClose} xl>
+      <Modal title="Risk Assessment" onClose={onClose} full>
         {error && <div className="error-banner">{error}</div>}
         <div className="empty-state">Loading…</div>
       </Modal>
@@ -103,7 +197,7 @@ export default function RiskAssessmentDetailModal({
       <Modal
         title={assessment.name}
         onClose={onClose}
-        xl
+        full
         headerActions={
           <>
             <button className="btn btn-secondary btn-sm" onClick={() => setShowAudit(true)}>
@@ -158,82 +252,11 @@ export default function RiskAssessmentDetailModal({
           </button>
         </div>
 
-        {assessment.risks.length === 0 ? (
-          <div className="empty-state">No risks recorded yet.</div>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Hazard / Risk</th>
-                  <th>Who At Risk</th>
-                  <th>Existing Controls</th>
-                  <th>Further Actions</th>
-                  <th>L</th>
-                  <th>S</th>
-                  <th>Score</th>
-                  <th>Residual Risk</th>
-                  <th>Review</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {assessment.risks.map((r, i) => (
-                  <tr key={r._id}>
-                    <td>{i + 1}</td>
-                    <td>
-                      <strong>{r.hazard}</strong>
-                    </td>
-                    <td>{r.whoAtRisk || '—'}</td>
-                    <td>
-                      {r.existingControls.length > 0 ? (
-                        <ul style={{ margin: 0, paddingLeft: 18 }}>
-                          {r.existingControls.map((c, j) => (
-                            <li key={j}>{c}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td>
-                      {r.furtherActions.length > 0 ? (
-                        <ul style={{ margin: 0, paddingLeft: 18 }}>
-                          {r.furtherActions.map((a, j) => (
-                            <li key={j}>{a}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td>{r.likelihood}</td>
-                    <td>{r.severity}</td>
-                    <td>
-                      <RiskScoreBadge likelihood={r.likelihood} severity={r.severity} />
-                    </td>
-                    <td>
-                      <Badge value={r.residualRisk} />
-                    </td>
-                    <td>{reviewFrequencyLabel(r.reviewPeriod)}</td>
-                    <td>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => setShowRiskForm({ mode: 'edit', risk: r })}
-                      >
-                        Edit
-                      </button>{' '}
-                      <button className="btn btn-danger btn-sm" onClick={() => setDeletingRisk(r)}>
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <RisksTable
+          risks={assessment.risks}
+          onEdit={(r) => setShowRiskForm({ mode: 'edit', risk: r })}
+          onDelete={setDeletingRisk}
+        />
       </Modal>
 
       {showEditDetails && (
@@ -496,6 +519,99 @@ function EditRiskModal({
           </button>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+// Opened from the Risk Assessments list's "Review" action -- shows every risk
+// (read-only) so staff actually look them over before signing off, rather
+// than the header's one-click "Review Policy" shortcut. Both end up calling
+// the same reviewPolicy() endpoint.
+export function ReviewRiskAssessmentModal({
+  assessmentId,
+  onClose,
+  onChanged,
+}: {
+  assessmentId: string;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const [assessment, setAssessment] = useState<RiskAssessment | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [signing, setSigning] = useState(false);
+
+  useEffect(() => {
+    api
+      .getRiskAssessment(assessmentId)
+      .then(setAssessment)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load this risk assessment'));
+  }, [assessmentId]);
+
+  async function handleSignOff() {
+    setSigning(true);
+    setError(null);
+    try {
+      await api.reviewRiskAssessmentPolicy(assessmentId);
+      onChanged();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to sign off this review');
+    } finally {
+      setSigning(false);
+    }
+  }
+
+  if (!assessment) {
+    return (
+      <Modal title="Review Risk Assessment" onClose={onClose} full>
+        {error && <div className="error-banner">{error}</div>}
+        <div className="empty-state">Loading…</div>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal title={`Review — ${assessment.name}`} onClose={onClose} full>
+      {error && <div className="error-banner">{error}</div>}
+      <div
+        style={{
+          display: 'flex',
+          gap: 24,
+          padding: '10px 0 16px',
+          borderBottom: '1px solid var(--border)',
+          marginBottom: 16,
+        }}
+      >
+        <div>
+          <div style={LABEL_CAPTION_STYLE}>RA ID</div>
+          <strong>{assessment.raId}</strong>
+        </div>
+        <div>
+          <div style={LABEL_CAPTION_STYLE}>Review Frequency</div>
+          {reviewFrequencyLabel(assessment.reviewFrequency)}
+        </div>
+        <div>
+          <div style={LABEL_CAPTION_STYLE}>Next Review Date</div>
+          {assessment.nextReviewDate ? new Date(assessment.nextReviewDate).toLocaleDateString('en-GB') : '—'}
+        </div>
+      </div>
+
+      <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>
+        Look over every risk below, then sign off to confirm this assessment has been reviewed --
+        this resets the review period, counting {reviewFrequencyLabel(assessment.reviewFrequency).toLowerCase()} from
+        today.
+      </p>
+
+      <RisksTable risks={assessment.risks} />
+
+      <div className="modal-actions">
+        <button type="button" className="btn btn-secondary" onClick={onClose} disabled={signing}>
+          Cancel
+        </button>
+        <button type="button" className="btn btn-primary" onClick={handleSignOff} disabled={signing}>
+          {signing ? 'Signing off…' : 'Sign off review'}
+        </button>
+      </div>
     </Modal>
   );
 }

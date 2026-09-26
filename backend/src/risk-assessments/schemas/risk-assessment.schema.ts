@@ -111,6 +111,13 @@ export class RiskAssessment extends Document {
 
   @Prop({ type: [RiskAssessmentAuditEntrySchema], default: [] })
   auditLog: RiskAssessmentAuditEntry[];
+
+  // Set once a "review due" notification has gone out for the current
+  // nextReviewDate, and cleared again whenever nextReviewDate moves forward
+  // (going live, or a review sign-off) -- stops RiskAssessmentsService's
+  // hourly cron re-notifying every hour once a review is overdue.
+  @Prop({ default: false })
+  reviewDueNotified?: boolean;
 }
 
 export const RiskAssessmentSchema = SchemaFactory.createForClass(RiskAssessment);

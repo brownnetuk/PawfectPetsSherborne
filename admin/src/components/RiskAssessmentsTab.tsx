@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import Badge from './Badge';
 import Modal from './Modal';
-import RiskAssessmentDetailModal from './RiskAssessmentDetailModal';
+import RiskAssessmentDetailModal, { ReviewRiskAssessmentModal } from './RiskAssessmentDetailModal';
 import type { RiskAssessment } from '../types';
 
 export const REVIEW_FREQUENCY_OPTIONS: { value: string; label: string }[] = [
@@ -27,6 +27,7 @@ export default function RiskAssessmentsTab() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
 
   function refresh() {
     api
@@ -100,6 +101,9 @@ export default function RiskAssessmentsTab() {
                   </td>
                   <td>{ra.risks.length}</td>
                   <td onClick={(e) => e.stopPropagation()}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setReviewingId(ra._id)}>
+                      Review
+                    </button>{' '}
                     <button className="btn btn-secondary btn-sm" onClick={() => setShowForm({ mode: 'edit', assessment: ra })}>
                       Edit
                     </button>{' '}
@@ -148,6 +152,14 @@ export default function RiskAssessmentsTab() {
         <RiskAssessmentDetailModal
           assessmentId={openId}
           onClose={() => setOpenId(null)}
+          onChanged={refresh}
+        />
+      )}
+
+      {reviewingId && (
+        <ReviewRiskAssessmentModal
+          assessmentId={reviewingId}
+          onClose={() => setReviewingId(null)}
           onChanged={refresh}
         />
       )}
