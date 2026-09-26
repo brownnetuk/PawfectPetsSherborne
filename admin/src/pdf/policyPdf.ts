@@ -69,7 +69,13 @@ export async function buildPolicyPdf(policy: Policy, version: PolicyVersion): Pr
       y: MARGIN_PT,
       width: CONTENT_WIDTH_PT,
       windowWidth: RENDER_WIDTH_PX,
-      autoPaging: 'text',
+      // 'text' mode (jsPDF's more elaborate vector-text-reconstruction path)
+      // has its own coordinate-transform bug that silently truncates some
+      // lines mid-word even though the underlying html2canvas capture is
+      // correct (verified directly) -- plain `true` just slices the correct
+      // raster capture across pages instead, which is all a branded document
+      // like this needs (it doesn't need to be a real text layer).
+      autoPaging: true,
       margin: [MARGIN_PT, MARGIN_PT, MARGIN_PT, MARGIN_PT],
       // html2canvas itself defaults its capture width/height to the real
       // browser viewport (window.innerWidth/innerHeight), NOT the container's
