@@ -43,6 +43,7 @@ import type {
   Message,
   Payment,
   PaymentMethod,
+  Policy,
   Product,
   ProductAvailability,
   PushMessage,
@@ -1219,4 +1220,43 @@ export function updateRiskItem(
 }
 export function deleteRiskItem(assessmentId: string, riskId: string): Promise<RiskAssessment> {
   return request(`/risk-assessments/${assessmentId}/risks/${riskId}`, { method: 'DELETE' });
+}
+
+export function listPolicies(): Promise<Policy[]> {
+  return request('/policies');
+}
+export function getPolicy(id: string): Promise<Policy> {
+  return request(`/policies/${id}`);
+}
+export interface CreatePolicyInput {
+  name: string;
+  category?: string;
+  reviewFrequency?: string;
+  content: string;
+  changeSummary?: string;
+  status?: string;
+}
+export function createPolicy(input: CreatePolicyInput): Promise<Policy> {
+  return request('/policies', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updatePolicy(
+  id: string,
+  input: Partial<{ name: string; category: string; reviewFrequency: string; status: string }>,
+): Promise<Policy> {
+  return request(`/policies/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deletePolicy(id: string): Promise<void> {
+  return request(`/policies/${id}`, { method: 'DELETE' });
+}
+export function publishPolicyVersion(
+  id: string,
+  input: { content: string; changeSummary?: string },
+): Promise<Policy> {
+  return request(`/policies/${id}/versions`, { method: 'POST', body: JSON.stringify(input) });
+}
+export function signOffPolicy(id: string): Promise<Policy> {
+  return request(`/policies/${id}/sign`, { method: 'POST' });
+}
+export function sendPolicyReminder(id: string): Promise<Policy> {
+  return request(`/policies/${id}/remind`, { method: 'POST' });
 }

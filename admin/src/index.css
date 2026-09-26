@@ -404,6 +404,9 @@ tbody tr:last-child td {
 .badge-low { background: var(--sage-badge); color: var(--brand-green); }
 .badge-medium { background: var(--warn-light); color: var(--warn); }
 .badge-high { background: var(--error-light); color: var(--error); }
+.badge-current { background: var(--sage-badge); color: var(--brand-green); }
+.badge-due { background: var(--warn-light); color: var(--warn); }
+.badge-pending_signoff { background: var(--info-light); color: var(--info); }
 
 /* A badge that wraps a native <select> so a status pill stays clickable to
    change -- the select is stripped of its default chrome and inherits the

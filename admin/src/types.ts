@@ -1040,3 +1040,44 @@ export interface RiskAssessment {
   createdAt: string;
   updatedAt: string;
 }
+
+// --- Policies (Boarding & Day Care > Policies) ---
+
+export type PolicyStatus = 'draft' | 'published';
+
+export interface PolicySignOff {
+  staff: string;
+  staffName: string;
+  signedAt?: string;
+  reminderSentAt?: string;
+}
+
+export interface PolicyVersion {
+  _id: string;
+  version: number;
+  content: string;
+  changeSummary?: string;
+  publishedAt: string;
+  publishedBy: string;
+  signOffs: PolicySignOff[];
+}
+
+export interface PolicyAuditEntry {
+  action: string;
+  changes?: string;
+  actor: string;
+  at: string;
+}
+
+export interface Policy {
+  _id: string;
+  name: string;
+  category?: string;
+  status: PolicyStatus;
+  reviewFrequency?: ReviewFrequency;
+  nextReviewDate?: string;
+  versions: PolicyVersion[];
+  auditLog: PolicyAuditEntry[];
+  createdAt: string;
+  updatedAt: string;
+}
