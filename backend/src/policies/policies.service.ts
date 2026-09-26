@@ -264,6 +264,44 @@ export class PoliciesService {
     return policy;
   }
 
+  // "Assign Users" (Policies list Actions menu) -- changes who's required to
+  // review the CURRENT version without publishing a new one. Anyone kept on
+  // the list keeps their existing signOff row untouched (so an
+  // already-completed review isn't lost); anyone newly added gets a fresh
+  // unsigned row; anyone removed is dropped entirely.
+  async assignUsers(id: string, staffIds: string[], actor: string): Promise<Policy> {
+    const policy = await this.findOne(id);
+    const current = policy.versions[policy.versions.length - 1];
+    if (!current) {
+      throw new BadRequestException('This policy has no published version yet.');
+    }
+    const staffList = await this.staffModel.find({ _id: { $in: staffIds } }).select('name').exec();
+    const existingByStaffId = new Map(current.signOffs.map((s) => [String(s.staff), s]));
+    const added: string[] = [];
+    const kept: PolicySignOff[] = [];
+    for (const staff of staffList) {
+      const staffId = String(staff._id);
+      const existing = existingByStaffId.get(staffId);
+      if (existing) {
+        kept.push(existing);
+      } else {
+        kept.push({ staff: staff._id, staffName: staff.name } as PolicySignOff);
+        added.push(staff.name);
+      }
+    }
+    const keptIds = new Set(staffList.map((s) => String(s._id)));
+    const removed = current.signOffs.filter((s) => !keptIds.has(String(s.staff))).map((s) => s.staffName);
+    current.signOffs = kept;
+    if (added.length > 0 || removed.length > 0) {
+      const changes = [added.length > 0 ? `Added ${added.join(', ')}` : null, removed.length > 0 ? `Removed ${removed.join(', ')}` : null]
+        .filter(Boolean)
+        .join('; ');
+      policy.auditLog.push({ action: 'Reviewers Changed', changes, actor, at: new Date() });
+    }
+    await policy.save();
+    return policy;
+  }
+
   // "Send via Email" (Policies list Actions menu) -- emails the current
   // version's full content to any address (not necessarily an existing
   // Customer), wrapped in the same GENERIC campaign template every other

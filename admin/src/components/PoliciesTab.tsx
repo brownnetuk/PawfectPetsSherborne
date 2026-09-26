@@ -90,6 +90,7 @@ export default function PoliciesTab() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [emailing, setEmailing] = useState<Policy | null>(null);
+  const [assigning, setAssigning] = useState<Policy | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
   function refresh() {
@@ -274,10 +275,10 @@ export default function PoliciesTab() {
                 const totalCount = current?.signOffs.length ?? 0;
                 return (
                   <tr key={p._id} onDoubleClick={() => setOpenId(p._id)} style={{ cursor: 'pointer' }}>
-                    <td style={{ color: 'var(--muted)' }}>{p.policyId}</td>
                     <td>
-                      <strong>{p.name}</strong>
+                      <strong>{p.policyId}</strong>
                     </td>
+                    <td>{p.name}</td>
                     <td style={{ color: 'var(--muted)' }}>{p.category || '—'}</td>
                     <td>{current ? `v${current.version}` : '—'}</td>
                     <td style={{ color: 'var(--muted)' }}>
@@ -295,6 +296,7 @@ export default function PoliciesTab() {
                     <td onClick={(e) => e.stopPropagation()}>
                       <ActionsMenu
                         items={[
+                          { label: 'Assign Users', onClick: () => setAssigning(p) },
                           { label: 'Export to PDF', onClick: () => handleExportPdf(p) },
                           { label: 'Send via Email', onClick: () => setEmailing(p) },
                           { label: 'Delete', onClick: () => setDeleting(p), danger: true, dividerBefore: true },
@@ -350,8 +352,81 @@ export default function PoliciesTab() {
         />
       )}
 
+      {assigning && (
+        <AssignUsersModal
+          policy={assigning}
+          onClose={() => setAssigning(null)}
+          onSaved={() => {
+            setAssigning(null);
+            refresh();
+          }}
+        />
+      )}
+
       {openId && <PolicyDetailModal policyId={openId} onClose={() => setOpenId(null)} onChanged={refresh} />}
     </div>
+  );
+}
+
+function AssignUsersModal({
+  policy,
+  onClose,
+  onSaved,
+}: {
+  policy: Policy;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [staffOptions, setStaffOptions] = useState<{ _id: string; name: string }[] | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.listPolicyStaffOptions().then(setStaffOptions);
+    const current = currentVersion(policy);
+    setSelected(new Set((current?.signOffs ?? []).map((s) => s.staff)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [policy._id]);
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      await api.assignPolicyUsers(policy._id, Array.from(selected));
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to assign users to this policy');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title={`Assign Users — ${policy.name}`} onClose={onClose}>
+      {error && <div className="error-banner">{error}</div>}
+      <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: -6 }}>
+        Choose who needs to review the current version. Anyone already reviewed keeps their sign-off.
+      </p>
+      <StaffSignOffPicker staff={staffOptions} selected={selected} onToggle={toggle} />
+      <div className="modal-actions">
+        <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
+          Cancel
+        </button>
+        <button type="button" className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </Modal>
   );
 }
 

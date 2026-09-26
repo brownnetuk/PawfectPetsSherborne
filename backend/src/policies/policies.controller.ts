@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/commo
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { RequirePermission } from '../auth/require-permission.decorator';
+import { AssignUsersDto } from './dto/assign-users.dto';
 import { CreatePolicyDto } from './dto/create-policy.dto';
 import { PublishVersionDto } from './dto/publish-version.dto';
 import { SendPolicyEmailDto } from './dto/send-policy-email.dto';
@@ -82,5 +83,11 @@ export class PoliciesController {
   @Post(':id/send-email')
   sendEmail(@Param('id') id: string, @Body() dto: SendPolicyEmailDto, @CurrentUser() user: CurrentUserShape) {
     return this.policiesService.sendPolicyEmail(id, dto.email, user.name);
+  }
+
+  @RequirePermission('bookings.manage')
+  @Patch(':id/assign-users')
+  assignUsers(@Param('id') id: string, @Body() dto: AssignUsersDto, @CurrentUser() user: CurrentUserShape) {
+    return this.policiesService.assignUsers(id, dto.staffIds, user.name);
   }
 }

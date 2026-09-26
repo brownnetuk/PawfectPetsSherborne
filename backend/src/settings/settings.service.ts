@@ -176,8 +176,18 @@ export class SettingsService {
       update.creditNoteNumberTemplate = dto.creditNoteNumberTemplate;
     if (dto.creditNoteNextNumber !== undefined)
       update.creditNoteNextNumber = dto.creditNoteNextNumber;
-    if (dto.bookingRefTemplate !== undefined)
+    if (dto.bookingRefTemplate !== undefined) {
+      // Without {seq} every booking gets the exact same reference -- easy to
+      // do by accident (e.g. typing just "BK" instead of "BK-{seq}"), and it
+      // silently breaks the whole point of a reference number rather than
+      // erroring anywhere obvious.
+      if (!dto.bookingRefTemplate.includes('{seq}')) {
+        throw new BadRequestException(
+          'The booking reference format must include {seq}, otherwise every booking gets the same reference.',
+        );
+      }
       update.bookingRefTemplate = dto.bookingRefTemplate;
+    }
     if (dto.bookingRefNextNumber !== undefined)
       update.bookingRefNextNumber = dto.bookingRefNextNumber;
     if (dto.invoicePdfTemplate !== undefined)

@@ -1271,3 +1271,6 @@ export function resetPolicyToV1(id: string): Promise<Policy> {
 export function sendPolicyEmail(id: string, email: string): Promise<Policy> {
   return request(`/policies/${id}/send-email`, { method: 'POST', body: JSON.stringify({ email }) });
 }
+export function assignPolicyUsers(id: string, staffIds: string[]): Promise<Policy> {
+  return request(`/policies/${id}/assign-users`, { method: 'PATCH', body: JSON.stringify({ staffIds }) });
+}
