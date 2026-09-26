@@ -3,8 +3,11 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model } from 'mongoose';
 import { nextSequenceNumber } from '../common/document-number.util';
+import { escapeHtml } from '../common/html.util';
 import { NotificationService } from '../notifications/notification.service';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
+import { EmailTrigger } from '../settings/schemas/email-template.schema';
+import { SettingsService } from '../settings/settings.service';
 import { Staff } from '../staff/schemas/staff.schema';
 import { CreatePolicyDto } from './dto/create-policy.dto';
 import { PublishVersionDto } from './dto/publish-version.dto';
@@ -54,6 +57,7 @@ export class PoliciesService {
     @InjectModel(Staff.name) private readonly staffModel: Model<Staff>,
     @InjectModel(BusinessInfo.name) private readonly businessInfoModel: Model<BusinessInfo>,
     private readonly notificationService: NotificationService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   findAll(): Promise<Policy[]> {
@@ -257,6 +261,42 @@ export class PoliciesService {
       } to sign off "${policy.name}" v${current.version}.`,
       'policySignOffReminder',
     );
+    return policy;
+  }
+
+  // "Send via Email" (Policies list Actions menu) -- emails the current
+  // version's full content to any address (not necessarily an existing
+  // Customer), wrapped in the same GENERIC campaign template every other
+  // one-off broadcast uses (EmailMessagesService.send()), so it's branded
+  // consistently without needing its own dedicated template to configure.
+  async sendPolicyEmail(id: string, email: string, actor: string): Promise<Policy> {
+    const policy = await this.findOne(id);
+    const current = policy.versions[policy.versions.length - 1];
+    if (!current) {
+      throw new BadRequestException('This policy has no published version yet.');
+    }
+    const meta = [
+      policy.category,
+      policy.reference,
+      `v${current.version}`,
+      `Published ${current.publishedAt.toLocaleDateString('en-GB')}`,
+    ]
+      .filter(Boolean)
+      .join(' &middot; ');
+    const bodyHtml = `<h2 style="margin:0 0 4px;">${escapeHtml(policy.name)}</h2><div style="color:#6f7d72;font-size:12px;margin-bottom:16px;">${meta}</div>${current.content}`;
+    await this.settingsService.sendTemplatedEmail(
+      EmailTrigger.GENERIC,
+      email,
+      { name: 'there', campaignSubject: policy.name },
+      { emailBodyText: bodyHtml },
+    );
+    policy.auditLog.push({
+      action: 'Emailed',
+      changes: `Sent to ${email}`,
+      actor,
+      at: new Date(),
+    });
+    await policy.save();
     return policy;
   }
 

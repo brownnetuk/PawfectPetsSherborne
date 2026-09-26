@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
+import { buildPolicyPdf } from '../pdf/policyPdf';
+import ActionsMenu from './ActionsMenu';
 import Badge from './Badge';
 import Modal from './Modal';
 import PolicyDetailModal from './PolicyDetailModal';
@@ -87,6 +89,8 @@ export default function PoliciesTab() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [emailing, setEmailing] = useState<Policy | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   function refresh() {
     api
@@ -147,6 +151,21 @@ export default function PoliciesTab() {
     }
   }
 
+  async function handleExportPdf(p: Policy) {
+    setExportError(null);
+    const current = currentVersion(p);
+    if (!current) {
+      setExportError(`"${p.name}" has no published version yet.`);
+      return;
+    }
+    try {
+      const doc = await buildPolicyPdf(p, current);
+      doc.save(`${p.policyId} - ${p.name}.pdf`.replace(/[/\\]/g, '-'));
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Failed to generate the PDF');
+    }
+  }
+
   const categories = ['All', ...Array.from(new Set((policies ?? []).map((p) => p.category).filter(Boolean)))] as string[];
   const q = search.trim().toLowerCase();
   const filtered = (policies ?? [])
@@ -183,6 +202,7 @@ export default function PoliciesTab() {
       </p>
 
       {error && <div className="error-banner">{error}</div>}
+      {exportError && <div className="error-banner">{exportError}</div>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 20, marginBottom: 20 }}>
         <div className="card" style={{ margin: 0 }}>
@@ -273,9 +293,13 @@ export default function PoliciesTab() {
                       <Badge value={policyStatusBadge(p)} />
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
-                      <button className="btn btn-danger btn-sm" onClick={() => setDeleting(p)}>
-                        Delete
-                      </button>
+                      <ActionsMenu
+                        items={[
+                          { label: 'Export to PDF', onClick: () => handleExportPdf(p) },
+                          { label: 'Send via Email', onClick: () => setEmailing(p) },
+                          { label: 'Delete', onClick: () => setDeleting(p), danger: true, dividerBefore: true },
+                        ]}
+                      />
                     </td>
                   </tr>
                 );
@@ -315,8 +339,74 @@ export default function PoliciesTab() {
         </Modal>
       )}
 
+      {emailing && (
+        <SendPolicyEmailModal
+          policy={emailing}
+          onClose={() => setEmailing(null)}
+          onSent={() => {
+            setEmailing(null);
+            refresh();
+          }}
+        />
+      )}
+
       {openId && <PolicyDetailModal policyId={openId} onClose={() => setOpenId(null)} onChanged={refresh} />}
     </div>
+  );
+}
+
+function SendPolicyEmailModal({
+  policy,
+  onClose,
+  onSent,
+}: {
+  policy: Policy;
+  onClose: () => void;
+  onSent: () => void;
+}) {
+  const [email, setEmail] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSending(true);
+    setError(null);
+    try {
+      await api.sendPolicyEmail(policy._id, email.trim());
+      onSent();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send this policy by email');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Modal title={`Send "${policy.name}" by Email`} onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        {error && <div className="error-banner">{error}</div>}
+        <div className="field">
+          <label>Email address</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="e.g. name@example.com"
+            required
+            autoFocus
+          />
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={sending}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={sending}>
+            {sending ? 'Sending…' : 'Send'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

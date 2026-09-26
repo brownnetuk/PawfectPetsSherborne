@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BusinessInfo, BusinessInfoSchema } from '../settings/schemas/business-info.schema';
+import { SettingsModule } from '../settings/settings.module';
 import { Staff, StaffSchema } from '../staff/schemas/staff.schema';
 import { PoliciesController } from './policies.controller';
 import { PoliciesService } from './policies.service';
@@ -23,6 +24,8 @@ import { Policy, PolicySchema } from './schemas/policy.schema';
     ]),
     // For notifyDueReviews()/sendReminder()'s admin-feed + push notifications.
     NotificationsModule,
+    // For sendPolicyEmail()'s SettingsService.sendTemplatedEmail() call.
+    SettingsModule,
   ],
   controllers: [PoliciesController],
   providers: [PoliciesService],

@@ -4,6 +4,7 @@ import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { CreatePolicyDto } from './dto/create-policy.dto';
 import { PublishVersionDto } from './dto/publish-version.dto';
+import { SendPolicyEmailDto } from './dto/send-policy-email.dto';
 import { SignPolicyDto } from './dto/sign-policy.dto';
 import { UpdatePolicyDto } from './dto/update-policy.dto';
 import { PoliciesService } from './policies.service';
@@ -75,5 +76,11 @@ export class PoliciesController {
   @Post(':id/reset-to-v1')
   resetToV1(@Param('id') id: string, @CurrentUser() user: CurrentUserShape) {
     return this.policiesService.resetToV1(id, user.name);
+  }
+
+  @RequirePermission('bookings.manage')
+  @Post(':id/send-email')
+  sendEmail(@Param('id') id: string, @Body() dto: SendPolicyEmailDto, @CurrentUser() user: CurrentUserShape) {
+    return this.policiesService.sendPolicyEmail(id, dto.email, user.name);
   }
 }

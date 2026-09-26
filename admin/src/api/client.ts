@@ -1268,3 +1268,6 @@ export function sendPolicyReminder(id: string): Promise<Policy> {
 export function resetPolicyToV1(id: string): Promise<Policy> {
   return request(`/policies/${id}/reset-to-v1`, { method: 'POST' });
 }
+export function sendPolicyEmail(id: string, email: string): Promise<Policy> {
+  return request(`/policies/${id}/send-email`, { method: 'POST', body: JSON.stringify({ email }) });
+}
