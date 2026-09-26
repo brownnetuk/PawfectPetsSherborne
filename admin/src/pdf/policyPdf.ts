@@ -71,6 +71,13 @@ export async function buildPolicyPdf(policy: Policy, version: PolicyVersion): Pr
       windowWidth: RENDER_WIDTH_PX,
       autoPaging: 'text',
       margin: [MARGIN_PT, MARGIN_PT, MARGIN_PT, MARGIN_PT],
+      // html2canvas itself defaults its capture width/height to the real
+      // browser viewport (window.innerWidth/innerHeight), NOT the container's
+      // own width -- jsPDF's own windowWidth/width above only feed its
+      // internal scale math, they aren't forwarded to html2canvas's capture
+      // dimensions. Without this, content wider than whatever browser window
+      // happens to be open gets silently clipped on the right.
+      html2canvas: { width: RENDER_WIDTH_PX, windowWidth: RENDER_WIDTH_PX },
     });
   } finally {
     document.body.removeChild(container);
