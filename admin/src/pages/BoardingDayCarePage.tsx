@@ -1380,6 +1380,7 @@ function BookingDetail({
   const [showAddPayment, setShowAddPayment] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
+  const [resendingPreCheckIn, setResendingPreCheckIn] = useState(false);
   const [fillFor, setFillFor] = useState<{
     stage: 'checkIn' | 'checkOut';
     submissionId: string;
@@ -1474,6 +1475,23 @@ function BookingDetail({
       refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send the pre-check-in link');
+    }
+  }
+
+  // Sends a brand-new pre-check-in link/submission, same as the initial send
+  // -- reuses sendPreCheckIn() rather than reusing the existing submission,
+  // so the customer gets a fresh form pre-filled from their current
+  // Customer/Animal records rather than their old answers.
+  async function handleResendPreCheckIn() {
+    setError(null);
+    setResendingPreCheckIn(true);
+    try {
+      await api.sendBoardingBookingPreCheckIn(id);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to resend the pre-check-in link');
+    } finally {
+      setResendingPreCheckIn(false);
     }
   }
 
@@ -1743,6 +1761,9 @@ function BookingDetail({
                     : undefined
               }
               actionLabel={!booking.preCheckInSubmission && booking.invoice ? 'Send now' : undefined}
+              secondaryLabel={booking.preCheckInSubmission ? (resendingPreCheckIn ? 'Resending…' : 'Resend') : undefined}
+              secondaryDisabled={resendingPreCheckIn}
+              onSecondaryClick={booking.preCheckInSubmission ? handleResendPreCheckIn : undefined}
             />
             <FormRow
               label="Check-in"
@@ -1840,12 +1861,18 @@ function FormRow({
   status,
   onClick,
   actionLabel,
+  secondaryLabel,
+  onSecondaryClick,
+  secondaryDisabled,
 }: {
   label: string;
   sub: string;
   status: 'Completed' | 'Sent' | 'Not started';
   onClick?: () => void;
   actionLabel?: string;
+  secondaryLabel?: string;
+  onSecondaryClick?: () => void;
+  secondaryDisabled?: boolean;
 }) {
   const pillColors: Record<string, { bg: string; color: string }> = {
     Completed: { bg: 'var(--sage-badge)', color: 'var(--brand-green)' },
@@ -1869,9 +1896,24 @@ function FormRow({
         <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{label}</div>
         <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{sub}</div>
       </div>
-      <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 999, fontSize: '0.72rem', fontWeight: 600, background: c.bg, color: c.color }}>
-        {actionLabel ?? status}
-      </span>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        {secondaryLabel && onSecondaryClick && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={secondaryDisabled}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSecondaryClick();
+            }}
+          >
+            {secondaryLabel}
+          </button>
+        )}
+        <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 999, fontSize: '0.72rem', fontWeight: 600, background: c.bg, color: c.color }}>
+          {actionLabel ?? status}
+        </span>
+      </div>
     </div>
   );
 }
