@@ -1221,6 +1221,9 @@ export function updateRiskItem(
 export function deleteRiskItem(assessmentId: string, riskId: string): Promise<RiskAssessment> {
   return request(`/risk-assessments/${assessmentId}/risks/${riskId}`, { method: 'DELETE' });
 }
+export function sendRiskAssessmentEmail(id: string, email: string): Promise<RiskAssessment> {
+  return request(`/risk-assessments/${id}/send-email`, { method: 'POST', body: JSON.stringify({ email }) });
+}
 
 export function listPolicies(): Promise<Policy[]> {
   return request('/policies');

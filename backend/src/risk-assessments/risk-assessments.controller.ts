@@ -4,6 +4,7 @@ import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { CreateRiskAssessmentDto } from './dto/create-risk-assessment.dto';
 import { CreateRiskItemDto } from './dto/create-risk-item.dto';
+import { SendRiskAssessmentEmailDto } from './dto/send-risk-assessment-email.dto';
 import { UpdateRiskAssessmentDto } from './dto/update-risk-assessment.dto';
 import { UpdateRiskItemDto } from './dto/update-risk-item.dto';
 import { RiskAssessmentsService } from './risk-assessments.service';
@@ -79,5 +80,15 @@ export class RiskAssessmentsController {
     @CurrentUser() user: CurrentUserShape,
   ) {
     return this.riskAssessmentsService.removeRisk(id, riskId, user.name);
+  }
+
+  @RequirePermission('bookings.manage')
+  @Post(':id/send-email')
+  sendEmail(
+    @Param('id') id: string,
+    @Body() dto: SendRiskAssessmentEmailDto,
+    @CurrentUser() user: CurrentUserShape,
+  ) {
+    return this.riskAssessmentsService.sendRiskAssessmentEmail(id, dto.email, user.name);
   }
 }

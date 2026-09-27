@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
+import { buildRiskAssessmentPdf } from '../pdf/riskAssessmentPdf';
+import ActionsMenu from './ActionsMenu';
 import Badge from './Badge';
 import Modal from './Modal';
 import RiskAssessmentDetailModal, { ReviewRiskAssessmentModal } from './RiskAssessmentDetailModal';
@@ -28,6 +30,8 @@ export default function RiskAssessmentsTab() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [emailing, setEmailing] = useState<RiskAssessment | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   function refresh() {
     api
@@ -52,6 +56,16 @@ export default function RiskAssessmentsTab() {
     }
   }
 
+  async function handleExportPdf(ra: RiskAssessment) {
+    setExportError(null);
+    try {
+      const doc = await buildRiskAssessmentPdf(ra);
+      doc.save(`${ra.raId} - ${ra.name}.pdf`.replace(/[/\\]/g, '-'));
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Failed to generate the PDF');
+    }
+  }
+
   return (
     <div>
       <div className="page-header">
@@ -66,6 +80,7 @@ export default function RiskAssessmentsTab() {
       </p>
 
       {error && <div className="error-banner">{error}</div>}
+      {exportError && <div className="error-banner">{exportError}</div>}
 
       <div className="card" style={{ padding: 0 }}>
         {!assessments ? (
@@ -101,15 +116,15 @@ export default function RiskAssessmentsTab() {
                   </td>
                   <td>{ra.risks.length}</td>
                   <td onClick={(e) => e.stopPropagation()}>
-                    <button className="btn btn-secondary btn-sm" onClick={() => setReviewingId(ra._id)}>
-                      Review
-                    </button>{' '}
-                    <button className="btn btn-secondary btn-sm" onClick={() => setShowForm({ mode: 'edit', assessment: ra })}>
-                      Edit
-                    </button>{' '}
-                    <button className="btn btn-danger btn-sm" onClick={() => setDeleting(ra)}>
-                      Delete
-                    </button>
+                    <ActionsMenu
+                      items={[
+                        { label: 'Review', onClick: () => setReviewingId(ra._id) },
+                        { label: 'Edit', onClick: () => setShowForm({ mode: 'edit', assessment: ra }) },
+                        { label: 'Export to PDF', onClick: () => handleExportPdf(ra) },
+                        { label: 'Send by Email', onClick: () => setEmailing(ra) },
+                        { label: 'Delete', onClick: () => setDeleting(ra), danger: true, dividerBefore: true },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}
@@ -163,7 +178,73 @@ export default function RiskAssessmentsTab() {
           onChanged={refresh}
         />
       )}
+
+      {emailing && (
+        <SendRiskAssessmentEmailModal
+          assessment={emailing}
+          onClose={() => setEmailing(null)}
+          onSent={() => {
+            setEmailing(null);
+            refresh();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function SendRiskAssessmentEmailModal({
+  assessment,
+  onClose,
+  onSent,
+}: {
+  assessment: RiskAssessment;
+  onClose: () => void;
+  onSent: () => void;
+}) {
+  const [email, setEmail] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSending(true);
+    setError(null);
+    try {
+      await api.sendRiskAssessmentEmail(assessment._id, email.trim());
+      onSent();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send this risk assessment by email');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Modal title={`Send "${assessment.name}" by Email`} onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        {error && <div className="error-banner">{error}</div>}
+        <div className="field">
+          <label>Email address</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="e.g. name@example.com"
+            required
+            autoFocus
+          />
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={sending}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={sending}>
+            {sending ? 'Sending…' : 'Send'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

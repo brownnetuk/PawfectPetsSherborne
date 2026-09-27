@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BusinessInfo, BusinessInfoSchema } from '../settings/schemas/business-info.schema';
+import { SettingsModule } from '../settings/settings.module';
 import { RiskAssessmentsController } from './risk-assessments.controller';
 import { RiskAssessmentsService } from './risk-assessments.service';
 import { RiskAssessment, RiskAssessmentSchema } from './schemas/risk-assessment.schema';
@@ -18,6 +19,8 @@ import { RiskAssessment, RiskAssessmentSchema } from './schemas/risk-assessment.
     // For notifyDueReviews()'s admin-feed + push notification when a live
     // assessment's review comes due.
     NotificationsModule,
+    // For sendRiskAssessmentEmail()'s SettingsService.sendTemplatedEmail() call.
+    SettingsModule,
   ],
   controllers: [RiskAssessmentsController],
   providers: [RiskAssessmentsService],

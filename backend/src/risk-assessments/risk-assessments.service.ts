@@ -3,8 +3,11 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model } from 'mongoose';
 import { nextSequenceNumber } from '../common/document-number.util';
+import { escapeHtml } from '../common/html.util';
 import { NotificationService } from '../notifications/notification.service';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
+import { EmailTrigger } from '../settings/schemas/email-template.schema';
+import { SettingsService } from '../settings/settings.service';
 import { CreateRiskAssessmentDto } from './dto/create-risk-assessment.dto';
 import { CreateRiskItemDto } from './dto/create-risk-item.dto';
 import { UpdateRiskAssessmentDto } from './dto/update-risk-assessment.dto';
@@ -75,6 +78,7 @@ export class RiskAssessmentsService {
     @InjectModel(RiskAssessment.name) private readonly riskAssessmentModel: Model<RiskAssessment>,
     @InjectModel(BusinessInfo.name) private readonly businessInfoModel: Model<BusinessInfo>,
     private readonly notificationService: NotificationService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   findAll(): Promise<RiskAssessment[]> {
@@ -254,6 +258,77 @@ export class RiskAssessmentsService {
     assessment.auditLog.push({
       action: 'Risk Item Removed',
       changes: `Hazard: "${item.hazard}"`,
+      actor,
+      at: new Date(),
+    });
+    await assessment.save();
+    return assessment;
+  }
+
+  // "Send by Email" (Risk Assessments list Actions menu) -- unlike a Policy,
+  // a risk assessment has no single content blob to email, so the body is
+  // built here from the header fields plus a table of its risks, escaping
+  // every user-entered string (none of it is pre-formatted HTML the way
+  // policy content is). Wrapped in the same GENERIC campaign template every
+  // other one-off broadcast uses (EmailMessagesService.send(),
+  // PoliciesService.sendPolicyEmail()), so it's branded consistently without
+  // needing its own dedicated template to configure.
+  async sendRiskAssessmentEmail(id: string, email: string, actor: string): Promise<RiskAssessment> {
+    const assessment = await this.findOne(id);
+    const meta = [
+      assessment.regulationReference,
+      assessment.reviewFrequency ? REVIEW_PERIOD_LABELS[assessment.reviewFrequency] : undefined,
+      assessment.nextReviewDate ? `Next review ${assessment.nextReviewDate}` : undefined,
+    ]
+      .filter(Boolean)
+      .map((s) => escapeHtml(s as string))
+      .join(' &middot; ');
+    const scopeHtml = assessment.scope
+      ? `<p>${escapeHtml(assessment.scope)}</p>`
+      : '';
+    const cell = 'padding:6px 10px;border:1px solid #e3e8de;text-align:left;vertical-align:top;';
+    const listHtml = (items: string[]) =>
+      items.length ? `<ul style="margin:0;padding-left:16px;">${items.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}</ul>` : '—';
+    const rows = assessment.risks
+      .map(
+        (r) => `<tr>
+          <td style="${cell}">${escapeHtml(r.hazard)}</td>
+          <td style="${cell}">${r.whoAtRisk ? escapeHtml(r.whoAtRisk) : '—'}</td>
+          <td style="${cell}">${listHtml(r.existingControls)}</td>
+          <td style="${cell}">${listHtml(r.furtherActions)}</td>
+          <td style="${cell}text-align:center;">${r.likelihood}</td>
+          <td style="${cell}text-align:center;">${r.severity}</td>
+          <td style="${cell}text-align:center;">${r.likelihood * r.severity}</td>
+          <td style="${cell}text-transform:capitalize;">${escapeHtml(r.residualRisk)}</td>
+        </tr>`,
+      )
+      .join('');
+    const head = 'padding:6px 10px;border:1px solid #e3e8de;text-align:left;background:#f4f6f1;';
+    const tableHtml = assessment.risks.length
+      ? `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px;">
+          <thead><tr>
+            <th style="${head}">Hazard</th>
+            <th style="${head}">Who At Risk</th>
+            <th style="${head}">Existing Controls</th>
+            <th style="${head}">Further Actions</th>
+            <th style="${head}">L</th>
+            <th style="${head}">S</th>
+            <th style="${head}">Score</th>
+            <th style="${head}">Residual Risk</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`
+      : '<p>No risks have been recorded yet.</p>';
+    const bodyHtml = `<h2 style="margin:0 0 4px;">${escapeHtml(assessment.name)}</h2><div style="color:#6f7d72;font-size:12px;margin-bottom:16px;">${escapeHtml(assessment.raId)}${meta ? ` &middot; ${meta}` : ''}</div>${scopeHtml}${tableHtml}`;
+    await this.settingsService.sendTemplatedEmail(
+      EmailTrigger.GENERIC,
+      email,
+      { name: 'there', campaignSubject: assessment.name },
+      { emailBodyText: bodyHtml },
+    );
+    assessment.auditLog.push({
+      action: 'Emailed',
+      changes: `Sent to ${email}`,
       actor,
       at: new Date(),
     });
