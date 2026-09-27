@@ -3,7 +3,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreateFormDto } from './dto/create-form.dto';
 import { UpdateFormDto } from './dto/update-form.dto';
-import { DEFAULT_CUSTOMER_INTAKE_FORM } from './default-customer-intake-form';
 import { DEFAULT_CHECKIN_FORM, DEFAULT_CHECKOUT_FORM } from './default-boarding-checkin-checkout-forms';
 import { DEFAULT_PRE_CHECKIN_FORM } from './default-pre-checkin-form';
 import { Form } from './schemas/form.schema';
@@ -14,17 +13,24 @@ export class FormsService implements OnModuleInit {
     @InjectModel(Form.name) private readonly formModel: Model<Form>,
   ) {}
 
-  // Seeds the "Customer Intake", "Arrival Check-In", "Departure Check-Out",
-  // and "Pre-Check-In" forms once, on boot -- a first-of-its-kind seed-on-init
-  // pattern in this codebase (no existing module does this), so each is a
-  // single atomic upsert ($setOnInsert) rather than a find-then-insert pair,
-  // which would otherwise race across multiple app instances. Staff can
-  // freely edit or delete any of these afterward like any other form --
-  // none is ever re-created once it exists (findOneAndUpdate with upsert
-  // only ever inserts when its {name} filter matches nothing).
+  // Seeds the "Arrival Check-In", "Departure Check-Out", and "Pre-Check In
+  // Form" forms once, on boot -- a first-of-its-kind seed-on-init pattern in
+  // this codebase (no existing module does this), so each is a single atomic
+  // upsert ($setOnInsert) rather than a find-then-insert pair, which would
+  // otherwise race across multiple app instances. Staff can freely edit or
+  // delete any of these afterward like any other form -- none is ever
+  // re-created once it exists (findOneAndUpdate with upsert only ever
+  // inserts when its {name} filter matches nothing).
+  //
+  // A "Customer Intake" form used to be seeded here too -- removed since it
+  // duplicated (and had drifted from) the real public registration wizard
+  // (frontend/src/intake/), causing confusion about which one staff should
+  // actually use; the real wizard isn't part of this Forms engine at all, so
+  // it was never going to show up in this list. Pre-Check In Form is now
+  // built directly from that real wizard's fields instead of from this
+  // now-removed copy (see default-pre-checkin-form.ts).
   async onModuleInit(): Promise<void> {
     for (const seed of [
-      DEFAULT_CUSTOMER_INTAKE_FORM,
       DEFAULT_CHECKIN_FORM,
       DEFAULT_CHECKOUT_FORM,
       DEFAULT_PRE_CHECKIN_FORM,
