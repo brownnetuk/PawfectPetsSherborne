@@ -91,6 +91,17 @@ export function buildCustomerPatch(
     if (value === undefined) continue;
     setPath(patch, field.mapping.path, value);
   }
+  // EmergencyContactDto.sameAsClient is a required boolean (it gates the
+  // @ValidateIf on the rest of that DTO), but a form is free to map
+  // emergencyContact.* fields without ever asking that question itself (e.g.
+  // Pre-Check In Form always collects a full emergency contact rather than
+  // offering a same-as-client shortcut) -- default it to false so the DTO
+  // still validates instead of rejecting the whole submission over a
+  // question this form never asked.
+  const emergencyContact = patch.emergencyContact as Record<string, unknown> | undefined;
+  if (emergencyContact && emergencyContact.sameAsClient === undefined) {
+    emergencyContact.sameAsClient = false;
+  }
   return patch;
 }
 
