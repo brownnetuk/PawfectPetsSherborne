@@ -325,6 +325,45 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
     );
   }
 
+  /// One entry point for arrival and departure: offers whichever of Check in /
+  /// Check out is still to do, then runs the same fill-in flow as before.
+  Future<void> _arriveDepart() async {
+    final b = widget.item.booking;
+    final choice = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Arrive / Depart', style: TextStyle(fontWeight: FontWeight.w600)),
+              ),
+            ),
+            if (b.checkInSubmission == null)
+              ListTile(
+                leading: const Icon(Icons.login_outlined),
+                title: const Text('Check in'),
+                subtitle: const Text('Arrival: fill in the check-in form'),
+                onTap: () => Navigator.of(sheetContext).pop(true),
+              ),
+            if (b.checkOutSubmission == null)
+              ListTile(
+                leading: const Icon(Icons.logout_outlined),
+                title: const Text('Check out'),
+                subtitle: const Text('Departure: fill in the check-out form'),
+                onTap: () => Navigator.of(sheetContext).pop(false),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    await _startCheck(isCheckIn: choice);
+  }
+
   /// The admin's Fill-in flow: look up the configured form for this booking's
   /// type, create a pending submission for this customer/pets, open it in the
   /// in-app form filler, and on submit link it onto the booking (check-in or
@@ -404,7 +443,9 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
               BoardingStatusChip(status: item.status),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
+          _progressLine(),
+          const SizedBox(height: 12),
           _sectionTitle('Booking'),
           _row('Reference', b.reference),
           _row('Dog(s)', b.animalNames.isEmpty ? '—' : b.animalNames.join(', ')),
@@ -456,64 +497,53 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
             if (b.preCheckInSubmission != null)
               _actionButton(Icons.assignment_turned_in_outlined, 'View pre-check-in form',
                   () => _openForm(b.preCheckInSubmission!)),
-            if (b.checkInSubmission == null)
-              _actionButton(Icons.login_outlined, _startingCheck ? 'Preparing…' : 'Check in',
-                  () => _startCheck(isCheckIn: true)),
+            if (b.checkInSubmission == null || b.checkOutSubmission == null)
+              _actionButton(Icons.swap_horiz_outlined, _startingCheck ? 'Preparing…' : 'Arrive / Depart',
+                  _arriveDepart),
             if (b.checkInSubmission != null)
               _actionButton(Icons.login_outlined, 'View check-in form', () => _openForm(b.checkInSubmission!)),
-            if (b.checkOutSubmission == null)
-              _actionButton(Icons.logout_outlined, _startingCheck ? 'Preparing…' : 'Check out',
-                  () => _startCheck(isCheckIn: false)),
             if (b.checkOutSubmission != null)
               _actionButton(Icons.logout_outlined, 'View check-out form', () => _openForm(b.checkOutSubmission!)),
           ],
-          _sectionTitle('Progress'),
-          for (final stage in item.stages) _stageRow(stage),
         ],
       ),
     );
   }
 
-  Widget _stageRow(BoardingStage stage) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: stage.done ? Colors.green.shade700 : Colors.white,
-              border: stage.done
-                  ? null
-                  : Border.all(
-                      color: stage.current ? Colors.orange.shade800 : Colors.grey.shade400,
-                      width: 2,
-                    ),
-            ),
-            child: stage.done ? const Icon(Icons.check, size: 16, color: Colors.white) : null,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  stage.label,
-                  style: TextStyle(
-                    fontWeight: stage.current ? FontWeight.w700 : FontWeight.w400,
-                    color: stage.done || stage.current ? Colors.black87 : Colors.grey.shade600,
-                  ),
+  /// The workflow condensed to one line: the stage the booking is on now and
+  /// the step that follows it (e.g. "Deposit paid  →  Next: Pre-check-in").
+  /// All-done bookings just show the final stage with a tick.
+  Widget _progressLine() {
+    final stages = widget.item.stages;
+    if (stages.isEmpty) return const SizedBox.shrink();
+    var currentIndex = stages.indexWhere((s) => s.current);
+    final allDone = currentIndex == -1;
+    if (allDone) currentIndex = stages.length - 1;
+    final current = stages[currentIndex];
+    final next = currentIndex + 1 < stages.length ? stages[currentIndex + 1] : null;
+    final color = allDone ? Colors.green.shade700 : Colors.orange.shade800;
+    return Row(
+      children: [
+        Icon(allDone ? Icons.check_circle_outline : Icons.timelapse, size: 16, color: color),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text.rich(
+            TextSpan(children: [
+              TextSpan(
+                text: current.label,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color),
+              ),
+              if (!allDone && next != null)
+                TextSpan(
+                  text: '   →   Next: ${next.label}',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                 ),
-                if ((stage.sub ?? '').isNotEmpty)
-                  Text(stage.sub!, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-              ],
-            ),
+            ]),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
