@@ -1,5 +1,18 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsArray, IsInt, IsNumber, IsOptional, IsString, Matches, Max, Min, ValidateIf } from 'class-validator';
+
+// Every *NumberTemplate/bookingRefTemplate field below is fed straight into
+// formatDocumentNumber() (backend/src/common/document-number.util.ts), which
+// only ever substitutes a literal `{seq}` token -- a template saved without
+// one (e.g. a staff member typing just "BK" meaning "prefix", not realising
+// they also need to include where the number goes) silently produces the
+// exact same reference/number for every document from then on, since there's
+// nothing left to vary. @ValidateIf keeps an empty string valid (each
+// service's own `|| 'BK-{year}-{seq}'`-style fallback treats blank as "reset
+// to default", per this file's own header comment on that convention).
+const REQUIRE_SEQ_TOKEN = {
+  message: 'Must include a {seq} placeholder, e.g. "BK-{year}-{seq}", or every reference will be identical.',
+};
 
 // All plain @IsString() (no @IsEmail() on `email`) so every field, including
 // email, can genuinely be cleared by saving it blank -- unlike
@@ -98,6 +111,8 @@ export class UpdateBusinessInfoDto {
 
   @IsOptional()
   @IsString()
+  @ValidateIf((o) => !!o.invoiceNumberTemplate)
+  @Matches(/\{seq\}/, REQUIRE_SEQ_TOKEN)
   invoiceNumberTemplate?: string;
 
   @IsOptional()
@@ -108,6 +123,8 @@ export class UpdateBusinessInfoDto {
 
   @IsOptional()
   @IsString()
+  @ValidateIf((o) => !!o.quoteNumberTemplate)
+  @Matches(/\{seq\}/, REQUIRE_SEQ_TOKEN)
   quoteNumberTemplate?: string;
 
   @IsOptional()
@@ -118,6 +135,8 @@ export class UpdateBusinessInfoDto {
 
   @IsOptional()
   @IsString()
+  @ValidateIf((o) => !!o.paymentNumberTemplate)
+  @Matches(/\{seq\}/, REQUIRE_SEQ_TOKEN)
   paymentNumberTemplate?: string;
 
   @IsOptional()
@@ -128,6 +147,8 @@ export class UpdateBusinessInfoDto {
 
   @IsOptional()
   @IsString()
+  @ValidateIf((o) => !!o.creditNoteNumberTemplate)
+  @Matches(/\{seq\}/, REQUIRE_SEQ_TOKEN)
   creditNoteNumberTemplate?: string;
 
   @IsOptional()
@@ -141,6 +162,8 @@ export class UpdateBusinessInfoDto {
   // keys pass through the global whitelist untouched rather than being stripped.
   @IsOptional()
   @IsString()
+  @ValidateIf((o) => !!o.bookingRefTemplate)
+  @Matches(/\{seq\}/, REQUIRE_SEQ_TOKEN)
   bookingRefTemplate?: string;
 
   @IsOptional()
