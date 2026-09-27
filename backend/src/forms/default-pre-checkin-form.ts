@@ -2,148 +2,110 @@ import { FormField } from './form-field.types';
 
 // Seeded (idempotently, alongside the other default forms) by
 // FormsService.onModuleInit(). Sent by BoardingBookingsService.sendPreCheckIn()
-// ahead of a stay (manually, or via the preCheckInDaysBefore cron) -- that's
-// also where this form's content gets shaped for the specific booking it's
-// sent for:
-//  - {{bookingReference}} in pc-bookingRef's label is substituted with the
-//    real reference (not one of form-placeholders.util.ts's customer
-//    tokens -- a booking has no customer-record analog, so this is resolved
-//    locally in sendPreCheckIn() instead of the general placeholder pipeline).
-//  - The "Pet" group's minRepeats/maxRepeats/repetitionLabels are resized to
-//    exactly the animals on that booking (same "fixed set, no add/remove"
-//    shape FormSubmissionsService's wrapFieldsForPets() already uses for a
-//    multi-pet send elsewhere), so only those pets show -- never the
-//    customer's other pets, and never an open-ended "+ Add another".
-//  - Every mapped field's answer is pre-filled from the customer's/each
-//    booking animal's current record, so this reads as "please review and
-//    correct" rather than "please retype everything" -- sendPreCheckIn()
-//    walks this same field list against the live Customer/Animal documents
-//    to build that initial answers object.
+// ahead of a stay (manually, or via the preCheckInDaysBefore cron).
 //
-// Every "Client details"/"Emergency contact"/"Emergency vet" field is mapped
-// (target: 'customer') exactly as Customer Intake maps them, so
-// FormSubmissionsService.submit()'s existing customersService.update() path
-// (already applies a mapped-field patch onto an EXISTING customer whenever
-// submission.customer is set, which it always is here) keeps the customer
-// record in sync with whatever the customer edits on this form -- no new
-// backend logic needed for that half. The "Pet" group is createsAnimal:false
-// (this never creates a new pet record) but its fields ARE mapped
-// (target: 'animal') -- submit() has a matching new code path for exactly
-// this shape: createsAnimal:false + animal-mapped fields + a submission
-// already tied to real animals (see form-submissions.service.ts) patches
-// each existing Animal instead of the usual "false = just capture as raw
-// answers, no record touched" behaviour check-in/check-out's own
-// createsAnimal:false pet groups get (their fields are all unmapped, so
-// that new path is a no-op for them).
+// This is an exact duplicate of DEFAULT_CUSTOMER_INTAKE_FORM's own field list
+// (same ids, labels, required flags, mapping paths, visibleWhen) -- kept as
+// its own copy, not a shared import, so the two forms can be edited
+// independently from here on, per an explicit request to stop hand-maintaining
+// a separate, drifting field list for Pre-Check-In. The only field-shape
+// change is the "Pet" group's createsAnimal: false (Customer Intake's is
+// true) -- pre-check-in reviews/corrects a booking's EXISTING animals, so it
+// must patch them, never register new ones.
 //
-// The three consent toggles plus signature/typed-name deliberately aren't
-// mapped to Customer.agreement.* -- that sub-document is the ORIGINAL
-// registration agreement (signedAt is effectively "when they first signed
-// up"); resending a pre-check-in ahead of every future stay would otherwise
-// overwrite that historical record. This stay-specific consent is kept as
-// plain submission answers only (visible in the admin's submission view/PDF),
-// same as e.g. check-in's "Consent forms completed" toggle.
+// Every field's mapping (target: 'customer'/'animal') is unchanged from
+// Customer Intake, which is what actually makes this form functional rather
+// than a static copy:
+//  - FormSubmissionsService.submit() applies every 'customer'-mapped
+//    top-level field as a patch onto the real Customer record (via
+//    buildCustomerPatch()), and every 'animal'-mapped field inside a
+//    createsAnimal:false group as a patch onto each of the submission's real
+//    existing Animals, in order (see submit()'s "other half of
+//    createsAnimal:false" branch) -- both keyed generically off
+//    field.mapping.target/path and group.type/createsAnimal, never off any
+//    specific field id, so this works identically to the old hand-written
+//    Pre-Check-In form despite the different (cf-*/pf-*) ids.
+//  - BoardingBookingsService.sendPreCheckIn()'s shapeSnapshotForBooking()/
+//    buildPreCheckInAnswers() helpers are equally generic: they resize
+//    whichever field has type:'group' to the booking's animals and pre-fill
+//    every mapped field's answer from the live Customer/Animal records, again
+//    with no dependency on a specific field id -- so pre-filling and the
+//    "edits sync back to the record" loop both keep working unchanged.
 //
-// The "Emergency contact"/"Emergency vet"/"Additional consent" display fields
-// (startsNewPage: true) do double duty, same as every other form that uses
-// this flag: read by admin/src/pdf/formSubmissionPdf.ts as a marker that
-// starts a new PDF page section titled with that field's own label, AND now
-// (frontend/src/forms/FormFillPage.tsx) as a real page break on the live
-// customer-facing form itself -- any top-level display field with
-// startsNewPage turns the whole form into a paginated, Back/Next wizard
-// (matching the look of the hardcoded Customer Intake wizard,
-// frontend/src/intake/), one section per page. "Client details" and
-// "Boarding-specific questions" (pc-pet-boardingHeading, nested inside the
-// "Pet" group) deliberately don't set it -- the former stays on the first
-// page alongside pc-bookingRef, the latter is just a lighter sub-heading
-// within its own pet's page. The "Pet" group itself always gets one page per
-// pet regardless of startsNewPage (see FormFillPage.tsx), same as intake's
-// own one-step-per-pet wizard.
-//
-// The "Pet" group's field list mirrors every field (and mapping path) in
-// Customer Intake's own "Pet" group, so a customer can review and correct
-// the animal's full record ahead of the stay, not just the handful (vaccine/
-// allergies/medication/temperament) this form originally asked about.
+// Deliberately NOT carried over from the old Pre-Check-In definition (an
+// explicit "exact clone, nothing extra" choice, not an oversight): the
+// booking-reference display field, the startsNewPage page-break markers (this
+// form is a single long page, same as Customer Intake), the boarding-specific
+// symptoms question, and the stay-specific consent/signature section. None of
+// those exist on Customer Intake, so an exact duplicate doesn't have them
+// either.
 export const DEFAULT_PRE_CHECKIN_FORM: {
   name: string;
   description: string;
   fields: FormField[];
 } = {
-  name: 'Pre-Check-In',
+  name: 'Pre-Check In Form',
   description:
     'Sent ahead of a boarding or day care stay so we can confirm your details and any changes before drop-off.',
   fields: [
     {
-      id: 'pc-bookingRef',
-      type: 'display',
-      label: 'Booking reference: {{bookingReference}}',
-      required: false,
-    },
-
-    {
-      id: 'pc-clientHeading',
-      type: 'display',
-      label: 'Client details',
-      required: false,
-    },
-    {
-      id: 'pc-firstName',
+      id: 'cf-firstName',
       type: 'text',
       label: 'First name',
       required: true,
       mapping: { target: 'customer', path: 'firstName' },
     },
     {
-      id: 'pc-surname',
+      id: 'cf-surname',
       type: 'text',
       label: 'Surname',
       required: false,
       mapping: { target: 'customer', path: 'surname' },
     },
     {
-      id: 'pc-address1',
+      id: 'cf-address1',
       type: 'text',
       label: 'Address line 1',
       required: true,
       mapping: { target: 'customer', path: 'address1' },
     },
     {
-      id: 'pc-address2',
+      id: 'cf-address2',
       type: 'text',
       label: 'Address line 2',
       required: false,
       mapping: { target: 'customer', path: 'address2' },
     },
     {
-      id: 'pc-town',
+      id: 'cf-town',
       type: 'text',
       label: 'Town',
       required: true,
       mapping: { target: 'customer', path: 'town' },
     },
     {
-      id: 'pc-county',
+      id: 'cf-county',
       type: 'text',
       label: 'County',
       required: false,
       mapping: { target: 'customer', path: 'county' },
     },
     {
-      id: 'pc-postcode',
+      id: 'cf-postcode',
       type: 'text',
       label: 'Postcode',
       required: true,
       mapping: { target: 'customer', path: 'postcode' },
     },
     {
-      id: 'pc-phoneNumber',
+      id: 'cf-phoneNumber',
       type: 'text',
       label: 'Phone number',
       required: true,
       mapping: { target: 'customer', path: 'phoneNumber' },
     },
     {
-      id: 'pc-email',
+      id: 'cf-email',
       type: 'text',
       label: 'Email',
       required: true,
@@ -151,77 +113,70 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
     },
 
     {
-      id: 'pc-ecHeading',
-      type: 'display',
-      label: 'Emergency contact',
-      required: false,
-      startsNewPage: true,
-    },
-    {
-      id: 'pc-ec-sameAsClient',
+      id: 'cf-ec-sameAsClient',
       type: 'toggle',
       label: 'Emergency contact same as client',
       required: false,
       mapping: { target: 'customer', path: 'emergencyContact.sameAsClient' },
     },
     {
-      id: 'pc-ec-firstName',
+      id: 'cf-ec-firstName',
       type: 'text',
       label: 'Emergency contact first name',
       required: false,
       mapping: { target: 'customer', path: 'emergencyContact.firstName' },
     },
     {
-      id: 'pc-ec-surname',
+      id: 'cf-ec-surname',
       type: 'text',
       label: 'Emergency contact surname',
       required: false,
       mapping: { target: 'customer', path: 'emergencyContact.surname' },
     },
     {
-      id: 'pc-ec-address1',
+      id: 'cf-ec-address1',
       type: 'text',
       label: 'Emergency contact address line 1',
       required: false,
       mapping: { target: 'customer', path: 'emergencyContact.address1' },
     },
     {
-      id: 'pc-ec-address2',
+      id: 'cf-ec-address2',
       type: 'text',
       label: 'Emergency contact address line 2',
       required: false,
       mapping: { target: 'customer', path: 'emergencyContact.address2' },
     },
     {
-      id: 'pc-ec-town',
+      id: 'cf-ec-town',
       type: 'text',
       label: 'Emergency contact town',
       required: false,
       mapping: { target: 'customer', path: 'emergencyContact.town' },
     },
     {
-      id: 'pc-ec-county',
+      id: 'cf-ec-county',
       type: 'text',
       label: 'Emergency contact county',
       required: false,
       mapping: { target: 'customer', path: 'emergencyContact.county' },
     },
     {
-      id: 'pc-ec-postcode',
+      id: 'cf-ec-postcode',
       type: 'text',
       label: 'Emergency contact postcode',
       required: false,
       mapping: { target: 'customer', path: 'emergencyContact.postcode' },
     },
     {
-      id: 'pc-ec-phoneNumber',
+      id: 'cf-ec-phoneNumber',
       type: 'text',
       label: 'Emergency contact phone number',
       required: false,
       mapping: { target: 'customer', path: 'emergencyContact.phoneNumber' },
     },
     {
-      id: 'pc-ec-email',
+      id: 'cf-ec-email',
       type: 'text',
       label: 'Emergency contact email',
       required: false,
@@ -229,89 +184,134 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
     },
 
     {
-      id: 'pc-evHeading',
-      type: 'display',
-      label: 'Emergency vet',
-      required: false,
-      startsNewPage: true,
-    },
-    {
-      id: 'pc-ev-practiceName',
+      id: 'cf-ev-practiceName',
       type: 'text',
       label: 'Emergency vet practice name',
       required: true,
       mapping: { target: 'customer', path: 'emergencyVet.practiceName' },
     },
     {
-      id: 'pc-ev-address1',
+      id: 'cf-ev-address1',
       type: 'text',
       label: 'Emergency vet address line 1',
       required: true,
       mapping: { target: 'customer', path: 'emergencyVet.address1' },
     },
     {
-      id: 'pc-ev-address2',
+      id: 'cf-ev-address2',
       type: 'text',
       label: 'Emergency vet address line 2',
       required: false,
       mapping: { target: 'customer', path: 'emergencyVet.address2' },
     },
     {
-      id: 'pc-ev-town',
+      id: 'cf-ev-town',
       type: 'text',
       label: 'Emergency vet town',
       required: true,
       mapping: { target: 'customer', path: 'emergencyVet.town' },
     },
     {
-      id: 'pc-ev-county',
+      id: 'cf-ev-county',
       type: 'text',
       label: 'Emergency vet county',
       required: false,
       mapping: { target: 'customer', path: 'emergencyVet.county' },
     },
     {
-      id: 'pc-ev-postcode',
+      id: 'cf-ev-postcode',
       type: 'text',
       label: 'Emergency vet postcode',
       required: true,
       mapping: { target: 'customer', path: 'emergencyVet.postcode' },
     },
     {
-      id: 'pc-ev-telephone',
+      id: 'cf-ev-telephone',
       type: 'text',
       label: 'Emergency vet telephone',
       required: true,
       mapping: { target: 'customer', path: 'emergencyVet.telephone' },
     },
     {
-      id: 'pc-ev-email',
+      id: 'cf-ev-email',
       type: 'text',
       label: 'Emergency vet email',
       required: false,
       mapping: { target: 'customer', path: 'emergencyVet.email' },
     },
+    {
+      id: 'cf-ev-signedName',
+      type: 'text',
+      label: 'Alternative vet care authorisation -- typed name',
+      required: true,
+      mapping: {
+        target: 'customer',
+        path: 'emergencyVet.authorisation.signedName',
+      },
+    },
+    {
+      id: 'cf-ev-signature',
+      type: 'signature',
+      label: 'Alternative vet care authorisation -- signature',
+      required: true,
+      mapping: {
+        target: 'customer',
+        path: 'emergencyVet.authorisation.signatureImage',
+      },
+    },
 
     {
-      id: 'pc-pets',
+      id: 'cf-sec-keysProvided',
+      type: 'toggle',
+      label: 'Keys provided',
+      required: false,
+      mapping: { target: 'customer', path: 'security.keysProvided' },
+    },
+    {
+      id: 'cf-sec-alarm',
+      type: 'textarea',
+      label: 'Alarm/KeySafe Code',
+      required: false,
+      mapping: { target: 'customer', path: 'security.alarmInstructions' },
+    },
+    {
+      id: 'cf-sec-further',
+      type: 'textarea',
+      label: 'Further security information',
+      required: false,
+      mapping: { target: 'customer', path: 'security.furtherInformation' },
+    },
+
+    {
+      id: 'cf-ag-signedName',
+      type: 'text',
+      label: 'Agreement -- typed name',
+      required: true,
+      mapping: { target: 'customer', path: 'agreement.signedName' },
+    },
+    {
+      id: 'cf-ag-signature',
+      type: 'signature',
+      label: 'Agreement -- signature',
+      required: true,
+      mapping: { target: 'customer', path: 'agreement.signatureImage' },
+    },
+
+    {
+      id: 'cf-pets',
       type: 'group',
       label: 'Pet',
       required: false,
       repeatable: true,
-      // Resized to exactly this booking's animals (minRepeats === maxRepeats
-      // === animal count, repetitionLabels === their names) by
-      // BoardingBookingsService.sendPreCheckIn() -- these are just the
-      // as-authored fallback if this form is ever previewed/sent outside
-      // that flow.
       minRepeats: 1,
+      // false (unlike Customer Intake's true) -- this form reviews/corrects
+      // a booking's EXISTING animals, so its answers must patch them, never
+      // register new ones. See FormSubmissionsService.submit()'s
+      // createsAnimal:false branch.
       createsAnimal: false,
       fields: [
-        // Same field set (and mapping paths) as Customer Intake's own "Pet"
-        // group below -- pre-filled from the animal's current record by
-        // BoardingBookingsService.buildPreCheckInAnswers(), so this reads as
-        // "please review and correct" rather than "please retype everything".
         {
-          id: 'pc-pet-species',
+          id: 'pf-species',
           type: 'choice',
           label: 'Type',
           required: true,
@@ -319,21 +319,21 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
           mapping: { target: 'animal', path: 'species' },
         },
         {
-          id: 'pc-pet-name',
+          id: 'pf-name',
           type: 'text',
           label: 'Name',
           required: true,
           mapping: { target: 'animal', path: 'name' },
         },
         {
-          id: 'pc-pet-breed',
+          id: 'pf-breed',
           type: 'text',
           label: 'Breed / type of animal',
           required: true,
           mapping: { target: 'animal', path: 'breed' },
         },
         {
-          id: 'pc-pet-sex',
+          id: 'pf-sex',
           type: 'choice',
           label: 'Sex',
           required: true,
@@ -341,36 +341,35 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
           mapping: { target: 'animal', path: 'sex' },
         },
         {
-          id: 'pc-pet-age',
+          id: 'pf-age',
           type: 'number',
           label: 'Age',
           required: true,
           mapping: { target: 'animal', path: 'age' },
         },
         {
-          id: 'pc-pet-dateOfBirth',
+          id: 'pf-dateOfBirth',
           type: 'date',
           label: 'Date of birth',
           required: false,
           mapping: { target: 'animal', path: 'dateOfBirth' },
         },
         {
-          id: 'pc-pet-vaccinated',
+          id: 'pf-vaccinated',
           type: 'toggle',
           label: 'Vaccinated',
           required: false,
           mapping: { target: 'animal', path: 'vaccinated' },
         },
         {
-          id: 'pc-pet-vaccineExpiryDate',
+          id: 'pf-vaccineExpiryDate',
           type: 'date',
           label: 'Vaccine expiry date',
           required: false,
           mapping: { target: 'animal', path: 'vaccineExpiryDate' },
-          visibleWhen: { mode: 'all', conditions: [{ fieldId: 'pc-pet-vaccinated', equals: 'true' }] },
         },
         {
-          id: 'pc-pet-photos',
+          id: 'pf-photos',
           type: 'file',
           label: 'Photos',
           required: false,
@@ -378,21 +377,21 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
           mapping: { target: 'animal', path: 'photos' },
         },
         {
-          id: 'pc-pet-colourMarkings',
+          id: 'pf-colourMarkings',
           type: 'text',
           label: 'Colour / markings',
           required: false,
           mapping: { target: 'animal', path: 'colourMarkings' },
         },
         {
-          id: 'pc-pet-microchipNumber',
+          id: 'pf-microchipNumber',
           type: 'text',
           label: 'Microchip number',
           required: false,
           mapping: { target: 'animal', path: 'microchipNumber' },
         },
         {
-          id: 'pc-pet-neuteredStatus',
+          id: 'pf-neuteredStatus',
           type: 'choice',
           label: 'Is your pet Spayed/Neutered?',
           required: false,
@@ -400,7 +399,7 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
           mapping: { target: 'animal', path: 'neuteredStatus' },
         },
         {
-          id: 'pc-pet-lastSeasonEndDate',
+          id: 'pf-lastSeasonEndDate',
           type: 'date',
           label: 'End date of last season?',
           required: false,
@@ -410,48 +409,51 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
           visibleWhen: {
             mode: 'all',
             conditions: [
-              { fieldId: 'pc-pet-neuteredStatus', equals: 'no' },
-              { fieldId: 'pc-pet-sex', equals: 'female' },
+              { fieldId: 'pf-neuteredStatus', equals: 'no' },
+              { fieldId: 'pf-sex', equals: 'female' },
             ],
           },
         },
         {
-          id: 'pc-pet-temperamentNotes',
+          id: 'pf-temperamentNotes',
           type: 'textarea',
           label: 'Temperament notes',
           required: false,
           mapping: { target: 'animal', path: 'temperamentNotes' },
         },
         {
-          id: 'pc-pet-aggressionToPeople',
+          id: 'pf-aggressionToPeople',
           type: 'toggle',
           label: 'Aggression to people',
           required: true,
           mapping: { target: 'animal', path: 'aggressionToPeople' },
         },
         {
-          id: 'pc-pet-aggressionToPeopleDetails',
+          id: 'pf-aggressionToPeopleDetails',
           type: 'text',
           label: 'Aggression to people -- details',
           required: false,
           mapping: { target: 'animal', path: 'aggressionToPeopleDetails' },
         },
         {
-          id: 'pc-pet-aggressionToOtherAnimals',
+          id: 'pf-aggressionToOtherAnimals',
           type: 'toggle',
           label: 'Aggression to other animals (dogs/other only)',
           required: false,
           mapping: { target: 'animal', path: 'aggressionToOtherAnimals' },
         },
         {
-          id: 'pc-pet-aggressionToOtherAnimalsDetails',
+          id: 'pf-aggressionToOtherAnimalsDetails',
           type: 'text',
           label: 'Aggression to other animals -- details',
           required: false,
-          mapping: { target: 'animal', path: 'aggressionToOtherAnimalsDetails' },
+          mapping: {
+            target: 'animal',
+            path: 'aggressionToOtherAnimalsDetails',
+          },
         },
         {
-          id: 'pc-pet-travelsWellInCar',
+          id: 'pf-travelsWellInCar',
           type: 'choice',
           label: 'Travels well in car (dogs/other only)',
           required: false,
@@ -459,7 +461,7 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
           mapping: { target: 'animal', path: 'travelsWellInCar' },
         },
         {
-          id: 'pc-pet-chasesLivestock',
+          id: 'pf-chasesLivestock',
           type: 'choice',
           label: 'Chases livestock (dogs only)',
           required: false,
@@ -467,14 +469,14 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
           mapping: { target: 'animal', path: 'chasesLivestock' },
         },
         {
-          id: 'pc-pet-chasesLivestockDetails',
+          id: 'pf-chasesLivestockDetails',
           type: 'text',
           label: 'Chases livestock -- details',
           required: false,
           mapping: { target: 'animal', path: 'chasesLivestockDetails' },
         },
         {
-          id: 'pc-pet-allergiesStatus',
+          id: 'pf-allergiesStatus',
           type: 'choice',
           label: 'Allergies / intolerances',
           required: true,
@@ -482,49 +484,58 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
           mapping: { target: 'animal', path: 'allergies.status' },
         },
         {
-          id: 'pc-pet-allergiesDetails',
+          id: 'pf-allergiesDetails',
           type: 'text',
           label: 'Allergy details',
           required: false,
           mapping: { target: 'animal', path: 'allergies.details' },
         },
         {
-          id: 'pc-pet-onMedication',
+          id: 'pf-onMedication',
           type: 'toggle',
           label: 'On medication',
           required: true,
           mapping: { target: 'animal', path: 'medication.onMedication' },
         },
         {
-          id: 'pc-pet-medicationName',
+          id: 'pf-medicationName',
           type: 'text',
           label: 'Medication name',
           required: false,
           mapping: { target: 'animal', path: 'medication.medications[0].name' },
         },
         {
-          id: 'pc-pet-medicationDetails',
+          id: 'pf-medicationDetails',
           type: 'textarea',
-          label: 'Medication details (dosage, frequency)',
+          label: 'Medication details (illness, dosage, frequency)',
           required: false,
-          mapping: { target: 'animal', path: 'medication.medications[0].additionalInfo' },
+          mapping: {
+            target: 'animal',
+            path: 'medication.medications[0].additionalInfo',
+          },
         },
         {
-          id: 'pc-pet-medicationVetPrescribed',
+          id: 'pf-medicationVetPrescribed',
           type: 'toggle',
           label: 'Medication vet prescribed',
           required: false,
-          mapping: { target: 'animal', path: 'medication.medications[0].vetPrescribed' },
+          mapping: {
+            target: 'animal',
+            path: 'medication.medications[0].vetPrescribed',
+          },
         },
         {
-          id: 'pc-pet-medicationAdministeredByUs',
+          id: 'pf-medicationAdministeredByUs',
           type: 'toggle',
-          label: 'To be administered by our staff during the stay',
+          label: 'We administer this medication',
           required: false,
-          mapping: { target: 'animal', path: 'medication.medications[0].administeredByPawfectPets' },
+          mapping: {
+            target: 'animal',
+            path: 'medication.medications[0].administeredByPawfectPets',
+          },
         },
         {
-          id: 'pc-pet-offLeadMode',
+          id: 'pf-offLeadMode',
           type: 'choice',
           label: 'On lead / off lead (dogs only)',
           required: false,
@@ -532,76 +543,13 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
           mapping: { target: 'animal', path: 'offLeadConsent.mode' },
         },
         {
-          id: 'pc-pet-offLeadSignature',
+          id: 'pf-offLeadSignature',
           type: 'signature',
           label: 'Off-lead consent signature (dogs, off lead only)',
           required: false,
           mapping: { target: 'animal', path: 'offLeadConsent.signature' },
         },
-        {
-          id: 'pc-pet-boardingHeading',
-          type: 'display',
-          label: 'Boarding-specific questions',
-          required: false,
-        },
-        {
-          id: 'pc-pet-symptoms',
-          type: 'toggle',
-          label: 'Has your pet displayed any new symptoms of illness, stomach upset, coughing, or general unwellness?',
-          required: false,
-        },
-        {
-          id: 'pc-pet-symptomsDetails',
-          type: 'textarea',
-          label: 'Please give details',
-          required: false,
-          visibleWhen: { mode: 'all', conditions: [{ fieldId: 'pc-pet-symptoms', equals: 'true' }] },
-        },
       ],
-    },
-
-    {
-      id: 'pc-consentHeading',
-      type: 'display',
-      label: 'Additional consent -- please confirm the following:',
-      required: false,
-      startsNewPage: true,
-    },
-    {
-      id: 'pc-consentAccurate',
-      type: 'toggle',
-      label: "I confirm the details given on this form are accurate, and I am the dog's owner or authorised to act on the owner's behalf.",
-      required: true,
-    },
-    {
-      id: 'pc-consentTerms',
-      type: 'toggle',
-      label: "I agree to the boarding provider's Terms & Conditions and cancellation policy.",
-      required: true,
-    },
-    {
-      id: 'pc-consentFamiliarisation',
-      type: 'toggle',
-      label: 'I consent to my dog being boarded alongside dogs from other households, following a supervised familiarisation session.',
-      required: true,
-    },
-    {
-      id: 'pc-consentSignedName',
-      type: 'text',
-      label: 'Signed by (full name)',
-      required: true,
-    },
-    {
-      id: 'pc-consentSignature',
-      type: 'signature',
-      label: 'Signature',
-      required: true,
-    },
-    {
-      id: 'pc-consentDate',
-      type: 'today',
-      label: 'Date',
-      required: false,
     },
   ],
 };
