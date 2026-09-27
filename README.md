@@ -1,6 +1,6 @@
 # PawfectPets Sherborne
 
-A client intake, booking, invoicing, and CRM system for a pet-care business. Four separate
+A client intake, booking, invoicing, and CRM system for a pet-care business. Five separate
 apps in this repo, each with its own README for setup details:
 
 | App                    | What it is                                                        | Stack                       |
@@ -9,6 +9,7 @@ apps in this repo, each with its own README for setup details:
 | [`frontend/`](frontend/README.md) | Public, no-login intake form customers fill in to register          | React + TypeScript (Vite)    |
 | [`admin/`](admin/README.md)       | Staff-facing dashboard (desktop browser) for running the business   | React + TypeScript (Vite)    |
 | [`mobile/`](mobile/README.md)     | Staff field app — bookings, customer details, CRM notes on the go   | Flutter (Android/iOS/web)    |
+| [`mobile-portal/`](mobile-portal/README.md) | Customer-facing companion app — logs in against its own customer realm (`/portal/*`) to view/accept quotes, pay invoices, manage their pets, and message staff | Flutter (Android/iOS) |
 
 ## How the pieces fit together
 
@@ -21,10 +22,15 @@ apps in this repo, each with its own README for setup details:
    the `Animal` records and flipping the `Customer` to `active`.
 4. Staff then manage everything else — bookings, invoices, CRM activity — from **admin** (desktop)
    or **mobile** (on the go), both of which require a staff login against the same backend.
+5. Once a customer is active, they can also log into **mobile-portal** to view/accept quotes, pay
+   invoices, manage their own pets' details, and message staff directly — a separate login realm
+   from staff (its own JWT, its own `/portal/*` routes) rather than the same account type as
+   **admin**/**mobile**.
 
 The backend enforces this split itself: every route requires a staff JWT by default, except the
-handful the intake form calls, which are explicitly marked `@Public()`. See
-[`backend/README.md`](backend/README.md#auth) for the exact list.
+handful the intake form calls (explicitly marked `@Public()`) and the `/portal/*` routes used by
+**mobile-portal**, which are public at the routing level but re-guarded behind their own
+customer-JWT guard. See [`backend/README.md`](backend/README.md#auth) for the exact list.
 
 ## Local development
 

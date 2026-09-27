@@ -62,6 +62,15 @@ Everything else — including `POST /customers/leads` (staff creates a lead link
 account comes from `npm run seed:staff -- "<name>" <email> <password>`; every account after that
 is added by an already-logged-in staff member via `POST /auth/register`.
 
+All of `/portal/*` (used by [`mobile-portal`](../mobile-portal), the customer-facing app) is a
+third case: also `@Public()` at the controller level (so it's exempt from the staff `JwtAuthGuard`
+above), but re-guarded behind its own `PortalJwtGuard` and customer JWT — a completely separate
+token realm from staff logins, scoped to that one customer's own data. Only the login/registration
+routes themselves (`/portal/request-code`, `/portal/request-reset`, `/portal/verify-code`,
+`/portal/set-password`, `/portal/login`) are genuinely open with no token at all; all but
+`set-password` (which requires an already-verified one-time code) carry their own tighter
+`@Throttle` limits on top of the app-wide default.
+
 ## Domain model
 
 The schema mirrors the client intake form (client details, emergency contact/vet, per-pet
