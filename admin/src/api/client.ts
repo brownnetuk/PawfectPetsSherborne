@@ -41,6 +41,7 @@ import type {
   InvoiceTerm,
   LineItem,
   Message,
+  MyTrainingListEntry,
   Payment,
   PaymentMethod,
   Policy,
@@ -54,6 +55,11 @@ import type {
   RiskAssessment,
   Role,
   Staff,
+  StartAttemptResult,
+  SubmitAttemptResult,
+  TrainingAttempt,
+  TrainingComplianceRow,
+  TrainingModule,
   VendorOption,
   VetPractice,
   VisitMapping,
@@ -1276,4 +1282,80 @@ export function sendPolicyEmail(id: string, email: string): Promise<Policy> {
 }
 export function assignPolicyUsers(id: string, staffIds: string[]): Promise<Policy> {
   return request(`/policies/${id}/assign-users`, { method: 'PATCH', body: JSON.stringify({ staffIds }) });
+}
+
+// --- Staff Training (Training Admin) ---
+
+export function listTrainingModules(): Promise<TrainingModule[]> {
+  return request('/training/modules');
+}
+export function getTrainingModule(id: string): Promise<TrainingModule> {
+  return request(`/training/modules/${id}`);
+}
+export interface TrainingModuleInput {
+  name: string;
+  description?: string;
+  status: TrainingModule['status'];
+  contentBlocks: Omit<TrainingModule['contentBlocks'][number], '_id'>[];
+  questionBank: Omit<TrainingModule['questionBank'][number], '_id'>[];
+  passMarkPercent: number;
+  questionsPerAttempt: number;
+  reviewFrequency?: string;
+  dueWithinDays: number;
+}
+export function createTrainingModule(input: TrainingModuleInput): Promise<TrainingModule> {
+  return request('/training/modules', { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateTrainingModule(id: string, input: TrainingModuleInput): Promise<TrainingModule> {
+  return request(`/training/modules/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deleteTrainingModule(id: string): Promise<void> {
+  return request(`/training/modules/${id}`, { method: 'DELETE' });
+}
+export function listTrainingStaffOptions(): Promise<{ _id: string; name: string }[]> {
+  return request('/training/modules/staff');
+}
+export function assignTrainingModuleUsers(id: string, staffIds: string[]): Promise<TrainingModule> {
+  return request(`/training/modules/${id}/assign-users`, { method: 'PATCH', body: JSON.stringify({ staffIds }) });
+}
+export function setTrainingModuleAssignAll(id: string, enabled: boolean): Promise<TrainingModule> {
+  return request(`/training/modules/${id}/assign-all`, { method: 'PATCH', body: JSON.stringify({ enabled }) });
+}
+export function getTrainingCompliance(): Promise<TrainingComplianceRow[]> {
+  return request('/training/modules/compliance');
+}
+export function getTrainingAttemptHistory(moduleId: string, staffId?: string): Promise<TrainingAttempt[]> {
+  const query = staffId ? `?staffId=${encodeURIComponent(staffId)}` : '';
+  return request(`/training/modules/${moduleId}/attempts${query}`);
+}
+export function trainingContentFileUrl(moduleId: string, blockId: string): string {
+  return `${API_URL}/training/modules/${moduleId}/content/${blockId}/file`;
+}
+// Bypasses the shared `request` helper, which assumes a JSON response body --
+// this one is a binary file, same reasoning as downloadTermsFile().
+export async function getTrainingContentFile(moduleId: string, blockId: string): Promise<Blob> {
+  const res = await fetch(trainingContentFileUrl(moduleId, blockId), {
+    headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+  });
+  if (res.status === 401) {
+    onUnauthorized?.();
+    throw new Error('Session expired. Please log in again.');
+  }
+  if (!res.ok) {
+    throw new Error(`Request failed (${res.status})`);
+  }
+  return res.blob();
+}
+
+export function listMyTraining(): Promise<MyTrainingListEntry[]> {
+  return request('/training/my');
+}
+export function getMyTrainingModule(id: string): Promise<MyTrainingListEntry> {
+  return request(`/training/my/${id}`);
+}
+export function startTrainingAttempt(moduleId: string): Promise<StartAttemptResult> {
+  return request(`/training/my/${moduleId}/start`, { method: 'POST' });
+}
+export function submitTrainingAttempt(attemptId: string, answers: number[]): Promise<SubmitAttemptResult> {
+  return request(`/training/my/attempts/${attemptId}/submit`, { method: 'POST', body: JSON.stringify({ answers }) });
 }

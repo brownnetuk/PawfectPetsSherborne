@@ -130,14 +130,39 @@ export class AuthService implements OnModuleInit {
     }
 
     const payload = { sub: staff._id.toString(), email: staff.email, name: staff.name };
+    // Populated so the admin app can tell client-side whether the logged-in
+    // staff member actually holds a given permission (e.g. Layout.tsx hiding
+    // "Training Admin" for anyone without training.manage) -- previously this
+    // returned a bare {id,name,email}, so `staff.role` was never available
+    // and every such check silently always saw "no role" (= full access).
+    const populated = await this.staffModel
+      .findById(staff._id)
+      .select('name username email isBreakGlass locked role')
+      .populate<{ role: PopulatedRole }>('role', 'name permissions')
+      .exec();
     return {
       // "Remember me" swaps the default 12h expiry for 30 days.
       accessToken: await this.jwtService.signAsync(
         payload,
         dto.rememberMe ? { expiresIn: '30d' } : {},
       ),
-      staff: { id: staff._id, name: staff.name, email: staff.email },
+      staff: shapeStaff(populated!),
     };
+  }
+
+  // GET /auth/me -- same shapeStaff() as login()/listStaff(), so a page
+  // refresh (which restores the session via this endpoint, not login())
+  // sees the same role/permissions shape as a fresh login does.
+  async me(userId: string) {
+    const staff = await this.staffModel
+      .findById(userId)
+      .select('name username email isBreakGlass locked role')
+      .populate<{ role: PopulatedRole }>('role', 'name permissions')
+      .exec();
+    if (!staff) {
+      throw new NotFoundException('Staff account not found');
+    }
+    return shapeStaff(staff);
   }
 
   async listStaff() {

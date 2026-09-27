@@ -28,4 +28,9 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
     label: 'Manage staff & roles',
     hint: 'Creating, editing, or deleting staff accounts and roles, and assigning roles to staff.',
   },
+  {
+    key: 'training.manage',
+    label: 'Manage staff training',
+    hint: 'Creating, editing, or deleting training modules and their quiz questions, changing who a module is assigned to, and viewing the training compliance audit. Unlike other permissions here, this also gates simply viewing the module list, since the question bank carries the correct answers.',
+  },
 ];

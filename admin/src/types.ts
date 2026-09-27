@@ -1084,3 +1084,124 @@ export interface Policy {
   createdAt: string;
   updatedAt: string;
 }
+
+// --- Staff Training (Staff Training > Training Admin) ---
+
+export type TrainingModuleStatus = 'draft' | 'review' | 'live';
+export type ContentBlockType = 'video' | 'reading' | 'pdf';
+export type TrainingComplianceStatus = 'compliant' | 'due' | 'overdue' | 'pending';
+
+export interface TrainingContentBlock {
+  _id: string;
+  order: number;
+  type: ContentBlockType;
+  title?: string;
+  videoUrl?: string;
+  readingText?: string;
+  pdfFile?: string;
+  pdfFileName?: string;
+}
+
+export interface TrainingQuestion {
+  _id: string;
+  text: string;
+  options: string[];
+  correctIndex: number;
+}
+
+export interface TrainingAssignment {
+  staff: string;
+  staffName: string;
+  assignedAt: string;
+  dueDate: string;
+  lastAttemptAt?: string;
+  lastScorePercent?: number;
+  lastPassed?: boolean;
+  lastCompletedAt?: string;
+  nextDueDate?: string;
+  reviewDueNotified?: boolean;
+}
+
+export interface TrainingAuditEntry {
+  action: string;
+  changes?: string;
+  actor: string;
+  at: string;
+}
+
+export interface TrainingModule {
+  _id: string;
+  name: string;
+  description?: string;
+  status: TrainingModuleStatus;
+  contentBlocks: TrainingContentBlock[];
+  questionBank: TrainingQuestion[];
+  passMarkPercent: number;
+  questionsPerAttempt: number;
+  reviewFrequency?: ReviewFrequency;
+  dueWithinDays: number;
+  assignAllStaff: boolean;
+  assignments: TrainingAssignment[];
+  auditLog: TrainingAuditEntry[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TrainingComplianceRow {
+  moduleId: string;
+  moduleName: string;
+  staffId: string;
+  staffName: string;
+  lastScorePercent?: number;
+  lastPassed?: boolean;
+  lastCompletedAt?: string;
+  dueDate: string;
+  nextDueDate?: string;
+  status: TrainingComplianceStatus;
+}
+
+export interface TrainingAttempt {
+  _id: string;
+  module: string;
+  moduleName: string;
+  staff: string;
+  staffName: string;
+  status: 'in-progress' | 'submitted';
+  passMarkPercent: number;
+  questionsAsked: { questionId: string; text: string; options: string[] }[];
+  answers?: number[];
+  scorePercent?: number;
+  passed?: boolean;
+  startedAt: string;
+  submittedAt?: string;
+}
+
+// My Training (self-service) shapes -- deliberately narrower than
+// TrainingModule/TrainingAssignment: never carries questionBank/correctIndex.
+export interface MyTrainingModule {
+  _id: string;
+  name: string;
+  description?: string;
+  contentBlocks: TrainingContentBlock[];
+  passMarkPercent: number;
+  questionsPerAttempt: number;
+}
+
+export interface MyTrainingListEntry {
+  module: MyTrainingModule;
+  assignment: TrainingAssignment;
+  status: TrainingComplianceStatus;
+}
+
+export interface StartAttemptResult {
+  attemptId: string;
+  passMarkPercent: number;
+  questions: { questionId: string; text: string; options: string[] }[];
+}
+
+export interface SubmitAttemptResult {
+  scorePercent: number;
+  passed: boolean;
+  passMarkPercent: number;
+  review: { text: string; options: string[]; correctIndex: number; selectedIndex: number }[];
+}

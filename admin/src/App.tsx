@@ -17,6 +17,8 @@ const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const InvoicesPage = lazy(() => import('./pages/InvoicesPage'));
 const CommunicationsPage = lazy(() => import('./pages/CommunicationsPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const StaffTrainingPage = lazy(() => import('./pages/StaffTrainingPage'));
+const MyTrainingPage = lazy(() => import('./pages/MyTrainingPage'));
 
 function ProtectedLayout() {
   const { staff, loading } = useAuth();
@@ -41,6 +43,8 @@ export default function App() {
           <Route path="/financial" element={<FinancialPage />} />
           <Route path="/communications" element={<CommunicationsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/staff-training" element={<StaffTrainingPage />} />
+          <Route path="/my-training" element={<MyTrainingPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

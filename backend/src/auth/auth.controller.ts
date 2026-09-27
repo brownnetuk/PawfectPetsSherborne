@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
+import { CurrentUser } from './current-user.decorator';
+import type { CurrentUserShape } from './current-user.decorator';
 import { RequirePermission } from './require-permission.decorator';
 import { AuthService } from './auth.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -32,8 +34,8 @@ export class AuthController {
   }
 
   @Get('me')
-  me(@Req() req: Request) {
-    return req.user;
+  me(@CurrentUser() user: CurrentUserShape) {
+    return this.authService.me(user.id);
   }
 
   @RequirePermission('staff.manage')

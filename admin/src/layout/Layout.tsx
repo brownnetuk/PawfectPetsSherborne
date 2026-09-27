@@ -9,6 +9,7 @@ import QrLoginModal from '../components/QrLoginModal';
 import {
   BoardingIcon,
   BookingsIcon,
+  ChevronDownIcon,
   CustomersIcon,
   EnquiriesIcon,
   FinancialIcon,
@@ -16,6 +17,7 @@ import {
   LogoutIcon,
   ReportsIcon,
   SettingsIcon,
+  TrainingIcon,
 } from '../components/icons';
 
 function initials(name: string | undefined): string {
@@ -44,6 +46,12 @@ export default function Layout() {
   const [showQrLogin, setShowQrLogin] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [wideRequested, setWideRequested] = useState(false);
+  const isTrainingSection = location.pathname.startsWith('/staff-training') || location.pathname.startsWith('/my-training');
+  const [trainingExpanded, setTrainingExpanded] = useState(isTrainingSection);
+  // Unset role or break-glass both mean full access (PermissionsGuard uses
+  // the same rule server-side) -- the backend is the real gate regardless;
+  // this just avoids showing a link that would 403 for most staff.
+  const canManageTraining = staff?.isBreakGlass || !staff?.role || staff.role.permissions.includes('training.manage');
 
   // Safety net alongside useWideLayout's own unmount cleanup, in case a
   // page changes without that cleanup running (e.g. a hard navigation).
@@ -141,6 +149,29 @@ export default function Layout() {
             <ReportsIcon />
             Reports
           </NavLink>
+          <button
+            type="button"
+            className={`nav-group-toggle${isTrainingSection ? ' active' : ''}${trainingExpanded ? ' expanded' : ''}`}
+            onClick={() => setTrainingExpanded((v) => !v)}
+          >
+            <TrainingIcon />
+            Staff Training
+            <span className="chevron">
+              <ChevronDownIcon />
+            </span>
+          </button>
+          {trainingExpanded && (
+            <>
+              {canManageTraining && (
+                <NavLink to="/staff-training" className={({ isActive }) => `nav-subitem${isActive ? ' active' : ''}`}>
+                  Training Admin
+                </NavLink>
+              )}
+              <NavLink to="/my-training" className={({ isActive }) => `nav-subitem${isActive ? ' active' : ''}`}>
+                My Training
+              </NavLink>
+            </>
+          )}
           <NavLink to="/settings" className={({ isActive }) => (isActive ? 'active' : '')}>
             <SettingsIcon />
             Settings

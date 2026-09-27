@@ -138,6 +138,54 @@ h1, h2, h3 {
   opacity: 1;
 }
 
+/* Staff Training's expandable nav group -- the only group/sub-item pattern
+   in the sidebar, everything else here is a flat nav link. */
+.sidebar nav button.nav-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sidebar nav button.nav-group-toggle svg:first-child {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.sidebar nav button.nav-group-toggle:hover {
+  background: rgba(31, 59, 44, 0.06);
+  color: var(--brand-green);
+}
+
+.sidebar nav button.nav-group-toggle.active {
+  color: var(--brand-green);
+  font-weight: 600;
+}
+
+.sidebar nav button.nav-group-toggle .chevron {
+  margin-left: auto;
+  transition: transform 0.15s ease;
+}
+
+.sidebar nav button.nav-group-toggle.expanded .chevron {
+  transform: rotate(180deg);
+}
+
+.sidebar nav a.nav-subitem {
+  padding-left: 33px;
+  font-size: 0.87rem;
+}
+
 .main-area {
   flex: 1;
   display: flex;
@@ -407,6 +455,7 @@ tbody tr:last-child td {
 .badge-current { background: var(--sage-badge); color: var(--brand-green); }
 .badge-due { background: var(--warn-light); color: var(--warn); }
 .badge-pending_review { background: var(--info-light); color: var(--info); }
+.badge-compliant { background: var(--sage-badge); color: var(--brand-green); }
 
 /* A badge that wraps a native <select> so a status pill stays clickable to
    change -- the select is stripped of its default chrome and inherits the
