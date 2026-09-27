@@ -80,6 +80,7 @@ export const ANIMAL_MAPPING_TARGETS: MappingTarget[] = [
   { target: 'animal', path: 'aggressionToOtherAnimals', label: 'Aggression to other animals', kind: 'boolean', speciesRestriction: 'not-cat' },
   { target: 'animal', path: 'aggressionToOtherAnimalsDetails', label: 'Aggression to other animals: details', kind: 'string', speciesRestriction: 'not-cat' },
   { target: 'animal', path: 'travelsWellInCar', label: 'Travels well in car', kind: 'enum', enumValues: YES_NO_UNSURE, speciesRestriction: 'not-cat' },
+  { target: 'animal', path: 'travelsWellInCarDetails', label: 'Travels well in car: details', kind: 'string', speciesRestriction: 'not-cat' },
   { target: 'animal', path: 'chasesLivestock', label: 'Chases livestock', kind: 'enum', enumValues: YES_NO_UNSURE, speciesRestriction: 'dog' },
   { target: 'animal', path: 'chasesLivestockDetails', label: 'Chases livestock: details', kind: 'string', speciesRestriction: 'dog' },
   { target: 'animal', path: 'allergies.status', label: 'Allergies / intolerances', kind: 'enum', enumValues: YES_NO_UNSURE },

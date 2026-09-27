@@ -279,6 +279,18 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
       required: false,
       mapping: { target: 'customer', path: 'emergencyVet.email' },
     },
+    // Same fallback wording as the real wizard's EmergencyVetStep -- that
+    // step fetches this from Settings > Business Info (staff-editable) with
+    // this exact text as the fallback; the Forms engine has no per-field
+    // "fetch from Settings" mechanism (every field here is static, seeded
+    // once), so it's baked in rather than left blank.
+    {
+      id: 'cf-ev-authText',
+      type: 'display',
+      label:
+        'I authorise PawfectPets Sherborne to arrange alternative veterinary care for my pet if my usual vet is unobtainable in an emergency.',
+      required: false,
+    },
     {
       id: 'cf-ev-signedName',
       type: 'text',
@@ -331,6 +343,33 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
     },
 
     // --- Agreement (agreement.*, target: customer) ---
+    // Same fallback terms list and declaration wording as the real wizard's
+    // AgreementStep (both normally staff-editable via Settings > Business
+    // Info -- termsDocx/declarationText -- with this exact copy as the
+    // fallback), baked in for the same "no per-field Settings fetch" reason
+    // as the vet-authorisation text above.
+    {
+      id: 'cf-ag-termsText',
+      type: 'display',
+      label:
+        'Terms and conditions:\n' +
+        '1. The client confirms all information provided in this form is accurate and will notify PawfectPets Sherborne promptly of any changes to contact, veterinary, or pet health details.\n' +
+        "2. The client authorises PawfectPets Sherborne to make decisions regarding the animal's welfare in an emergency, including obtaining veterinary treatment as set out in the Emergency Vet section of this form.\n" +
+        '3. The client is responsible for ensuring vaccinations, flea, and worming treatment are up to date for the duration of any care provided.\n' +
+        '4. PawfectPets Sherborne will take all reasonable care of the animal but cannot be held liable for illness, injury, loss, or death outside of its direct negligence.\n' +
+        '5. Where off-lead exercise has been consented to, the client accepts this is undertaken at their own risk as described in the Off-Lead Consent section.\n' +
+        '6. Any keys or security information (e.g. alarm codes) provided will be stored securely and used solely for the purpose of delivering the agreed service.\n' +
+        '7. Fees are payable as agreed at time of booking. PawfectPets Sherborne reserves the right to decline or discontinue a booking where an animal poses a safety risk not disclosed in this form.\n' +
+        '8. This agreement remains in effect for all future bookings unless the client notifies PawfectPets Sherborne of a change in circumstances.',
+      required: false,
+    },
+    {
+      id: 'cf-ag-declarationText',
+      type: 'display',
+      label:
+        'I confirm that the information provided in this form is accurate and complete to the best of my knowledge, and I agree to be bound by the terms set out above.',
+      required: false,
+    },
     {
       id: 'cf-ag-signedName',
       type: 'text',
@@ -541,6 +580,14 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
           visibleWhen: { mode: 'any', conditions: [{ fieldId: 'pf-species', equals: 'dog' }, { fieldId: 'pf-species', equals: 'other' }] },
         },
         {
+          id: 'pf-travelsWellInCarDetails',
+          type: 'text',
+          label: 'Travels well in car -- details',
+          required: false,
+          mapping: { target: 'animal', path: 'travelsWellInCarDetails' },
+          visibleWhen: { mode: 'all', conditions: [{ fieldId: 'pf-travelsWellInCar', equals: 'no' }] },
+        },
+        {
           id: 'pf-chasesLivestock',
           type: 'choice',
           label: 'Chases livestock',
@@ -629,6 +676,20 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
           options: ['on_lead', 'off_lead'],
           mapping: { target: 'animal', path: 'offLeadConsent.mode' },
           visibleWhen: { mode: 'all', conditions: [{ fieldId: 'pf-species', equals: 'dog' }] },
+        },
+        // Same fallback wording as the real wizard's off-lead consent text
+        // (Settings > Business Info's offLeadConsentText), minus the
+        // {{petName}} substitution that wizard does -- this "Pet" group is a
+        // shared template rendered once per repetition, and
+        // form-placeholders.util.ts's {{petName}} only ever resolves for a
+        // submission generated for one specific pet, not a per-repetition
+        // group field, so it would show as literal, unresolved text here.
+        {
+          id: 'pf-offLeadConsentText',
+          type: 'display',
+          label: 'I consent to my dog being exercised off the lead, and understand this is at my own risk.',
+          required: false,
+          visibleWhen: { mode: 'all', conditions: [{ fieldId: 'pf-offLeadMode', equals: 'off_lead' }] },
         },
         {
           id: 'pf-offLeadSignature',

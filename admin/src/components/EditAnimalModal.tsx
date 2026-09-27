@@ -52,6 +52,9 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
     animal.aggressionToOtherAnimalsDetails ?? '',
   );
   const [travelsWellInCar, setTravelsWellInCar] = useState<TriState>(animal.travelsWellInCar ?? 'unsure');
+  const [travelsWellInCarDetails, setTravelsWellInCarDetails] = useState(
+    animal.travelsWellInCarDetails ?? '',
+  );
   const [chasesLivestock, setChasesLivestock] = useState<TriState>(animal.chasesLivestock ?? 'unsure');
   const [chasesLivestockDetails, setChasesLivestockDetails] = useState(animal.chasesLivestockDetails ?? '');
   const [allergyStatus, setAllergyStatus] = useState<TriState>(animal.allergies.status);
@@ -134,6 +137,10 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
       setError('Please give details about chasing livestock.');
       return;
     }
+    if (species !== 'cat' && travelsWellInCar === 'no' && !travelsWellInCarDetails) {
+      setError('Please give details about travelling in the car.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -167,6 +174,8 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
         aggressionToOtherAnimalsDetails:
           species !== 'cat' && aggressionToOtherAnimals ? aggressionToOtherAnimalsDetails : undefined,
         travelsWellInCar: species !== 'cat' ? travelsWellInCar : undefined,
+        travelsWellInCarDetails:
+          species !== 'cat' && travelsWellInCar === 'no' ? travelsWellInCarDetails : undefined,
         chasesLivestock: species === 'dog' ? chasesLivestock : undefined,
         chasesLivestockDetails:
           species === 'dog' && chasesLivestock === 'yes' ? chasesLivestockDetails : undefined,
@@ -398,6 +407,16 @@ export default function EditAnimalModal({ animal, onClose, onSaved }: Props) {
                   </option>
                 ))}
               </select>
+              {travelsWellInCar === 'no' && (
+                <input
+                  type="text"
+                  placeholder="Details"
+                  value={travelsWellInCarDetails}
+                  onChange={(e) => setTravelsWellInCarDetails(e.target.value)}
+                  style={{ marginTop: 8 }}
+                  required
+                />
+              )}
             </div>
           </>
         )}

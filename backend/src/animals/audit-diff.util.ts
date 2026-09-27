@@ -38,6 +38,7 @@ const ANIMAL_FIELDS: DiffFieldSpec[] = [
   { path: 'aggressionToOtherAnimals', label: 'Aggression to other animals' },
   { path: 'aggressionToOtherAnimalsDetails', label: 'Aggression to other animals: details' },
   { path: 'travelsWellInCar', label: 'Travels well in car', format: formatCapitalised },
+  { path: 'travelsWellInCarDetails', label: 'Travels well in car: details' },
   { path: 'chasesLivestock', label: 'Chases livestock', format: formatCapitalised },
   { path: 'chasesLivestockDetails', label: 'Chases livestock: details' },
   { path: 'allergies.status', label: 'Allergies / intolerances', format: formatCapitalised },

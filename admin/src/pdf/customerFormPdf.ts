@@ -470,7 +470,15 @@ export async function buildCustomerFormPdf(
           animal.aggressionToOtherAnimals ? `Yes — ${animal.aggressionToOtherAnimalsDetails ?? ''}` : 'No',
         ),
       );
-      blocks.push(fieldBlock(doc, 'Travels well in car', animal.travelsWellInCar ?? ''));
+      blocks.push(
+        fieldBlock(
+          doc,
+          'Travels well in car',
+          animal.travelsWellInCar === 'no'
+            ? `No — ${animal.travelsWellInCarDetails ?? ''}`
+            : animal.travelsWellInCar ?? '',
+        ),
+      );
     }
     if (animal.species === 'dog') {
       blocks.push(

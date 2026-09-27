@@ -473,9 +473,22 @@ function buildSections(
   };
   for (const field of fields) {
     if (field.type === 'display') {
-      flush();
-      title = field.label;
-      forceNewPage = !!field.startsNewPage;
+      // A section title only when it's actually the marker that opens one --
+      // startsNewPage explicitly, or it's the very first display field seen
+      // at all (the form's own opening section, which never sets
+      // startsNewPage since it's already the first page/section). Any OTHER
+      // display field reaching here is inline body text within the section
+      // already open (e.g. a disclaimer/terms paragraph ahead of a
+      // signature) -- same subheadingBlock() treatment repetitionBlocks()
+      // already gives an inline display field inside a group's own
+      // repetition, just applied here for a top-level one.
+      if (title === null || field.startsNewPage) {
+        flush();
+        title = field.label;
+        forceNewPage = !!field.startsNewPage;
+      } else {
+        blocks.push(subheadingBlock(field.label));
+      }
       continue;
     }
     if (field.type === 'group') {

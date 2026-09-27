@@ -210,6 +210,14 @@ export default function PetDetailsStep({ index, total, value, onChange }: Props)
             onChange={(v) => set('travelsWellInCar', v)}
             required
           />
+          {value.travelsWellInCar === 'no' && (
+            <TextField
+              label="Please give details"
+              value={value.travelsWellInCarDetails ?? ''}
+              onChange={(v) => set('travelsWellInCarDetails', v)}
+              required
+            />
+          )}
         </>
       )}
       {isDog && (

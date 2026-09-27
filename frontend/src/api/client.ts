@@ -185,6 +185,8 @@ function animalPayload(pet: PetDetails) {
         ? pet.aggressionToOtherAnimalsDetails
         : undefined,
     travelsWellInCar: pet.species !== 'cat' ? pet.travelsWellInCar || undefined : undefined,
+    travelsWellInCarDetails:
+      pet.species !== 'cat' && pet.travelsWellInCar === 'no' ? pet.travelsWellInCarDetails : undefined,
     chasesLivestock: pet.species === 'dog' ? pet.chasesLivestock || undefined : undefined,
     chasesLivestockDetails:
       pet.species === 'dog' && pet.chasesLivestock === 'yes' ? pet.chasesLivestockDetails : undefined,

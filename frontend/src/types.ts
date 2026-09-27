@@ -47,6 +47,7 @@ export interface AnimalRecord {
   aggressionToOtherAnimals?: boolean;
   aggressionToOtherAnimalsDetails?: string;
   travelsWellInCar?: TriState;
+  travelsWellInCarDetails?: string;
   chasesLivestock?: TriState;
   chasesLivestockDetails?: string;
   allergies: AllergyInfo;
@@ -183,6 +184,7 @@ export interface PetDetails {
   aggressionToOtherAnimals: boolean | null;
   aggressionToOtherAnimalsDetails?: string;
   travelsWellInCar: TriState | '';
+  travelsWellInCarDetails?: string;
   chasesLivestock: TriState | '';
   chasesLivestockDetails?: string;
   allergies: AllergyInfo;

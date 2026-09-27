@@ -40,6 +40,7 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
   const [aggressionToOtherAnimals, setAggressionToOtherAnimals] = useState(false);
   const [aggressionToOtherAnimalsDetails, setAggressionToOtherAnimalsDetails] = useState('');
   const [travelsWellInCar, setTravelsWellInCar] = useState<TriState>('unsure');
+  const [travelsWellInCarDetails, setTravelsWellInCarDetails] = useState('');
   const [chasesLivestock, setChasesLivestock] = useState<TriState>('unsure');
   const [chasesLivestockDetails, setChasesLivestockDetails] = useState('');
   const [allergyStatus, setAllergyStatus] = useState<TriState>('no');
@@ -108,6 +109,10 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
       setError('Please give details about chasing livestock.');
       return;
     }
+    if (species !== 'cat' && travelsWellInCar === 'no' && !travelsWellInCarDetails) {
+      setError('Please give details about travelling in the car.');
+      return;
+    }
     if (species === 'dog' && leadMode === 'off_lead' && !consentSignature) {
       setError('A signature is required to record off-lead consent.');
       return;
@@ -141,6 +146,8 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
         aggressionToOtherAnimalsDetails:
           species !== 'cat' && aggressionToOtherAnimals ? aggressionToOtherAnimalsDetails : undefined,
         travelsWellInCar: species !== 'cat' ? travelsWellInCar : undefined,
+        travelsWellInCarDetails:
+          species !== 'cat' && travelsWellInCar === 'no' ? travelsWellInCarDetails : undefined,
         chasesLivestock: species === 'dog' ? chasesLivestock : undefined,
         chasesLivestockDetails:
           species === 'dog' && chasesLivestock === 'yes' ? chasesLivestockDetails : undefined,
@@ -367,6 +374,16 @@ export default function NewAnimalModal({ customerId, onClose, onCreated }: Props
                   </option>
                 ))}
               </select>
+              {travelsWellInCar === 'no' && (
+                <input
+                  type="text"
+                  placeholder="Details"
+                  value={travelsWellInCarDetails}
+                  onChange={(e) => setTravelsWellInCarDetails(e.target.value)}
+                  style={{ marginTop: 8 }}
+                  required
+                />
+              )}
             </div>
           </>
         )}

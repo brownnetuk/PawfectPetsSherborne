@@ -28,6 +28,7 @@ function emptyPet(): PetDetails {
     aggressionToPeople: null,
     aggressionToOtherAnimals: null,
     travelsWellInCar: '',
+    travelsWellInCarDetails: '',
     chasesLivestock: '',
     chasesLivestockDetails: '',
     allergies: { status: 'no', details: '' },
@@ -92,6 +93,8 @@ export default function AddPetFlow({ customerId }: { customerId: string }) {
         if (pet.aggressionToOtherAnimals && !pet.aggressionToOtherAnimalsDetails)
           return 'Please provide details about aggression to other animals.';
         if (!pet.travelsWellInCar) return 'Please answer all required questions.';
+        if (pet.travelsWellInCar === 'no' && !pet.travelsWellInCarDetails)
+          return 'Please provide details about travelling in the car.';
       }
       if (pet.species === 'dog') {
         if (!pet.chasesLivestock) return 'Please answer all required questions.';

@@ -117,6 +117,7 @@ function stripSpeciesInapplicableFields(patch: Record<string, unknown>): void {
     delete patch.aggressionToOtherAnimals;
     delete patch.aggressionToOtherAnimalsDetails;
     delete patch.travelsWellInCar;
+    delete patch.travelsWellInCarDetails;
     delete patch.chasesLivestock;
     delete patch.chasesLivestockDetails;
   }

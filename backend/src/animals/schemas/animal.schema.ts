@@ -187,6 +187,9 @@ export class Animal extends Document {
   @Prop({ type: String, enum: TriState })
   travelsWellInCar?: TriState;
 
+  @Prop()
+  travelsWellInCarDetails?: string;
+
   // Dogs only.
   @Prop({ type: String, enum: TriState })
   chasesLivestock?: TriState;

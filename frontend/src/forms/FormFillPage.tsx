@@ -59,15 +59,21 @@ function buildPages(fields: FormField[], answers: Record<string, unknown>): Page
   return pages;
 }
 
-// The most recent section heading in a "fields" page reads better as its
-// progress-bar label than the form's own name repeated on every page (e.g.
-// "Emergency contact" rather than "Pre-Check-In" for every single step).
+// The page's own section heading reads better as its progress-bar label than
+// the form's own name repeated on every page (e.g. "Emergency contact"
+// rather than "Pre-Check-In" for every single step). Takes the FIRST display
+// field, not just any -- a page can carry further display fields of its own
+// after the heading (a disclaimer/terms paragraph ahead of a signature, say),
+// and only the one that actually opens the page (the startsNewPage marker
+// that triggered buildPages() to start a new page, or simply the form's very
+// first field on page 1, which never sets startsNewPage since it's already
+// on page 1) is the section title -- not whichever happens to be last.
 function pageLabel(page: Page, formName: string): string {
   if (page.kind === 'groupRepetition') {
     return page.field.repetitionLabels?.[page.index] ?? `${page.field.label} ${page.index + 1}`;
   }
-  const headings = page.fields.filter((f) => f.type === 'display');
-  return headings[headings.length - 1]?.label ?? formName;
+  const heading = page.fields.find((f) => f.type === 'display');
+  return heading?.label ?? formName;
 }
 
 export default function FormFillPage({ submissionId }: { submissionId: string }) {

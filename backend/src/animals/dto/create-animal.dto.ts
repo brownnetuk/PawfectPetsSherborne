@@ -174,6 +174,11 @@ export class CreateAnimalDto {
   @IsEnum(TriState)
   travelsWellInCar?: TriState;
 
+  @ValidateIf((o) => o.travelsWellInCar === TriState.NO)
+  @IsNotEmpty()
+  @IsString()
+  travelsWellInCarDetails?: string;
+
   // Dogs only; service-layer validation rejects it for cats and other species.
   @IsOptional()
   @IsEnum(TriState)

@@ -132,7 +132,11 @@ export default function ViewAnimalModal({ animal, onClose }: Props) {
                     : 'No'}
                 </dd>
                 <dt>Travels well in car</dt>
-                <dd style={{ textTransform: 'capitalize' }}>{animal.travelsWellInCar || '—'}</dd>
+                <dd style={{ textTransform: 'capitalize' }}>
+                  {animal.travelsWellInCar === 'no'
+                    ? `No — ${animal.travelsWellInCarDetails || '—'}`
+                    : animal.travelsWellInCar || '—'}
+                </dd>
               </>
             )}
             {isDog && (
