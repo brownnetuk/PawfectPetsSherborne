@@ -273,3 +273,15 @@ export function PdfContentIcon() {
     </svg>
   );
 }
+
+// A chain-link glyph -- for assigning a form to a Boarding-workflow slot
+// (Pre-check-in/Check-in/Check-out).
+export function LinkFormIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 15l6-6" />
+      <path d="M11 5.5l1-1a3.5 3.5 0 0 1 5 5l-1 1" />
+      <path d="M13 18.5l-1 1a3.5 3.5 0 0 1-5-5l1-1" />
+    </svg>
+  );
+}

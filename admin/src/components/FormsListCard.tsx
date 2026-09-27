@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
-import type { FormRecord } from '../types';
+import type { BoardingWorkflowSettings, FormRecord } from '../types';
+import FormAssignmentModal, { slotsUsingForm } from './FormAssignmentModal';
 import Modal from './Modal';
 import SendFormModal from './SendFormModal';
-import { MailIcon, PencilIcon, TrashIcon } from './icons';
+import { LinkFormIcon, MailIcon, PencilIcon, TrashIcon } from './icons';
 
 interface Props {
   onEdit: (form: FormRecord | null) => void;
@@ -11,14 +12,17 @@ interface Props {
 
 export default function FormsListCard({ onEdit }: Props) {
   const [forms, setForms] = useState<FormRecord[] | null>(null);
+  const [workflowSettings, setWorkflowSettings] = useState<BoardingWorkflowSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<FormRecord | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [sending, setSending] = useState<FormRecord | null>(null);
+  const [assigning, setAssigning] = useState<FormRecord | null>(null);
 
   function refresh() {
     api.listForms().then(setForms).catch((err) => setError(err instanceof Error ? err.message : 'Failed to load forms'));
+    api.getBoardingWorkflowSettings().then(setWorkflowSettings).catch(() => {});
   }
   useEffect(refresh, []);
 
@@ -81,6 +85,7 @@ export default function FormsListCard({ onEdit }: Props) {
               <th>Name</th>
               <th>Description</th>
               <th>Fields</th>
+              <th>Used For</th>
               <th>Visible</th>
               <th></th>
             </tr>
@@ -88,11 +93,15 @@ export default function FormsListCard({ onEdit }: Props) {
           <tbody>
             {forms.map((form) => {
               const visible = form.customerVisible ?? true;
+              const usedFor = slotsUsingForm(workflowSettings, form._id);
               return (
               <tr key={form._id}>
                 <td>{form.name}</td>
                 <td>{form.description || '—'}</td>
                 <td>{countFields(form)}</td>
+                <td style={{ color: usedFor.length ? 'var(--ink)' : 'var(--muted)', fontSize: '0.85rem' }}>
+                  {usedFor.length ? usedFor.join(', ') : '—'}
+                </td>
                 <td>
                   <button
                     type="button"
@@ -129,6 +138,9 @@ export default function FormsListCard({ onEdit }: Props) {
                 </td>
                 <td>
                   <div style={{ display: 'flex', gap: 2 }}>
+                    <button className="icon-btn" title="Use for…" onClick={() => setAssigning(form)}>
+                      <LinkFormIcon />
+                    </button>
                     <button className="icon-btn" title="Send" onClick={() => setSending(form)}>
                       <MailIcon />
                     </button>
@@ -167,6 +179,18 @@ export default function FormsListCard({ onEdit }: Props) {
       )}
 
       {sending && <SendFormModal form={sending} onClose={() => setSending(null)} />}
+
+      {assigning && workflowSettings && (
+        <FormAssignmentModal
+          form={assigning}
+          settings={workflowSettings}
+          onClose={() => setAssigning(null)}
+          onSaved={(updated) => {
+            setWorkflowSettings(updated);
+            setAssigning(null);
+          }}
+        />
+      )}
     </div>
   );
 }
