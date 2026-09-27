@@ -15,4 +15,9 @@ export const ALL_PERMISSION_KEYS = [
   'financial.manage',
   'settings.manage',
   'staff.manage',
+  // Gates ALL of Training Admin, including read access -- unlike every
+  // other key here (which only gates a destructive/sensitive action), a
+  // training module's question bank carries the correct answers, which must
+  // never be reachable by anyone who isn't a training author.
+  'training.manage',
 ];

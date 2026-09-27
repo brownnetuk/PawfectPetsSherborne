@@ -49,6 +49,7 @@ import { RiskAssessmentsModule } from './risk-assessments/risk-assessments.modul
 import { EmailGroupsModule } from './email-groups/email-groups.module';
 import { EmailMessagesModule } from './email-messages/email-messages.module';
 import { PoliciesModule } from './policies/policies.module';
+import { StaffTrainingModule } from './staff-training/staff-training.module';
 
 @Module({
   imports: [
@@ -110,6 +111,7 @@ import { PoliciesModule } from './policies/policies.module';
     EmailGroupsModule,
     EmailMessagesModule,
     PoliciesModule,
+    StaffTrainingModule,
     RolesModule,
     PortalModule,
     MessagesModule,
