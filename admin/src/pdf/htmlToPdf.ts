@@ -2,12 +2,12 @@ import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import logoUrl from '../assets/logo.png';
 
-export const PAGE_WIDTH_PT = 595.28; // A4
-export const PAGE_HEIGHT_PT = 841.89; // A4
 export const MARGIN_PT = 40;
-export const CONTENT_WIDTH_PT = PAGE_WIDTH_PT - MARGIN_PT * 2;
-export const CONTENT_HEIGHT_PT = PAGE_HEIGHT_PT - MARGIN_PT * 2;
-const RENDER_WIDTH_PX = 800; // html2canvas's rendering viewport, scaled down to CONTENT_WIDTH_PT
+// Pixel density html2canvas renders at, tuned against a portrait A4 page
+// (595.28pt wide, so a 515.28pt-wide content area) -- kept as a ratio rather
+// than a fixed render width so a landscape doc's wider content area renders
+// at the same effective resolution instead of coming out blurrier.
+const RENDER_PX_PER_PT = 800 / (595.28 - MARGIN_PT * 2);
 
 export function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -43,6 +43,10 @@ export function pdfFooter(): string {
  * the standard "slice a tall image across pages" technique.
  */
 export async function renderHtmlToPdf(doc: jsPDF, html: string): Promise<void> {
+  const contentWidthPt = doc.internal.pageSize.getWidth() - MARGIN_PT * 2;
+  const contentHeightPt = doc.internal.pageSize.getHeight() - MARGIN_PT * 2;
+  const renderWidthPx = Math.round(contentWidthPt * RENDER_PX_PER_PT);
+
   const container = document.createElement('div');
   // Positioned at the real (0,0) viewport origin but behind everything else
   // and fully transparent -- html2canvas can end up capturing blank content
@@ -53,7 +57,7 @@ export async function renderHtmlToPdf(doc: jsPDF, html: string): Promise<void> {
   container.style.left = '0';
   container.style.zIndex = '-1';
   container.style.background = '#fff';
-  container.style.width = `${RENDER_WIDTH_PX}px`;
+  container.style.width = `${renderWidthPx}px`;
   container.style.fontFamily = 'Helvetica, Arial, sans-serif';
   container.style.color = '#232c26';
   container.style.fontSize = '15px';
@@ -74,16 +78,16 @@ export async function renderHtmlToPdf(doc: jsPDF, html: string): Promise<void> {
     // innerWidth/innerHeight rather than the container's own width, which
     // silently clips anything past whatever width the browser happens to be
     // open at.
-    canvas = await html2canvas(container, { width: RENDER_WIDTH_PX, windowWidth: RENDER_WIDTH_PX, backgroundColor: '#ffffff' });
+    canvas = await html2canvas(container, { width: renderWidthPx, windowWidth: renderWidthPx, backgroundColor: '#ffffff' });
   } finally {
     document.body.removeChild(container);
   }
 
   const imgData = canvas.toDataURL('image/png');
-  const imgWidthPt = CONTENT_WIDTH_PT;
+  const imgWidthPt = contentWidthPt;
   const imgHeightPt = (canvas.height / canvas.width) * imgWidthPt;
 
-  if (imgHeightPt <= CONTENT_HEIGHT_PT) {
+  if (imgHeightPt <= contentHeightPt) {
     doc.addImage(imgData, 'PNG', MARGIN_PT, MARGIN_PT, imgWidthPt, imgHeightPt);
   } else {
     let shownPt = 0;
@@ -98,7 +102,7 @@ export async function renderHtmlToPdf(doc: jsPDF, html: string): Promise<void> {
       // the page bounds automatically, so nothing further needs doing to
       // crop either end.
       doc.addImage(imgData, 'PNG', MARGIN_PT, MARGIN_PT - shownPt, imgWidthPt, imgHeightPt);
-      shownPt += CONTENT_HEIGHT_PT;
+      shownPt += contentHeightPt;
     }
   }
 }

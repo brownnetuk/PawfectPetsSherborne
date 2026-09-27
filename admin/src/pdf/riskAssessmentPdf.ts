@@ -54,7 +54,10 @@ function riskRow(risk: RiskItem, index: number): string {
 
 /** Renders a risk assessment (header details + full risks table) as a branded, nicely formatted PDF. */
 export async function buildRiskAssessmentPdf(assessment: RiskAssessment): Promise<jsPDF> {
-  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  // Landscape -- the risks table has too many columns (hazard, who's at
+  // risk, controls, actions, L/S/score/residual/review) to stay readable at
+  // portrait A4's narrower content width.
+  const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'landscape' });
 
   const metaRows: [string, string][] = [
     ['RA ID', assessment.raId],
