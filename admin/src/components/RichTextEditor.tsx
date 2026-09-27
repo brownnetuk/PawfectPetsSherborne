@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { escapeHtml } from '../utils/emailTemplate';
+import { compressImageToDataUrl } from '../utils/compressImage';
 
 const BLOCKS = [
   { value: 'p', label: 'Paragraph' },
@@ -74,7 +75,9 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, { value: string; onChang
   function RichTextEditor({ value, onChange }, forwardedRef) {
     const ref = useRef<HTMLDivElement>(null);
     const sourceRef = useRef<HTMLTextAreaElement>(null);
+    const imageInputRef = useRef<HTMLInputElement>(null);
     const [sourceMode, setSourceMode] = useState(false);
+    const [imageError, setImageError] = useState<string | null>(null);
 
     // Only push `value` into the DOM when it didn't originate from this same
     // element's own onInput (i.e. it differs from what's already there) --
@@ -379,6 +382,33 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, { value: string; onChang
       );
     }
 
+    function insertImage() {
+      imageInputRef.current?.click();
+    }
+
+    // Same base64-data-URI-in-Mongo approach every other upload in this app
+    // uses (no S3/blob storage exists anywhere in the codebase) -- the image
+    // ends up embedded directly in the stored HTML, same as a PDF/logo is
+    // stored as a data URI on its own document. Downscaled first
+    // (compressImageToDataUrl, already used for photo uploads elsewhere) so a
+    // phone photo doesn't bloat whatever record this HTML is saved on.
+    async function handleImageFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      if (!file.type.startsWith('image/')) {
+        setImageError('Please choose an image file.');
+        return;
+      }
+      setImageError(null);
+      try {
+        const dataUrl = await compressImageToDataUrl(file);
+        exec('insertHTML', `<img src="${dataUrl}" style="max-width:100%;height:auto;" />`);
+      } catch {
+        setImageError('Failed to read that image.');
+      }
+    }
+
     // Toolbar buttons are mousedown-prevented so clicking one doesn't steal
     // focus/collapse the editor's text selection before the command runs --
     // but NOT for the select/color-input controls in the toolbar, since
@@ -483,6 +513,9 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, { value: string; onChang
               <button type="button" onClick={insertButton} title="Insert a button linking somewhere">
                 Button
               </button>
+              <button type="button" onClick={insertImage} title="Insert an image">
+                Image
+              </button>
               <select
                 defaultValue=""
                 title="Table"
@@ -524,6 +557,14 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, { value: string; onChang
             {'<>'}
           </button>
         </div>
+        {imageError && <div className="error-banner">{imageError}</div>}
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={handleImageFileChange}
+        />
         {sourceMode ? (
           <textarea
             ref={sourceRef}
