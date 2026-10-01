@@ -1145,6 +1145,7 @@ const STATUS_PILL_COLORS: Record<BookingStatusLabel, { bg: string; color: string
   'Invoice Raised': { bg: 'var(--info-light)', color: 'var(--info)' },
   'Deposit Requested': { bg: 'var(--accent-light)', color: 'var(--accent-dark)' },
   'Deposit Paid': { bg: 'var(--sage-badge)', color: 'var(--brand-green)' },
+  'Deposit Not Required': { bg: 'var(--sage-badge)', color: 'var(--brand-green)' },
   'Pre Check In Complete': { bg: 'var(--sage-badge)', color: 'var(--brand-green)' },
   'Check In Complete': { bg: 'var(--sage-badge)', color: 'var(--brand-green)' },
   'In Progress': { bg: 'var(--accent-light)', color: 'var(--accent-dark)' },

@@ -715,14 +715,16 @@ export class BoardingBookingsService {
       'invoicePaid',
     ];
     // The index (into `order` above) of the last stage the given status
-    // implies is DONE -- 'Deposit Requested' and 'Deposit Paid' share the
-    // same underlying 'paymentReceived' stage but land on different sides
-    // of it (requested-not-paid leaves it as the current/pending one).
+    // implies is DONE -- 'Deposit Requested', 'Deposit Paid', and 'Deposit
+    // Not Required' all share the same underlying 'paymentReceived' stage
+    // but land on different sides of it (requested-not-paid leaves it as
+    // the current/pending one; the other two both mark it done).
     const doneThroughIndex: Record<BookingStatusLabel, number> = {
       Confirmed: 0,
       'Invoice Raised': 1,
       'Deposit Requested': 1,
       'Deposit Paid': 2,
+      'Deposit Not Required': 2,
       'Pre Check In Complete': 3,
       'Check In Complete': 4,
       'In Progress': 5,
@@ -735,6 +737,12 @@ export class BoardingBookingsService {
       const index = order.indexOf(stage.key);
       stage.done = index <= threshold;
       stage.current = index === threshold + 1;
+      // Relabel the stage itself (not just its done/current booleans) so the
+      // timeline doesn't claim "Payment received" for a booking that never
+      // actually received one -- the whole point of this status existing.
+      if (stage.key === 'paymentReceived' && override === 'Deposit Not Required') {
+        stage.label = 'Deposit Not Required';
+      }
     }
   }
 

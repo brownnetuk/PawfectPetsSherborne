@@ -455,6 +455,7 @@ export const BOOKING_STATUS_LABELS = [
   'Invoice Raised',
   'Deposit Requested',
   'Deposit Paid',
+  'Deposit Not Required',
   'Pre Check In Complete',
   'Check In Complete',
   'In Progress',
