@@ -778,7 +778,7 @@ function TimelineRow({ booking, large, hideLabel }: { booking: DayBooking; large
 }
 
 function OccupancyTab({ mapping }: { mapping: VisitMapping | null }) {
-  const [viewMode, setViewMode] = useState<ViewMode>('week');
+  const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [dayBookings, setDayBookings] = useState<DayBooking[] | null>(null);
   const [annualLeave, setAnnualLeave] = useState<AnnualLeave[]>([]);
