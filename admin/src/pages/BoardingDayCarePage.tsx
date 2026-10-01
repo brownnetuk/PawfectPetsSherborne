@@ -1742,6 +1742,13 @@ function BookingDetail({
                     <button className="btn btn-secondary" disabled={requesting} onClick={() => handleRequestPayment('full')}>
                       Request full payment
                     </button>
+                    <button
+                      className="btn btn-secondary"
+                      disabled={savingStatus}
+                      onClick={() => handleSetStatus('Deposit Not Required')}
+                    >
+                      Deposit not required
+                    </button>
                   </div>
                 )}
               </>
