@@ -1504,7 +1504,8 @@ function BookingDetail({
   async function handleDownloadConfirmation() {
     setError(null);
     try {
-      const doc = await buildBookingConfirmationPdf(booking, invoice ?? null);
+      const businessInfo = await api.getBusinessInfo();
+      const doc = await buildBookingConfirmationPdf(booking, invoice ?? null, businessInfo);
       doc.save(`Booking Confirmation - ${booking.reference}.pdf`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate the booking confirmation');

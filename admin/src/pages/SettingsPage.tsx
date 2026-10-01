@@ -2991,6 +2991,7 @@ function BoardingSettingsTab() {
   return (
     <div>
       <BookingReferenceCard />
+      <BookingTermsCard />
       <PreCheckInCard />
       <CheckInFormCard />
       <CheckOutFormCard />
@@ -3061,6 +3062,66 @@ function BookingReferenceCard() {
             {saved && <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>}
           </div>
         </form>
+      )}
+    </div>
+  );
+}
+
+// Shown under "Booking Information" on the Booking Confirmation PDF
+// (admin/src/pdf/bookingConfirmationPdf.ts) -- a rich-text replacement for
+// that PDF's default closing message, e.g. drop-off/collection policy,
+// cancellation terms, what to bring.
+function BookingTermsCard() {
+  const [terms, setTerms] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api
+      .getBusinessInfo()
+      .then((info) => {
+        setTerms(info.bookingTerms ?? '');
+        setLoaded(true);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load booking terms'));
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await api.updateBusinessInfo({ bookingTerms: terms });
+      setSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save booking terms');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Booking Terms</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        Shown under "Booking Information" on the Booking Confirmation PDF, in place of its default closing
+        message -- e.g. drop-off/collection policy, cancellation terms, what to bring.
+      </p>
+      {error && <div className="error-banner">{error}</div>}
+      {!loaded ? (
+        <div className="empty-state">Loading…</div>
+      ) : (
+        <>
+          <RichTextEditor value={terms} onChange={setTerms} />
+          <div className="modal-actions" style={{ justifyContent: 'flex-start', gap: 12, marginTop: 12 }}>
+            <button className="btn btn-primary" type="button" onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            {saved && <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>}
+          </div>
+        </>
       )}
     </div>
   );

@@ -657,6 +657,9 @@ export interface BusinessInfo {
   creditNoteNextNumber: number;
   bookingRefTemplate: string;
   bookingRefNextNumber: number;
+  // Rich HTML (RichTextEditor), shown under "Booking Information" on the
+  // Booking Confirmation PDF in place of its default closing message.
+  bookingTerms?: string;
   invoicePdfTemplate: PdfTemplateElement[];
   trustedIps: string[];
   qrCodeUrl: string;
