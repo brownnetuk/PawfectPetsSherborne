@@ -4,17 +4,23 @@ import { Model } from 'mongoose';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
 import { Booking } from '../bookings/schemas/booking.schema';
+import { Customer } from '../customers/schemas/customer.schema';
 import { describeAnimalChanges } from './audit-diff.util';
 import { CreateAnimalDto } from './dto/create-animal.dto';
 import { PublicUpdateAnimalDto } from './dto/public-update-animal.dto';
 import { UpdateAnimalDto } from './dto/update-animal.dto';
 import { Animal, Species } from './schemas/animal.schema';
 
+// Nested-populate shape for a `linkedAnimal` reference -- just enough for the
+// admin UI to show "Linked to <customer name>" without a second round trip.
+const LINKED_ANIMAL_POPULATE = { path: 'linkedAnimal', select: 'customer name', populate: { path: 'customer', select: 'name' } };
+
 @Injectable()
 export class AnimalsService {
   constructor(
     @InjectModel(Animal.name) private readonly animalModel: Model<Animal>,
     @InjectModel(Booking.name) private readonly bookingModel: Model<Booking>,
+    @InjectModel(Customer.name) private readonly customerModel: Model<Customer>,
     private readonly auditLogService: AuditLogService,
   ) {}
 
@@ -98,11 +104,11 @@ export class AnimalsService {
     if (!customerId) {
       return this.animalModel.find().select('name species customer').exec();
     }
-    return this.animalModel.find({ customer: customerId }).exec();
+    return this.animalModel.find({ customer: customerId }).populate(LINKED_ANIMAL_POPULATE).exec();
   }
 
   async findOne(id: string): Promise<Animal> {
-    const animal = await this.animalModel.findById(id).exec();
+    const animal = await this.animalModel.findById(id).populate(LINKED_ANIMAL_POPULATE).exec();
     if (!animal) {
       throw new NotFoundException(`Animal ${id} not found`);
     }
@@ -133,7 +139,37 @@ export class AnimalsService {
       undefined,
       actor,
     );
+    if (animal.linkedAnimal) {
+      await this.propagateToLinkedAnimal(animal, dto, actor);
+    }
     return animal;
+  }
+
+  // Mirrors an edit onto the OTHER half of a copy/copy pair (see
+  // Animal.linkedAnimal's doc comment) -- applied with the exact same
+  // findByIdAndUpdate() semantics as the edit that triggered it, minus
+  // `customer`/`linkedAnimal` themselves, which must never follow a sync (the
+  // whole point is two records under two different customers, each with its
+  // own, independent link pointer). Silently a no-op if the counterpart was
+  // since deleted -- remove() already clears a stale pointer on delete, but a
+  // request already in flight when that happens shouldn't also fail its own,
+  // otherwise-valid update.
+  private async propagateToLinkedAnimal(
+    animal: Animal,
+    dto: Partial<CreateAnimalDto> | PublicUpdateAnimalDto,
+    actor: string,
+  ): Promise<void> {
+    const { customer: _customer, ...syncableDto } = dto as Record<string, unknown>;
+    const linked = await this.animalModel.findByIdAndUpdate(animal.linkedAnimal, syncableDto, { new: true }).exec();
+    if (!linked) return;
+    await this.auditLogService.record(
+      linked.customer,
+      AuditEventType.ANIMAL_UPDATED,
+      'Pet updated',
+      `${linked.name} updated automatically to match its linked copy`,
+      undefined,
+      actor,
+    );
   }
 
   // Backs the public, customer-scoped update route: the intake form's "review my
@@ -171,6 +207,124 @@ export class AnimalsService {
       undefined,
       actor,
     );
+    if (animal.linkedAnimal) {
+      await this.propagateToLinkedAnimal(animal, dto, actor);
+    }
+    return animal;
+  }
+
+  // Copies a pet to another customer -- a brand-new Animal document with the
+  // same field values, linked bidirectionally to the source (see
+  // Animal.linkedAnimal's doc comment) so future edits to either stay in
+  // sync. Rejected if the source is already linked -- this models a single
+  // copy/copy pair, not a multi-way sync group.
+  async copyToCustomer(id: string, customerId: string, actor = 'Staff'): Promise<Animal> {
+    const source = await this.animalModel.findById(id).exec();
+    if (!source) throw new NotFoundException(`Animal ${id} not found`);
+    if (source.linkedAnimal) {
+      throw new BadRequestException('This pet is already linked to a copy under another customer. Unlink it first.');
+    }
+    if (source.customer.toString() === customerId) {
+      throw new BadRequestException('This pet already belongs to that customer.');
+    }
+    const target = await this.customerModel.findById(customerId).exec();
+    if (!target) throw new NotFoundException(`Customer ${customerId} not found`);
+
+    const { _id, createdAt, updatedAt, __v, linkedAnimal, customer, ...fields } = source.toObject() as unknown as Record<
+      string,
+      unknown
+    >;
+    const copy = await new this.animalModel({ ...fields, customer: customerId, linkedAnimal: source._id }).save();
+    await this.animalModel.findByIdAndUpdate(source._id, { linkedAnimal: copy._id }).exec();
+
+    await this.auditLogService.record(
+      customerId,
+      AuditEventType.ANIMAL_CREATED,
+      'Pet added',
+      `${copy.name} copied from a pet linked to another customer`,
+      undefined,
+      actor,
+    );
+    await this.auditLogService.record(
+      source.customer,
+      AuditEventType.ANIMAL_UPDATED,
+      'Pet linked',
+      `${source.name} linked to a copy added under another customer`,
+      undefined,
+      actor,
+    );
+    return copy;
+  }
+
+  // Reassigns a pet to another customer outright -- same document, same id,
+  // just a different owner. Unlike copyToCustomer, this doesn't touch
+  // linkedAnimal at all: if the pet was already linked to a copy elsewhere,
+  // that link (and the sync it drives) carries on exactly as before, just
+  // under its new owner.
+  async moveToCustomer(id: string, customerId: string, actor = 'Staff'): Promise<Animal> {
+    const animal = await this.animalModel.findById(id).exec();
+    if (!animal) throw new NotFoundException(`Animal ${id} not found`);
+    if (animal.customer.toString() === customerId) {
+      throw new BadRequestException('This pet already belongs to that customer.');
+    }
+    const target = await this.customerModel.findById(customerId).exec();
+    if (!target) throw new NotFoundException(`Customer ${customerId} not found`);
+
+    const fromCustomerId = animal.customer;
+    animal.customer = customerId as unknown as typeof animal.customer;
+    await animal.save();
+
+    await this.auditLogService.record(
+      fromCustomerId,
+      AuditEventType.ANIMAL_UPDATED,
+      'Pet moved',
+      `${animal.name} moved to another customer`,
+      undefined,
+      actor,
+    );
+    await this.auditLogService.record(
+      customerId,
+      AuditEventType.ANIMAL_UPDATED,
+      'Pet moved',
+      `${animal.name} moved from another customer`,
+      undefined,
+      actor,
+    );
+    return animal;
+  }
+
+  // Breaks a copy/copy link both ways -- the counterpart (if it still exists)
+  // becomes a normal, independent record rather than cascading the unlink
+  // into a delete.
+  async unlink(id: string, actor = 'Staff'): Promise<Animal> {
+    const animal = await this.animalModel.findById(id).exec();
+    if (!animal) throw new NotFoundException(`Animal ${id} not found`);
+    if (!animal.linkedAnimal) {
+      throw new BadRequestException('This pet is not linked to a copy under another customer.');
+    }
+    const counterpartId = animal.linkedAnimal;
+    animal.linkedAnimal = undefined;
+    await animal.save();
+    const counterpart = await this.animalModel.findByIdAndUpdate(counterpartId, { $unset: { linkedAnimal: 1 } }).exec();
+
+    await this.auditLogService.record(
+      animal.customer,
+      AuditEventType.ANIMAL_UPDATED,
+      'Pet unlinked',
+      `${animal.name} unlinked from its copy under another customer`,
+      undefined,
+      actor,
+    );
+    if (counterpart) {
+      await this.auditLogService.record(
+        counterpart.customer,
+        AuditEventType.ANIMAL_UPDATED,
+        'Pet unlinked',
+        `${counterpart.name} unlinked from its copy under another customer`,
+        undefined,
+        actor,
+      );
+    }
     return animal;
   }
 
@@ -184,6 +338,13 @@ export class AnimalsService {
     const result = await this.animalModel.findByIdAndDelete(id).exec();
     if (!result) {
       throw new NotFoundException(`Animal ${id} not found`);
+    }
+    // The deleted animal's own linkedAnimal pointer goes with it -- but its
+    // counterpart's pointer back would otherwise dangle, so clear that side
+    // too, leaving it as a normal, independent record (see Animal.linkedAnimal's
+    // doc comment on why this doesn't cascade into deleting the counterpart).
+    if (result.linkedAnimal) {
+      await this.animalModel.findByIdAndUpdate(result.linkedAnimal, { $unset: { linkedAnimal: 1 } }).exec();
     }
     await this.auditLogService.record(
       result.customer,

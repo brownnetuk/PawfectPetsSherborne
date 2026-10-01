@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import * as api from '../api/client';
 import ActionsMenu from '../components/ActionsMenu';
 import Badge from '../components/Badge';
+import CopyMoveAnimalModal from '../components/CopyMoveAnimalModal';
 import DocumentFormModal from '../components/DocumentFormModal';
 import EditAnimalModal from '../components/EditAnimalModal';
 import EditCustomerModal from '../components/EditCustomerModal';
@@ -715,6 +716,10 @@ function PetsTab({
   const [deletingAnimal, setDeletingAnimal] = useState<Animal | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [copyMoveAnimal, setCopyMoveAnimal] = useState<{ animal: Animal; mode: 'copy' | 'move' } | null>(null);
+  const [unlinkingAnimal, setUnlinkingAnimal] = useState<Animal | null>(null);
+  const [unlinkBusy, setUnlinkBusy] = useState(false);
+  const [unlinkError, setUnlinkError] = useState<string | null>(null);
 
   async function handleDelete() {
     if (!deletingAnimal) return;
@@ -728,6 +733,21 @@ function PetsTab({
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete pet');
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleUnlink() {
+    if (!unlinkingAnimal) return;
+    setUnlinkBusy(true);
+    setUnlinkError(null);
+    try {
+      await api.unlinkAnimal(unlinkingAnimal._id);
+      setUnlinkingAnimal(null);
+      onChange();
+    } catch (err) {
+      setUnlinkError(err instanceof Error ? err.message : 'Failed to unlink this pet');
+    } finally {
+      setUnlinkBusy(false);
     }
   }
 
@@ -767,29 +787,40 @@ function PetsTab({
                       />
                     )}
                   </td>
-                  <td>{a.name}</td>
+                  <td>
+                    {a.name}
+                    {a.linkedAnimal && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
+                        Linked to {a.linkedAnimal.customer.name}
+                      </div>
+                    )}
+                  </td>
                   <td>{a.species}</td>
                   <td>{a.breed}</td>
                   <td>{a.sex}</td>
                   <td>{a.age}</td>
                   <td>{a.vaccinated ? 'Yes' : 'No'}</td>
-                  <td onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 12 }}>
-                    <button className="btn-link" onClick={() => setViewing(a)}>
-                      View
-                    </button>
-                    <button className="btn-link" onClick={() => setEditing(a)}>
-                      Edit
-                    </button>
-                    <button
-                      className="btn-link"
-                      style={{ color: 'var(--error)' }}
-                      onClick={() => {
-                        setDeleteError(null);
-                        setDeletingAnimal(a);
-                      }}
-                    >
-                      Delete
-                    </button>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <ActionsMenu
+                      items={[
+                        { label: 'View', onClick: () => setViewing(a) },
+                        { label: 'Edit', onClick: () => setEditing(a) },
+                        { label: 'Copy to another customer…', onClick: () => setCopyMoveAnimal({ animal: a, mode: 'copy' }) },
+                        { label: 'Move to another customer…', onClick: () => setCopyMoveAnimal({ animal: a, mode: 'move' }) },
+                        ...(a.linkedAnimal
+                          ? [{ label: 'Unlink from copy', onClick: () => { setUnlinkError(null); setUnlinkingAnimal(a); } }]
+                          : []),
+                        {
+                          label: 'Delete',
+                          onClick: () => {
+                            setDeleteError(null);
+                            setDeletingAnimal(a);
+                          },
+                          danger: true,
+                          dividerBefore: true,
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}
@@ -836,6 +867,13 @@ function PetsTab({
           <p>
             This permanently deletes {deletingAnimal.name}'s record. If they're on any bookings,
             deletion is blocked until those are removed first.
+            {deletingAnimal.linkedAnimal && (
+              <>
+                {' '}
+                It's linked to a copy under {deletingAnimal.linkedAnimal.customer.name} -- that copy becomes an
+                independent record rather than also being deleted.
+              </>
+            )}
           </p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setDeletingAnimal(null)} disabled={deleting}>
@@ -843,6 +881,36 @@ function PetsTab({
             </button>
             <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
               {deleting ? 'Deleting…' : 'Delete pet'}
+            </button>
+          </div>
+        </Modal>
+      )}
+      {copyMoveAnimal && (
+        <CopyMoveAnimalModal
+          animal={copyMoveAnimal.animal}
+          currentCustomerId={customerId}
+          mode={copyMoveAnimal.mode}
+          onClose={() => setCopyMoveAnimal(null)}
+          onDone={() => {
+            setCopyMoveAnimal(null);
+            onChange();
+          }}
+        />
+      )}
+      {unlinkingAnimal && (
+        <Modal title="Unlink pet?" onClose={() => setUnlinkingAnimal(null)}>
+          {unlinkError && <div className="error-banner">{unlinkError}</div>}
+          <p>
+            {unlinkingAnimal.name} will stop staying in sync with its linked copy under{' '}
+            {unlinkingAnimal.linkedAnimal?.customer.name}. Both records keep their current data and become
+            independent going forward.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setUnlinkingAnimal(null)} disabled={unlinkBusy}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" onClick={handleUnlink} disabled={unlinkBusy}>
+              {unlinkBusy ? 'Unlinking…' : 'Unlink'}
             </button>
           </div>
         </Modal>

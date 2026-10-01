@@ -33,6 +33,12 @@ export default function ViewAnimalModal({ animal, onClose }: Props) {
   return (
     <>
       <Modal title={animal.name} onClose={onClose} wide className="modal-olive">
+        {animal.linkedAnimal && (
+          <div className="card" style={{ marginBottom: 16, color: 'var(--muted)', fontSize: '0.88rem' }}>
+            Linked to a copy of this pet under <strong>{animal.linkedAnimal.customer.name}</strong> -- editing either
+            one keeps both in sync. Unlink from the Pets tab's Actions menu to make them independent.
+          </div>
+        )}
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="section-title">Details</div>
           {animal.photos && animal.photos.length > 0 && (

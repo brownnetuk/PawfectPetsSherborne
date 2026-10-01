@@ -108,6 +108,18 @@ export class Animal extends Document {
   })
   customer: Types.ObjectId;
 
+  // Set when this pet was "copied" (AnimalsService.copyToCustomer) to another
+  // customer rather than moved -- points at that other customer's copy of the
+  // same pet, and vice versa (always set on both sides, or neither). While
+  // set, AnimalsService.update()/updateForCustomer() mirror every field edit
+  // onto the linked document too, so the two stay in sync; removing either
+  // side (AnimalsService.remove()) clears the other's pointer rather than
+  // cascading the delete, leaving it as a normal, independent record. At most
+  // one link per animal -- copying an already-linked pet is rejected (unlink
+  // it first) rather than building out a multi-way sync group.
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Animal' })
+  linkedAnimal?: Types.ObjectId;
+
   @Prop({ type: String, enum: Species, required: true })
   species: Species;
 

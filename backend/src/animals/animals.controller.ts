@@ -16,6 +16,7 @@ import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { Public } from '../auth/public.decorator';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { AnimalsService } from './animals.service';
+import { CopyAnimalDto, MoveAnimalDto } from './dto/copy-move-animal.dto';
 import { CreateAnimalDto } from './dto/create-animal.dto';
 import { PublicUpdateAnimalDto } from './dto/public-update-animal.dto';
 import { UpdateAnimalDto } from './dto/update-animal.dto';
@@ -75,6 +76,24 @@ export class AnimalsController {
     @Req() req: Request,
   ) {
     return this.animalsService.updateForCustomer(id, customerId, dto, actorFromRequest(req));
+  }
+
+  @RequirePermission('customers.manage')
+  @Post(':id/copy')
+  copyToCustomer(@Param('id') id: string, @Body() dto: CopyAnimalDto, @CurrentUser() user: CurrentUserShape) {
+    return this.animalsService.copyToCustomer(id, dto.customerId, user.name);
+  }
+
+  @RequirePermission('customers.manage')
+  @Post(':id/move')
+  moveToCustomer(@Param('id') id: string, @Body() dto: MoveAnimalDto, @CurrentUser() user: CurrentUserShape) {
+    return this.animalsService.moveToCustomer(id, dto.customerId, user.name);
+  }
+
+  @RequirePermission('customers.manage')
+  @Post(':id/unlink')
+  unlink(@Param('id') id: string, @CurrentUser() user: CurrentUserShape) {
+    return this.animalsService.unlink(id, user.name);
   }
 
   @RequirePermission('customers.manage')

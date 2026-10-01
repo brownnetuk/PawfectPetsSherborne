@@ -113,6 +113,11 @@ export interface MedicationEntry {
 export interface Animal {
   _id: string;
   customer: string;
+  // Set when this pet is "copied" to/from another customer and kept in sync
+  // with edits on either side -- populated with just enough to show "Linked
+  // to <customer name>" (backend/src/animals/animals.service.ts's
+  // LINKED_ANIMAL_POPULATE). Absent entirely for a plain, unlinked pet.
+  linkedAnimal?: { _id: string; name: string; customer: { _id: string; name: string } };
   species: Species;
   breed: string;
   name: string;

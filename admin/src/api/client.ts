@@ -332,6 +332,15 @@ export function updateAnimal(id: string, patch: Record<string, unknown>): Promis
 export function deleteAnimal(id: string): Promise<void> {
   return request(`/animals/${id}`, { method: 'DELETE' });
 }
+export function copyAnimal(id: string, customerId: string): Promise<Animal> {
+  return request(`/animals/${id}/copy`, { method: 'POST', body: JSON.stringify({ customerId }) });
+}
+export function moveAnimal(id: string, customerId: string): Promise<Animal> {
+  return request(`/animals/${id}/move`, { method: 'POST', body: JSON.stringify({ customerId }) });
+}
+export function unlinkAnimal(id: string): Promise<Animal> {
+  return request(`/animals/${id}/unlink`, { method: 'POST' });
+}
 
 // --- bookings ---
 export function listBookings(customerId?: string): Promise<Booking[]> {
