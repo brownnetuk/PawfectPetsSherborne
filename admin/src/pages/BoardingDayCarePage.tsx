@@ -1263,12 +1263,13 @@ function BookingsTab({
                   <th>Drop off</th>
                   <th>Pick up</th>
                   <th>Invoiced</th>
+                  <th>Total</th>
                   <th>Status</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(({ booking, status }) => (
+                {filtered.map(({ booking, invoice, status }) => (
                   <tr
                     key={booking._id}
                     onClick={() => {
@@ -1291,6 +1292,7 @@ function BookingsTab({
                         </span>
                       )}
                     </td>
+                    <td>{invoice ? `£${invoice.total.toFixed(2)}` : '—'}</td>
                     <td>
                       <span
                         style={{
