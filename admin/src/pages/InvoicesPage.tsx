@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import * as api from '../api/client';
 import ActionsMenu from '../components/ActionsMenu';
 import DocumentFormModal from '../components/DocumentFormModal';
@@ -79,6 +80,26 @@ function InvoicesTab() {
     setActivityVersion((v) => v + 1);
   }
   useEffect(refresh, []);
+
+  // Lets another page (e.g. a boarding booking's Invoice card) link straight
+  // to one invoice via ?view=<id> -- opens it the same way clicking its row
+  // would, then drops the param so a refresh/back doesn't reopen it.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const viewId = searchParams.get('view');
+    if (!viewId || !invoices) return;
+    const target = invoices.find((inv) => inv._id === viewId);
+    if (target) handleViewPdf(target);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('view');
+        return next;
+      },
+      { replace: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoices]);
 
   // Shows the invoice instantly as HTML (InvoiceHtmlView, below) once
   // businessInfo is available -- doesn't wait on the PDF, which is only

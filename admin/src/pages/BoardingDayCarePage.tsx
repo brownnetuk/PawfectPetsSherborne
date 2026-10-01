@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import AddPaymentModal from '../components/AddPaymentModal';
@@ -1376,6 +1377,7 @@ function BookingDetail({
   onBack: () => void;
   onChanged: () => void;
 }) {
+  const navigate = useNavigate();
   const [data, setData] = useState<BoardingBookingWithStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAmend, setShowAmend] = useState(false);
@@ -1741,7 +1743,15 @@ function BookingDetail({
             ) : (
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 24 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Invoice</span><span style={{ fontWeight: 600, color: 'var(--accent)' }}>{invoice.invoiceNumber}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}>
+                    <span style={{ color: 'var(--muted)' }}>Invoice</span>
+                    <a
+                      onClick={() => navigate(`/invoices?view=${invoice._id}`)}
+                      style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--accent)' }}
+                    >
+                      {invoice.invoiceNumber}
+                    </a>
+                  </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Status</span><Badge value={invoice.status} /></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Payment requested</span><span>{booking.paymentRequestType === 'deposit' ? 'Deposit' : booking.paymentRequestType === 'full' ? 'Full payment' : 'Not yet'}</span></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Total</span><span>£{invoice.total.toFixed(2)}</span></div>
