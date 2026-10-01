@@ -16,6 +16,7 @@ import ViewAnimalModal from '../components/ViewAnimalModal';
 import ViewCustomerModal from '../components/ViewCustomerModal';
 import ViewFormSubmissionModal from '../components/ViewFormSubmissionModal';
 import { ChevronDownIcon, TrashIcon } from '../components/icons';
+import { buildBookingConfirmationPdf } from '../pdf/bookingConfirmationPdf';
 import { buildChecklistPdf, buildChecklistsPdf } from '../pdf/checklistPdf';
 import {
   BOOKING_STATUS_LABELS,
@@ -1496,6 +1497,16 @@ function BookingDetail({
     }
   }
 
+  async function handleDownloadConfirmation() {
+    setError(null);
+    try {
+      const doc = await buildBookingConfirmationPdf(booking, invoice ?? null);
+      doc.save(`Booking Confirmation - ${booking.reference}.pdf`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate the booking confirmation');
+    }
+  }
+
   async function handleViewSubmission(submissionId?: string) {
     if (!submissionId) return;
     try {
@@ -1640,6 +1651,9 @@ function BookingDetail({
           </select>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-secondary" onClick={handleDownloadConfirmation}>
+            Booking Confirmation
+          </button>
           {booking.invoice && (
             <button className="btn btn-secondary" onClick={() => setShowAmend(true)}>
               Amend dates
