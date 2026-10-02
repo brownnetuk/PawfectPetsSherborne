@@ -13,6 +13,7 @@ import Modal from '../components/Modal';
 import NamedListCard from '../components/NamedListCard';
 import PdfTemplateDesigner from '../components/PdfTemplateDesigner';
 import RichTextEditor from '../components/RichTextEditor';
+import { BOOKING_PLACEHOLDERS } from '../utils/bookingPlaceholders';
 import type { RichTextEditorHandle } from '../components/RichTextEditor';
 import ViewBankAccountModal from '../components/ViewBankAccountModal';
 import { PencilIcon, TrashIcon } from '../components/icons';
@@ -3072,6 +3073,7 @@ function BookingReferenceCard() {
 // that PDF's default closing message, e.g. drop-off/collection policy,
 // cancellation terms, what to bring.
 function BookingTermsCard() {
+  const richTextRef = useRef<RichTextEditorHandle>(null);
   const [terms, setTerms] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -3107,14 +3109,34 @@ function BookingTermsCard() {
       <h2>Booking Terms</h2>
       <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
         Shown under "Booking Information" on the Booking Confirmation PDF, in place of its default closing
-        message -- e.g. drop-off/collection policy, cancellation terms, what to bring.
+        message -- e.g. drop-off/collection policy, cancellation terms, what to bring. Use "Insert
+        variable" to drop in details that fill in per booking, like the pet's name or drop-off time.
       </p>
       {error && <div className="error-banner">{error}</div>}
       {!loaded ? (
         <div className="empty-state">Loading…</div>
       ) : (
         <>
-          <RichTextEditor value={terms} onChange={setTerms} />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+            <select
+              className="insert-var-select"
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) richTextRef.current?.insertText(e.target.value);
+                e.target.value = '';
+              }}
+            >
+              <option value="" disabled>
+                Insert variable…
+              </option>
+              {BOOKING_PLACEHOLDERS.map((p) => (
+                <option key={p.key} value={`{{${p.key}}}`}>
+                  {`{{${p.key}}}`} — {p.hint}
+                </option>
+              ))}
+            </select>
+          </div>
+          <RichTextEditor ref={richTextRef} value={terms} onChange={setTerms} />
           <div className="modal-actions" style={{ justifyContent: 'flex-start', gap: 12, marginTop: 12 }}>
             <button className="btn btn-primary" type="button" onClick={handleSave} disabled={saving}>
               {saving ? 'Saving…' : 'Save'}

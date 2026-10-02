@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { escapeHtml, pdfBrandHeader, pdfFooter, renderHtmlToPdf } from './htmlToPdf';
+import { interpolateBookingPlaceholders } from '../utils/bookingPlaceholders';
 import type { BoardingBooking, BusinessInfo, Invoice } from '../types';
 
 // Fallback for a BusinessInfo with no bookingTerms set yet (Settings >
@@ -81,7 +82,7 @@ export async function buildBookingConfirmationPdf(
     ${paymentRows}
 
     ${sectionHeading('Booking Information')}
-    <div>${businessInfo.bookingTerms || DEFAULT_BOOKING_INFORMATION}</div>
+    <div>${interpolateBookingPlaceholders(businessInfo.bookingTerms || DEFAULT_BOOKING_INFORMATION, booking, invoice, businessInfo)}</div>
 
     ${pdfFooter()}
   `;
