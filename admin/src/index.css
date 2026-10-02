@@ -491,6 +491,7 @@ tbody tr:last-child td {
 .field input[type='password'],
 .field input[type='number'],
 .field input[type='date'],
+.field input[type='time'],
 .field input[type='tel'],
 .field textarea,
 .field select {
@@ -503,6 +504,9 @@ tbody tr:last-child td {
   background: white;
   color: var(--ink);
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.field input[type='time'] {
+  height: 40px;
 }
 .field input:focus,
 .field textarea:focus,
