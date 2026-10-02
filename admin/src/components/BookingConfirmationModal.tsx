@@ -22,7 +22,7 @@ export default function BookingConfirmationModal({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const customer = booking.customer && typeof booking.customer !== 'string' ? booking.customer : null;
   const fileName = `Booking Confirmation - ${booking.reference}.pdf`;
@@ -54,25 +54,26 @@ export default function BookingConfirmationModal({
     const doc = docRef.current;
     if (!doc) return;
     setSending(true);
-    setError(null);
     try {
       await api.sendBoardingBookingConfirmation(booking._id, doc.output('datauristring'), fileName);
-      setSentTo(customer?.email ?? 'the customer');
+      setResult({
+        ok: true,
+        message: `The booking confirmation for ${booking.reference} was emailed to ${customer?.email ?? 'the customer'}.`,
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send the booking confirmation');
+      setResult({
+        ok: false,
+        message: err instanceof Error ? err.message : 'Failed to send the booking confirmation.',
+      });
     } finally {
       setSending(false);
     }
   }
 
   return (
+    <>
     <Modal title={`Booking Confirmation - ${booking.reference}`} onClose={onClose} xl>
       {error && <div className="error-banner">{error}</div>}
-      {sentTo && (
-        <div style={{ color: 'var(--brand-green)', fontWeight: 600, marginBottom: 10 }}>
-          Sent to {sentTo}.
-        </div>
-      )}
       {previewUrl ? (
         <iframe
           title="Booking confirmation preview"
@@ -98,5 +99,20 @@ export default function BookingConfirmationModal({
         </button>
       </div>
     </Modal>
+      {result && (
+        <Modal title={result.ok ? 'Email sent' : 'Email failed'} onClose={() => setResult(null)}>
+          {result.ok ? (
+            <p>{result.message}</p>
+          ) : (
+            <div className="error-banner">{result.message}</div>
+          )}
+          <div className="modal-actions">
+            <button className="btn btn-primary" onClick={() => setResult(null)}>
+              {result.ok ? 'OK' : 'Close'}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
