@@ -70,10 +70,16 @@ export async function buildBookingConfirmationPdf(
       ].join('')
     : fieldRow('Status', 'Not yet invoiced');
 
+  const information = businessInfo.bookingInformation
+    ? interpolateBookingPlaceholders(businessInfo.bookingInformation, booking, invoice, businessInfo)
+    : '';
+
   const html = `
     ${pdfBrandHeader()}
     <div style="font-size:11px;letter-spacing:0.05em;text-transform:uppercase;color:#6f7d72;font-weight:bold;margin-bottom:6px;">Booking confirmation for ${escapeHtml(customerName(booking.customer))}</div>
     <h1 style="font-family:Georgia,'Times New Roman',serif;font-size:27px;color:#1f3b2c;margin:0 0 20px;">${escapeHtml(booking.reference)}</h1>
+
+    ${information ? `${sectionHeading('Booking Information')}<div>${information}</div>` : ''}
 
     ${sectionHeading('Booking details')}
     ${detailRows}
@@ -81,7 +87,7 @@ export async function buildBookingConfirmationPdf(
     ${sectionHeading('Payment')}
     ${paymentRows}
 
-    ${sectionHeading('Booking Information')}
+    ${sectionHeading('Booking Terms')}
     <div>${interpolateBookingPlaceholders(businessInfo.bookingTerms || DEFAULT_BOOKING_INFORMATION, booking, invoice, businessInfo)}</div>
 
     ${pdfFooter()}

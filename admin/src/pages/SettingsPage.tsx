@@ -2992,7 +2992,16 @@ function BoardingSettingsTab() {
   return (
     <div>
       <BookingReferenceCard />
-      <BookingTermsCard />
+      <BookingRichTextCard
+        title="Booking Information"
+        field="bookingInformation"
+        description="Shown at the top of the Booking Confirmation PDF, before the booking details -- e.g. a welcome message or what happens next. Use &quot;Insert variable&quot; to fill in details per booking, like the pet's name or drop-off time."
+      />
+      <BookingRichTextCard
+        title="Booking Terms"
+        field="bookingTerms"
+        description="Shown at the end of the Booking Confirmation PDF -- e.g. drop-off/collection policy, cancellation terms, what to bring. Use &quot;Insert variable&quot; to fill in details per booking."
+      />
       <PreCheckInCard />
       <CheckInFormCard />
       <CheckOutFormCard />
@@ -3068,13 +3077,21 @@ function BookingReferenceCard() {
   );
 }
 
-// Shown under "Booking Information" on the Booking Confirmation PDF
-// (admin/src/pdf/bookingConfirmationPdf.ts) -- a rich-text replacement for
-// that PDF's default closing message, e.g. drop-off/collection policy,
-// cancellation terms, what to bring.
-function BookingTermsCard() {
+// A rich-text block (with the Insert variable… picker) that's printed on the
+// Booking Confirmation PDF (admin/src/pdf/bookingConfirmationPdf.ts) --
+// "Booking Information" opens the PDF ahead of the booking details,
+// "Booking Terms" closes it.
+function BookingRichTextCard({
+  title,
+  description,
+  field,
+}: {
+  title: string;
+  description: string;
+  field: 'bookingInformation' | 'bookingTerms';
+}) {
   const richTextRef = useRef<RichTextEditorHandle>(null);
-  const [terms, setTerms] = useState('');
+  const [text, setText] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -3084,21 +3101,21 @@ function BookingTermsCard() {
     api
       .getBusinessInfo()
       .then((info) => {
-        setTerms(info.bookingTerms ?? '');
+        setText(info[field] ?? '');
         setLoaded(true);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load booking terms'));
-  }, []);
+      .catch((err) => setError(err instanceof Error ? err.message : `Failed to load ${title.toLowerCase()}`));
+  }, [field, title]);
 
   async function handleSave() {
     setSaving(true);
     setError(null);
     setSaved(false);
     try {
-      await api.updateBusinessInfo({ bookingTerms: terms });
+      await api.updateBusinessInfo({ [field]: text });
       setSaved(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save booking terms');
+      setError(err instanceof Error ? err.message : `Failed to save ${title.toLowerCase()}`);
     } finally {
       setSaving(false);
     }
@@ -3106,12 +3123,8 @@ function BookingTermsCard() {
 
   return (
     <div className="card">
-      <h2>Booking Terms</h2>
-      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
-        Shown under "Booking Information" on the Booking Confirmation PDF, in place of its default closing
-        message -- e.g. drop-off/collection policy, cancellation terms, what to bring. Use "Insert
-        variable" to drop in details that fill in per booking, like the pet's name or drop-off time.
-      </p>
+      <h2>{title}</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>{description}</p>
       {error && <div className="error-banner">{error}</div>}
       {!loaded ? (
         <div className="empty-state">Loading…</div>
@@ -3136,7 +3149,7 @@ function BookingTermsCard() {
               ))}
             </select>
           </div>
-          <RichTextEditor ref={richTextRef} value={terms} onChange={setTerms} />
+          <RichTextEditor ref={richTextRef} value={text} onChange={setText} />
           <div className="modal-actions" style={{ justifyContent: 'flex-start', gap: 12, marginTop: 12 }}>
             <button className="btn btn-primary" type="button" onClick={handleSave} disabled={saving}>
               {saving ? 'Saving…' : 'Save'}

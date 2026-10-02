@@ -115,6 +115,7 @@ export class SettingsService {
       bookingRefTemplate: doc?.bookingRefTemplate ?? 'BK-{year}-{seq}',
       bookingRefNextNumber: doc?.bookingRefNextNumber ?? 1,
       bookingTerms: doc?.bookingTerms ?? '',
+      bookingInformation: doc?.bookingInformation ?? '',
       invoicePdfTemplate: doc?.invoicePdfTemplate ?? [],
       trustedIps: doc?.trustedIps ?? [],
       qrCodeUrl: doc?.qrCodeUrl ?? '',
@@ -192,6 +193,8 @@ export class SettingsService {
     if (dto.bookingRefNextNumber !== undefined)
       update.bookingRefNextNumber = dto.bookingRefNextNumber;
     if (dto.bookingTerms !== undefined) update.bookingTerms = dto.bookingTerms;
+    if (dto.bookingInformation !== undefined)
+      update.bookingInformation = dto.bookingInformation;
     if (dto.invoicePdfTemplate !== undefined)
       update.invoicePdfTemplate = dto.invoicePdfTemplate;
     if (dto.trustedIps !== undefined) update.trustedIps = dto.trustedIps;

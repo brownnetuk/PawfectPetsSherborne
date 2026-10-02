@@ -177,6 +177,10 @@ export class UpdateBusinessInfoDto {
   bookingTerms?: string;
 
   @IsOptional()
+  @IsString()
+  bookingInformation?: string;
+
+  @IsOptional()
   @IsArray()
   invoicePdfTemplate?: Record<string, unknown>[];
 

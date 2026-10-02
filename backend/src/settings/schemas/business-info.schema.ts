@@ -152,6 +152,11 @@ export class BusinessInfo extends Document {
   @Prop()
   bookingTerms?: string;
 
+  // Rich HTML (Settings > Boarding > Booking Information) -- shown ahead of
+  // "Booking details" at the top of the Booking Confirmation PDF.
+  @Prop()
+  bookingInformation?: string;
+
   // Risk assessment IDs are just 'RA{n}' (RiskAssessmentsService.create()) --
   // no staff-editable template, since there's no equivalent numbering
   // customisation requirement for these the way there is for invoices/quotes.

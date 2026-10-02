@@ -660,6 +660,8 @@ export interface BusinessInfo {
   // Rich HTML (RichTextEditor), shown under "Booking Information" on the
   // Booking Confirmation PDF in place of its default closing message.
   bookingTerms?: string;
+  // Rich HTML shown ahead of "Booking details" on the Booking Confirmation PDF.
+  bookingInformation?: string;
   invoicePdfTemplate: PdfTemplateElement[];
   trustedIps: string[];
   qrCodeUrl: string;
