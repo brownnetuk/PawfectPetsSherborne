@@ -31,16 +31,10 @@ export function pdfFooter(): string {
  * Renders a chunk of HTML into `doc` as a branded, nicely formatted,
  * multi-page-aware PDF. Captures the content with html2canvas and places the
  * resulting image onto the page(s) directly via addImage(), rather than
- * jsPDF's own html()/autoPaging (both its 'text' and true modes route
- * through the same context2d-based coordinate transform, which turned out to
- * have two separate bugs of its own -- silently truncating some lines
- * mid-word, and placing the content narrower than the page so the margins
- * came out uneven). addImage() with manually computed placement is simple
- * enough that there's no equivalent transform to get wrong: one
- * drawImage-shaped page when everything fits, otherwise the same image
- * redrawn at a progressively larger negative y on each successive page,
- * relying on the page's own edge to crop whatever doesn't belong on it --
- * the standard "slice a tall image across pages" technique.
+ * jsPDF's own html()/autoPaging (whose context2d transform truncated lines and
+ * misplaced margins). One image when everything fits; otherwise it is cut into
+ * page-sized slices at blank rows between lines of text (see below), so no
+ * line is split and nothing is repeated or dropped across a page break.
  */
 export async function renderHtmlToPdf(doc: jsPDF, html: string): Promise<void> {
   const contentWidthPt = doc.internal.pageSize.getWidth() - MARGIN_PT * 2;
@@ -83,26 +77,55 @@ export async function renderHtmlToPdf(doc: jsPDF, html: string): Promise<void> {
     document.body.removeChild(container);
   }
 
-  const imgData = canvas.toDataURL('image/png');
   const imgWidthPt = contentWidthPt;
-  const imgHeightPt = (canvas.height / canvas.width) * imgWidthPt;
+  const ptPerPx = imgWidthPt / canvas.width;
+  const imgHeightPt = canvas.height * ptPerPx;
 
   if (imgHeightPt <= contentHeightPt) {
-    doc.addImage(imgData, 'PNG', MARGIN_PT, MARGIN_PT, imgWidthPt, imgHeightPt);
-  } else {
-    let shownPt = 0;
-    let firstPage = true;
-    while (shownPt < imgHeightPt) {
-      if (!firstPage) doc.addPage();
-      firstPage = false;
-      // Redraws the WHOLE image at the same width every time, just shifted
-      // further up each page -- content already shown scrolls off above the
-      // page's top edge, and content not yet due only starts appearing once
-      // this page's own bottom margin would reach it. jsPDF clips drawing to
-      // the page bounds automatically, so nothing further needs doing to
-      // crop either end.
-      doc.addImage(imgData, 'PNG', MARGIN_PT, MARGIN_PT - shownPt, imgWidthPt, imgHeightPt);
-      shownPt += contentHeightPt;
+    doc.addImage(canvas.toDataURL('image/png'), 'PNG', MARGIN_PT, MARGIN_PT, imgWidthPt, imgHeightPt);
+    return;
+  }
+
+  // Taller than one page: cut the canvas into page-sized slices, each drawn
+  // on its own page inside the margins. Every cut is moved up to the nearest
+  // fully blank pixel row (the gap between two lines of text) so a line is
+  // never sliced through, and no slice overlaps or skips any content.
+  const ctx = canvas.getContext('2d');
+  const slicePx = Math.floor(contentHeightPt / ptPerPx);
+  const isBlankRow = (y: number): boolean => {
+    if (!ctx) return true;
+    const row = ctx.getImageData(0, y, canvas.width, 1).data;
+    for (let i = 0; i < row.length; i += 4) {
+      if (row[i] < 215 || row[i + 1] < 215 || row[i + 2] < 215) return false;
     }
+    return true;
+  };
+  let startPx = 0;
+  let firstPage = true;
+  while (startPx < canvas.height) {
+    let endPx = Math.min(startPx + slicePx, canvas.height);
+    if (endPx < canvas.height) {
+      const floor = startPx + Math.floor(slicePx * 0.6);
+      for (let y = endPx; y > floor; y--) {
+        if (isBlankRow(y)) {
+          endPx = y;
+          break;
+        }
+      }
+    }
+    const sliceHeightPx = endPx - startPx;
+    const slice = document.createElement('canvas');
+    slice.width = canvas.width;
+    slice.height = sliceHeightPx;
+    const sliceCtx = slice.getContext('2d');
+    if (sliceCtx) {
+      sliceCtx.fillStyle = '#ffffff';
+      sliceCtx.fillRect(0, 0, slice.width, slice.height);
+      sliceCtx.drawImage(canvas, 0, startPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+    }
+    if (!firstPage) doc.addPage();
+    firstPage = false;
+    doc.addImage(slice.toDataURL('image/png'), 'PNG', MARGIN_PT, MARGIN_PT, imgWidthPt, sliceHeightPx * ptPerPx);
+    startPx = endPx;
   }
 }
