@@ -27,6 +27,42 @@ export function pdfFooter(): string {
   </div>`;
 }
 
+// Vertical extents (CSS px, relative to `container`) of every line that acts as
+// a heading -- an h1-h6, or a bold run that sits alone on its own line (the
+// rich-text editor writes "OUR DETAILS"-style headings as bold text between
+// <br>s rather than real heading tags). A page break must never land straight
+// after one of these, or it's stranded at the foot of a page away from the
+// text it introduces.
+function findHeadingBoxes(container: HTMLElement): { top: number; bottom: number }[] {
+  const origin = container.getBoundingClientRect().top;
+  const boxes: { top: number; bottom: number }[] = [];
+  const push = (el: Element) => {
+    const r = el.getBoundingClientRect();
+    if (r.height > 0) boxes.push({ top: r.top - origin, bottom: r.bottom - origin });
+  };
+  container.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(push);
+  const isBlank = (n: Node | null) => !!n && n.nodeType === Node.TEXT_NODE && !(n.textContent ?? '').trim();
+  const sibling = (n: Node, dir: 'previousSibling' | 'nextSibling'): Node | null => {
+    let cur = n[dir];
+    while (isBlank(cur)) cur = (cur as Node)[dir];
+    return cur;
+  };
+  container.querySelectorAll('b,strong').forEach((el) => {
+    let node: Element = el;
+    // Climb out of nested inline wrappers (<strong><span>..</span></strong>) so
+    // "alone on its line" is judged against the outermost bold element.
+    while (node.parentElement && node.parentElement !== container && ['B', 'STRONG', 'SPAN'].includes(node.parentElement.tagName) && node.parentElement.childNodes.length === 1) {
+      node = node.parentElement;
+    }
+    const prev = sibling(node, 'previousSibling');
+    const next = sibling(node, 'nextSibling');
+    const startsLine = !prev || (prev as Element).tagName === 'BR';
+    const endsLine = !next || (next as Element).tagName === 'BR';
+    if (startsLine && endsLine && (el.textContent ?? '').trim().length < 80) push(el);
+  });
+  return boxes;
+}
+
 /**
  * Renders a chunk of HTML into `doc` as a branded, nicely formatted,
  * multi-page-aware PDF. Captures the content with html2canvas and places the
@@ -59,6 +95,7 @@ export async function renderHtmlToPdf(doc: jsPDF, html: string): Promise<void> {
   container.innerHTML = html;
   document.body.appendChild(container);
   let canvas: HTMLCanvasElement;
+  let headings: { top: number; bottom: number }[] = [];
   try {
     const images = Array.from(container.querySelectorAll('img'));
     await Promise.all(
@@ -72,6 +109,7 @@ export async function renderHtmlToPdf(doc: jsPDF, html: string): Promise<void> {
     // innerWidth/innerHeight rather than the container's own width, which
     // silently clips anything past whatever width the browser happens to be
     // open at.
+    headings = findHeadingBoxes(container);
     canvas = await html2canvas(container, { width: renderWidthPx, windowWidth: renderWidthPx, backgroundColor: '#ffffff' });
   } finally {
     document.body.removeChild(container);
@@ -79,6 +117,7 @@ export async function renderHtmlToPdf(doc: jsPDF, html: string): Promise<void> {
 
   const imgWidthPt = contentWidthPt;
   const ptPerPx = imgWidthPt / canvas.width;
+  const scale = canvas.width / renderWidthPx;
   const imgHeightPt = canvas.height * ptPerPx;
 
   if (imgHeightPt <= contentHeightPt) {
@@ -112,6 +151,21 @@ export async function renderHtmlToPdf(doc: jsPDF, html: string): Promise<void> {
           break;
         }
       }
+    }
+    for (let pass = 0; pass < 4 && endPx < canvas.height; pass++) {
+      // Never end a page on a heading: if one sits within a line or so above
+      // the cut (or straddles it), pull the cut up above it so it travels
+      // with the text it introduces -- as long as that leaves a sensible
+      // amount of content on this page.
+      const keepPx = 34 * scale;
+      const stranded = headings
+        .map((h) => ({ top: h.top * scale, bottom: h.bottom * scale }))
+        .filter((h) => h.bottom > endPx - keepPx && h.top < endPx)
+        .sort((a, b) => a.top - b.top)[0];
+      if (!stranded || stranded.top <= startPx + slicePx * 0.3) break;
+      let y = Math.floor(stranded.top);
+      while (y > startPx + slicePx * 0.3 && !isBlankRow(y)) y--;
+      endPx = y;
     }
     const sliceHeightPx = endPx - startPx;
     const slice = document.createElement('canvas');
