@@ -6,6 +6,7 @@ import { BoardingBookingsService } from './boarding-bookings.service';
 import { AmendBoardingBookingDatesDto } from './dto/amend-boarding-booking-dates.dto';
 import { CreateBoardingBookingDto } from './dto/create-boarding-booking.dto';
 import { RequestPaymentDto } from './dto/request-payment.dto';
+import { SendBookingConfirmationDto } from './dto/send-booking-confirmation.dto';
 import { SetBoardingBookingArchivedDto } from './dto/set-boarding-booking-archived.dto';
 import { SetBoardingBookingStatusDto } from './dto/set-boarding-booking-status.dto';
 
@@ -73,6 +74,19 @@ export class BoardingBookingsController {
   @Post(':id/send-pre-check-in')
   sendPreCheckIn(@Param('id') id: string) {
     return this.boardingBookingsService.sendPreCheckIn(id);
+  }
+
+  @Post(':id/send-confirmation')
+  sendConfirmation(
+    @Param('id') id: string,
+    @Body() dto: SendBookingConfirmationDto,
+    @CurrentUser() user: CurrentUserShape,
+  ) {
+    return this.boardingBookingsService.sendConfirmation(
+      id,
+      { data: dto.attachmentData, name: dto.attachmentName },
+      user.name,
+    );
   }
 
   @Post(':id/check-in')

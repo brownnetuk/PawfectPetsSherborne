@@ -756,6 +756,7 @@ export type EmailTrigger =
   | 'portal_enabled'
   | 'post_registration'
   | 'form_copy'
+  | 'booking_confirmation'
   | 'generic';
 
 export interface EmailTemplate {

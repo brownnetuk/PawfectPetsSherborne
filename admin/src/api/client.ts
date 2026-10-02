@@ -571,6 +571,12 @@ export function requestBoardingBookingPayment(
 export function sendBoardingBookingPreCheckIn(id: string): Promise<BoardingBooking> {
   return request(`/boarding-bookings/${id}/send-pre-check-in`, { method: 'POST' });
 }
+export function sendBoardingBookingConfirmation(id: string, attachmentData: string, attachmentName: string): Promise<void> {
+  return request(`/boarding-bookings/${id}/send-confirmation`, {
+    method: 'POST',
+    body: JSON.stringify({ attachmentData, attachmentName }),
+  });
+}
 export function recordBoardingBookingCheckIn(id: string, submissionId: string): Promise<BoardingBooking> {
   return request(`/boarding-bookings/${id}/check-in`, { method: 'POST', body: JSON.stringify({ submission: submissionId }) });
 }

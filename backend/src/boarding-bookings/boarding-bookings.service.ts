@@ -614,6 +614,52 @@ export class BoardingBookingsService {
     return booking.save();
   }
 
+  // Emails the customer their Booking Confirmation PDF (built client-side,
+  // admin/src/pdf/bookingConfirmationPdf.ts, and POSTed as a base64 data:
+  // URI) using the "Booking Confirmation" email template -- same shape as
+  // PaymentsService.sendReceipt.
+  async sendConfirmation(id: string, attachment: { data: string; name: string }, actor = 'Staff'): Promise<void> {
+    const booking = await this.boardingBookingModel
+      .findById(id)
+      .populate('customer', 'name email')
+      .populate('animals', 'name')
+      .exec();
+    if (!booking) throw new NotFoundException(`Boarding booking ${id} not found`);
+    const customer = booking.customer as unknown as { _id?: unknown; name?: string; email?: string };
+    if (!customer?.email) {
+      throw new BadRequestException('This customer has no email address on file.');
+    }
+    const petNames = (booking.animals as unknown as { name?: string }[])
+      .map((a) => a?.name)
+      .filter(Boolean)
+      .join(', ');
+    const longDate = (iso: string, time: string) =>
+      `${new Date(iso).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}, ${time}`;
+    await this.settingsService.sendTemplatedEmail(
+      EmailTrigger.BOOKING_CONFIRMATION,
+      customer.email,
+      {
+        name: customer.name ?? customer.email,
+        booking_reference: booking.reference,
+        booking_type: booking.type === 'boarding' ? 'Boarding' : 'Day Care',
+        pet_names: petNames,
+        drop_off: longDate(booking.startDate, booking.dropOffTime),
+        pick_up: longDate(booking.endDate, booking.pickUpTime),
+      },
+      {},
+      '',
+      attachment,
+    );
+    await this.auditLogService.record(
+      String(customer._id),
+      AuditEventType.REGISTRATION_EMAIL_SENT,
+      'Booking confirmation emailed',
+      `${booking.reference} confirmation emailed to ${customer.email}`,
+      undefined,
+      actor,
+    );
+  }
+
   // Hourly look-ahead scan: no existing @Cron in this codebase looks more
   // than a few minutes ahead (InvoicesService.markOverdue(),
   // NotificationService.dailyDigest(), AppointmentsService.sendDueReminders()

@@ -2232,6 +2232,12 @@ export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: 
       'Sent when staff choose "Email a copy to customer" after completing a form on the customer\'s behalf (e.g. a Boarding & Day Care check-in/check-out) -- carries a PDF of what was just submitted as an attachment.',
   },
   {
+    value: 'booking_confirmation',
+    label: 'Booking Confirmation',
+    description:
+      'Sent when staff choose "Send by Email" in the Booking Confirmation preview on a Boarding & Day Care booking -- carries the confirmation PDF as an attachment.',
+  },
+  {
     value: 'generic',
     label: 'Generic Email',
     description:
@@ -2542,6 +2548,15 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
   form_copy: [
     { key: 'name', hint: "the customer's name" },
     { key: 'form_name', hint: 'the name of the completed form (e.g. "Arrival Check-In")' },
+    ...BUSINESS_PLACEHOLDERS,
+  ],
+  booking_confirmation: [
+    { key: 'name', hint: "the customer's name" },
+    { key: 'booking_reference', hint: 'the booking reference, e.g. BK00005' },
+    { key: 'booking_type', hint: 'Boarding or Day Care' },
+    { key: 'pet_names', hint: "the booked pets' names, comma-separated" },
+    { key: 'drop_off', hint: 'the drop-off date and time' },
+    { key: 'pick_up', hint: 'the pick-up date and time' },
     ...BUSINESS_PLACEHOLDERS,
   ],
   generic: [

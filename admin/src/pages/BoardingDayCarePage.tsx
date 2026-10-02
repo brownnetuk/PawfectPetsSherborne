@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
+import BookingConfirmationModal from '../components/BookingConfirmationModal';
 import { useAuth } from '../auth/AuthContext';
 import AddPaymentModal from '../components/AddPaymentModal';
 import AmendBoardingBookingDatesModal from '../components/AmendBoardingBookingDatesModal';
@@ -17,7 +18,6 @@ import ViewAnimalModal from '../components/ViewAnimalModal';
 import ViewCustomerModal from '../components/ViewCustomerModal';
 import ViewFormSubmissionModal from '../components/ViewFormSubmissionModal';
 import { ChevronDownIcon, TrashIcon } from '../components/icons';
-import { buildBookingConfirmationPdf } from '../pdf/bookingConfirmationPdf';
 import { buildChecklistPdf, buildChecklistsPdf } from '../pdf/checklistPdf';
 import {
   BOOKING_STATUS_LABELS,
@@ -1383,6 +1383,7 @@ function BookingDetail({
   const [data, setData] = useState<BoardingBookingWithStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAmend, setShowAmend] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
@@ -1498,17 +1499,6 @@ function BookingDetail({
       setError(err instanceof Error ? err.message : 'Failed to resend the pre-check-in link');
     } finally {
       setResendingPreCheckIn(false);
-    }
-  }
-
-  async function handleDownloadConfirmation() {
-    setError(null);
-    try {
-      const businessInfo = await api.getBusinessInfo();
-      const doc = await buildBookingConfirmationPdf(booking, invoice ?? null, businessInfo);
-      doc.save(`Booking Confirmation - ${booking.reference}.pdf`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate the booking confirmation');
     }
   }
 
@@ -1656,7 +1646,7 @@ function BookingDetail({
           </select>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-secondary" onClick={handleDownloadConfirmation}>
+          <button className="btn btn-secondary" onClick={() => setShowConfirmation(true)}>
             Booking Confirmation
           </button>
           {booking.invoice && (
@@ -1818,6 +1808,9 @@ function BookingDetail({
         </div>
       </div>
 
+      {showConfirmation && (
+        <BookingConfirmationModal booking={booking} invoice={invoice ?? null} onClose={() => setShowConfirmation(false)} />
+      )}
       {showAmend && (
         <AmendBoardingBookingDatesModal
           booking={booking}

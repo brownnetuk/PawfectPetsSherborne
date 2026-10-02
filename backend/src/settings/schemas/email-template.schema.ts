@@ -36,6 +36,10 @@ export enum EmailTrigger {
   // FormSubmissionsService.sendCopy()), so the customer gets a PDF record
   // of it by email.
   FORM_COPY = 'form_copy',
+  // Sent from a boarding booking's "Booking Confirmation" preview modal --
+  // carries the confirmation PDF as an attachment (see
+  // BoardingBookingsService.sendConfirmation).
+  BOOKING_CONFIRMATION = 'booking_confirmation',
   // The one-off bulk email composed from Communications > Email
   // (EmailMessagesService.send()) -- {{emailBodyText}} is where that
   // composed body (rich text, sent as raw HTML) is inserted, and
