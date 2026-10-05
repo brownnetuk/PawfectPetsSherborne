@@ -308,6 +308,8 @@ export interface Product {
   description?: string;
   price: number;
   availability?: ProductAvailability | null;
+  // Shows on the staff app's Business > Price List (opt-in per product).
+  displayInPriceList?: boolean;
   createdAt: string;
 }
 

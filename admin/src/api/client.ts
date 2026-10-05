@@ -845,11 +845,14 @@ export interface CreateProductInput {
   description?: string;
   price: number;
   availability?: ProductAvailability | null;
+  displayInPriceList?: boolean;
 }
 export function createProduct(input: CreateProductInput): Promise<Product> {
   return request('/products', { method: 'POST', body: JSON.stringify(input) });
 }
-export function updateProduct(id: string, input: CreateProductInput): Promise<Product> {
+// Partial: the backend UpdateProductDto is PartialType(CreateProductDto), so
+// single-field toggles (e.g. displayInPriceList) can PATCH just that field.
+export function updateProduct(id: string, input: Partial<CreateProductInput>): Promise<Product> {
   return request(`/products/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
 }
 export function deleteProduct(id: string): Promise<void> {

@@ -11,6 +11,10 @@ class Product {
   // Null means unrestricted (usable any day).
   final String? availability;
 
+  /// Opt-in flag (Settings > Invoice/Quotes > Products) for the Business >
+  /// Price List screen.
+  final bool displayInPriceList;
+
   Product({
     required this.id,
     required this.productCode,
@@ -18,6 +22,7 @@ class Product {
     this.description,
     required this.price,
     this.availability,
+    this.displayInPriceList = false,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
@@ -27,5 +32,6 @@ class Product {
         description: json['description'] as String?,
         price: (json['price'] as num?)?.toDouble() ?? 0,
         availability: json['availability'] as String?,
+        displayInPriceList: json['displayInPriceList'] as bool? ?? false,
       );
 }

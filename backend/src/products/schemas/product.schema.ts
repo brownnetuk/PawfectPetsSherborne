@@ -24,6 +24,11 @@ export class Product extends Document {
   // not stored here.
   @Prop({ type: String, enum: ['weekday', 'weekend', 'bank_holiday'] })
   availability?: 'weekday' | 'weekend' | 'bank_holiday';
+
+  // Whether this product shows on the staff app's Business > Price List --
+  // a curated customer-facing price sheet, so it's opt-in per product.
+  @Prop({ default: false })
+  displayInPriceList?: boolean;
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

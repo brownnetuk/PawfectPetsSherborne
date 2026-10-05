@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'financial_screen.dart';
 import 'home_shell.dart';
 import 'invoicing_screen.dart';
+import 'price_list_screen.dart';
 
 /// Hub for the back-office area, reached from the bottom bar. Groups the
 /// Invoicing (Invoices & Quotes) and Financial hubs under one entry so the
@@ -20,6 +21,9 @@ class BusinessScreen extends StatelessWidget {
           const Divider(height: 1),
           _tile(context, Icons.account_balance_wallet_outlined, 'Financial',
               'Snapshot, payments, expenses and bank transfers', const FinancialScreen()),
+          const Divider(height: 1),
+          _tile(context, Icons.sell_outlined, 'Price List',
+              'Products marked "Display in Price List"', const PriceListScreen()),
         ],
       ),
     );

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateProductDto {
   @IsNotEmpty()
@@ -24,4 +24,8 @@ export class CreateProductDto {
   @IsOptional()
   @IsIn(['weekday', 'weekend', 'bank_holiday'])
   availability?: 'weekday' | 'weekend' | 'bank_holiday' | null;
+
+  @IsOptional()
+  @IsBoolean()
+  displayInPriceList?: boolean;
 }

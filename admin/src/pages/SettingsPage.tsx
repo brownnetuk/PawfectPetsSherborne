@@ -4162,6 +4162,20 @@ function ProductsCard() {
     }
   }
 
+  // Toggles whether a product shows on the staff app's Price List --
+  // optimistic, reverting on failure (same pattern as the Forms visible
+  // toggle).
+  async function togglePriceList(p: Product) {
+    const next = !(p.displayInPriceList ?? false);
+    setProducts((prev) => (prev ?? []).map((x) => (x._id === p._id ? { ...x, displayInPriceList: next } : x)));
+    try {
+      await api.updateProduct(p._id, { displayInPriceList: next });
+    } catch (err) {
+      setProducts((prev) => (prev ?? []).map((x) => (x._id === p._id ? { ...x, displayInPriceList: !next } : x)));
+      setError(err instanceof Error ? err.message : 'Failed to update the price list flag');
+    }
+  }
+
   return (
     <div className="card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
@@ -4187,6 +4201,7 @@ function ProductsCard() {
               <SortableTh label="Description" sortKey="description" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
               <SortableTh label="Price" sortKey="price" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
               <th>Availability</th>
+              <th>Price List</th>
               <th></th>
             </tr>
           </thead>
@@ -4198,6 +4213,14 @@ function ProductsCard() {
                 <td>{p.description || '—'}</td>
                 <td>£{p.price.toFixed(2)}</td>
                 <td>{p.availability ? AVAILABILITY_LABELS[p.availability] : '—'}</td>
+                <td>
+                  <input
+                    type="checkbox"
+                    title="Display in Price List"
+                    checked={p.displayInPriceList ?? false}
+                    onChange={() => togglePriceList(p)}
+                  />
+                </td>
                 <td>
                   <div style={{ display: 'flex', gap: 2 }}>
                     <button className="icon-btn" title="Edit" onClick={() => setEditing(p)}>
@@ -4263,6 +4286,7 @@ function EditProductModal({
   const [description, setDescription] = useState(product?.description ?? '');
   const [price, setPrice] = useState(String(product?.price ?? 0));
   const [availability, setAvailability] = useState<ProductAvailability | ''>(product?.availability ?? '');
+  const [displayInPriceList, setDisplayInPriceList] = useState(product?.displayInPriceList ?? false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -4277,6 +4301,7 @@ function EditProductModal({
         description: description || undefined,
         price: Number(price) || 0,
         availability: availability || null,
+        displayInPriceList,
       };
       if (product) {
         await api.updateProduct(product._id, input);
@@ -4319,6 +4344,16 @@ function EditProductModal({
             <option value="weekend">Weekend</option>
             <option value="bank_holiday">Bank Holiday</option>
           </select>
+        </div>
+        <div className="field">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
+            <input
+              type="checkbox"
+              checked={displayInPriceList}
+              onChange={(e) => setDisplayInPriceList(e.target.checked)}
+            />
+            Display in Price List
+          </label>
         </div>
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
