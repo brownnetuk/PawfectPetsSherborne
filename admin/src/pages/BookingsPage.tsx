@@ -149,7 +149,7 @@ const BADGE_COLORS: Record<'walk' | 'visit' | 'daycare' | 'boarding' | 'appointm
 };
 
 export default function BookingsPage() {
-  const [viewMode, setViewMode] = useState<ViewMode>('week');
+  const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [dayBookings, setDayBookings] = useState<DayBooking[] | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
