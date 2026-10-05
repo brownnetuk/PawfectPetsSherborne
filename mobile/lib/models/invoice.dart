@@ -92,6 +92,11 @@ class Invoice {
   /// Outstanding balance, never negative.
   double get balanceDue => (total - amountPaid).clamp(0, double.infinity);
 
+  /// A partial payment doesn't change the stored status (it stays 'sent'
+  /// until fully covered -- see the backend's applyPayment()), so "partially
+  /// paid" is derived for display, same as the admin's badge.
+  bool get isPartiallyPaid => status == 'sent' && amountPaid > 0 && amountPaid < total;
+
   factory Invoice.fromJson(Map<String, dynamic> json) => Invoice(
         id: json['_id'] as String,
         customer: CustomerRef.fromDynamic(json['customer']),

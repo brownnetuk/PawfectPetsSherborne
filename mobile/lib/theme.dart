@@ -37,6 +37,7 @@ Color statusColor(String status) {
       return brandGreenDark;
     case 'pending':
     case 'requested':
+    case 'partially_paid':
       return const Color(0xFFB7791F);
     case 'cancelled':
       return const Color(0xFFC0392B);
@@ -54,6 +55,7 @@ Color statusBg(String status) {
       return const Color(0xFFEAF5EE);
     case 'pending':
     case 'requested':
+    case 'partially_paid':
       return const Color(0xFFFDF1E0);
     case 'cancelled':
       return const Color(0xFFFDECEA);

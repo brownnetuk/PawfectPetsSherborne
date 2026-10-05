@@ -211,6 +211,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                     children: [
                       for (final f in const [
                         ('paid', 'Paid'),
+                        ('partially_paid', 'Partially Paid'),
                         ('draft', 'Draft'),
                         ('overdue', 'Overdue'),
                       ])
@@ -253,7 +254,13 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
             }
             final allInvoices = snapshot.data ?? [];
             final invoices = allInvoices.where((inv) {
-              if (_statusFilter != null && inv.status != _statusFilter) return false;
+              // 'partially_paid' is a derived state, not a stored status (the
+              // invoice stays 'sent' until fully covered -- same as the admin).
+              if (_statusFilter == 'partially_paid') {
+                if (!inv.isPartiallyPaid) return false;
+              } else if (_statusFilter != null && inv.status != _statusFilter) {
+                return false;
+              }
               if (_search.isEmpty) return true;
               return inv.invoiceNumber.toLowerCase().contains(_search) ||
                   inv.customer.name.toLowerCase().contains(_search);
@@ -289,7 +296,17 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                     subtitle: Text(
                       '${money.format(inv.total)} · issued ${dateFmt.format(inv.issueDate)}',
                     ),
-                    trailing: StatusBadge(status: inv.status),
+                    trailing: inv.isPartiallyPaid
+                        ? Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              StatusBadge(status: inv.status),
+                              const SizedBox(height: 2),
+                              const StatusBadge(status: 'partially_paid'),
+                            ],
+                          )
+                        : StatusBadge(status: inv.status),
                     onTap: () async {
                       await Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => InvoiceDetailScreen(invoiceId: inv.id)),
