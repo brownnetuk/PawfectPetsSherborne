@@ -768,6 +768,8 @@ export class BoardingBookingsService {
     const doneThroughIndex: Record<BookingStatusLabel, number> = {
       Confirmed: 0,
       'Invoice Raised': 1,
+      'Invoice Raised - Draft': 1,
+      'Invoice Raised - Sent': 1,
       'Deposit Requested': 1,
       'Deposit Paid': 2,
       'Deposit Not Required': 2,
@@ -817,7 +819,14 @@ export class BoardingBookingsService {
     const amountPaid = invoice?.amountPaid ?? 0;
     if (amountPaid > 0) return 'Deposit Paid';
     if (booking.paymentRequestType) return 'Deposit Requested';
-    if (booking.invoice) return 'Invoice Raised';
+    if (booking.invoice) {
+      // Spells out whether the invoice has actually gone to the customer yet
+      // (a draft hasn't). Anything past draft -- sent, overdue -- reads as
+      // sent; a cancelled invoice keeps the plain label.
+      if (invoice?.status === InvoiceStatus.DRAFT) return 'Invoice Raised - Draft';
+      if (invoice?.status === InvoiceStatus.CANCELLED) return 'Invoice Raised';
+      return 'Invoice Raised - Sent';
+    }
     return 'Confirmed';
   }
 

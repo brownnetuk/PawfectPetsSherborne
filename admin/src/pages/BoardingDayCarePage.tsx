@@ -1145,6 +1145,8 @@ function formatDateRange(booking: BoardingBookingWithStatus['booking']): string 
 const STATUS_PILL_COLORS: Record<BookingStatusLabel, { bg: string; color: string }> = {
   Confirmed: { bg: '#f1efe8', color: 'var(--muted)' },
   'Invoice Raised': { bg: 'var(--info-light)', color: 'var(--info)' },
+  'Invoice Raised - Draft': { bg: '#f1efe8', color: 'var(--muted)' },
+  'Invoice Raised - Sent': { bg: 'var(--info-light)', color: 'var(--info)' },
   'Deposit Requested': { bg: 'var(--accent-light)', color: 'var(--accent-dark)' },
   'Deposit Paid': { bg: 'var(--sage-badge)', color: 'var(--brand-green)' },
   'Deposit Not Required': { bg: 'var(--sage-badge)', color: 'var(--brand-green)' },

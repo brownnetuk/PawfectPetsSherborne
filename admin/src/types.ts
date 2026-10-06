@@ -460,6 +460,8 @@ export interface Quote {
 export const BOOKING_STATUS_LABELS = [
   'Confirmed',
   'Invoice Raised',
+  'Invoice Raised - Draft',
+  'Invoice Raised - Sent',
   'Deposit Requested',
   'Deposit Paid',
   'Deposit Not Required',

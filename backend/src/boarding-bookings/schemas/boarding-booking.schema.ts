@@ -13,6 +13,8 @@ import { Quote } from '../../quotes/schemas/quote.schema';
 export const BOOKING_STATUS_LABELS = [
   'Confirmed',
   'Invoice Raised',
+  'Invoice Raised - Draft',
+  'Invoice Raised - Sent',
   'Deposit Requested',
   'Deposit Paid',
   'Deposit Not Required',
