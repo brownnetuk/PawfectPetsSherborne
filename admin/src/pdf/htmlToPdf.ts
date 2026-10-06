@@ -33,7 +33,9 @@ export function pdfFooter(): string {
 // <br>s rather than real heading tags). A page break must never land straight
 // after one of these, or it's stranded at the foot of a page away from the
 // text it introduces.
-function findHeadingBoxes(container: HTMLElement): { top: number; bottom: number }[] {
+type HeadingBox = { top: number; bottom: number; sectionBottom: number };
+
+function findHeadingBoxes(container: HTMLElement): HeadingBox[] {
   const origin = container.getBoundingClientRect().top;
   const boxes: { top: number; bottom: number }[] = [];
   const push = (el: Element) => {
@@ -60,7 +62,11 @@ function findHeadingBoxes(container: HTMLElement): { top: number; bottom: number
     const endsLine = !next || (next as Element).tagName === 'BR';
     if (startsLine && endsLine && (el.textContent ?? '').trim().length < 80) push(el);
   });
-  return boxes;
+  // A heading's section runs to the next heading (or the end of the content),
+  // so a page break can tell whether it would split a section in two.
+  const total = container.getBoundingClientRect().height;
+  boxes.sort((a, b) => a.top - b.top);
+  return boxes.map((b, i) => ({ ...b, sectionBottom: boxes[i + 1]?.top ?? total }));
 }
 
 /**
@@ -95,7 +101,7 @@ export async function renderHtmlToPdf(doc: jsPDF, html: string): Promise<void> {
   container.innerHTML = html;
   document.body.appendChild(container);
   let canvas: HTMLCanvasElement;
-  let headings: { top: number; bottom: number }[] = [];
+  let headings: HeadingBox[] = [];
   try {
     const images = Array.from(container.querySelectorAll('img'));
     await Promise.all(
@@ -157,10 +163,18 @@ export async function renderHtmlToPdf(doc: jsPDF, html: string): Promise<void> {
       // the cut (or straddles it), pull the cut up above it so it travels
       // with the text it introduces -- as long as that leaves a sensible
       // amount of content on this page.
+      // Likewise, a section (heading plus its text) that would be split by
+      // the cut but fits on a single page is moved wholly to the next page
+      // rather than started at the foot of this one.
       const keepPx = 34 * scale;
       const stranded = headings
-        .map((h) => ({ top: h.top * scale, bottom: h.bottom * scale }))
-        .filter((h) => h.bottom > endPx - keepPx && h.top < endPx)
+        .map((h) => ({ top: h.top * scale, bottom: h.bottom * scale, sectionBottom: h.sectionBottom * scale }))
+        .filter(
+          (h) =>
+            h.top > startPx + slicePx * 0.3 &&
+            ((h.bottom > endPx - keepPx && h.top < endPx) ||
+            (h.top < endPx && h.sectionBottom > endPx && h.sectionBottom - h.top <= slicePx * 0.95)),
+        )
         .sort((a, b) => a.top - b.top)[0];
       if (!stranded || stranded.top <= startPx + slicePx * 0.3) break;
       let y = Math.floor(stranded.top);
