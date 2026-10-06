@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import Modal from './Modal';
 import Badge from './Badge';
 import type { Customer } from '../types';
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export default function ViewCustomerModal({ customer, onClose }: Props) {
+  const navigate = useNavigate();
   return (
     <Modal title={customer.name} onClose={onClose}>
       <div className="card" style={{ marginBottom: 0 }}>
@@ -29,6 +31,14 @@ export default function ViewCustomerModal({ customer, onClose }: Props) {
           <dt>Email</dt>
           <dd>{customer.email}</dd>
         </dl>
+      </div>
+      <div className="modal-actions">
+        <button className="btn btn-secondary" onClick={onClose}>
+          Close
+        </button>
+        <button className="btn btn-primary" onClick={() => navigate(`/customers/${customer._id}`)}>
+          Go to Customer
+        </button>
       </div>
     </Modal>
   );
