@@ -63,6 +63,7 @@ export async function buildBookingConfirmationPdf(
     ? [
         fieldRow('Invoice', invoice.invoiceNumber),
         fieldRow('Total', `£${invoice.total.toFixed(2)}`),
+        fieldRow('Payments received', `£${(invoice.amountPaid ?? 0).toFixed(2)}`),
         fieldRow(
           balanceDue > 0 ? 'Balance due' : 'Status',
           balanceDue > 0 ? `£${balanceDue.toFixed(2)}` : 'Paid in full',
