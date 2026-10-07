@@ -5,12 +5,20 @@ import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import RegistrationLinkModal from '../components/RegistrationLinkModal';
 import SortableTh from '../components/SortableTh';
-import type { Animal, Customer } from '../types';
+import type { Animal, Customer, CustomerStatus } from '../types';
 
 const INTAKE_URL = import.meta.env.VITE_INTAKE_URL ?? 'http://localhost:5173';
 
 type Tab = 'active' | 'inactive';
 type SortKey = 'name' | 'email' | 'phoneNumber' | 'status' | 'createdAt';
+
+// Statuses the Active tab holds (everything except 'inactive', which has its
+// own tab) -- offered as a narrower filter on top of the tab.
+const ACTIVE_TAB_STATUSES: { value: CustomerStatus; label: string }[] = [
+  { value: 'active', label: 'Active' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'update_info', label: 'Update info' },
+];
 
 export default function CustomersPage() {
   const navigate = useNavigate();
@@ -18,6 +26,7 @@ export default function CustomersPage() {
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<CustomerStatus | ''>('');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [tab, setTab] = useState<Tab>('active');
@@ -47,6 +56,7 @@ export default function CustomersPage() {
   const filtered = (customers ?? [])
     .filter((c) => {
       if (tab === 'active' ? c.status === 'inactive' : c.status !== 'inactive') return false;
+      if (tab === 'active' && statusFilter && c.status !== statusFilter) return false;
       const q = search.toLowerCase();
       if (!q) return true;
       if (c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)) return true;
@@ -70,13 +80,31 @@ export default function CustomersPage() {
 
       {error && <div className="error-banner">{error}</div>}
 
-      <div className="field" style={{ maxWidth: 640, marginBottom: 0 }}>
-        <input
-          type="text"
-          placeholder="Search by name, email, or pet…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <div className="field" style={{ flex: '1 1 320px', maxWidth: 640, marginBottom: 0 }}>
+          <input
+            type="text"
+            placeholder="Search by name, email, or pet…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        {tab === 'active' && (
+          <div className="field" style={{ width: 180, marginBottom: 0 }}>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as CustomerStatus | '')}
+              aria-label="Filter by status"
+            >
+              <option value="">All statuses</option>
+              {ACTIVE_TAB_STATUSES.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="tabs">
@@ -91,7 +119,13 @@ export default function CustomersPage() {
       <div className="card" style={{ padding: 0 }}>
         {filtered.length === 0 ? (
           <div className="empty-state">
-            {customers === null ? 'Loading…' : tab === 'active' ? 'No active customers yet.' : 'No inactive customers.'}
+            {customers === null
+              ? 'Loading…'
+              : search || (tab === 'active' && statusFilter)
+                ? 'No customers match these filters.'
+                : tab === 'active'
+                  ? 'No active customers yet.'
+                  : 'No inactive customers.'}
           </div>
         ) : (
           <table>
