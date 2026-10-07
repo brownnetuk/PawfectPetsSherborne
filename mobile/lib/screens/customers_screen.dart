@@ -189,7 +189,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
               return c.name.toLowerCase().contains(_search) ||
                   c.email.toLowerCase().contains(_search) ||
                   pets.any((p) => p.toLowerCase().contains(_search));
-            }).toList();
+            }).toList()
+              // A-Z by name, regardless of the server's (creation) order.
+              ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
             if (customers.isEmpty) {
               const labels = {
                 'active': 'active',
