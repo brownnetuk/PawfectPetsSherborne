@@ -157,6 +157,20 @@ export function SortIcon({ direction }: { direction: 'asc' | 'desc' | null }) {
   );
 }
 
+export function FilterIcon() {
+  return (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M3 4h18l-7 8.5V19l-4 2v-8.5L3 4z" />
+    </svg>
+  );
+}
+
 export function PencilIcon() {
   return (
     <svg

@@ -1125,6 +1125,72 @@ table input:focus {
   margin: 4px 0;
 }
 
+/* Funnel button + popover on a filterable table header -- see
+   components/FilterableTh.tsx. The popover resets the th's uppercase
+   small-caps styling so its form controls read like a normal form. */
+.th-filter-btn {
+  border: none;
+  background: none;
+  padding: 2px 3px;
+  margin-left: 2px;
+  flex-shrink: 0;
+  color: var(--border);
+  cursor: pointer;
+  border-radius: 4px;
+  display: inline-flex;
+}
+.th-filter-btn:hover {
+  color: var(--muted);
+  background: #eef0f2;
+}
+.th-filter-btn.active {
+  color: var(--accent);
+}
+.th-filter-popover {
+  position: absolute;
+  top: calc(100% + 2px);
+  z-index: 30;
+  width: 240px;
+  padding: 12px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: var(--ink);
+  white-space: normal;
+  cursor: default;
+}
+.th-filter-popover-left {
+  left: 8px;
+}
+.th-filter-popover-right {
+  right: 8px;
+}
+.th-filter-popover .field {
+  margin-bottom: 10px;
+}
+.th-filter-popover .field label {
+  font-size: 0.78rem;
+  margin-bottom: 4px;
+}
+.th-filter-popover .field input[type='text'],
+.th-filter-popover .field input[type='number'] {
+  padding: 7px 10px;
+  font-size: 0.85rem;
+}
+.th-filter-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  text-transform: capitalize;
+  cursor: pointer;
+}
+
 /* Overrides .field select's width: 100% -- this one sits inline next to the
    "Email Body" label, not stacked full-width like a normal form field. */
 .insert-var-select {

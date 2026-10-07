@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import * as api from '../api/client';
 import ActionsMenu from '../components/ActionsMenu';
+import DateInput from '../components/DateInput';
 import DocumentFormModal from '../components/DocumentFormModal';
+import FilterableTh from '../components/FilterableTh';
 import { MailIcon, MailOpenIcon } from '../components/icons';
 import InvoiceActivityPanel from '../components/InvoiceActivityPanel';
 import InvoiceHtmlView from '../components/InvoiceHtmlView';
@@ -27,6 +29,140 @@ function isPartiallyPaid(inv: Invoice): boolean {
 }
 
 type Tab = 'invoices' | 'quotes';
+
+type InvoiceSortKey = 'invoiceNumber' | 'customer' | 'issueDate' | 'dueDate' | 'total' | 'amountPaid' | 'remaining' | 'status';
+
+// 'partially_paid' isn't a real status (see isPartiallyPaid() above) but is
+// offered alongside them in the Status filter, since it's the badge staff
+// actually look for when chasing balances.
+type StatusFilterValue = InvoiceStatus | 'partially_paid';
+
+interface InvoiceFilters {
+  invoiceNumber: string;
+  customer: string;
+  issueFrom: string;
+  issueTo: string;
+  dueFrom: string;
+  dueTo: string;
+  totalMin: string;
+  totalMax: string;
+  paidMin: string;
+  paidMax: string;
+  remainingMin: string;
+  remainingMax: string;
+  statuses: StatusFilterValue[];
+}
+
+const EMPTY_FILTERS: InvoiceFilters = {
+  invoiceNumber: '',
+  customer: '',
+  issueFrom: '',
+  issueTo: '',
+  dueFrom: '',
+  dueTo: '',
+  totalMin: '',
+  totalMax: '',
+  paidMin: '',
+  paidMax: '',
+  remainingMin: '',
+  remainingMax: '',
+  statuses: [],
+};
+
+function remainingBalance(inv: Invoice): number {
+  return inv.total - (inv.amountPaid ?? 0);
+}
+
+function inDateRange(iso: string, from: string, to: string): boolean {
+  const day = iso.slice(0, 10);
+  return (!from || day >= from) && (!to || day <= to);
+}
+
+function inAmountRange(value: number, min: string, max: string): boolean {
+  return (min === '' || value >= Number(min)) && (max === '' || value <= Number(max));
+}
+
+function matchesFilters(inv: Invoice, f: InvoiceFilters): boolean {
+  if (f.invoiceNumber && !inv.invoiceNumber.toLowerCase().includes(f.invoiceNumber.toLowerCase())) return false;
+  if (f.customer && !customerLabel(inv.customer).toLowerCase().includes(f.customer.toLowerCase())) return false;
+  if (!inDateRange(inv.issueDate, f.issueFrom, f.issueTo)) return false;
+  if (!inDateRange(inv.dueDate, f.dueFrom, f.dueTo)) return false;
+  if (!inAmountRange(inv.total, f.totalMin, f.totalMax)) return false;
+  if (!inAmountRange(inv.amountPaid ?? 0, f.paidMin, f.paidMax)) return false;
+  if (!inAmountRange(remainingBalance(inv), f.remainingMin, f.remainingMax)) return false;
+  if (f.statuses.length > 0) {
+    const hit = f.statuses.some((s) => (s === 'partially_paid' ? isPartiallyPaid(inv) : inv.status === s));
+    if (!hit) return false;
+  }
+  return true;
+}
+
+function compareInvoices(a: Invoice, b: Invoice, key: InvoiceSortKey): number {
+  switch (key) {
+    case 'invoiceNumber':
+      return a.invoiceNumber.localeCompare(b.invoiceNumber, undefined, { numeric: true });
+    case 'customer':
+      return customerLabel(a.customer).localeCompare(customerLabel(b.customer));
+    case 'issueDate':
+      return a.issueDate.localeCompare(b.issueDate);
+    case 'dueDate':
+      return a.dueDate.localeCompare(b.dueDate);
+    case 'total':
+      return a.total - b.total;
+    case 'amountPaid':
+      return (a.amountPaid ?? 0) - (b.amountPaid ?? 0);
+    case 'remaining':
+      return remainingBalance(a) - remainingBalance(b);
+    case 'status':
+      return a.status.localeCompare(b.status);
+  }
+}
+
+function RangeFilter({
+  kind,
+  from,
+  to,
+  onChange,
+}: {
+  kind: 'date' | 'amount';
+  from: string;
+  to: string;
+  onChange: (from: string, to: string) => void;
+}) {
+  return (
+    <>
+      <div className="field">
+        <label>{kind === 'date' ? 'From' : 'Min (£)'}</label>
+        {kind === 'date' ? (
+          <DateInput value={from} onChange={(v) => onChange(v, to)} />
+        ) : (
+          <input type="number" min="0" step="0.01" value={from} onChange={(e) => onChange(e.target.value, to)} />
+        )}
+      </div>
+      <div className="field">
+        <label>{kind === 'date' ? 'To' : 'Max (£)'}</label>
+        {kind === 'date' ? (
+          <DateInput value={to} onChange={(v) => onChange(from, v)} />
+        ) : (
+          <input type="number" min="0" step="0.01" value={to} onChange={(e) => onChange(from, e.target.value)} />
+        )}
+      </div>
+      {(from || to) && (
+        <button type="button" className="btn-link" onClick={() => onChange('', '')}>
+          Clear
+        </button>
+      )}
+    </>
+  );
+}
+
+function TextFilter({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+  return (
+    <div className="field" style={{ marginBottom: 0 }}>
+      <input type="text" autoFocus placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
 
 export default function InvoicesPage() {
   const [tab, setTab] = useState<Tab>('invoices');
@@ -74,6 +210,29 @@ function InvoicesTab() {
   const [bulkSendConfirm, setBulkSendConfirm] = useState(false);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [sortKey, setSortKey] = useState<InvoiceSortKey>('issueDate');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [filters, setFilters] = useState<InvoiceFilters>(EMPTY_FILTERS);
+
+  function toggleSort(key: InvoiceSortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
+
+  function setFilter(patch: Partial<InvoiceFilters>) {
+    setFilters((f) => ({ ...f, ...patch }));
+  }
+
+  function toggleStatusFilter(s: StatusFilterValue) {
+    setFilters((f) => ({
+      ...f,
+      statuses: f.statuses.includes(s) ? f.statuses.filter((x) => x !== s) : [...f.statuses, s],
+    }));
+  }
 
   function refresh() {
     api.listInvoices().then(setInvoices).catch((err) => setError(err.message));
@@ -164,6 +323,13 @@ function InvoicesTab() {
 
   const selectedInvoices = (invoices ?? []).filter((inv) => selectedIds.has(inv._id));
 
+  const visibleInvoices = (invoices ?? [])
+    .filter((inv) => matchesFilters(inv, filters))
+    .sort((a, b) => (sortDir === 'asc' ? 1 : -1) * compareInvoices(a, b, sortKey));
+  const filtersActive = JSON.stringify(filters) !== JSON.stringify(EMPTY_FILTERS);
+  const sortProps = { activeKey: sortKey, dir: sortDir, onSort: toggleSort };
+  const allVisibleSelected = visibleInvoices.length > 0 && visibleInvoices.every((inv) => selectedIds.has(inv._id));
+
   function toggleSelected(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -209,7 +375,15 @@ function InvoicesTab() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        {filtersActive && invoices && (
+          <span style={{ marginRight: 'auto', fontSize: '0.85rem', color: 'var(--muted)' }}>
+            Showing {visibleInvoices.length} of {invoices.length} invoices ·{' '}
+            <button type="button" className="btn-link" onClick={() => setFilters(EMPTY_FILTERS)}>
+              Clear filters
+            </button>
+          </span>
+        )}
         <ActionsMenu
           items={[
             {
@@ -239,7 +413,7 @@ function InvoicesTab() {
         ) : viewing ? (
           <div style={{ display: 'flex', alignItems: 'stretch' }}>
             <div style={{ width: 260, flexShrink: 0, borderRight: '1px solid var(--border)' }}>
-              {invoices.map((inv) => (
+              {visibleInvoices.map((inv) => (
                 <div
                   key={inv._id}
                   onClick={() => inv._id !== viewing._id && handleViewPdf(inv)}
@@ -320,24 +494,67 @@ function InvoicesTab() {
                 <th style={{ width: 34 }}>
                   <input
                     type="checkbox"
-                    checked={invoices.length > 0 && selectedIds.size === invoices.length}
-                    onChange={(e) => setSelectedIds(e.target.checked ? new Set(invoices.map((i) => i._id)) : new Set())}
+                    checked={allVisibleSelected}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setSelectedIds((prev) => {
+                        const next = new Set(prev);
+                        for (const inv of visibleInvoices) {
+                          if (checked) next.add(inv._id);
+                          else next.delete(inv._id);
+                        }
+                        return next;
+                      });
+                    }}
                     aria-label="Select all invoices"
                   />
                 </th>
-                <th>Invoice Number</th>
-                <th>Customer</th>
-                <th>Invoice Date</th>
-                <th>Due Date</th>
-                <th>Invoice Total</th>
-                <th>Amount Paid</th>
-                <th>Remaining Balance</th>
-                <th>Status</th>
+                <FilterableTh label="Invoice Number" sortKey="invoiceNumber" {...sortProps} active={!!filters.invoiceNumber}>
+                  <TextFilter value={filters.invoiceNumber} onChange={(v) => setFilter({ invoiceNumber: v })} placeholder="Contains…" />
+                </FilterableTh>
+                <FilterableTh label="Customer" sortKey="customer" {...sortProps} active={!!filters.customer}>
+                  <TextFilter value={filters.customer} onChange={(v) => setFilter({ customer: v })} placeholder="Customer name contains…" />
+                </FilterableTh>
+                <FilterableTh label="Invoice Date" sortKey="issueDate" {...sortProps} active={!!(filters.issueFrom || filters.issueTo)}>
+                  <RangeFilter kind="date" from={filters.issueFrom} to={filters.issueTo} onChange={(issueFrom, issueTo) => setFilter({ issueFrom, issueTo })} />
+                </FilterableTh>
+                <FilterableTh label="Due Date" sortKey="dueDate" {...sortProps} active={!!(filters.dueFrom || filters.dueTo)}>
+                  <RangeFilter kind="date" from={filters.dueFrom} to={filters.dueTo} onChange={(dueFrom, dueTo) => setFilter({ dueFrom, dueTo })} />
+                </FilterableTh>
+                <FilterableTh label="Invoice Total" sortKey="total" {...sortProps} active={!!(filters.totalMin || filters.totalMax)}>
+                  <RangeFilter kind="amount" from={filters.totalMin} to={filters.totalMax} onChange={(totalMin, totalMax) => setFilter({ totalMin, totalMax })} />
+                </FilterableTh>
+                <FilterableTh label="Amount Paid" sortKey="amountPaid" {...sortProps} active={!!(filters.paidMin || filters.paidMax)} align="right">
+                  <RangeFilter kind="amount" from={filters.paidMin} to={filters.paidMax} onChange={(paidMin, paidMax) => setFilter({ paidMin, paidMax })} />
+                </FilterableTh>
+                <FilterableTh label="Remaining Balance" sortKey="remaining" {...sortProps} active={!!(filters.remainingMin || filters.remainingMax)} align="right">
+                  <RangeFilter kind="amount" from={filters.remainingMin} to={filters.remainingMax} onChange={(remainingMin, remainingMax) => setFilter({ remainingMin, remainingMax })} />
+                </FilterableTh>
+                <FilterableTh label="Status" sortKey="status" {...sortProps} active={filters.statuses.length > 0} align="right">
+                  {[...INVOICE_STATUSES, 'partially_paid' as const].map((s) => (
+                    <label key={s} className="th-filter-check">
+                      <input type="checkbox" checked={filters.statuses.includes(s)} onChange={() => toggleStatusFilter(s)} />
+                      {s === 'partially_paid' ? 'Partially paid' : s}
+                    </label>
+                  ))}
+                  {filters.statuses.length > 0 && (
+                    <button type="button" className="btn-link" style={{ marginTop: 6 }} onClick={() => setFilter({ statuses: [] })}>
+                      Clear
+                    </button>
+                  )}
+                </FilterableTh>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {invoices.map((inv) => (
+              {visibleInvoices.length === 0 && (
+                <tr>
+                  <td colSpan={10} className="empty-state">
+                    No invoices match these filters.
+                  </td>
+                </tr>
+              )}
+              {visibleInvoices.map((inv) => (
                 <tr key={inv._id} onClick={() => handleViewPdf(inv)} style={{ cursor: 'pointer' }}>
                   <td onClick={(e) => e.stopPropagation()}>
                     <input

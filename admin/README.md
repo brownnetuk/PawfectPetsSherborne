@@ -191,7 +191,10 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   each row, and its own "New" flow with a customer picker (the customer-detail version reuses the
   same create/edit/delete calls with the customer pre-selected).
 - **Invoices & Quotes** (`/invoices`) — tabbed: **Invoices** and **Quotes**, each a global list
-  across all customers with inline status changes, a **Partially Paid** badge (`isPartiallyPaid()`
+  across all customers with inline status changes, sortable/filterable columns on the Invoices
+  table (click a header to sort; its funnel opens a filter -- text contains for number/customer,
+  from/to for the dates, min/max for the amounts, and a Status checklist that includes
+  Partially Paid; `FilterableTh` in `admin/src/components/FilterableTh.tsx`, client-side only), a **Partially Paid** badge (`isPartiallyPaid()`
   in `InvoicesPage.tsx`/`CustomerDetailPage.tsx` — small, deliberately duplicated rather than
   shared, same as this codebase's other one-off derived-display helpers) next to an invoice's
   status pill whenever `status === 'sent'` and `0 < amountPaid < total`, an `openedAt`-driven
