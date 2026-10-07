@@ -89,8 +89,15 @@ class PaymentMethod {
   final String id;
   final String name;
 
-  PaymentMethod({required this.id, required this.name});
+  /// Marked default in the admin's Settings > Finance -- payment forms
+  /// pre-select this method.
+  final bool isDefault;
 
-  factory PaymentMethod.fromJson(Map<String, dynamic> json) =>
-      PaymentMethod(id: json['_id'] as String, name: json['name'] as String? ?? '');
+  PaymentMethod({required this.id, required this.name, this.isDefault = false});
+
+  factory PaymentMethod.fromJson(Map<String, dynamic> json) => PaymentMethod(
+        id: json['_id'] as String,
+        name: json['name'] as String? ?? '',
+        isDefault: json['isDefault'] as bool? ?? false,
+      );
 }

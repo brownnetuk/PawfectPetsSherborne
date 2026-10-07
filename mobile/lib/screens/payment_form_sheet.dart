@@ -63,9 +63,19 @@ class _PaymentFormSheetState extends State<PaymentFormSheet> {
             break;
           }
         }
-      } else if (accounts.isNotEmpty) {
-        // New payment: default to the admin app's default account.
-        _account = accounts.firstWhere((a) => a.isDefault, orElse: () => accounts.first);
+      } else {
+        // New payment: default to the admin app's default account and
+        // default payment method (method stays "Not specified" when no
+        // default is configured in Settings > Finance).
+        if (accounts.isNotEmpty) {
+          _account = accounts.firstWhere((a) => a.isDefault, orElse: () => accounts.first);
+        }
+        for (final m in methods) {
+          if (m.isDefault) {
+            _paymentMethod = m;
+            break;
+          }
+        }
       }
       final outstanding = invoices
           .where((inv) => inv.status != 'cancelled' && inv.balanceDue > 0)

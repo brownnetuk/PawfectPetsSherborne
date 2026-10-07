@@ -40,9 +40,19 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
       final accounts = await repo.listBankAccounts();
       final methods = await repo.listPaymentMethods();
       // Pre-select the admin app's default bank account (fall back to the
-      // first). Guarded so it doesn't clobber a manual pick on rebuild.
+      // first) and default payment method (no fallback -- stays "Not
+      // specified" when none is marked default in Settings > Finance).
+      // Guarded so they don't clobber a manual pick on rebuild.
       if (_account == null && accounts.isNotEmpty) {
         _account = accounts.firstWhere((a) => a.isDefault, orElse: () => accounts.first);
+      }
+      if (_paymentMethod == null) {
+        for (final m in methods) {
+          if (m.isDefault) {
+            _paymentMethod = m;
+            break;
+          }
+        }
       }
       return (accounts, methods);
     }();
