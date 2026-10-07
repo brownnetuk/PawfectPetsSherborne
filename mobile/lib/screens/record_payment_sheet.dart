@@ -6,6 +6,7 @@ import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/expense.dart';
 import '../models/invoice.dart';
+import '../services/sumup_service.dart';
 
 /// Bottom sheet for recording a payment against an invoice. Pops `true` when a
 /// payment is saved. Shared by the invoice detail screen and the invoice list.
@@ -158,6 +159,11 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
     if (picked != null) setState(() => _date = picked);
   }
 
+  /// A card-type method (e.g. "Credit / Debit Card") with SumUp configured
+  /// takes the money through the reader before recording the payment.
+  bool get _chargeViaSumup =>
+      SumupService.configured && (_paymentMethod?.name.toLowerCase().contains('card') ?? false);
+
   Future<void> _submit() async {
     final amount = double.tryParse(_amountController.text.trim());
     if (amount == null || amount <= 0) {
@@ -168,9 +174,31 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Choose an account.')));
       return;
     }
+    final repo = context.read<Repository>();
+    final messenger = ScaffoldMessenger.of(context);
     setState(() => _submitting = true);
     try {
-      await context.read<Repository>().recordPayment(
+      if (_chargeViaSumup) {
+        // Charge the card first -- the payment is only recorded against the
+        // invoice once SumUp confirms the transaction went through. (The
+        // existing server logic then marks the invoice paid when the balance
+        // is fully covered.)
+        final result = await SumupService.charge(
+          title: 'Invoice ${widget.invoice.invoiceNumber}',
+          amount: amount,
+          foreignTransactionId: '${widget.invoice.id}-${DateTime.now().millisecondsSinceEpoch}',
+        );
+        if (result.success != true) {
+          final errors = result.errors;
+          messenger.showSnackBar(SnackBar(
+            content: Text(
+              errors != null && errors.isNotEmpty ? errors : 'Card payment was not completed.',
+            ),
+          ));
+          return;
+        }
+      }
+      await repo.recordPayment(
             invoiceId: widget.invoice.id,
             date: _date,
             amount: amount,
@@ -181,7 +209,11 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
-        final message = e is ApiException ? e.message : 'Failed to record payment';
+        final message = e is ApiException
+            ? e.message
+            : e is StateError
+                ? e.message
+                : 'Failed to record payment';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       }
     } finally {
@@ -286,9 +318,12 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                child: ElevatedButton.icon(
                   onPressed: _submitting ? null : _submit,
-                  child: Text(_submitting ? 'Saving…' : 'Save payment'),
+                  icon: _chargeViaSumup ? const Icon(Icons.credit_card, size: 18) : const SizedBox.shrink(),
+                  label: Text(_submitting
+                      ? (_chargeViaSumup ? 'Charging…' : 'Saving…')
+                      : (_chargeViaSumup ? 'Charge card & save' : 'Save payment')),
                 ),
               ),
             ],

@@ -12,3 +12,8 @@ const String intakeBaseUrl = String.fromEnvironment(
   'INTAKE_URL',
   defaultValue: 'https://pawfectpetssherborne.co.uk',
 );
+
+// SumUp affiliate (application) key from developer.sumup.com, tied to this
+// app's bundle id. Empty (the default) disables the in-app card charge flow
+// entirely -- Record Payment behaves exactly as before.
+const String sumupAffiliateKey = String.fromEnvironment('SUMUP_AFFILIATE_KEY');
