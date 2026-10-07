@@ -12,7 +12,7 @@ export default function SortableTh<K extends string>({
 }: {
   label: string;
   sortKey: K;
-  activeKey: K;
+  activeKey: K | null;
   dir: 'asc' | 'desc';
   onSort: (key: K) => void;
 }) {

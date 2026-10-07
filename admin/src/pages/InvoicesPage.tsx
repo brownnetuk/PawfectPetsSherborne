@@ -11,6 +11,7 @@ import QuoteHtmlView from '../components/QuoteHtmlView';
 import RecordPaymentModal from '../components/RecordPaymentModal';
 import RequestDepositModal from '../components/RequestDepositModal';
 import SendPreviewModal, { customerLabel } from '../components/SendPreviewModal';
+import SortableTh from '../components/SortableTh';
 import { buildInvoicePdf } from '../pdf/invoicePdf';
 import type { BusinessInfo, Invoice, InvoiceStatus, Quote, QuoteStatus } from '../types';
 
@@ -27,6 +28,156 @@ function isPartiallyPaid(inv: Invoice): boolean {
 }
 
 type Tab = 'invoices' | 'quotes';
+type SortDir = 'asc' | 'desc';
+
+// Strings compare naturally (so INV-10 sorts after INV-9), numbers
+// numerically -- dates are passed in as timestamps.
+function compareValues(a: string | number, b: string | number): number {
+  if (typeof a === 'number' && typeof b === 'number') return a - b;
+  return String(a).localeCompare(String(b), 'en-GB', { numeric: true, sensitivity: 'base' });
+}
+
+// Shared sort state for both tabs. Starts with no column active so the list
+// keeps the server's newest-first order until a header is clicked.
+function useSort<K extends string>() {
+  const [sortKey, setSortKey] = useState<K | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  function toggleSort(key: K) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
+  return { sortKey, sortDir, toggleSort };
+}
+
+function sortRows<T, K extends string>(rows: T[], key: K | null, dir: SortDir, value: (row: T, key: K) => string | number): T[] {
+  if (!key) return rows;
+  return [...rows].sort((a, b) => {
+    const cmp = compareValues(value(a, key), value(b, key));
+    return dir === 'asc' ? cmp : -cmp;
+  });
+}
+
+// "From"/"To" date inputs give YYYY-MM-DD; compare on the local calendar day
+// so an invoice dated on the "To" day itself is still included.
+function inDateRange(iso: string, from: string, to: string): boolean {
+  const d = new Date(iso);
+  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (from && day < from) return false;
+  if (to && day > to) return false;
+  return true;
+}
+
+const filterFieldStyle = { marginBottom: 0 } as const;
+
+type Filters = { search: string; status: string; from: string; to: string };
+const EMPTY_FILTERS: Filters = { search: '', status: '', from: '', to: '' };
+
+// Search / status / date-range row shown above each tab's table.
+function FilterBar({
+  filters,
+  onChange,
+  searchPlaceholder,
+  statusOptions,
+  dateLabel,
+}: {
+  filters: Filters;
+  onChange: (next: Filters) => void;
+  searchPlaceholder: string;
+  statusOptions: { value: string; label: string }[];
+  dateLabel: string;
+}) {
+  const set = (patch: Partial<Filters>) => onChange({ ...filters, ...patch });
+  const active = filters.search || filters.status || filters.from || filters.to;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
+      <div className="field" style={{ ...filterFieldStyle, width: 240 }}>
+        <label>Search</label>
+        <input type="text" placeholder={searchPlaceholder} value={filters.search} onChange={(e) => set({ search: e.target.value })} />
+      </div>
+      <div className="field" style={{ ...filterFieldStyle, width: 170 }}>
+        <label>Status</label>
+        <select value={filters.status} onChange={(e) => set({ status: e.target.value })}>
+          <option value="">All statuses</option>
+          {statusOptions.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="field" style={{ ...filterFieldStyle, width: 150 }}>
+        <label>{dateLabel} from</label>
+        <input type="date" value={filters.from} max={filters.to || undefined} onChange={(e) => set({ from: e.target.value })} />
+      </div>
+      <div className="field" style={{ ...filterFieldStyle, width: 150 }}>
+        <label>{dateLabel} to</label>
+        <input type="date" value={filters.to} min={filters.from || undefined} onChange={(e) => set({ to: e.target.value })} />
+      </div>
+      {active && (
+        <button className="btn btn-secondary btn-sm" style={{ marginBottom: 6 }} onClick={() => onChange(EMPTY_FILTERS)}>
+          Clear filters
+        </button>
+      )}
+    </div>
+  );
+}
+
+const INVOICE_FILTER_STATUSES = [
+  { value: 'outstanding', label: 'Outstanding (balance due)' },
+  ...INVOICE_STATUSES.map((s) => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) })),
+  { value: 'partially_paid', label: 'Partially paid' },
+];
+const QUOTE_FILTER_STATUSES = QUOTE_STATUSES.map((s) => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }));
+
+type InvoiceSortKey = 'invoiceNumber' | 'customer' | 'issueDate' | 'dueDate' | 'total' | 'amountPaid' | 'balance' | 'status';
+type QuoteSortKey = 'quoteNumber' | 'customer' | 'total' | 'status' | 'validUntil';
+
+function invoiceSortValue(inv: Invoice, key: InvoiceSortKey): string | number {
+  switch (key) {
+    case 'invoiceNumber': return inv.invoiceNumber;
+    case 'customer': return customerLabel(inv.customer);
+    case 'issueDate': return new Date(inv.issueDate).getTime();
+    case 'dueDate': return new Date(inv.dueDate).getTime();
+    case 'total': return inv.total;
+    case 'amountPaid': return inv.amountPaid ?? 0;
+    case 'balance': return inv.total - (inv.amountPaid ?? 0);
+    case 'status': return inv.status;
+  }
+}
+
+function quoteSortValue(q: Quote, key: QuoteSortKey): string | number {
+  switch (key) {
+    case 'quoteNumber': return q.quoteNumber;
+    case 'customer': return customerLabel(q.customer, q.manualCustomerName);
+    case 'total': return q.total;
+    case 'status': return q.status;
+    case 'validUntil': return new Date(q.validUntil).getTime();
+  }
+}
+
+function matchesInvoiceFilters(inv: Invoice, f: Filters): boolean {
+  const q = f.search.trim().toLowerCase();
+  if (q && !inv.invoiceNumber.toLowerCase().includes(q) && !customerLabel(inv.customer).toLowerCase().includes(q)) return false;
+  if (f.status === 'outstanding') {
+    if (inv.status === 'cancelled' || inv.status === 'draft' || inv.total - (inv.amountPaid ?? 0) <= 0) return false;
+  } else if (f.status === 'partially_paid') {
+    if (!isPartiallyPaid(inv)) return false;
+  } else if (f.status && inv.status !== f.status) {
+    return false;
+  }
+  return inDateRange(inv.issueDate, f.from, f.to);
+}
+
+function matchesQuoteFilters(q: Quote, f: Filters): boolean {
+  const s = f.search.trim().toLowerCase();
+  if (s && !q.quoteNumber.toLowerCase().includes(s) && !customerLabel(q.customer, q.manualCustomerName).toLowerCase().includes(s)) return false;
+  if (f.status && q.status !== f.status) return false;
+  return inDateRange(q.validUntil, f.from, f.to);
+}
 
 export default function InvoicesPage() {
   const [tab, setTab] = useState<Tab>('invoices');
@@ -74,6 +225,8 @@ function InvoicesTab() {
   const [bulkSendConfirm, setBulkSendConfirm] = useState(false);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const { sortKey, sortDir, toggleSort } = useSort<InvoiceSortKey>();
 
   function refresh() {
     api.listInvoices().then(setInvoices).catch((err) => setError(err.message));
@@ -162,7 +315,16 @@ function InvoicesTab() {
     }
   }
 
-  const selectedInvoices = (invoices ?? []).filter((inv) => selectedIds.has(inv._id));
+  const visibleInvoices = sortRows(
+    (invoices ?? []).filter((inv) => matchesInvoiceFilters(inv, filters)),
+    sortKey,
+    sortDir,
+    invoiceSortValue,
+  );
+  // Bulk actions only touch rows the current filters show, so a hidden
+  // selection can't be sent or deleted by surprise.
+  const selectedInvoices = visibleInvoices.filter((inv) => selectedIds.has(inv._id));
+  const sortProps = { activeKey: sortKey, dir: sortDir, onSort: toggleSort };
 
   function toggleSelected(id: string) {
     setSelectedIds((prev) => {
@@ -209,26 +371,35 @@ function InvoicesTab() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 12 }}>
-        <ActionsMenu
-          items={[
-            {
-              label: `Send${selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}`,
-              onClick: () => setBulkSendConfirm(true),
-              disabled: selectedIds.size === 0 || bulkBusy,
-            },
-            {
-              label: `Delete${selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}`,
-              onClick: () => setBulkDeleteConfirm(true),
-              disabled: selectedIds.size === 0 || bulkBusy,
-              danger: true,
-              dividerBefore: true,
-            },
-          ]}
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, marginBottom: 12 }}>
+        <FilterBar
+          filters={filters}
+          onChange={setFilters}
+          searchPlaceholder="Invoice number or customer…"
+          statusOptions={INVOICE_FILTER_STATUSES}
+          dateLabel="Invoice date"
         />
-        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
-          New invoice
-        </button>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+          <ActionsMenu
+            items={[
+              {
+                label: `Send${selectedInvoices.length > 0 ? ` (${selectedInvoices.length})` : ''}`,
+                onClick: () => setBulkSendConfirm(true),
+                disabled: selectedInvoices.length === 0 || bulkBusy,
+              },
+              {
+                label: `Delete${selectedInvoices.length > 0 ? ` (${selectedInvoices.length})` : ''}`,
+                onClick: () => setBulkDeleteConfirm(true),
+                disabled: selectedInvoices.length === 0 || bulkBusy,
+                danger: true,
+                dividerBefore: true,
+              },
+            ]}
+          />
+          <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+            New invoice
+          </button>
+        </div>
       </div>
       {error && <div className="error-banner">{error}</div>}
 
@@ -239,7 +410,7 @@ function InvoicesTab() {
         ) : viewing ? (
           <div style={{ display: 'flex', alignItems: 'stretch' }}>
             <div style={{ width: 260, flexShrink: 0, borderRight: '1px solid var(--border)' }}>
-              {invoices.map((inv) => (
+              {visibleInvoices.map((inv) => (
                 <div
                   key={inv._id}
                   onClick={() => inv._id !== viewing._id && handleViewPdf(inv)}
@@ -320,24 +491,31 @@ function InvoicesTab() {
                 <th style={{ width: 34 }}>
                   <input
                     type="checkbox"
-                    checked={invoices.length > 0 && selectedIds.size === invoices.length}
-                    onChange={(e) => setSelectedIds(e.target.checked ? new Set(invoices.map((i) => i._id)) : new Set())}
+                    checked={visibleInvoices.length > 0 && selectedInvoices.length === visibleInvoices.length}
+                    onChange={(e) => setSelectedIds(e.target.checked ? new Set(visibleInvoices.map((i) => i._id)) : new Set())}
                     aria-label="Select all invoices"
                   />
                 </th>
-                <th>Invoice Number</th>
-                <th>Customer</th>
-                <th>Invoice Date</th>
-                <th>Due Date</th>
-                <th>Invoice Total</th>
-                <th>Amount Paid</th>
-                <th>Remaining Balance</th>
-                <th>Status</th>
+                <SortableTh label="Invoice Number" sortKey="invoiceNumber" {...sortProps} />
+                <SortableTh label="Customer" sortKey="customer" {...sortProps} />
+                <SortableTh label="Invoice Date" sortKey="issueDate" {...sortProps} />
+                <SortableTh label="Due Date" sortKey="dueDate" {...sortProps} />
+                <SortableTh label="Invoice Total" sortKey="total" {...sortProps} />
+                <SortableTh label="Amount Paid" sortKey="amountPaid" {...sortProps} />
+                <SortableTh label="Remaining Balance" sortKey="balance" {...sortProps} />
+                <SortableTh label="Status" sortKey="status" {...sortProps} />
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {invoices.map((inv) => (
+              {visibleInvoices.length === 0 && (
+                <tr>
+                  <td colSpan={10} className="empty-state">
+                    No invoices match these filters.
+                  </td>
+                </tr>
+              )}
+              {visibleInvoices.map((inv) => (
                 <tr key={inv._id} onClick={() => handleViewPdf(inv)} style={{ cursor: 'pointer' }}>
                   <td onClick={(e) => e.stopPropagation()}>
                     <input
@@ -529,11 +707,21 @@ function QuotesTab() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const { sortKey, sortDir, toggleSort } = useSort<QuoteSortKey>();
 
   function refresh() {
     api.listQuotes().then(setQuotes).catch((err) => setError(err.message));
   }
   useEffect(refresh, []);
+
+  const visibleQuotes = sortRows(
+    (quotes ?? []).filter((q) => matchesQuoteFilters(q, filters)),
+    sortKey,
+    sortDir,
+    quoteSortValue,
+  );
+  const sortProps = { activeKey: sortKey, dir: sortDir, onSort: toggleSort };
 
   async function handleViewPdf(q: Quote) {
     if (pdfUrl) URL.revokeObjectURL(pdfUrl);
@@ -595,8 +783,15 @@ function QuotesTab() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, marginBottom: 12 }}>
+        <FilterBar
+          filters={filters}
+          onChange={setFilters}
+          searchPlaceholder="Quote number or customer…"
+          statusOptions={QUOTE_FILTER_STATUSES}
+          dateLabel="Valid until"
+        />
+        <button className="btn btn-primary btn-sm" style={{ marginBottom: 6 }} onClick={() => setShowNew(true)}>
           New Quote
         </button>
       </div>
@@ -610,7 +805,7 @@ function QuotesTab() {
             <div style={{ width: 420, flexShrink: 0, borderRight: '1px solid var(--border)' }}>
               <table>
                 <tbody>
-                  {quotes.map((q) => (
+                  {visibleQuotes.map((q) => (
                     <tr
                       key={q._id}
                       onClick={() => q._id !== viewing._id && handleViewPdf(q)}
@@ -684,16 +879,23 @@ function QuotesTab() {
           <table>
             <thead>
               <tr>
-                <th>Quote</th>
-                <th>Customer</th>
-                <th>Total</th>
-                <th>Status</th>
-                <th>Valid until</th>
+                <SortableTh label="Quote" sortKey="quoteNumber" {...sortProps} />
+                <SortableTh label="Customer" sortKey="customer" {...sortProps} />
+                <SortableTh label="Total" sortKey="total" {...sortProps} />
+                <SortableTh label="Status" sortKey="status" {...sortProps} />
+                <SortableTh label="Valid until" sortKey="validUntil" {...sortProps} />
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {quotes.map((q) => (
+              {visibleQuotes.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="empty-state">
+                    No quotes match these filters.
+                  </td>
+                </tr>
+              )}
+              {visibleQuotes.map((q) => (
                 <tr key={q._id} onClick={() => handleViewPdf(q)} style={{ cursor: 'pointer' }}>
                   <td>{q.quoteNumber}</td>
                   <td>
