@@ -24,6 +24,13 @@ class _HomeShellState extends State<HomeShell> {
   // once visited it stays alive (IndexedStack keeps its state).
   final Set<int> _visited = {0};
 
+  // One Navigator per tab, so screens pushed inside a tab (hubs, lists,
+  // details) slide in above the tab's content while the bottom bar stays
+  // visible -- previously every push covered the whole shell, losing the
+  // navigation bar until staff backed all the way out.
+  final List<GlobalKey<NavigatorState>> _navigatorKeys =
+      List.generate(5, (_) => GlobalKey<NavigatorState>());
+
   @override
   void initState() {
     super.initState();
@@ -44,27 +51,47 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _index,
-        children: List.generate(
-          _screens.length,
-          (i) => _visited.contains(i) ? _screens[i] : const SizedBox.shrink(),
+    return PopScope(
+      // The system back (Android button, iOS edge swipe handles itself per
+      // route) pops the active tab's own stack rather than the whole shell.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        final nav = _navigatorKeys[_index].currentState;
+        if (nav != null && nav.canPop()) nav.pop();
+      },
+      child: Scaffold(
+        body: IndexedStack(
+          index: _index,
+          children: List.generate(
+            _screens.length,
+            (i) => _visited.contains(i)
+                ? Navigator(
+                    key: _navigatorKeys[i],
+                    onGenerateRoute: (settings) =>
+                        MaterialPageRoute(settings: settings, builder: (_) => _screens[i]),
+                  )
+                : const SizedBox.shrink(),
+          ),
         ),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() {
-          _index = i;
-          _visited.add(i);
-        }),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.people_outline), label: 'Customers'),
-          NavigationDestination(icon: Icon(Icons.business_center_outlined), label: 'Business'),
-          NavigationDestination(icon: Icon(Icons.event_note_outlined), label: 'Bookings'),
-          NavigationDestination(icon: Icon(Icons.hotel_outlined), label: 'Boarding'),
-          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Messages'),
-        ],
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _index,
+          onDestinationSelected: (i) => setState(() {
+            // Re-tapping the active tab jumps back to its root screen.
+            if (i == _index) {
+              _navigatorKeys[i].currentState?.popUntil((route) => route.isFirst);
+            }
+            _index = i;
+            _visited.add(i);
+          }),
+          destinations: const [
+            NavigationDestination(icon: Icon(Icons.people_outline), label: 'Customers'),
+            NavigationDestination(icon: Icon(Icons.business_center_outlined), label: 'Business'),
+            NavigationDestination(icon: Icon(Icons.event_note_outlined), label: 'Bookings'),
+            NavigationDestination(icon: Icon(Icons.hotel_outlined), label: 'Boarding'),
+            NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Messages'),
+          ],
+        ),
       ),
     );
   }
