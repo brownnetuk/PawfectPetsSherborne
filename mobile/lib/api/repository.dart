@@ -181,6 +181,14 @@ class Repository {
         'formName': formName,
       });
 
+  /// Staff edit of the customer record (client details, emergency contact,
+  /// vet, security) -- same PATCH the admin's Edit Customer modal sends. The
+  /// backend merges `security` field-by-field (a blank alarmInstructions left
+  /// out of the payload keeps the stored encrypted value) and carries the vet
+  /// authorisation forward.
+  Future<Customer> updateCustomer(String id, Map<String, dynamic> patch) async =>
+      Customer.fromJson(await _client.patch('/customers/$id', patch));
+
   Future<Customer> updateCustomerStatus(String id, String status) async =>
       Customer.fromJson(await _client.patch('/customers/$id/status', {'status': status}));
 

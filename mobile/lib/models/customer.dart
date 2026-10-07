@@ -79,6 +79,12 @@ class Customer {
   final List<String> regularDays;
   final bool portalActive;
 
+  /// The original response JSON. The display fields above are computed
+  /// server-side (name, address); the edit screen needs the raw structured
+  /// fields (firstName, address1, emergencyContact.firstName, ...) to prefill
+  /// its form, and keeping the JSON avoids duplicating ~20 typed fields.
+  final Map<String, dynamic> raw;
+
   Customer({
     required this.id,
     required this.name,
@@ -94,6 +100,7 @@ class Customer {
     this.travelProductId,
     this.regularDays = const [],
     this.portalActive = false,
+    this.raw = const {},
   });
 
   factory Customer.fromJson(Map<String, dynamic> json) {
@@ -120,6 +127,7 @@ class Customer {
       regularDays:
           (json['regularDays'] as List<dynamic>?)?.map((e) => e as String).toList() ?? const [],
       portalActive: json['portalActive'] as bool? ?? false,
+      raw: json,
     );
   }
 }
