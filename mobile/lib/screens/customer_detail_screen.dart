@@ -131,7 +131,28 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: Text(customer.name, style: Theme.of(context).textTheme.titleLarge),
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            customer.name,
+                            style: Theme.of(context).textTheme.titleLarge,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined, size: 20),
+                          visualDensity: VisualDensity.compact,
+                          tooltip: 'Edit customer',
+                          onPressed: () async {
+                            final saved = await Navigator.of(context).push<bool>(
+                              MaterialPageRoute(builder: (_) => EditCustomerScreen(customer: customer)),
+                            );
+                            if (saved == true && mounted) setState(_load);
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                   InkWell(
                     borderRadius: BorderRadius.circular(999),
@@ -145,17 +166,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                         Icon(Icons.arrow_drop_down, size: 20, color: Colors.grey.shade600),
                       ],
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined, size: 20),
-                    visualDensity: VisualDensity.compact,
-                    tooltip: 'Edit customer',
-                    onPressed: () async {
-                      final saved = await Navigator.of(context).push<bool>(
-                        MaterialPageRoute(builder: (_) => EditCustomerScreen(customer: customer)),
-                      );
-                      if (saved == true && mounted) setState(_load);
-                    },
                   ),
                 ],
               ),
