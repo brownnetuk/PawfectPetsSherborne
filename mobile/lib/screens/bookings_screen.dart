@@ -617,35 +617,36 @@ class _BookingsScreenState extends State<BookingsScreen> {
         ],
         if (recommended.isNotEmpty) ...[
           _sectionTitle('Recommended'),
-          // One compact line per pet -- this list grows with every dog not yet
-          // booked that day, so it has to stay dense.
-          for (final a in recommended)
-            ListTile(
-              dense: true,
-              visualDensity: const VisualDensity(vertical: -3),
-              contentPadding: const EdgeInsets.only(left: 16, right: 8),
-              leading: const Icon(Icons.pets, size: 18),
-              title: Text.rich(
-                TextSpan(
-                  text: a.name,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                  children: [
-                    TextSpan(
-                      text: '  ·  ${_ownerOf(a.customerId)?.name ?? ''}',
-                      style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w400),
+          // One pill per dog, and tapping the pill itself adds it to the day
+          // (no separate + button) -- this list grows with every dog not yet
+          // booked that day, so pills wrapping into rows keep it dense.
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final a in recommended)
+                  ActionChip(
+                    avatar: Icon(Icons.pets, size: 16, color: Colors.green.shade700),
+                    label: Text.rich(
+                      TextSpan(
+                        text: a.name,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                        children: [
+                          TextSpan(
+                            text: ' · ${_ownerOf(a.customerId)?.name ?? ''}',
+                            style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w400),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: IconButton(
-                icon: Icon(Icons.add_circle, color: Colors.green.shade600, size: 22),
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                tooltip: 'Add to this day',
-                onPressed: () => _quickAdd(a, dayItems),
-              ),
+                    tooltip: 'Add ${a.name} to this day',
+                    onPressed: () => _quickAdd(a, dayItems),
+                  ),
+              ],
             ),
+          ),
         ],
       ],
     );
