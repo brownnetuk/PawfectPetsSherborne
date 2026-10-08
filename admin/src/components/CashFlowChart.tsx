@@ -11,6 +11,9 @@ interface Props {
   labels?: { label: string; year: string }[];
   // Dashed line + lighter fill, for a forecast rather than actuals.
   projected?: boolean;
+  // false plots each period's own net figure instead of the running balance
+  // (startingCash is then ignored).
+  cumulative?: boolean;
 }
 
 function monthLabel(month: string): { label: string; year: string } {
@@ -33,23 +36,25 @@ function niceCeil(value: number): number {
 const WIDTH = 700;
 const HEIGHT = 220;
 const PADDING_LEFT = 54;
+// Room for the last point's centred axis label, which otherwise clips.
+const PADDING_RIGHT = 24;
 const PADDING_BOTTOM = 34;
 const PADDING_TOP = 14;
 const GRID_LINES = 4;
 
-export default function CashFlowChart({ data, startingCash, labels, projected }: Props) {
+export default function CashFlowChart({ data, startingCash, labels, projected, cumulative = true }: Props) {
   const labelAt = (i: number) => labels?.[i] ?? monthLabel(data[i].month);
   const chartHeight = HEIGHT - PADDING_TOP - PADDING_BOTTOM;
-  const chartWidth = WIDTH - PADDING_LEFT - 10;
+  const chartWidth = WIDTH - PADDING_LEFT - PADDING_RIGHT;
 
   const points: number[] = [];
   let running = startingCash;
   for (const m of data) {
     running += m.net;
-    points.push(running);
+    points.push(cumulative ? running : m.net);
   }
 
-  const allValues = [startingCash, ...points];
+  const allValues = cumulative ? [startingCash, ...points] : points;
   const minValue = Math.min(...allValues, 0);
   const maxValue = niceCeil(Math.max(...allValues, 0));
   const range = maxValue - minValue || 1;

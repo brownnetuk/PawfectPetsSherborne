@@ -736,6 +736,7 @@ function dailyExpectedRevenue(
 
 function ProjectedFlowCard() {
   const [period, setPeriod] = useState<ProjectionPeriod>(3);
+  const [cumulative, setCumulative] = useState(true);
   const [today] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -804,9 +805,14 @@ function ProjectedFlowCard() {
   const projectedEnd = cashNow + incoming - outgoing;
   const endLabel = addDaysTo(rangeEnd, -1).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
-  // A leading "Today" point (net 0) anchors the line at the current balance.
-  const chartData = [{ month: 'today', net: 0 }, ...points.map((p) => ({ month: dateKey(p.start), net: p.net }))];
-  const chartLabels = [{ label: 'Today', year: '' }, ...points.map((p) => ({ label: p.label, year: p.sublabel }))];
+  const periodData = points.map((p) => ({ month: dateKey(p.start), net: p.net }));
+  const periodLabels = points.map((p) => ({ label: p.label, year: p.sublabel }));
+  // Cumulative: a leading "Today" point (net 0) anchors the line at the
+  // current balance. Per-period figures have no such starting point.
+  const chartData = cumulative ? [{ month: 'today', net: 0 }, ...periodData] : periodData;
+  const chartLabels = cumulative ? [{ label: 'Today', year: '' }, ...periodLabels] : periodLabels;
+  // "This Month" is plotted in weekly chunks, so its per-period view is weekly.
+  const perPeriodLabel = period === 1 ? 'Weekly' : 'Monthly';
 
   return (
     <div className="card" style={{ margin: 0 }}>
@@ -814,16 +820,29 @@ function ProjectedFlowCard() {
         title="Projected Flow"
         subtitle="Expected revenue less average monthly spend, from today's cash balance"
         right={
-          <select
-            className="select-inline"
-            value={period}
-            onChange={(e) => setPeriod(Number(e.target.value) as ProjectionPeriod)}
-          >
-            <option value={1}>This Month</option>
-            <option value={3}>Next 3 Months</option>
-            <option value={6}>Next 6 Months</option>
-            <option value={12}>Next 12 Months</option>
-          </select>
+          <>
+            <div style={{ display: 'flex', gap: 12, fontSize: '0.85rem' }} role="radiogroup" aria-label="Chart view">
+              {[
+                { value: true, label: 'Cumulative' },
+                { value: false, label: perPeriodLabel },
+              ].map((o) => (
+                <label key={o.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+                  <input type="radio" name="projected-flow-view" checked={cumulative === o.value} onChange={() => setCumulative(o.value)} />
+                  {o.label}
+                </label>
+              ))}
+            </div>
+            <select
+              className="select-inline"
+              value={period}
+              onChange={(e) => setPeriod(Number(e.target.value) as ProjectionPeriod)}
+            >
+              <option value={1}>This Month</option>
+              <option value={3}>Next 3 Months</option>
+              <option value={6}>Next 6 Months</option>
+              <option value={12}>Next 12 Months</option>
+            </select>
+          </>
         }
       />
       {error && <div className="error-banner">{error}</div>}
@@ -832,7 +851,13 @@ function ProjectedFlowCard() {
       ) : (
         <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 380px', minWidth: 280 }}>
-            <CashFlowChart data={chartData} labels={chartLabels} startingCash={cashNow} projected />
+            <CashFlowChart
+              data={chartData}
+              labels={chartLabels}
+              startingCash={cashNow}
+              cumulative={cumulative}
+              projected
+            />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: '0.85rem', minWidth: 180 }}>
             <div>
