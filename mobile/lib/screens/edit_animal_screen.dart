@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
@@ -35,7 +38,10 @@ class _EditAnimalScreenState extends State<EditAnimalScreen> {
   late DateTime? _vaccineExpiry = widget.animal.vaccineExpiryDate;
   late String? _neutered = widget.animal.neuteredStatus;
   late bool _insured = widget.animal.insured ?? false;
+  late String? _vaccinePhoto = widget.animal.vaccineRecordPhoto;
+  late List<String> _photos = List.of(widget.animal.photos);
   bool _saving = false;
+  bool _pickingPhoto = false;
 
   static final _dateFmt = DateFormat('d MMM yyyy');
 
@@ -78,6 +84,8 @@ class _EditAnimalScreenState extends State<EditAnimalScreen> {
       'insured': _insured,
       if (_insured) 'insurer': _insurer.text.trim(),
       if (_neutered != null) 'neuteredStatus': _neutered,
+      'vaccineRecordPhoto': _vaccinePhoto,
+      'photos': _photos,
     };
     setState(() => _saving = true);
     try {
@@ -103,6 +111,110 @@ class _EditAnimalScreenState extends State<EditAnimalScreen> {
 
   void _snack(String m) {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
+
+  /// Captures a photo and hands it over as a jpeg data URI — the same
+  /// downscale the intake form uses, keeping the base64 payload well under
+  /// the API's body-size limit.
+  Future<void> _capturePhoto(ImageSource source, void Function(String dataUri) onPicked) async {
+    if (_pickingPhoto) return;
+    setState(() => _pickingPhoto = true);
+    try {
+      final file = await ImagePicker().pickImage(source: source, imageQuality: 70, maxWidth: 1600);
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      onPicked('data:image/jpeg;base64,${base64Encode(bytes)}');
+    } catch (_) {
+      _snack('Failed to add the photo.');
+    } finally {
+      if (mounted) setState(() => _pickingPhoto = false);
+    }
+  }
+
+  /// 88px thumbnail for a stored photo. Guards the base64 decode so a
+  /// malformed value renders a placeholder instead of crashing the build.
+  Widget _thumbnail(String src) {
+    final placeholder = Container(
+      height: 88,
+      width: 88,
+      color: Colors.grey.shade200,
+      child: const Icon(Icons.broken_image_outlined, color: Colors.grey),
+    );
+    try {
+      return Image.memory(
+        base64Decode(src.split(',').last),
+        height: 88,
+        width: 88,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => placeholder,
+      );
+    } on FormatException {
+      return placeholder;
+    }
+  }
+
+  /// Photo picker section matching the intake form: thumbnails with a remove
+  /// badge plus camera/library buttons while below [maxFiles].
+  Widget _photoSection({
+    required String label,
+    required List<String> photos,
+    required int maxFiles,
+    required void Function(String dataUri) onAdd,
+    required void Function(int index) onRemove,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 6),
+        if (photos.isNotEmpty)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var i = 0; i < photos.length; i++)
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: _thumbnail(photos[i]),
+                    ),
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: InkWell(
+                        onTap: () => onRemove(i),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          padding: const EdgeInsets.all(2),
+                          child: const Icon(Icons.close, size: 14, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        if (photos.length < maxFiles)
+          Row(
+            children: [
+              TextButton.icon(
+                onPressed: _pickingPhoto ? null : () => _capturePhoto(ImageSource.camera, onAdd),
+                icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                label: const Text('Camera'),
+              ),
+              TextButton.icon(
+                onPressed: _pickingPhoto ? null : () => _capturePhoto(ImageSource.gallery, onAdd),
+                icon: const Icon(Icons.photo_library_outlined, size: 18),
+                label: const Text('Library'),
+              ),
+            ],
+          ),
+      ],
+    );
   }
 
   @override
@@ -197,6 +309,14 @@ class _EditAnimalScreenState extends State<EditAnimalScreen> {
               ),
             ),
           ],
+          const SizedBox(height: 8),
+          _photoSection(
+            label: 'Vaccination card',
+            photos: [?_vaccinePhoto],
+            maxFiles: 1,
+            onAdd: (uri) => setState(() => _vaccinePhoto = uri),
+            onRemove: (_) => setState(() => _vaccinePhoto = null),
+          ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Insured'),
@@ -212,6 +332,14 @@ class _EditAnimalScreenState extends State<EditAnimalScreen> {
             controller: _temperament,
             decoration: const InputDecoration(labelText: 'Temperament notes'),
             maxLines: 3,
+          ),
+          const SizedBox(height: 16),
+          _photoSection(
+            label: 'Pet photos (up to 2)',
+            photos: _photos,
+            maxFiles: 2,
+            onAdd: (uri) => setState(() => _photos = [..._photos, uri]),
+            onRemove: (i) => setState(() => _photos = [..._photos]..removeAt(i)),
           ),
           const SizedBox(height: 24),
           SizedBox(

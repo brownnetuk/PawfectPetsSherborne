@@ -4,11 +4,5 @@
 <dict>
 	<key>aps-environment</key>
 	<string>development</string>
-	<!-- Tap to Pay on iPhone: once Apple approves the entitlement request and
-	     the capability is enabled on the App ID, uncomment -- signing fails
-	     with "not found and could not be included in profile" before then.
-	<key>com.apple.developer.proximity-reader.payment.acceptance</key>
-	<true/>
-	-->
 </dict>
 </plist>

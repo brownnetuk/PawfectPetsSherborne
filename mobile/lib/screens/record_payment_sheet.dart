@@ -183,54 +183,10 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
         // invoice once SumUp confirms the transaction went through. (The
         // existing server logic then marks the invoice paid when the balance
         // is fully covered.)
-        await SumupService.ensureReady();
-        // Offer Tap to Pay on iPhone when the merchant/device supports it
-        // (needs the entitlement build + iPhone XS+), falling back to the
-        // Bluetooth reader otherwise. Activation is Apple's one-time Tap to
-        // Pay T&C + setup flow.
-        var tapToPay = false;
-        final availability = await SumupService.tapToPayAvailability();
-        if (availability.isAvailable && mounted) {
-          final choice = await showModalBottomSheet<bool>(
-            context: context,
-            builder: (sheetContext) => SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text('Take payment with', style: TextStyle(fontWeight: FontWeight.w600)),
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.contactless_outlined),
-                    title: const Text('Tap to Pay on iPhone'),
-                    subtitle: const Text('Customer taps their card on this iPhone'),
-                    onTap: () => Navigator.of(sheetContext).pop(true),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.point_of_sale_outlined),
-                    title: const Text('SumUp card reader'),
-                    subtitle: const Text('Pay on the Bluetooth reader'),
-                    onTap: () => Navigator.of(sheetContext).pop(false),
-                  ),
-                ],
-              ),
-            ),
-          );
-          if (choice == null) return; // dismissed -- no charge
-          tapToPay = choice;
-          if (tapToPay && !availability.isActivated) {
-            await SumupService.activateTapToPay();
-          }
-        }
         final result = await SumupService.charge(
           title: 'Invoice ${widget.invoice.invoiceNumber}',
           amount: amount,
           foreignTransactionId: '${widget.invoice.id}-${DateTime.now().millisecondsSinceEpoch}',
-          tapToPay: tapToPay,
         );
         if (result.success != true) {
           final errors = result.errors;
