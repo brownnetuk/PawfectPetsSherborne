@@ -38,8 +38,12 @@ class _EditAnimalScreenState extends State<EditAnimalScreen> {
   late DateTime? _vaccineExpiry = widget.animal.vaccineExpiryDate;
   late String? _neutered = widget.animal.neuteredStatus;
   late bool _insured = widget.animal.insured ?? false;
-  late String? _vaccinePhoto = widget.animal.vaccineRecordPhoto;
-  late List<String> _photos = List.of(widget.animal.photos);
+  // The intake form stores '' (not null) when a photo is removed, so treat
+  // blank values as "no photo" or they'd occupy a slot with a broken image.
+  late String? _vaccinePhoto = (widget.animal.vaccineRecordPhoto?.trim().isNotEmpty ?? false)
+      ? widget.animal.vaccineRecordPhoto
+      : null;
+  late List<String> _photos = widget.animal.photos.where((p) => p.trim().isNotEmpty).toList();
   bool _saving = false;
   bool _pickingPhoto = false;
 
@@ -198,7 +202,9 @@ class _EditAnimalScreenState extends State<EditAnimalScreen> {
                 ),
             ],
           ),
-        if (photos.length < maxFiles)
+        // A single-photo field keeps its buttons when full so a new capture
+        // replaces the current photo (via onAdd) rather than being blocked.
+        if (photos.length < maxFiles || maxFiles == 1)
           Row(
             children: [
               TextButton.icon(
