@@ -21,6 +21,7 @@ type CardId =
   | 'receivables'
   | 'payables'
   | 'cashFlow'
+  | 'projectedFlow'
   | 'incomeExpense'
   | 'topExpenses'
   | 'bankAccounts'
@@ -30,15 +31,16 @@ const DEFAULT_ORDER: CardId[] = [
   'receivables',
   'payables',
   'cashFlow',
+  'projectedFlow',
   'incomeExpense',
   'topExpenses',
   'bankAccounts',
   'expectedRevenue',
 ];
 
-// Cash Flow reads better spanning both grid columns; everything else is a
-// normal half-width cell.
-const WIDE_CARDS = new Set<CardId>(['cashFlow']);
+// Cash Flow (and its forward-looking twin) read better spanning both grid
+// columns; everything else is a normal half-width cell.
+const WIDE_CARDS = new Set<CardId>(['cashFlow', 'projectedFlow']);
 
 const ORDER_STORAGE_KEY = 'pawfectpets_admin_snapshot_order';
 
@@ -84,6 +86,7 @@ export default function FinancialSnapshotTab() {
     receivables: ReceivablesCard,
     payables: PayablesCard,
     cashFlow: CashFlowCard,
+    projectedFlow: ProjectedFlowCard,
     incomeExpense: IncomeExpenseCard,
     topExpenses: TopExpensesCard,
     bankAccounts: BankAccountsCard,
@@ -647,6 +650,211 @@ function ExpectedRevenueCard() {
             ))}
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+type ProjectionPeriod = 1 | 3 | 6 | 12;
+
+interface ProjectionBucket {
+  start: Date;
+  end: Date; // exclusive
+  label: string;
+  sublabel: string;
+}
+
+function addDaysTo(date: Date, days: number): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
+// Splits today -> the end of the period into chart points: "This Month" is
+// the rest of the month in 7-day chunks; longer periods are the rest of
+// this month followed by each whole month after it.
+function projectionBuckets(period: ProjectionPeriod, today: Date): ProjectionBucket[] {
+  const rangeEnd = new Date(today.getFullYear(), today.getMonth() + period, 1);
+  const buckets: ProjectionBucket[] = [];
+  const short = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  if (period === 1) {
+    for (let start = today; start < rangeEnd; start = addDaysTo(start, 7)) {
+      const end = new Date(Math.min(addDaysTo(start, 7).getTime(), rangeEnd.getTime()));
+      buckets.push({ start, end, label: short(start), sublabel: `to ${short(addDaysTo(end, -1))}` });
+    }
+  } else {
+    for (let i = 0; i < period; i++) {
+      const monthStart = new Date(today.getFullYear(), today.getMonth() + i, 1);
+      buckets.push({
+        start: i === 0 ? today : monthStart,
+        end: new Date(today.getFullYear(), today.getMonth() + i + 1, 1),
+        label: monthStart.toLocaleDateString('en-GB', { month: 'short' }),
+        sublabel: String(monthStart.getFullYear()),
+      });
+    }
+  }
+  return buckets;
+}
+
+// Expected takings per calendar day -- the same two sources as the Expected
+// Revenue card: active customers' regular walk days x default product price,
+// plus Boarding / Day Care / Visit bookings already on the calendar.
+function dailyExpectedRevenue(
+  customers: Customer[],
+  products: Product[],
+  mapping: VisitMapping | null,
+  bookings: DayBooking[],
+  from: Date,
+  toExclusive: Date,
+): Map<string, number> {
+  const byDay = new Map<string, number>();
+  const add = (key: string, amount: number) => byDay.set(key, (byDay.get(key) ?? 0) + amount);
+
+  const productById = new Map(products.map((p) => [p._id, p]));
+  const walksByWeekday = [0, 0, 0, 0, 0, 0, 0];
+  for (const customer of customers) {
+    if (customer.status !== 'active' || !customer.defaultProduct || !customer.regularDays?.length) continue;
+    const product = productById.get(customer.defaultProduct);
+    if (!product) continue;
+    for (const day of customer.regularDays) {
+      const weekdayIndex = WEEKDAY_JS_INDEX[day];
+      if (weekdayIndex !== undefined) walksByWeekday[weekdayIndex] += product.price;
+    }
+  }
+  for (let d = from; d < toExclusive; d = addDaysTo(d, 1)) {
+    if (walksByWeekday[d.getDay()]) add(dateKey(d), walksByWeekday[d.getDay()]);
+  }
+
+  const categoryByProduct = mapping ? bookingCategoryByProduct(mapping) : new Map<string, RevenueCategory>();
+  for (const b of bookings) {
+    if (b.placeholder || !b.product || !b.customer) continue;
+    const productId = typeof b.product === 'string' ? b.product : b.product._id;
+    if (!categoryByProduct.has(productId)) continue;
+    const price = typeof b.product === 'string' ? (productById.get(productId)?.price ?? 0) : b.product.price;
+    add(dateKey(new Date(b.date)), b.quantity * price);
+  }
+  return byDay;
+}
+
+function ProjectedFlowCard() {
+  const [period, setPeriod] = useState<ProjectionPeriod>(3);
+  const [today] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  });
+  const [customers, setCustomers] = useState<Customer[] | null>(null);
+  const [products, setProducts] = useState<Product[] | null>(null);
+  const [visitMapping, setVisitMapping] = useState<VisitMapping | null>(null);
+  const [accounts, setAccounts] = useState<BankAccount[] | null>(null);
+  const [pastMonths, setPastMonths] = useState<IncomeExpenseMonth[] | null>(null);
+  // Keyed by the period they were fetched for, so switching periods never
+  // briefly plots the previous range's bookings.
+  const [bookings, setBookings] = useState<{ period: ProjectionPeriod; rows: DayBooking[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fail = (err: unknown) => setError(err instanceof Error ? err.message : 'Failed to load projection');
+    api.listCustomers().then(setCustomers).catch(fail);
+    api.listProducts().then(setProducts).catch(() => setProducts([]));
+    api.getVisitMapping().then(setVisitMapping).catch(() => setVisitMapping(null));
+    api.listBankAccounts().then(setAccounts).catch(() => setAccounts([]));
+    // There are no scheduled bills to project from, so outgoings are
+    // estimated from the average of the last 6 months' expenses.
+    api.getIncomeExpenseReport(6).then(setPastMonths).catch(() => setPastMonths([]));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const rangeEnd = new Date(today.getFullYear(), today.getMonth() + period, 1);
+    api
+      .listDayBookings(dateKey(today), dateKey(rangeEnd))
+      .then((rows) => !cancelled && setBookings({ period, rows }))
+      .catch((err) => {
+        if (cancelled) return;
+        setBookings({ period, rows: [] });
+        setError(err instanceof Error ? err.message : 'Failed to load bookings');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [period, today]);
+
+  const buckets = projectionBuckets(period, today);
+  const rangeEnd = buckets[buckets.length - 1].end;
+  const cashNow = accounts?.reduce((sum, a) => sum + (a.currentBalance ?? 0), 0) ?? 0;
+  const avgMonthlyExpenses =
+    pastMonths && pastMonths.length > 0 ? pastMonths.reduce((sum, m) => sum + m.expenses, 0) / pastMonths.length : 0;
+
+  const loaded = customers && products && accounts && pastMonths && bookings?.period === period;
+  let points: (ProjectionBucket & { incoming: number; outgoing: number; net: number })[] = [];
+  if (loaded) {
+    const revenueByDay = dailyExpectedRevenue(customers, products, visitMapping, bookings.rows, today, rangeEnd);
+    points = buckets.map((b) => {
+      let incoming = 0;
+      for (let d = b.start; d < b.end; d = addDaysTo(d, 1)) incoming += revenueByDay.get(dateKey(d)) ?? 0;
+      // Each bucket sits inside one calendar month, so its share of that
+      // month's average spend is just its share of the month's days.
+      const daysInMonth = new Date(b.start.getFullYear(), b.start.getMonth() + 1, 0).getDate();
+      const days = Math.round((b.end.getTime() - b.start.getTime()) / 86_400_000);
+      const outgoing = (avgMonthlyExpenses * days) / daysInMonth;
+      return { ...b, incoming, outgoing, net: incoming - outgoing };
+    });
+  }
+
+  const incoming = points.reduce((sum, p) => sum + p.incoming, 0);
+  const outgoing = points.reduce((sum, p) => sum + p.outgoing, 0);
+  const projectedEnd = cashNow + incoming - outgoing;
+  const endLabel = addDaysTo(rangeEnd, -1).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  // A leading "Today" point (net 0) anchors the line at the current balance.
+  const chartData = [{ month: 'today', net: 0 }, ...points.map((p) => ({ month: dateKey(p.start), net: p.net }))];
+  const chartLabels = [{ label: 'Today', year: '' }, ...points.map((p) => ({ label: p.label, year: p.sublabel }))];
+
+  return (
+    <div className="card" style={{ margin: 0 }}>
+      <CardHeader
+        title="Projected Flow"
+        subtitle="Expected revenue less average monthly spend, from today's cash balance"
+        right={
+          <select
+            className="select-inline"
+            value={period}
+            onChange={(e) => setPeriod(Number(e.target.value) as ProjectionPeriod)}
+          >
+            <option value={1}>This Month</option>
+            <option value={3}>Next 3 Months</option>
+            <option value={6}>Next 6 Months</option>
+            <option value={12}>Next 12 Months</option>
+          </select>
+        }
+      />
+      {error && <div className="error-banner">{error}</div>}
+      {!loaded ? (
+        <div className="empty-state">Loading…</div>
+      ) : (
+        <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 380px', minWidth: 280 }}>
+            <CashFlowChart data={chartData} labels={chartLabels} startingCash={cashNow} projected />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: '0.85rem', minWidth: 180 }}>
+            <div>
+              <div style={{ color: 'var(--muted)' }}>Cash now</div>
+              <div style={{ fontWeight: 700 }}>£{cashNow.toFixed(2)}</div>
+            </div>
+            <div>
+              <div style={{ color: 'var(--accent-dark)' }}>Expected incoming (+)</div>
+              <div style={{ fontWeight: 700 }}>£{incoming.toFixed(2)}</div>
+            </div>
+            <div>
+              <div style={{ color: 'var(--error)' }} title="Average of the last 6 months' expenses">
+                Estimated outgoing (-)
+              </div>
+              <div style={{ fontWeight: 700 }}>£{outgoing.toFixed(2)}</div>
+            </div>
+            <div>
+              <div style={{ color: 'var(--muted)' }}>Projected cash at {endLabel} (=)</div>
+              <div style={{ fontWeight: 700 }}>£{projectedEnd.toFixed(2)}</div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

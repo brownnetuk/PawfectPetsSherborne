@@ -1,11 +1,16 @@
 import type { IncomeExpenseMonth } from '../types';
 
 interface Props {
-  data: IncomeExpenseMonth[];
+  // Only `net` is plotted; `month` (YYYY-MM) supplies the axis label unless
+  // `labels` overrides it (e.g. weekly buckets on the Projected Flow card).
+  data: Pick<IncomeExpenseMonth, 'month' | 'net'>[];
   // Running cash balance at the start of `data[0]`'s month -- the line plots
   // this plus each month's net income/expense added on cumulatively, ending
   // at the sum of the bank accounts' current balances.
   startingCash: number;
+  labels?: { label: string; year: string }[];
+  // Dashed line + lighter fill, for a forecast rather than actuals.
+  projected?: boolean;
 }
 
 function monthLabel(month: string): { label: string; year: string } {
@@ -32,7 +37,8 @@ const PADDING_BOTTOM = 34;
 const PADDING_TOP = 14;
 const GRID_LINES = 4;
 
-export default function CashFlowChart({ data, startingCash }: Props) {
+export default function CashFlowChart({ data, startingCash, labels, projected }: Props) {
+  const labelAt = (i: number) => labels?.[i] ?? monthLabel(data[i].month);
   const chartHeight = HEIGHT - PADDING_TOP - PADDING_BOTTOM;
   const chartWidth = WIDTH - PADDING_LEFT - 10;
 
@@ -71,21 +77,29 @@ export default function CashFlowChart({ data, startingCash }: Props) {
       })}
       {points.length > 0 && (
         <>
-          <path d={areaPath} fill="var(--accent-light)" stroke="none" />
-          <path d={linePath} fill="none" stroke="var(--accent)" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+          <path d={areaPath} fill="var(--accent-light)" fillOpacity={projected ? 0.6 : 1} stroke="none" />
+          <path
+            d={linePath}
+            fill="none"
+            stroke="var(--accent)"
+            strokeWidth={2.5}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            strokeDasharray={projected ? '7 6' : undefined}
+          />
           {points.map((v, i) => (
             <circle key={i} cx={toX(i)} cy={toY(v)} r={3.5} fill="var(--accent)">
               <title>
-                {monthLabel(data[i].month).label} {monthLabel(data[i].month).year} — £{v.toFixed(2)}
+                {labelAt(i).label} {labelAt(i).year} — £{v.toFixed(2)}
               </title>
             </circle>
           ))}
         </>
       )}
       {data.map((d, i) => {
-        const { label, year } = monthLabel(d.month);
+        const { label, year } = labelAt(i);
         return (
-          <g key={d.month}>
+          <g key={`${d.month}-${i}`}>
             <text x={toX(i)} y={HEIGHT - PADDING_BOTTOM + 16} textAnchor="middle" fontSize={11} fill="var(--muted)">
               {label}
             </text>
