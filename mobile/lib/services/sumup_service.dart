@@ -14,14 +14,9 @@ class SumupService {
   static bool get configured => sumupAffiliateKey.isNotEmpty;
   static bool _initialised = false;
 
-  /// Charges [amount] GBP through the SumUp checkout UI. Returns the SDK's
-  /// response; `success == true` means the money was taken. Throws
-  /// [StateError] when the merchant login was dismissed.
-  static Future<SumupPluginCheckoutResponse> charge({
-    required String title,
-    required double amount,
-    required String foreignTransactionId,
-  }) async {
+  /// Initialises the SDK and ensures a SumUp merchant login (prompting the
+  /// SDK's login UI if needed). Throws [StateError] when login is dismissed.
+  static Future<void> ensureReady() async {
     if (!_initialised) {
       await Sumup.init(sumupAffiliateKey);
       _initialised = true;
@@ -32,6 +27,32 @@ class SumupService {
     if (!(await Sumup.isLoggedIn ?? false)) {
       throw StateError('SumUp login was cancelled.');
     }
+  }
+
+  /// Whether Tap to Pay on iPhone can be offered (merchant + device support).
+  /// Requires [ensureReady] first; returns unavailable rather than throwing.
+  static Future<TapToPayAvailabilityResult> tapToPayAvailability() async {
+    try {
+      return await Sumup.checkTapToPayAvailability();
+    } catch (_) {
+      return TapToPayAvailabilityResult(isAvailable: false, isActivated: false);
+    }
+  }
+
+  /// One-time Apple Tap to Pay activation (T&Cs + device setup). Call when
+  /// availability reports not yet activated.
+  static Future<void> activateTapToPay() => Sumup.presentTapToPayActivation();
+
+  /// Charges [amount] GBP through the SumUp checkout UI -- on the paired
+  /// card reader by default, or Tap to Pay on iPhone when [tapToPay] is set.
+  /// Returns the SDK's response; `success == true` means the money was taken.
+  static Future<SumupPluginCheckoutResponse> charge({
+    required String title,
+    required double amount,
+    required String foreignTransactionId,
+    bool tapToPay = false,
+  }) async {
+    await ensureReady();
     final payment = SumupPayment(
       title: title,
       total: amount,
@@ -47,6 +68,9 @@ class SumupService {
       customerPhone: null,
       cardType: null,
     );
-    return Sumup.checkout(SumupPaymentRequest(payment));
+    return Sumup.checkout(SumupPaymentRequest(
+      payment,
+      paymentMethod: tapToPay ? PaymentMethod.tapToPay : PaymentMethod.cardReader,
+    ));
   }
 }
