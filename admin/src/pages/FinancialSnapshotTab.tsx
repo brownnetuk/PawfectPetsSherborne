@@ -5,7 +5,17 @@ import ExpensesByCategoryChart from '../components/ExpensesByCategoryChart';
 import IncomeExpenseChart from '../components/IncomeExpenseChart';
 import { DragHandleIcon } from '../components/icons';
 import { bankAccountTypeLabel } from '../utils/bankAccountType';
-import type { BankAccount, Customer, ExpenseCategoryTotal, IncomeExpenseMonth, Invoice, Product } from '../types';
+import { dateKey } from '../utils/visitPlan';
+import type {
+  BankAccount,
+  Customer,
+  DayBooking,
+  ExpenseCategoryTotal,
+  IncomeExpenseMonth,
+  Invoice,
+  Product,
+  VisitMapping,
+} from '../types';
 
 type CardId =
   | 'receivables'
@@ -421,18 +431,63 @@ function currentMonthValue(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
+type RevenueCategory = 'walks' | 'boarding' | 'dayCare' | 'visits';
+
+const REVENUE_CATEGORY_LABELS: Record<RevenueCategory, string> = {
+  walks: 'Regular walks',
+  boarding: 'Boarding',
+  dayCare: 'Day Care',
+  visits: 'Visits',
+};
+
 interface ExpectedRevenueRow {
-  customerId: string;
+  key: string;
   customerName: string;
+  category: RevenueCategory;
   productName: string;
   occurrences: number;
   revenue: number;
+}
+
+// Which Settings > Bookings product slots count as which service -- a
+// Product has no stored category of its own (same lookup as the backend's
+// DayBookingsService.classifyBooking, plus the Visits slots).
+function bookingCategoryByProduct(mapping: VisitMapping): Map<string, RevenueCategory> {
+  const byProduct = new Map<string, RevenueCategory>();
+  const add = (category: RevenueCategory, ids: (string | null)[]) => {
+    for (const id of ids) if (id) byProduct.set(id, category);
+  };
+  add('visits', [
+    mapping.oneVisitWeekdayProduct,
+    mapping.oneVisitWeekendProduct,
+    mapping.oneVisitBankHolidayProduct,
+    mapping.twoVisitWeekdayProduct,
+    mapping.twoVisitWeekendProduct,
+    mapping.twoVisitBankHolidayProduct,
+  ]);
+  add('dayCare', [
+    mapping.dayCareHalfDayProduct,
+    mapping.dayCareFullDayProduct,
+    mapping.dayCareSecondDogHalfDayProduct,
+    mapping.dayCareSecondDogFullDayProduct,
+  ]);
+  add('boarding', [
+    mapping.boardingPerDayProduct,
+    mapping.boardingSecondDogPerDayProduct,
+    mapping.boardingHalfDayProduct,
+    mapping.boardingSecondDogHalfDayProduct,
+  ]);
+  return byProduct;
 }
 
 function ExpectedRevenueCard() {
   const [month, setMonth] = useState(currentMonthValue);
   const [customers, setCustomers] = useState<Customer[] | null>(null);
   const [products, setProducts] = useState<Product[] | null>(null);
+  const [visitMapping, setVisitMapping] = useState<VisitMapping | null>(null);
+  // Keyed by the month they were fetched for, so switching months never
+  // briefly totals the previous month's bookings.
+  const [dayBookings, setDayBookings] = useState<{ month: string; rows: DayBooking[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -441,14 +496,33 @@ function ExpectedRevenueCard() {
       .then(setCustomers)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load customers'));
     api.listProducts().then(setProducts).catch(() => setProducts([]));
+    api.getVisitMapping().then(setVisitMapping).catch(() => setVisitMapping(null));
   }, []);
 
   const [yearStr, monthStr] = month.split('-');
   const year = Number(yearStr);
   const monthIndex = Number(monthStr) - 1;
 
+  useEffect(() => {
+    let cancelled = false;
+    const from = dateKey(new Date(year, monthIndex, 1));
+    const to = dateKey(new Date(year, monthIndex + 1, 1));
+    api
+      .listDayBookings(from, to)
+      .then((rows) => !cancelled && setDayBookings({ month, rows }))
+      .catch((err) => {
+        if (cancelled) return;
+        setDayBookings({ month, rows: [] });
+        setError(err instanceof Error ? err.message : 'Failed to load bookings');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [month, year, monthIndex]);
+
+  const bookingsLoaded = dayBookings?.month === month;
   const rows: ExpectedRevenueRow[] = [];
-  if (customers && products) {
+  if (customers && products && bookingsLoaded) {
     const productById = new Map(products.map((p) => [p._id, p]));
     for (const customer of customers) {
       if (customer.status !== 'active') continue;
@@ -461,22 +535,66 @@ function ExpectedRevenueCard() {
       }, 0);
       if (occurrences === 0) continue;
       rows.push({
-        customerId: customer._id,
+        key: `walks-${customer._id}`,
         customerName: customer.name,
+        category: 'walks',
         productName: product.name,
         occurrences,
         revenue: occurrences * product.price,
       });
     }
+
+    // Boarding, Day Care and Visits actually booked on the calendar this
+    // month -- one DayBooking per dog per day, so a stay that crosses into
+    // the next month only counts its days that fall in this one. Placeholder
+    // rows (boarding pick-up-day markers) are never billed, and anything not
+    // in one of those three product groups is left out so a walk booked on
+    // the calendar isn't counted on top of the regular-days projection above.
+    const categoryByProduct = visitMapping ? bookingCategoryByProduct(visitMapping) : new Map<string, RevenueCategory>();
+    const customerNameById = new Map(customers.map((c) => [c._id, c.name]));
+    const grouped = new Map<string, ExpectedRevenueRow>();
+    for (const b of dayBookings.rows) {
+      // A populated ref comes back null if its product/customer was deleted.
+      if (b.placeholder || !b.product || !b.customer) continue;
+      const productId = typeof b.product === 'string' ? b.product : b.product._id;
+      const category = categoryByProduct.get(productId);
+      if (!category) continue;
+      const price =
+        typeof b.product === 'string' ? (products.find((p) => p._id === b.product)?.price ?? 0) : b.product.price;
+      const customerId = typeof b.customer === 'string' ? b.customer : b.customer._id;
+      const key = `${category}-${customerId}`;
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.occurrences += b.quantity;
+        existing.revenue += b.quantity * price;
+      } else {
+        grouped.set(key, {
+          key,
+          customerName:
+            (typeof b.customer === 'string' ? undefined : b.customer.name) ?? customerNameById.get(customerId) ?? 'Unknown customer',
+          category,
+          productName: REVENUE_CATEGORY_LABELS[category],
+          occurrences: b.quantity,
+          revenue: b.quantity * price,
+        });
+      }
+    }
+    rows.push(...grouped.values());
     rows.sort((a, b) => b.revenue - a.revenue);
   }
   const total = rows.reduce((sum, r) => sum + r.revenue, 0);
+  const categoryTotals = (Object.keys(REVENUE_CATEGORY_LABELS) as RevenueCategory[])
+    .map((category) => ({
+      category,
+      revenue: rows.filter((r) => r.category === category).reduce((sum, r) => sum + r.revenue, 0),
+    }))
+    .filter((c) => c.revenue > 0);
 
   return (
     <div className="card" style={{ margin: 0, height: '100%' }}>
       <CardHeader
         title="Expected Revenue"
-        subtitle="From customers' regular days and default product"
+        subtitle="Regular walks, plus Boarding, Day Care and Visits booked this month"
         right={
           <select className="select-inline" value={month} onChange={(e) => setMonth(e.target.value)}>
             {monthOptions().map((o) => (
@@ -488,19 +606,26 @@ function ExpectedRevenueCard() {
         }
       />
       {error && <div className="error-banner">{error}</div>}
-      {!customers || !products ? (
+      {!customers || !products || !bookingsLoaded ? (
         <div className="empty-state">Loading…</div>
       ) : rows.length === 0 ? (
         <div className="empty-state">
-          No active customers have both a default product and regular days set up.
+          No regular walks, boarding, day care or visits expected this month.
         </div>
       ) : (
         <>
-          <div style={{ fontSize: '1.6rem', fontWeight: 700, margin: '4px 0 14px' }}>£{total.toFixed(2)}</div>
+          <div style={{ fontSize: '1.6rem', fontWeight: 700, margin: '4px 0 6px' }}>£{total.toFixed(2)}</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: '0.8rem', color: 'var(--muted)', marginBottom: 12 }}>
+            {categoryTotals.map((c) => (
+              <span key={c.category}>
+                {REVENUE_CATEGORY_LABELS[c.category]}: <strong style={{ color: 'var(--ink)' }}>£{c.revenue.toFixed(2)}</strong>
+              </span>
+            ))}
+          </div>
           <div style={{ maxHeight: 220, overflowY: 'auto' }}>
             {rows.map((r) => (
               <div
-                key={r.customerId}
+                key={r.key}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
