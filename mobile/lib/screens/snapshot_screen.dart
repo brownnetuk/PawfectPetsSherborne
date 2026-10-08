@@ -4,12 +4,14 @@ import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/bank_account.dart';
+import '../models/customer.dart';
 import '../models/day_booking.dart';
 import '../models/finance_report.dart';
 import '../models/invoice.dart';
+import '../models/product.dart';
 import '../models/visit_mapping.dart';
 
-typedef _ProjectedIncome = ({double boarding, double dayCare});
+typedef _ProjectedIncome = ({double walks, double boarding, double dayCare});
 
 typedef _SnapshotData = (
   List<IncomeExpenseMonth>,
@@ -46,17 +48,22 @@ class _SnapshotScreenState extends State<SnapshotScreen> {
       final categories = await repo.expensesByCategory(months: 6);
       final accounts = await repo.listBankAccountsDetailed();
       final invoices = await repo.listInvoices();
-      // Projected income = this month's Boarding and Day Care booking revenue,
-      // computed the same way as the admin app's Boarding & Day Care tiles so
-      // the two screens always agree (walks/visits and a boarding stay's
-      // unbilled pick-up placeholder row are excluded).
+      // Projected income = this month's Boarding and Day Care booking revenue
+      // (computed the same way as the admin app's Boarding & Day Care tiles)
+      // plus regular Walks (computed the way the admin Financial Snapshot's
+      // Expected Revenue card does: each active customer's regular walk days
+      // this month x their default product's price -- walks booked on the
+      // calendar are deliberately not added on top of that). Visits and a
+      // boarding stay's unbilled pick-up placeholder row are excluded.
       final now = DateTime.now();
       final mapping = await repo.getVisitMapping();
       final monthBookings = await repo.listDayBookings(
         from: DateTime(now.year, now.month, 1),
         to: DateTime(now.year, now.month + 1, 1),
       );
-      final projected = _projectedIncome(mapping, monthBookings);
+      final customers = await repo.listCustomers();
+      final products = await repo.listProducts();
+      final projected = _projectedIncome(mapping, monthBookings, customers, products, now);
       return (months, categories, accounts, invoices, projected);
     }();
   }
@@ -66,12 +73,21 @@ class _SnapshotScreenState extends State<SnapshotScreen> {
     await _future;
   }
 
-  /// Straight port of the admin Boarding & Day Care page's projected-income
-  /// tiles: each row prices at product price x quantity; a row whose sections
-  /// include an overnight stay counts as Boarding, any other occupied row as
-  /// Day Care, and unoccupied rows (walks/visits, placeholders) count as
-  /// neither.
-  static _ProjectedIncome _projectedIncome(VisitMapping mapping, List<DayBooking> rows) {
+  /// Boarding/Day Care: straight port of the admin Boarding & Day Care page's
+  /// projected-income tiles -- each row prices at product price x quantity; a
+  /// row whose sections include an overnight stay counts as Boarding, any
+  /// other occupied row as Day Care, and unoccupied rows (walks/visits,
+  /// placeholders) count as neither.
+  /// Walks: port of the admin Financial Snapshot's Expected Revenue card --
+  /// per active customer, how many of their regular walk days fall in this
+  /// calendar month x their default product's price.
+  static _ProjectedIncome _projectedIncome(
+    VisitMapping mapping,
+    List<DayBooking> rows,
+    List<Customer> customers,
+    List<Product> products,
+    DateTime now,
+  ) {
     var boarding = 0.0, dayCare = 0.0;
     for (final b in rows) {
       final sections = _sectionsFor(mapping, b);
@@ -82,7 +98,42 @@ class _SnapshotScreenState extends State<SnapshotScreen> {
         dayCare += b.lineTotal;
       }
     }
-    return (boarding: boarding, dayCare: dayCare);
+
+    const weekdayIndex = {
+      'monday': DateTime.monday,
+      'tuesday': DateTime.tuesday,
+      'wednesday': DateTime.wednesday,
+      'thursday': DateTime.thursday,
+      'friday': DateTime.friday,
+      'saturday': DateTime.saturday,
+      'sunday': DateTime.sunday,
+    };
+    // Counts how many times a weekday falls in this month -- walks every day
+    // rather than assuming a flat "4 or 5 per month", since it varies.
+    int countInMonth(int weekday) {
+      final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+      var count = 0;
+      for (var day = 1; day <= daysInMonth; day++) {
+        if (DateTime(now.year, now.month, day).weekday == weekday) count++;
+      }
+      return count;
+    }
+
+    final priceById = {for (final p in products) p.id: p.price};
+    var walks = 0.0;
+    for (final c in customers) {
+      if (c.status != 'active' || c.defaultProductId == null || c.regularDays.isEmpty) continue;
+      final price = priceById[c.defaultProductId];
+      if (price == null) continue;
+      var occurrences = 0;
+      for (final day in c.regularDays) {
+        final weekday = weekdayIndex[day];
+        if (weekday != null) occurrences += countInMonth(weekday);
+      }
+      walks += occurrences * price;
+    }
+
+    return (walks: walks, boarding: boarding, dayCare: dayCare);
   }
 
   /// Which occupancy sections (AM / PM / overnight) a row's product occupies.
@@ -238,7 +289,7 @@ class _SnapshotScreenState extends State<SnapshotScreen> {
     );
   }
 
-  // --- This month's projected income (Boarding / Day Care, as in admin) ---
+  // --- This month's projected income (Walks / Boarding / Day Care, as in admin) ---
   Widget _projectedIncomeCard(_ProjectedIncome projected) {
     Widget figure(String label, double amount, IconData icon) {
       return Expanded(
@@ -253,8 +304,11 @@ class _SnapshotScreenState extends State<SnapshotScreen> {
               ],
             ),
             const SizedBox(height: 6),
-            Text(_money.format(amount),
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.green.shade800)),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(_money.format(amount),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.green.shade800)),
+            ),
           ],
         ),
       );
@@ -265,8 +319,10 @@ class _SnapshotScreenState extends State<SnapshotScreen> {
       subtitle: DateFormat('MMMM yyyy').format(DateTime.now()),
       child: Row(
         children: [
+          figure('Walks', projected.walks, Icons.directions_walk),
+          const SizedBox(width: 10),
           figure('Boarding', projected.boarding, Icons.night_shelter_outlined),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           figure('Day Care', projected.dayCare, Icons.light_mode_outlined),
         ],
       ),
