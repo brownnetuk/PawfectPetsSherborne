@@ -4,15 +4,19 @@ import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/bank_account.dart';
+import '../models/day_booking.dart';
 import '../models/finance_report.dart';
 import '../models/invoice.dart';
+import '../models/visit_mapping.dart';
+
+typedef _ProjectedIncome = ({double boarding, double dayCare});
 
 typedef _SnapshotData = (
   List<IncomeExpenseMonth>,
   List<ExpenseCategoryTotal>,
   List<BankAccount>,
   List<Invoice>,
-  double projectedIncome,
+  _ProjectedIncome projected,
 );
 
 /// Dashboard-style financial snapshot: cash position, receivables, income vs
@@ -42,13 +46,17 @@ class _SnapshotScreenState extends State<SnapshotScreen> {
       final categories = await repo.expensesByCategory(months: 6);
       final accounts = await repo.listBankAccountsDetailed();
       final invoices = await repo.listInvoices();
-      // Projected income = this month's booking revenue (walks + visits).
+      // Projected income = this month's Boarding and Day Care booking revenue,
+      // computed the same way as the admin app's Boarding & Day Care tiles so
+      // the two screens always agree (walks/visits and a boarding stay's
+      // unbilled pick-up placeholder row are excluded).
       final now = DateTime.now();
+      final mapping = await repo.getVisitMapping();
       final monthBookings = await repo.listDayBookings(
         from: DateTime(now.year, now.month, 1),
         to: DateTime(now.year, now.month + 1, 1),
       );
-      final projected = monthBookings.fold<double>(0, (s, b) => s + b.lineTotal);
+      final projected = _projectedIncome(mapping, monthBookings);
       return (months, categories, accounts, invoices, projected);
     }();
   }
@@ -56,6 +64,68 @@ class _SnapshotScreenState extends State<SnapshotScreen> {
   Future<void> _refresh() async {
     setState(_load);
     await _future;
+  }
+
+  /// Straight port of the admin Boarding & Day Care page's projected-income
+  /// tiles: each row prices at product price x quantity; a row whose sections
+  /// include an overnight stay counts as Boarding, any other occupied row as
+  /// Day Care, and unoccupied rows (walks/visits, placeholders) count as
+  /// neither.
+  static _ProjectedIncome _projectedIncome(VisitMapping mapping, List<DayBooking> rows) {
+    var boarding = 0.0, dayCare = 0.0;
+    for (final b in rows) {
+      final sections = _sectionsFor(mapping, b);
+      if (sections.isEmpty) continue;
+      if (sections.contains('overnight')) {
+        boarding += b.lineTotal;
+      } else {
+        dayCare += b.lineTotal;
+      }
+    }
+    return (boarding: boarding, dayCare: dayCare);
+  }
+
+  /// Which occupancy sections (AM / PM / overnight) a row's product occupies.
+  /// Mirrors sectionsFor() in admin/src/pages/BoardingDayCarePage.tsx -- see
+  /// the comments there for the full reasoning; keep the two in step.
+  static Set<String> _sectionsFor(VisitMapping m, DayBooking b) {
+    int? hour(String? time) {
+      if (time == null || time.isEmpty) return null;
+      return int.tryParse(time.split(':').first);
+    }
+
+    final pid = b.productId;
+    if (pid == m.boardingPerDay || pid == m.boardingSecondDogPerDay) {
+      if (b.placeholder) return {};
+      final sections = {'AM', 'PM', 'overnight'};
+      final drop = hour(b.dropOffTime);
+      if (drop != null && drop >= 13) sections.remove('AM');
+      final pick = hour(b.pickUpTime);
+      if (pick != null) {
+        sections.remove('overnight'); // leaving that day, not staying the night
+        if (pick < 13) sections.remove('PM');
+      }
+      return sections;
+    }
+    if (pid == m.dayCareFullDay || pid == m.dayCareSecondDogFullDay) {
+      final sections = {'AM', 'PM'};
+      if (b.boardingStay) {
+        final drop = hour(b.dropOffTime);
+        if (drop != null && drop >= 13) sections.remove('AM');
+        final pick = hour(b.pickUpTime);
+        if (pick != null && pick < 13) sections.remove('PM');
+      }
+      return sections;
+    }
+    if (pid == m.dayCareHalfDay ||
+        pid == m.dayCareSecondDogHalfDay ||
+        pid == m.boardingHalfDay ||
+        pid == m.boardingSecondDogHalfDay) {
+      // A half day always occupies one daytime section; which half doesn't
+      // matter for income, only that it's never 'overnight'.
+      return {'AM'};
+    }
+    return {};
   }
 
   String _monthLabel(String yyyymm) {
@@ -84,13 +154,13 @@ class _SnapshotScreenState extends State<SnapshotScreen> {
                   : 'Failed to load snapshot';
               return ListView(children: [const SizedBox(height: 80), Center(child: Text(message, textAlign: TextAlign.center))]);
             }
-            final (months, categories, accounts, invoices, projectedIncome) = snapshot.data!;
+            final (months, categories, accounts, invoices, projected) = snapshot.data!;
             return ListView(
               padding: const EdgeInsets.all(16),
               children: [
                 _cashPositionRow(accounts, invoices),
                 const SizedBox(height: 16),
-                _projectedIncomeCard(projectedIncome),
+                _projectedIncomeCard(projected),
                 const SizedBox(height: 16),
                 _bankAccountsCard(accounts),
                 const SizedBox(height: 16),
@@ -168,28 +238,36 @@ class _SnapshotScreenState extends State<SnapshotScreen> {
     );
   }
 
-  // --- This month's projected income (from bookings) ---
-  Widget _projectedIncomeCard(double amount) {
+  // --- This month's projected income (Boarding / Day Care, as in admin) ---
+  Widget _projectedIncomeCard(_ProjectedIncome projected) {
+    Widget figure(String label, double amount, IconData icon) {
+      return Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 16, color: Colors.green.shade700),
+                const SizedBox(width: 6),
+                Text(label, style: TextStyle(color: Colors.grey.shade700, fontSize: 12, fontWeight: FontWeight.w600)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(_money.format(amount),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.green.shade800)),
+          ],
+        ),
+      );
+    }
+
     return _card(
       title: "This Month's Projected Income",
       subtitle: DateFormat('MMMM yyyy').format(DateTime.now()),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(Icons.event_available_outlined, color: Colors.green.shade700),
+          figure('Boarding', projected.boarding, Icons.night_shelter_outlined),
           const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(_money.format(amount),
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.green.shade800)),
-                const SizedBox(height: 2),
-                Text('From this month\'s walks & visits',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-              ],
-            ),
-          ),
+          figure('Day Care', projected.dayCare, Icons.light_mode_outlined),
         ],
       ),
     );

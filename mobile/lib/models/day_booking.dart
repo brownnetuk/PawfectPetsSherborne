@@ -25,6 +25,12 @@ class DayBooking {
   // Shared id across every row of one boarding stay -- deleting any row removes
   // the whole stay.
   final String? stayId;
+  // True for a boarding stay's pick-up-day row: presence-only, never billed.
+  final bool placeholder;
+  // Drop-off time ('HH:mm'), only set on a stay's first row; pick-up time,
+  // only on its last (see backend day-booking.schema.ts).
+  final String? dropOffTime;
+  final String? pickUpTime;
 
   DayBooking({
     required this.id,
@@ -42,6 +48,9 @@ class DayBooking {
     this.visitTime,
     this.boardingStay = false,
     this.stayId,
+    this.placeholder = false,
+    this.dropOffTime,
+    this.pickUpTime,
   });
 
   double get lineTotal => productPrice * quantity;
@@ -73,6 +82,9 @@ class DayBooking {
       visitTime: json['visitTime'] as String?,
       boardingStay: json['boardingStay'] as bool? ?? false,
       stayId: json['stayId'] as String?,
+      placeholder: json['placeholder'] as bool? ?? false,
+      dropOffTime: json['dropOffTime'] as String?,
+      pickUpTime: json['pickUpTime'] as String?,
     );
   }
 }

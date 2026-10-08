@@ -16,6 +16,8 @@ class VisitMapping {
   final String? dayCareSecondDogFullDay;
   final String? boardingPerDay;
   final String? boardingSecondDogPerDay;
+  final String? boardingHalfDay;
+  final String? boardingSecondDogHalfDay;
 
   VisitMapping({
     this.oneVisitWeekday,
@@ -30,6 +32,8 @@ class VisitMapping {
     this.dayCareSecondDogFullDay,
     this.boardingPerDay,
     this.boardingSecondDogPerDay,
+    this.boardingHalfDay,
+    this.boardingSecondDogHalfDay,
   });
 
   static String? _id(dynamic v) =>
@@ -48,6 +52,8 @@ class VisitMapping {
         dayCareSecondDogFullDay: _id(json['dayCareSecondDogFullDayProduct']),
         boardingPerDay: _id(json['boardingPerDayProduct']),
         boardingSecondDogPerDay: _id(json['boardingSecondDogPerDayProduct']),
+        boardingHalfDay: _id(json['boardingHalfDayProduct']),
+        boardingSecondDogHalfDay: _id(json['boardingSecondDogHalfDayProduct']),
       );
 
   Set<String> get _oneVisitIds =>
