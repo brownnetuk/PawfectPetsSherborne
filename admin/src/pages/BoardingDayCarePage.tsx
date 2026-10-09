@@ -13,6 +13,7 @@ import NewBookingModal from '../components/NewBookingModal';
 import type { BoardingEditInitial, DayCareEditInitial } from '../components/NewBookingModal';
 import PoliciesTab from '../components/PoliciesTab';
 import RiskAssessmentsTab from '../components/RiskAssessmentsTab';
+import SortableTh from '../components/SortableTh';
 import SignaturePad from '../components/SignaturePad';
 import ViewAnimalModal from '../components/ViewAnimalModal';
 import ViewCustomerModal from '../components/ViewCustomerModal';
@@ -530,6 +531,8 @@ function daysUntil(date: Date): number {
   return Math.round((b - a) / 86_400_000);
 }
 
+type UpcomingSortKey = 'reference' | 'name' | 'from' | 'to' | 'amount' | 'daysToGo';
+
 // Every reference-numbered booking that hasn't started yet (or starts today
 // and isn't checked in), soonest first. Amount is the invoice total once one
 // is raised; before that it's estimated from the stay's own day-booking rows
@@ -546,6 +549,18 @@ function UpcomingBookings({
   const [items, setItems] = useState<BoardingBookingWithStatus[] | null>(null);
   const [estimates, setEstimates] = useState<Map<string, number>>(new Map());
   const [error, setError] = useState<string | null>(null);
+  // Starts on From ascending (soonest first) -- the card's natural order --
+  // with the same header toggle behaviour as the Invoices table.
+  const [sortKey, setSortKey] = useState<UpcomingSortKey>('from');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  function toggleSort(key: UpcomingSortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -575,30 +590,65 @@ function UpcomingBookings({
     };
   }, [refreshSignal]);
 
+  function amountOf({ booking, invoice }: BoardingBookingWithStatus): number | undefined {
+    if (invoice) return invoice.total;
+    return booking.stayId ? estimates.get(booking.stayId) : undefined;
+  }
+
+  const sortedItems = useMemo(() => {
+    if (!items) return null;
+    const value = (item: BoardingBookingWithStatus): string | number => {
+      const { booking } = item;
+      switch (sortKey) {
+        case 'reference':
+          return booking.reference;
+        case 'name':
+          return boardingAnimalNames(booking.animals).toLowerCase();
+        case 'from':
+        case 'daysToGo':
+          return `${booking.startDate} ${booking.dropOffTime ?? ''}`;
+        case 'to':
+          return `${booking.endDate} ${booking.pickUpTime ?? ''}`;
+        case 'amount':
+          return amountOf(item) ?? -1;
+      }
+    };
+    const sign = sortDir === 'asc' ? 1 : -1;
+    return [...items].sort((a, b) => {
+      const va = value(a);
+      const vb = value(b);
+      const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), undefined, { numeric: true });
+      return cmp * sign;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, estimates, sortKey, sortDir]);
+
+  const sortProps = { activeKey: sortKey, dir: sortDir, onSort: toggleSort };
+
   return (
     <div className="card" style={{ marginTop: 16 }}>
       <div className="section-title" style={{ marginTop: 0 }}>
         Upcoming Bookings{items ? ` (${items.length})` : ''}
       </div>
       {error && <div className="error-banner">{error}</div>}
-      {!items ? (
+      {!sortedItems ? (
         <div className="empty-state">Loading…</div>
-      ) : items.length === 0 ? (
+      ) : sortedItems.length === 0 ? (
         <div className="empty-state">No upcoming bookings.</div>
       ) : (
         <table>
           <thead>
             <tr>
-              <th>Reference</th>
-              <th>Name</th>
-              <th>From</th>
-              <th>To</th>
-              <th>Amount</th>
-              <th>Days to Go</th>
+              <SortableTh label="Reference" sortKey="reference" {...sortProps} />
+              <SortableTh label="Name" sortKey="name" {...sortProps} />
+              <SortableTh label="From" sortKey="from" {...sortProps} />
+              <SortableTh label="To" sortKey="to" {...sortProps} />
+              <SortableTh label="Amount" sortKey="amount" {...sortProps} />
+              <SortableTh label="Days to Go" sortKey="daysToGo" {...sortProps} />
             </tr>
           </thead>
           <tbody>
-            {items.map(({ booking, invoice }) => {
+            {sortedItems.map(({ booking, invoice }) => {
               const days = daysUntil(new Date(booking.startDate));
               const estimate = booking.stayId ? estimates.get(booking.stayId) : undefined;
               const fmt = (d: string, time: string) =>
