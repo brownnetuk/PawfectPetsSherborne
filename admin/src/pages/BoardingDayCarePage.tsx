@@ -516,6 +516,122 @@ function DashboardTab({
           />
         </div>
       )}
+
+      <UpcomingBookings refreshSignal={refreshSignal} onNavigateToBooking={onNavigateToBooking} />
+    </div>
+  );
+}
+
+// Whole calendar days from today until `date` (0 = today), ignoring time of day.
+function daysUntil(date: Date): number {
+  const today = new Date();
+  const a = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const b = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  return Math.round((b - a) / 86_400_000);
+}
+
+// Every reference-numbered booking that hasn't started yet (or starts today
+// and isn't checked in), soonest first. Amount is the invoice total once one
+// is raised; before that it's estimated from the stay's own day-booking rows
+// (product price x quantity, placeholders excluded -- same pricing as the
+// projected-income tiles above), shown in muted italics so it reads as an
+// estimate rather than a billed figure.
+function UpcomingBookings({
+  refreshSignal,
+  onNavigateToBooking,
+}: {
+  refreshSignal: number;
+  onNavigateToBooking: (bookingId: string, autoStage?: 'checkIn' | 'checkOut') => void;
+}) {
+  const [items, setItems] = useState<BoardingBookingWithStatus[] | null>(null);
+  const [estimates, setEstimates] = useState<Map<string, number>>(new Map());
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listBoardingBookings()
+      .then(async (all) => {
+        const upcoming = all
+          .filter(({ booking }) => !booking.archived && !booking.checkInAt && daysUntil(new Date(booking.startDate)) >= 0)
+          .sort((a, b) => a.booking.startDate.localeCompare(b.booking.startDate));
+        if (cancelled) return;
+        setItems(upcoming);
+
+        const needEstimate = upcoming.filter(({ booking, invoice }) => !invoice && booking.stayId);
+        if (needEstimate.length === 0) return;
+        const lastEnd = needEstimate.reduce((max, { booking }) => (booking.endDate > max ? booking.endDate : max), '');
+        const rows = await api.listDayBookings(dateKey(new Date()), dateKey(addDays(new Date(lastEnd), 2)));
+        const totals = new Map<string, number>();
+        for (const r of rows) {
+          if (!r.stayId || r.placeholder) continue;
+          totals.set(r.stayId, (totals.get(r.stayId) ?? 0) + productPrice(r.product) * r.quantity);
+        }
+        if (!cancelled) setEstimates(totals);
+      })
+      .catch((err) => !cancelled && setError(err instanceof Error ? err.message : 'Failed to load upcoming bookings'));
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshSignal]);
+
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <div className="section-title" style={{ marginTop: 0 }}>
+        Upcoming Bookings{items ? ` (${items.length})` : ''}
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      {!items ? (
+        <div className="empty-state">Loading…</div>
+      ) : items.length === 0 ? (
+        <div className="empty-state">No upcoming bookings.</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Reference</th>
+              <th>Name</th>
+              <th>From</th>
+              <th>To</th>
+              <th>Amount</th>
+              <th>Days to Go</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map(({ booking, invoice }) => {
+              const days = daysUntil(new Date(booking.startDate));
+              const estimate = booking.stayId ? estimates.get(booking.stayId) : undefined;
+              const fmt = (d: string, time: string) =>
+                `${new Date(d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}${time ? ` ${time}` : ''}`;
+              return (
+                <tr key={booking._id} onClick={() => onNavigateToBooking(booking._id)} style={{ cursor: 'pointer' }}>
+                  <td style={{ fontWeight: 600, color: 'var(--accent)' }}>{booking.reference}</td>
+                  <td>
+                    <span style={{ fontWeight: 600 }}>{boardingAnimalNames(booking.animals)}</span>
+                    <span style={{ color: 'var(--muted)' }}> · {boardingCustomerLabel(booking.customer)}</span>
+                  </td>
+                  <td>{fmt(booking.startDate, booking.dropOffTime)}</td>
+                  <td>{fmt(booking.endDate, booking.pickUpTime)}</td>
+                  <td>
+                    {invoice ? (
+                      `£${invoice.total.toFixed(2)}`
+                    ) : estimate !== undefined ? (
+                      <span style={{ color: 'var(--muted)', fontStyle: 'italic' }} title="Estimated, not yet invoiced">
+                        £{estimate.toFixed(2)}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td style={{ fontWeight: 600, color: days <= 1 ? 'var(--accent-dark)' : undefined }}>
+                    {days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days`}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
