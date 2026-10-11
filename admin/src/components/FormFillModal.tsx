@@ -41,6 +41,45 @@ function resolveStaffPlaceholder(fields: FormField[], staffName: string): FormFi
   });
 }
 
+// Carries each dog's multichoice answers (e.g. "Belongings brought") from
+// the reference submission -- the booking's check-in, when filling in its
+// check-out -- onto the matching repetition here, so the items that arrived
+// with the dog start pre-ticked as returned. Repetitions are matched by the
+// "which pet" choice field's answer (the dog's name), and multichoice fields
+// by their order within the group (the default check-in/check-out forms
+// each have one, "Belongings brought" / "Belongings returned"), keeping only
+// values this form's field actually offers. Returns nothing when there's
+// nothing to carry over, leaving the repetition's defaults untouched.
+function referenceMultichoiceAnswers(
+  reference: FormSubmissionRecord | null | undefined,
+  groupFields: FormField[],
+  petName: string,
+): Record<string, unknown> {
+  if (!reference) return {};
+  const targets = groupFields.filter((f) => f.type === 'multichoice');
+  if (targets.length === 0) return {};
+  const answers = reference.answers ?? {};
+  for (const refGroup of reference.formFieldsSnapshot) {
+    if (refGroup.type !== 'group') continue;
+    const refPetField = refGroup.fields.find((f) => f.type === 'choice' && f.optionsSource === 'customerPets');
+    if (!refPetField) continue;
+    const reps = Array.isArray(answers[refGroup.id]) ? (answers[refGroup.id] as Record<string, unknown>[]) : [];
+    const rep = reps.find((r) => r[refPetField.id] === petName);
+    if (!rep) continue;
+    const sources = refGroup.fields.filter((f) => f.type === 'multichoice');
+    const result: Record<string, unknown> = {};
+    targets.forEach((target, i) => {
+      const source = sources[i];
+      const value = source ? rep[source.id] : undefined;
+      if (target.type !== 'multichoice' || !Array.isArray(value)) return;
+      const picked = value.filter((v): v is string => typeof v === 'string' && target.options.includes(v));
+      if (picked.length > 0) result[target.id] = picked;
+    });
+    return result;
+  }
+  return {};
+}
+
 // Staff-facing fill flow for check-in/check-out -- reuses the same public
 // GET .../public + POST .../submit endpoints the customer-facing intake app's
 // FormFillPage uses (a @Public() route accepts an authenticated admin caller
@@ -99,6 +138,7 @@ export default function FormFillModal({
             if (petNameField && presetPetNames && presetPetNames.length > 0) {
               initial[field.id] = presetPetNames.map((name) => ({
                 ...defaultAnswersFor(field.fields),
+                ...referenceMultichoiceAnswers(referenceSubmission, field.fields, name),
                 [petNameField.id]: name,
               }));
             } else {

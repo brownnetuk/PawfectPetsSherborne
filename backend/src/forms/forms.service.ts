@@ -3,7 +3,12 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreateFormDto } from './dto/create-form.dto';
 import { UpdateFormDto } from './dto/update-form.dto';
-import { DEFAULT_CHECKIN_FORM, DEFAULT_CHECKOUT_FORM } from './default-boarding-checkin-checkout-forms';
+import {
+  CHECKOUT_STAY_TOGGLES,
+  DEFAULT_CHECKIN_FORM,
+  DEFAULT_CHECKOUT_FORM,
+} from './default-boarding-checkin-checkout-forms';
+import { FormField } from './form-field.types';
 import { DEFAULT_PRE_CHECKIN_FORM } from './default-pre-checkin-form';
 import { Form } from './schemas/form.schema';
 
@@ -38,6 +43,31 @@ export class FormsService implements OnModuleInit {
       await this.formModel
         .findOneAndUpdate({ name: seed.name }, { $setOnInsert: seed }, { upsert: true })
         .exec();
+    }
+    await this.addMissingCheckOutDetailsFields();
+  }
+
+  // Any form (the seeded "Departure Check-Out", or a staff copy of it) that
+  // still has one of the check-out stay toggles but not its details box
+  // gets that box inserted straight after the toggle -- a no-op once every
+  // such form has them, so it's safe to run on every boot. Matched by field
+  // id, so a toggle staff deleted or a form built from scratch is left alone.
+  private async addMissingCheckOutDetailsFields(): Promise<void> {
+    const forms = await this.formModel
+      .find({ 'fields.id': { $in: CHECKOUT_STAY_TOGGLES.map((t) => t.toggle.id) } })
+      .exec();
+    for (const form of forms) {
+      const fields = [...(form.fields as unknown as FormField[])];
+      let changed = false;
+      for (const { toggle, details } of CHECKOUT_STAY_TOGGLES) {
+        const index = fields.findIndex((f) => f.id === toggle.id);
+        if (index === -1 || fields.some((f) => f.id === details.id)) continue;
+        fields.splice(index + 1, 0, details);
+        changed = true;
+      }
+      if (changed) {
+        await this.formModel.updateOne({ _id: form._id }, { $set: { fields } }).exec();
+      }
     }
   }
 
