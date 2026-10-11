@@ -113,6 +113,28 @@ function buildPreCheckInAnswers(
   return answers;
 }
 
+// The index (into computeStages()'s stage order: confirmed, invoiceRaised,
+// paymentReceived, preCheckIn, checkedIn, inProgress, checkedOut,
+// invoicePaid) of the last stage the given status implies is DONE --
+// 'Deposit Requested', 'Deposit Paid', and 'Deposit Not Required' all share
+// the same underlying 'paymentReceived' stage but land on different sides of
+// it (requested-not-paid leaves it as the current/pending one; the other two
+// both mark it done). Also doubles as a ranking of how far along each status is.
+const STATUS_DONE_THROUGH_INDEX: Record<BookingStatusLabel, number> = {
+  Confirmed: 0,
+  'Invoice Raised': 1,
+  'Invoice Raised - Draft': 1,
+  'Invoice Raised - Sent': 1,
+  'Deposit Requested': 1,
+  'Deposit Paid': 2,
+  'Deposit Not Required': 2,
+  'Pre Check In Complete': 3,
+  'Check In Complete': 4,
+  'In Progress': 5,
+  'Check Out Complete': 6,
+  'Booking Complete': 7,
+};
+
 @Injectable()
 export class BoardingBookingsService {
   constructor(
@@ -517,6 +539,7 @@ export class BoardingBookingsService {
     booking.checkInSubmission = submissionId as unknown as BoardingBooking['checkInSubmission'];
     booking.checkInAt = new Date();
     booking.checkInBy = staffName;
+    booking.statusOverride = this.effectiveOverride(booking, null);
     return booking.save();
   }
 
@@ -526,6 +549,7 @@ export class BoardingBookingsService {
     booking.checkOutSubmission = submissionId as unknown as BoardingBooking['checkOutSubmission'];
     booking.checkOutAt = new Date();
     booking.checkOutBy = staffName;
+    booking.statusOverride = this.effectiveOverride(booking, null);
     return booking.save();
   }
 
@@ -733,8 +757,9 @@ export class BoardingBookingsService {
       done: invoice?.status === InvoiceStatus.PAID,
       current: false,
     });
-    if (booking.statusOverride) {
-      this.applyStatusOverride(stages, booking.statusOverride);
+    const override = this.effectiveOverride(booking, invoice);
+    if (override) {
+      this.applyStatusOverride(stages, override);
     } else {
       const firstPending = stages.findIndex((s) => !s.done);
       if (firstPending >= 0) stages[firstPending].current = true;
@@ -760,26 +785,7 @@ export class BoardingBookingsService {
       'checkedOut',
       'invoicePaid',
     ];
-    // The index (into `order` above) of the last stage the given status
-    // implies is DONE -- 'Deposit Requested', 'Deposit Paid', and 'Deposit
-    // Not Required' all share the same underlying 'paymentReceived' stage
-    // but land on different sides of it (requested-not-paid leaves it as
-    // the current/pending one; the other two both mark it done).
-    const doneThroughIndex: Record<BookingStatusLabel, number> = {
-      Confirmed: 0,
-      'Invoice Raised': 1,
-      'Invoice Raised - Draft': 1,
-      'Invoice Raised - Sent': 1,
-      'Deposit Requested': 1,
-      'Deposit Paid': 2,
-      'Deposit Not Required': 2,
-      'Pre Check In Complete': 3,
-      'Check In Complete': 4,
-      'In Progress': 5,
-      'Check Out Complete': 6,
-      'Booking Complete': 7,
-    };
-    const threshold = doneThroughIndex[override];
+    const threshold = STATUS_DONE_THROUGH_INDEX[override];
     for (const stage of stages) {
       if (stage.key === 'quote') continue;
       const index = order.indexOf(stage.key);
@@ -808,7 +814,23 @@ export class BoardingBookingsService {
   // check-in happened today (a boarding stay's later days have genuinely
   // moved on to "in progress") or on an earlier day.
   statusLabel(booking: BoardingBooking, invoice?: Invoice | null): BookingStatusLabel {
-    if (booking.statusOverride) return booking.statusOverride;
+    return this.effectiveOverride(booking, invoice) ?? this.automaticStatusLabel(booking, invoice);
+  }
+
+  // A pinned statusOverride stops counting once a real check-in/check-out
+  // has moved the booking past it -- otherwise a "Check In Complete" pinned
+  // before the stay kept the booking showing as checked in after the
+  // check-out form was completed (and so it never reached the Complete tab).
+  // Overrides at or ahead of the real progress, and any override before
+  // check-in, still win as before.
+  private effectiveOverride(booking: BoardingBooking, invoice?: Invoice | null): BookingStatusLabel | undefined {
+    const override = booking.statusOverride;
+    if (!override || !booking.checkInAt) return override;
+    const actual = this.automaticStatusLabel(booking, invoice);
+    return STATUS_DONE_THROUGH_INDEX[override] < STATUS_DONE_THROUGH_INDEX[actual] ? undefined : override;
+  }
+
+  private automaticStatusLabel(booking: BoardingBooking, invoice?: Invoice | null): BookingStatusLabel {
     if (booking.checkOutAt && invoice?.status === InvoiceStatus.PAID) return 'Booking Complete';
     if (booking.checkOutAt) return 'Check Out Complete';
     if (booking.checkInAt) {
