@@ -31,6 +31,7 @@ import { Quote } from '../quotes/schemas/quote.schema';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
+import { BookingObservationsService } from './booking-observations.service';
 import { AmendBoardingBookingDatesDto } from './dto/amend-boarding-booking-dates.dto';
 import { CreateBoardingBookingDto } from './dto/create-boarding-booking.dto';
 import { BookingStatusLabel, BoardingBooking } from './schemas/boarding-booking.schema';
@@ -164,6 +165,7 @@ export class BoardingBookingsService {
     private readonly paymentsService: PaymentsService,
     private readonly creditNotesService: CreditNotesService,
     private readonly formsService: FormsService,
+    private readonly observationsService: BookingObservationsService,
     private readonly settingsService: SettingsService,
     private readonly auditLogService: AuditLogService,
   ) {}
@@ -444,6 +446,7 @@ export class BoardingBookingsService {
     if (booking.stayId) {
       await this.dayBookingsService.removeStay(booking.stayId);
     }
+    await this.observationsService.removeForBooking(id);
     await this.boardingBookingModel.findByIdAndDelete(id).exec();
   }
 

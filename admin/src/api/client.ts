@@ -11,8 +11,10 @@ import type {
   BoardingBooking,
   BoardingBookingWithStatus,
   BoardingWorkflowSettings,
+  BookingObservation,
   Booking,
   BookingStatusLabel,
+  ObservationCategory,
   BusinessInfo,
   ChecklistAssignment,
   ChecklistCategory,
@@ -599,6 +601,30 @@ export function archiveBoardingBooking(id: string, archived: boolean): Promise<B
 // offered as a follow-up once the plain delete blocks on exactly that.
 export function deleteBoardingBooking(id: string, deleteAll?: boolean): Promise<void> {
   return request(`/boarding-bookings/${id}${deleteAll ? '?deleteAll=true' : ''}`, { method: 'DELETE' });
+}
+
+// --- booking observations (care notes on a boarding/day care booking) ---
+export interface BookingObservationInput {
+  observedAt: string;
+  category: ObservationCategory;
+  description?: string;
+  photos: string[];
+}
+export function listBookingObservations(bookingId: string): Promise<BookingObservation[]> {
+  return request(`/boarding-bookings/${bookingId}/observations`);
+}
+export function createBookingObservation(bookingId: string, input: BookingObservationInput): Promise<BookingObservation> {
+  return request(`/boarding-bookings/${bookingId}/observations`, { method: 'POST', body: JSON.stringify(input) });
+}
+export function updateBookingObservation(
+  bookingId: string,
+  id: string,
+  input: BookingObservationInput,
+): Promise<BookingObservation> {
+  return request(`/boarding-bookings/${bookingId}/observations/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+export function deleteBookingObservation(bookingId: string, id: string): Promise<void> {
+  return request(`/boarding-bookings/${bookingId}/observations/${id}`, { method: 'DELETE' });
 }
 
 // --- invoice terms ---

@@ -492,6 +492,7 @@ tbody tr:last-child td {
 .field input[type='number'],
 .field input[type='date'],
 .field input[type='time'],
+.field input[type='datetime-local'],
 .field input[type='tel'],
 .field textarea,
 .field select {
