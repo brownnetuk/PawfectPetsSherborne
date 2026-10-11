@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import * as api from '../api/client';
+import { useRef, useState } from 'react';
+import * as apiClient from '../api/client';
+import BookingInvoicePrompt from './BookingInvoicePrompt';
 import CustomerPicker from './CustomerPicker';
 import DateInput from './DateInput';
 import { TimeReadout } from './DateTimeReadout';
@@ -84,7 +85,7 @@ export default function NewBookingModal({
   dayCareInitial,
   initialCustomerId,
   onClose,
-  onCreated,
+  onCreated: onCreatedProp,
 }: {
   animals: Animal[];
   customers: Customer[];
@@ -139,6 +140,27 @@ export default function NewBookingModal({
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Every row this submit created, so the "Generate an invoice?" prompt that
+  // follows a new booking can bill exactly those. Collected by wrapping
+  // createDayBooking rather than threading ids through each submit path.
+  const createdRows = useRef<DayBooking[]>([]);
+  const [invoicePromptRows, setInvoicePromptRows] = useState<DayBooking[] | null>(null);
+  const [invoiceNumber, setInvoiceNumber] = useState<string | null>(null);
+  // A new booking holds back the parent's onCreated (which may close this
+  // modal) until the invoice prompt is answered; edits pass straight through.
+  const saved = useRef(false);
+  function onCreated() {
+    saved.current = true;
+    if (isEditing) onCreatedProp();
+  }
+  const api = {
+    ...apiClient,
+    async createDayBooking(input: apiClient.DayBookingInput) {
+      const row = await apiClient.createDayBooking(input);
+      createdRows.current.push(row);
+      return row;
+    },
+  };
 
   const customerAnimals = animals.filter((a) => a.customer === custId);
 
@@ -536,6 +558,9 @@ export default function NewBookingModal({
     e.preventDefault();
     setError(null);
     setResult(null);
+    setInvoiceNumber(null);
+    createdRows.current = [];
+    saved.current = false;
 
     if (!custId) {
       setError('Choose a customer.');
@@ -549,6 +574,10 @@ export default function NewBookingModal({
     if (service === 'daycare') await submitDayCare();
     else if (service === 'boarding') await submitBoarding();
     else await submitVisits();
+
+    if (isEditing || !saved.current) return;
+    if (createdRows.current.some((b) => !b.placeholder)) setInvoicePromptRows(createdRows.current);
+    else onCreatedProp();
   }
 
   return (
@@ -565,6 +594,7 @@ export default function NewBookingModal({
             <>
               Created {result.created} booking{result.created === 1 ? '' : 's'}
               {result.skipped > 0 ? `, skipped ${result.skipped} already booked` : ''}.
+              {invoiceNumber && ` Draft invoice ${invoiceNumber} created.`}
             </>
           )}
         </div>
@@ -756,6 +786,22 @@ export default function NewBookingModal({
           </div>
         </div>
       </form>
+
+      {invoicePromptRows && (
+        <BookingInvoicePrompt
+          customerId={custId}
+          bookings={invoicePromptRows}
+          onClose={() => {
+            setInvoicePromptRows(null);
+            onCreatedProp();
+          }}
+          onCreated={(invoice) => {
+            setInvoicePromptRows(null);
+            setInvoiceNumber(invoice.invoiceNumber);
+            onCreatedProp();
+          }}
+        />
+      )}
 
       {confirmDelete && (
         <Modal title="Delete this booking?" onClose={() => setConfirmDelete(false)}>
