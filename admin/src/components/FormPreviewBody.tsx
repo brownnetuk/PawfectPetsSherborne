@@ -232,6 +232,13 @@ function PreviewField({
           <DateInput value={(value as string) ?? ''} onChange={onChange} />
         </div>
       );
+    case 'time':
+      return (
+        <div className="field">
+          {label}
+          <input type="time" value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />
+        </div>
+      );
     case 'today':
       return (
         <div className="field">
@@ -269,7 +276,7 @@ function PreviewField({
             <option value="">Select…</option>
             {field.options.map((o) => (
               <option key={o} value={o}>
-                {o}
+                {field.optionLabels?.[o] ?? o}
               </option>
             ))}
           </select>

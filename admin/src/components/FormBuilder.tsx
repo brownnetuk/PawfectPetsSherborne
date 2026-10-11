@@ -24,6 +24,7 @@ const SIMPLE_TYPES: { type: FormField['type']; label: string }[] = [
   { type: 'textarea', label: 'Long text' },
   { type: 'number', label: 'Number' },
   { type: 'date', label: 'Date' },
+  { type: 'time', label: 'Time' },
   { type: 'toggle', label: 'Yes / No' },
   { type: 'choice', label: 'Choice' },
   { type: 'multichoice', label: 'Multiple choice' },

@@ -218,7 +218,7 @@ export interface FormFieldBase {
 }
 
 export type SimpleFormField = FormFieldBase & {
-  type: 'text' | 'textarea' | 'number' | 'date' | 'toggle' | 'signature';
+  type: 'text' | 'textarea' | 'number' | 'date' | 'time' | 'toggle' | 'signature';
   // Already resolved server-side (form-placeholders.util.ts) by the time it
   // reaches this app -- pre-fills the initial answer for text/textarea/
   // number/date, still freely editable by the customer.
@@ -258,6 +258,9 @@ export type FileFormField = FormFieldBase & {
 export type ChoiceFormField = FormFieldBase & {
   type: 'choice' | 'multichoice';
   options: string[];
+  // Friendlier text to show for a stored option value, e.g. on_lead ->
+  // "On Lead". The answer (and any visibleWhen/mapping) still uses the value.
+  optionLabels?: Record<string, string>;
 };
 
 export type GroupFormField = FormFieldBase & {

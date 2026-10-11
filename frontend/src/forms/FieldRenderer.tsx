@@ -95,6 +95,16 @@ export default function FieldRenderer({ field, value, onChange }: Props) {
           required={field.required}
         />
       );
+    case 'time':
+      return (
+        <TextField
+          label={<RichLabel text={field.label} />}
+          type="time"
+          value={(value as string) ?? ''}
+          onChange={onChange}
+          required={field.required}
+        />
+      );
     case 'toggle':
       return <ToggleField label={<RichLabel text={field.label} />} value={!!value} onChange={onChange} />;
     case 'choice':
@@ -102,7 +112,7 @@ export default function FieldRenderer({ field, value, onChange }: Props) {
         <ChoiceGroup
           label={<RichLabel text={field.label} />}
           value={(value as string) ?? ''}
-          options={field.options.map((o) => ({ value: o, label: o }))}
+          options={field.options.map((o) => ({ value: o, label: field.optionLabels?.[o] ?? o }))}
           onChange={onChange}
           required={field.required}
         />

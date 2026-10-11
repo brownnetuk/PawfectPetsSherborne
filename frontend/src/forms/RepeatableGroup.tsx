@@ -1,5 +1,5 @@
 import FieldRenderer from './FieldRenderer';
-import { isFieldVisible } from './formDefaults';
+import { isFieldVisible, withPetName } from './formDefaults';
 import RichLabel from './richLabel';
 import type { GroupFormField } from '../types';
 
@@ -17,16 +17,18 @@ interface Props {
 // field markup without the surrounding "every repetition in one block" shell.
 export function GroupRepetitionFields({
   field,
+  index,
   repetition,
   onFieldChange,
 }: {
   field: GroupFormField;
+  index: number;
   repetition: Record<string, unknown>;
   onFieldChange: (fieldId: string, value: unknown) => void;
 }) {
   return (
     <>
-      {field.fields.filter((child) => isFieldVisible(child, repetition)).map((child) => (
+      {withPetName(field.fields, field.repetitionLabels?.[index]).filter((child) => isFieldVisible(child, repetition)).map((child) => (
         <FieldRenderer
           key={child.id}
           field={child}
@@ -81,6 +83,7 @@ export default function RepeatableGroup({ field, value, onFieldChange, onAdd, on
           </div>
           <GroupRepetitionFields
             field={field}
+            index={index}
             repetition={repetition}
             onFieldChange={(fieldId, v) => onFieldChange(index, fieldId, v)}
           />

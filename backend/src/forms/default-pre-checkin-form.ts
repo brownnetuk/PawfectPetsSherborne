@@ -73,6 +73,57 @@ export const PRE_CHECKIN_MEDICATIONS_FIELD: FormField = {
   visibleWhen: { mode: 'all', conditions: [{ fieldId: 'pf-onMedication', equals: 'true' }] },
 };
 
+export const PRE_CHECKIN_LEAD_OPTION_LABELS = { on_lead: 'On Lead', off_lead: 'Off Lead' };
+
+// Added to "Boarding Specific Questions" after the feeding questions.
+// {{petName}} is filled in per pet page by the fill form (each repetition's
+// own pet name), not once for the whole form.
+export const PRE_CHECKIN_EXTRA_BOARDING_QUESTIONS: FormField[] = [
+  {
+    id: 'bq-leftAlone',
+    type: 'choice',
+    label: 'Is your dog happy to be left for short periods?',
+    required: false,
+    options: ['yes', 'no'],
+    optionLabels: { yes: 'Yes', no: 'No' },
+  },
+  {
+    id: 'bq-leftAloneDetails',
+    type: 'textarea',
+    label: 'Please give details',
+    required: false,
+    visibleWhen: { mode: 'all', conditions: [{ fieldId: 'bq-leftAlone', equals: 'no' }] },
+  },
+  {
+    id: 'bq-sleeping',
+    type: 'textarea',
+    label: 'Where is {{petName}} used to sleeping?',
+    required: false,
+  },
+  {
+    id: 'bq-toileting',
+    type: 'textarea',
+    label: "What are {{petName}}'s toileting habits? (Do they use the garden OK? Not on lead, on a walk etc.)",
+    required: false,
+  },
+];
+
+export const PRE_CHECKIN_DROP_OFF_FIELDS: FormField[] = [
+  {
+    id: 'bq-dropOffHeading',
+    type: 'display',
+    label: 'Drop-off',
+    required: false,
+    startsNewPage: true,
+  },
+  {
+    id: 'bq-dropOffTime',
+    type: 'time',
+    label: 'What time will you be dropping off?',
+    required: false,
+  },
+];
+
 export const DEFAULT_PRE_CHECKIN_FORM: {
   name: string;
   description: string;
@@ -639,6 +690,7 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
           label: 'On lead / off lead',
           required: false,
           options: ['on_lead', 'off_lead'],
+          optionLabels: PRE_CHECKIN_LEAD_OPTION_LABELS,
           mapping: { target: 'animal', path: 'offLeadConsent.mode' },
           visibleWhen: { mode: 'all', conditions: [{ fieldId: 'pf-species', equals: 'dog' }] },
         },
@@ -698,6 +750,7 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
           label: 'Any specific information around feeding?',
           required: false,
         },
+        ...PRE_CHECKIN_EXTRA_BOARDING_QUESTIONS,
         {
           id: 'bq-crateTrained',
           type: 'toggle',
@@ -735,5 +788,9 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
         },
       ],
     },
+
+    // --- Drop-off (unmapped, once per booking rather than per pet, so a
+    // top-level page after the per-pet boarding pages) ---
+    ...PRE_CHECKIN_DROP_OFF_FIELDS,
   ],
 };

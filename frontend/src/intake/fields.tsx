@@ -6,7 +6,7 @@ interface TextFieldProps {
   value: string;
   onChange: (v: string) => void;
   required?: boolean;
-  type?: 'text' | 'tel' | 'email' | 'number' | 'date';
+  type?: 'text' | 'tel' | 'email' | 'number' | 'date' | 'time';
   multiline?: boolean;
   hint?: string;
   placeholder?: string;

@@ -387,6 +387,7 @@ export default function FormFillPage({ submissionId }: { submissionId: string })
                 </div>
                 <GroupRepetitionFields
                   field={groupField}
+                  index={groupIndex}
                   repetition={repetition}
                   onFieldChange={(fieldId, v) => setGroupFieldAnswer(groupField.id, groupIndex, fieldId, v)}
                 />
