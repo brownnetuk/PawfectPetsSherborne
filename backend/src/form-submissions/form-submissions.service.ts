@@ -260,12 +260,14 @@ export class FormSubmissionsService {
     return submission;
   }
 
-  async findOnePublic(id: string) {
-    const submission = await this.findOne(id);
-
-    // Both stay empty for a submission not yet tied to a real customer (a
-    // brand-new lead sent by typed name/email only) -- see
-    // resolveFieldsForRecipient's comment for what that means downstream.
+  // The {{token}} values for this submission's own customer/pet -- shared
+  // by findOnePublic (the fill page) and findOneForStaff (the admin's
+  // read-only view/PDF). Both stay empty for a submission not yet tied to a
+  // real customer (a brand-new lead sent by typed name/email only) -- see
+  // resolveFieldsForRecipient's comment for what that means downstream.
+  private async placeholdersFor(
+    submission: FormSubmission,
+  ): Promise<{ placeholders: Record<string, string>; petNames: string[] }> {
     let placeholders: Record<string, string> = {};
     let petNames: string[] = [];
     if (submission.customer) {
@@ -286,6 +288,33 @@ export class FormSubmissionsService {
         placeholders = buildCustomerPlaceholders(customer, petNames, specificPet?.name);
       }
     }
+    return { placeholders, petNames };
+  }
+
+  // The admin's own GET -- same record as findOne, but with {{token}}
+  // placeholders in the field labels resolved exactly as the fill page
+  // showed them (formFieldsSnapshot itself stores the raw, unresolved
+  // labels), so the read-only view and its PDF say "I have collected Bella"
+  // rather than "I have collected {{petName}}". Labels only -- mapping,
+  // options and everything else are left as stored.
+  async findOneForStaff(id: string) {
+    const submission = await this.findOne(id);
+    const { placeholders } = await this.placeholdersFor(submission);
+    const resolveLabels = (fields: FormField[]): FormField[] =>
+      fields.map((field) => {
+        const copy = { ...field, label: interpolatePlaceholders(field.label, placeholders) } as FormField;
+        if (copy.type === 'group') copy.fields = resolveLabels(copy.fields);
+        return copy;
+      });
+    return {
+      ...submission.toObject(),
+      formFieldsSnapshot: resolveLabels(submission.formFieldsSnapshot as unknown as FormField[]),
+    };
+  }
+
+  async findOnePublic(id: string) {
+    const submission = await this.findOne(id);
+    const { placeholders, petNames } = await this.placeholdersFor(submission);
 
     return {
       _id: submission._id.toString(),
