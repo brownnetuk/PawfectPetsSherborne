@@ -47,6 +47,32 @@ import { FormField } from './form-field.types';
 // one) automatically gives it one page per pet too, appearing right after
 // the "Pet" group's own per-pet pages -- a real per-dog "new page at the
 // end", with no Forms-engine changes needed.
+export const PRE_CHECKIN_TERMS_FALLBACK =
+  'Terms and conditions:\n' +
+  '1. The client confirms all information provided in this form is accurate and will notify PawfectPets Sherborne promptly of any changes to contact, veterinary, or pet health details.\n' +
+  "2. The client authorises PawfectPets Sherborne to make decisions regarding the animal's welfare in an emergency, including obtaining veterinary treatment as set out in the Emergency Vet section of this form.\n" +
+  '3. The client is responsible for ensuring vaccinations, flea, and worming treatment are up to date for the duration of any care provided.\n' +
+  '4. PawfectPets Sherborne will take all reasonable care of the animal but cannot be held liable for illness, injury, loss, or death outside of its direct negligence.\n' +
+  '5. Where off-lead exercise has been consented to, the client accepts this is undertaken at their own risk as described in the Off-Lead Consent section.\n' +
+  '6. Any keys or security information (e.g. alarm codes) provided will be stored securely and used solely for the purpose of delivering the agreed service.\n' +
+  '7. Fees are payable as agreed at time of booking. PawfectPets Sherborne reserves the right to decline or discontinue a booking where an animal poses a safety risk not disclosed in this form.\n' +
+  '8. This agreement remains in effect for all future bookings unless the client notifies PawfectPets Sherborne of a change in circumstances.';
+
+export const PRE_CHECKIN_DECLARATION_FALLBACK =
+  'I confirm that the information provided in this form is accurate and complete to the best of my knowledge, and I agree to be bound by the terms set out above.';
+
+// Same per-medication fields as the real wizard's MedicationEntriesField
+// (name, illness, dosage, frequency, vet prescribed, we administer,
+// additional info), as many entries as the pet needs.
+export const PRE_CHECKIN_MEDICATIONS_FIELD: FormField = {
+  id: 'pf-medications',
+  type: 'medications',
+  label: 'Medications',
+  required: true,
+  mapping: { target: 'animal', path: 'medication.medications' },
+  visibleWhen: { mode: 'all', conditions: [{ fieldId: 'pf-onMedication', equals: 'true' }] },
+};
+
 export const DEFAULT_PRE_CHECKIN_FORM: {
   name: string;
   description: string;
@@ -315,25 +341,13 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
     {
       id: 'cf-secHeading',
       type: 'display',
-      label: 'Security & Agreement',
+      label: 'Additional information & Agreement',
       required: false,
       startsNewPage: true,
     },
-    // --- Security / additional info (security.*, target: customer) ---
-    {
-      id: 'cf-sec-keysProvided',
-      type: 'toggle',
-      label: 'Keys provided',
-      required: false,
-      mapping: { target: 'customer', path: 'security.keysProvided' },
-    },
-    {
-      id: 'cf-sec-alarm',
-      type: 'textarea',
-      label: 'Alarm/KeySafe Code',
-      required: false,
-      mapping: { target: 'customer', path: 'security.alarmInstructions' },
-    },
+    // --- Additional info (security.furtherInformation, target: customer) ---
+    // No keys-provided/alarm-code questions here (the intake wizard's
+    // Security step) -- not something to re-ask ahead of every stay.
     {
       id: 'cf-sec-further',
       type: 'textarea',
@@ -343,31 +357,22 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
     },
 
     // --- Agreement (agreement.*, target: customer) ---
-    // Same fallback terms list and declaration wording as the real wizard's
-    // AgreementStep (both normally staff-editable via Settings > Business
-    // Info -- termsDocx/declarationText -- with this exact copy as the
-    // fallback), baked in for the same "no per-field Settings fetch" reason
-    // as the vet-authorisation text above.
+    // `content` makes the live form show the CURRENT terms/declaration from
+    // Settings > Business Info (termsDocx/declarationText), exactly what the
+    // real wizard's AgreementStep shows. The label text below is the same
+    // fallback copy that step uses when nothing has been uploaded/set yet.
     {
       id: 'cf-ag-termsText',
       type: 'display',
-      label:
-        'Terms and conditions:\n' +
-        '1. The client confirms all information provided in this form is accurate and will notify PawfectPets Sherborne promptly of any changes to contact, veterinary, or pet health details.\n' +
-        "2. The client authorises PawfectPets Sherborne to make decisions regarding the animal's welfare in an emergency, including obtaining veterinary treatment as set out in the Emergency Vet section of this form.\n" +
-        '3. The client is responsible for ensuring vaccinations, flea, and worming treatment are up to date for the duration of any care provided.\n' +
-        '4. PawfectPets Sherborne will take all reasonable care of the animal but cannot be held liable for illness, injury, loss, or death outside of its direct negligence.\n' +
-        '5. Where off-lead exercise has been consented to, the client accepts this is undertaken at their own risk as described in the Off-Lead Consent section.\n' +
-        '6. Any keys or security information (e.g. alarm codes) provided will be stored securely and used solely for the purpose of delivering the agreed service.\n' +
-        '7. Fees are payable as agreed at time of booking. PawfectPets Sherborne reserves the right to decline or discontinue a booking where an animal poses a safety risk not disclosed in this form.\n' +
-        '8. This agreement remains in effect for all future bookings unless the client notifies PawfectPets Sherborne of a change in circumstances.',
+      content: 'terms',
+      label: PRE_CHECKIN_TERMS_FALLBACK,
       required: false,
     },
     {
       id: 'cf-ag-declarationText',
       type: 'display',
-      label:
-        'I confirm that the information provided in this form is accurate and complete to the best of my knowledge, and I agree to be bound by the terms set out above.',
+      content: 'declaration',
+      label: PRE_CHECKIN_DECLARATION_FALLBACK,
       required: false,
     },
     {
@@ -627,47 +632,7 @@ export const DEFAULT_PRE_CHECKIN_FORM: {
           required: true,
           mapping: { target: 'animal', path: 'medication.onMedication' },
         },
-        {
-          id: 'pf-medicationName',
-          type: 'text',
-          label: 'Medication name',
-          required: false,
-          mapping: { target: 'animal', path: 'medication.medications[0].name' },
-          visibleWhen: { mode: 'all', conditions: [{ fieldId: 'pf-onMedication', equals: 'true' }] },
-        },
-        {
-          id: 'pf-medicationDetails',
-          type: 'textarea',
-          label: 'Medication details (illness, dosage, frequency)',
-          required: false,
-          mapping: {
-            target: 'animal',
-            path: 'medication.medications[0].additionalInfo',
-          },
-          visibleWhen: { mode: 'all', conditions: [{ fieldId: 'pf-onMedication', equals: 'true' }] },
-        },
-        {
-          id: 'pf-medicationVetPrescribed',
-          type: 'toggle',
-          label: 'Medication vet prescribed',
-          required: false,
-          mapping: {
-            target: 'animal',
-            path: 'medication.medications[0].vetPrescribed',
-          },
-          visibleWhen: { mode: 'all', conditions: [{ fieldId: 'pf-onMedication', equals: 'true' }] },
-        },
-        {
-          id: 'pf-medicationAdministeredByUs',
-          type: 'toggle',
-          label: 'We administer this medication',
-          required: false,
-          mapping: {
-            target: 'animal',
-            path: 'medication.medications[0].administeredByPawfectPets',
-          },
-          visibleWhen: { mode: 'all', conditions: [{ fieldId: 'pf-onMedication', equals: 'true' }] },
-        },
+        PRE_CHECKIN_MEDICATIONS_FIELD,
         {
           id: 'pf-offLeadMode',
           type: 'choice',

@@ -1,4 +1,5 @@
 import type { FormField } from '../types';
+import { formatMedications } from '../utils/formatMedications';
 import RichLabel from '../utils/richLabel';
 
 // Direct port of frontend/src/forms/ReadOnlyAnswers.tsx -- no CSS
@@ -8,6 +9,7 @@ import RichLabel from '../utils/richLabel';
 function formatAnswer(field: FormField, value: unknown): string {
   if (value === undefined || value === null || value === '') return '—';
   if (field.type === 'toggle') return value ? 'Yes' : 'No';
+  if (field.type === 'medications') return formatMedications(value) || '—';
   if (field.type === 'multichoice' && Array.isArray(value)) {
     return (value as string[]).join(', ') || '—';
   }
@@ -95,7 +97,7 @@ export default function ReadOnlyAnswers({
                 ))}
               </div>
             ) : (
-              <p style={{ margin: 0 }}>{formatAnswer(field, value)}</p>
+              <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{formatAnswer(field, value)}</p>
             )}
           </div>
         );

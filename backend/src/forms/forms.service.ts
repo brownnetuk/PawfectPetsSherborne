@@ -9,7 +9,10 @@ import {
   DEFAULT_CHECKOUT_FORM,
 } from './default-boarding-checkin-checkout-forms';
 import { FormField } from './form-field.types';
-import { DEFAULT_PRE_CHECKIN_FORM } from './default-pre-checkin-form';
+import {
+  DEFAULT_PRE_CHECKIN_FORM,
+  PRE_CHECKIN_MEDICATIONS_FIELD,
+} from './default-pre-checkin-form';
 import { Form } from './schemas/form.schema';
 
 @Injectable()
@@ -45,6 +48,58 @@ export class FormsService implements OnModuleInit {
         .exec();
     }
     await this.addMissingCheckOutDetailsFields();
+    await this.upgradePreCheckInForms();
+  }
+
+  // Brings any already-seeded "Pre-Check In Form" (or a staff copy of it,
+  // matched by its field ids, same approach as the check-out upgrade below)
+  // in line with the current default: no keys/alarm-code questions, the
+  // terms/declaration shown live from Settings, and the intake wizard's
+  // multi-entry medication list in place of the old single-entry fields.
+  // Each step only fires while its old shape is still there, so this is a
+  // no-op on every boot after the first, and a field staff have since
+  // reworded or removed is left alone.
+  private async upgradePreCheckInForms(): Promise<void> {
+    const OLD_SECURITY_IDS = ['cf-sec-keysProvided', 'cf-sec-alarm'];
+    const OLD_MEDICATION_IDS = [
+      'pf-medicationName',
+      'pf-medicationDetails',
+      'pf-medicationVetPrescribed',
+      'pf-medicationAdministeredByUs',
+    ];
+    const forms = await this.formModel
+      .find({
+        $or: [
+          { 'fields.id': { $in: [...OLD_SECURITY_IDS, 'cf-ag-termsText', 'cf-ag-declarationText'] } },
+          { 'fields.fields.id': { $in: OLD_MEDICATION_IDS } },
+        ],
+      })
+      .exec();
+    for (const form of forms) {
+      const before = JSON.stringify(form.fields);
+      let fields = (form.fields as unknown as FormField[]).filter((f) => !OLD_SECURITY_IDS.includes(f.id));
+      fields = fields.map((f) => {
+        if (f.id === 'cf-secHeading' && f.label === 'Security & Agreement') {
+          return { ...f, label: 'Additional information & Agreement' };
+        }
+        if (f.type === 'display' && !f.content) {
+          if (f.id === 'cf-ag-termsText') return { ...f, content: 'terms' };
+          if (f.id === 'cf-ag-declarationText') return { ...f, content: 'declaration' };
+        }
+        if (f.type === 'group' && !f.fields.some((c) => c.id === PRE_CHECKIN_MEDICATIONS_FIELD.id)) {
+          const at = f.fields.findIndex((c) => OLD_MEDICATION_IDS.includes(c.id));
+          if (at !== -1) {
+            const kept = f.fields.filter((c) => !OLD_MEDICATION_IDS.includes(c.id));
+            kept.splice(at, 0, PRE_CHECKIN_MEDICATIONS_FIELD);
+            return { ...f, fields: kept };
+          }
+        }
+        return f;
+      });
+      if (JSON.stringify(fields) !== before) {
+        await this.formModel.updateOne({ _id: form._id }, { $set: { fields } }).exec();
+      }
+    }
   }
 
   // Any form (the seeded "Departure Check-Out", or a staff copy of it) that

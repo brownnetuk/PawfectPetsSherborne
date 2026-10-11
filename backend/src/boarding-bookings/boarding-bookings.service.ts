@@ -20,7 +20,7 @@ import {
 } from '../common/document-number.util';
 import { publicFrontendUrl } from '../common/tracking-pixel.util';
 import { FormField } from '../forms/form-field.types';
-import { getPath } from '../form-submissions/form-submission-mapping.util';
+import { getPath, toMedicationEntries } from '../form-submissions/form-submission-mapping.util';
 import { FormSubmission, FormSubmissionStatus } from '../form-submissions/schemas/form-submission.schema';
 import { FormsService } from '../forms/forms.service';
 import { Invoice, InvoiceStatus } from '../invoices/schemas/invoice.schema';
@@ -75,6 +75,7 @@ function toAnswerValue(fieldType: FormField['type'], raw: unknown): unknown {
   if (raw === undefined || raw === null) return undefined;
   if (fieldType === 'date' && raw instanceof Date) return raw.toISOString().slice(0, 10);
   if (fieldType === 'toggle') return !!raw;
+  if (fieldType === 'medications') return toMedicationEntries(raw);
   return raw;
 }
 

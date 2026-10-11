@@ -83,6 +83,22 @@ export type DisplayFormField = FormFieldBase & {
   // live fill form/preview, which has no real multi-page pagination of its
   // own to break.
   startsNewPage?: boolean;
+  // When set, the live fill form shows the CURRENT staff-managed copy of
+  // this text from Settings > Business Info instead of `label` -- the same
+  // public endpoints the real intake wizard's AgreementStep reads
+  // (GET /settings/terms, GET /settings/declaration). `label` stays as the
+  // fallback (no copy uploaded yet, or the fetch fails) and is what the
+  // admin preview/PDF still show.
+  content?: 'terms' | 'declaration';
+};
+
+// A list of medications, same shape (and same on-screen fields) as the real
+// intake wizard's MedicationEntriesField -- the answer is an array of
+// MedicationEntry-shaped objects, mapped as a whole onto
+// 'medication.medications' (rather than one fixed [0] entry spread over
+// several plain fields), so a pet on more than one medication can list them all.
+export type MedicationsFormField = FormFieldBase & {
+  type: 'medications';
 };
 
 export type FileFormField = FormFieldBase & {
@@ -129,4 +145,10 @@ export type GroupFormField = FormFieldBase & {
 };
 
 export type FormField =
-  SimpleFormField | FileFormField | ChoiceFormField | GroupFormField | DisplayFormField | AutoDateFormField;
+  | SimpleFormField
+  | FileFormField
+  | ChoiceFormField
+  | GroupFormField
+  | DisplayFormField
+  | AutoDateFormField
+  | MedicationsFormField;

@@ -885,6 +885,16 @@ export type DisplayFormField = FormFieldBase & {
   // page here (formSubmissionPdf.ts) and a stronger section-divider style
   // on the live fill form/preview.
   startsNewPage?: boolean;
+  // The customer's fill form shows the current terms/declaration from
+  // Settings > Business Info here instead of `label` (the fallback copy,
+  // and what the preview/PDF show).
+  content?: 'terms' | 'declaration';
+};
+
+// A list of medications (the intake wizard's MedicationEntriesField) --
+// the answer is a MedicationEntry[], mapped whole onto medication.medications.
+export type MedicationsFormField = FormFieldBase & {
+  type: 'medications';
 };
 
 // Auto-filled, non-editable -- the answer is the date (or date+time) at the
@@ -926,7 +936,13 @@ export type GroupFormField = FormFieldBase & {
 };
 
 export type FormField =
-  SimpleFormField | FileFormField | ChoiceFormField | GroupFormField | DisplayFormField | AutoDateFormField;
+  | SimpleFormField
+  | FileFormField
+  | ChoiceFormField
+  | GroupFormField
+  | DisplayFormField
+  | AutoDateFormField
+  | MedicationsFormField;
 
 export interface FormRecord {
   _id: string;

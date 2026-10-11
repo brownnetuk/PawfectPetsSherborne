@@ -64,6 +64,30 @@ export function getPath(source: Record<string, unknown> | null | undefined, path
   return cursor;
 }
 
+// A 'medications' field's answer, trimmed to exactly MedicationEntryDto's
+// own keys (the global ValidationPipe is forbidNonWhitelisted, so a stray
+// key -- e.g. a Mongoose _id carried over from pre-filling -- would reject
+// the whole submission) and with unnamed entries dropped, the same rule
+// dropIncompleteMedicationEntry below applies to the old single-entry fields.
+export function toMedicationEntries(raw: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(raw)) return [];
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v : undefined);
+  return raw
+    .filter((m): m is Record<string, unknown> => typeof m === 'object' && m !== null)
+    .filter((m) => !!str(m.name))
+    .map((m) => {
+      const entry: Record<string, unknown> = {
+        name: m.name,
+        vetPrescribed: !!m.vetPrescribed,
+        administeredByPawfectPets: !!m.administeredByPawfectPets,
+      };
+      for (const key of ['illnessTreating', 'dosage', 'frequency', 'additionalInfo']) {
+        if (str(m[key])) entry[key] = m[key];
+      }
+      return entry;
+    });
+}
+
 function coerceFieldValue(field: FormField, raw: unknown): unknown {
   if (raw === undefined || raw === null || raw === '') return undefined;
   switch (field.type) {
@@ -73,6 +97,8 @@ function coerceFieldValue(field: FormField, raw: unknown): unknown {
       return Boolean(raw);
     case 'file':
       return Array.isArray(raw) ? raw : [raw];
+    case 'medications':
+      return toMedicationEntries(raw);
     default:
       return raw;
   }
@@ -143,8 +169,14 @@ function stripSpeciesInapplicableFields(patch: Record<string, unknown>): void {
 // failing cleanly). Treat "no name" as "no real entry" and drop it.
 function dropIncompleteMedicationEntry(patch: Record<string, unknown>): void {
   const medication = patch.medication as
-    { medications?: unknown[] } | undefined;
+    { onMedication?: boolean; medications?: unknown[] } | undefined;
   if (!medication?.medications?.length) return;
+  // "Not on medication" means no list, whatever was pre-filled or typed
+  // before the toggle was switched off.
+  if (medication.onMedication === false) {
+    medication.medications = [];
+    return;
+  }
   const first = medication.medications[0] as
     Record<string, unknown> | undefined;
   if (!first?.name) {
