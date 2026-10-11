@@ -453,6 +453,7 @@ export class BoardingBookingsService {
   // requirement. Unlike a plain quote's accept flow, nothing is requested
   // automatically (see QuotesService.acceptAndConvert()).
   async requestPayment(id: string, type: 'deposit' | 'full', actor = 'Staff') {
+    await this.assertNotComplete(id);
     const booking = await this.boardingBookingModel.findById(id).exec();
     if (!booking) throw new NotFoundException(`Boarding booking ${id} not found`);
     if (!booking.invoice) throw new BadRequestException('This booking has no invoice yet.');
@@ -472,6 +473,7 @@ export class BoardingBookingsService {
   // amountPaid untouched, which is exactly "the deposit stays fixed and is
   // absorbed" (nothing is refunded/reissued, the balance just moves).
   async amendDates(id: string, dto: AmendBoardingBookingDatesDto): Promise<BoardingBooking> {
+    await this.assertNotComplete(id);
     const booking = await this.boardingBookingModel.findById(id).exec();
     if (!booking) throw new NotFoundException(`Boarding booking ${id} not found`);
     if (!booking.invoice) throw new BadRequestException('This booking has no invoice yet.');
@@ -534,6 +536,7 @@ export class BoardingBookingsService {
   }
 
   async recordCheckIn(id: string, submissionId: string, staffName: string): Promise<BoardingBooking> {
+    await this.assertNotComplete(id);
     const booking = await this.boardingBookingModel.findById(id).exec();
     if (!booking) throw new NotFoundException(`Boarding booking ${id} not found`);
     booking.checkInSubmission = submissionId as unknown as BoardingBooking['checkInSubmission'];
@@ -544,6 +547,7 @@ export class BoardingBookingsService {
   }
 
   async recordCheckOut(id: string, submissionId: string, staffName: string): Promise<BoardingBooking> {
+    await this.assertNotComplete(id);
     const booking = await this.boardingBookingModel.findById(id).exec();
     if (!booking) throw new NotFoundException(`Boarding booking ${id} not found`);
     booking.checkOutSubmission = submissionId as unknown as BoardingBooking['checkOutSubmission'];
@@ -559,6 +563,7 @@ export class BoardingBookingsService {
   // "generate + immediately email" flow SendFormModal drives interactively
   // for a staff-initiated form send.
   async sendPreCheckIn(id: string): Promise<BoardingBooking> {
+    await this.assertNotComplete(id);
     const booking = await this.boardingBookingModel.findById(id).populate('customer', 'name email').exec();
     if (!booking) throw new NotFoundException(`Boarding booking ${id} not found`);
     const customer = booking.customer as unknown as { _id?: unknown; name?: string; email?: string };
@@ -643,6 +648,7 @@ export class BoardingBookingsService {
   // URI) using the "Booking Confirmation" email template -- same shape as
   // PaymentsService.sendReceipt.
   async sendConfirmation(id: string, attachment: { data: string; name: string }, actor = 'Staff'): Promise<void> {
+    await this.assertNotComplete(id);
     const booking = await this.boardingBookingModel
       .findById(id)
       .populate('customer', 'name email')
@@ -867,10 +873,27 @@ export class BoardingBookingsService {
   // Staff pinning (or clearing, via `status: null`) a manual status from the
   // Booking Detail page -- see statusOverride's doc comment on the schema.
   async setStatus(id: string, status: BookingStatusLabel | null | undefined): Promise<BoardingBooking> {
+    await this.assertNotComplete(id);
     const booking = await this.boardingBookingModel.findById(id).exec();
     if (!booking) throw new NotFoundException(`Boarding booking ${id} not found`);
     booking.statusOverride = status ?? undefined;
     return booking.save();
+  }
+
+  // A booking that has genuinely finished (checked out AND its invoice paid)
+  // is read-only -- only deleting it (and archiving it from the list) is
+  // still allowed. Deliberately based on the real check-out/payment, not on
+  // a pinned statusOverride, so a status pinned to "Booking Complete" by
+  // mistake can still be changed back.
+  isComplete(booking: BoardingBooking, invoice?: Invoice | null): boolean {
+    return !!booking.checkOutAt && invoice?.status === InvoiceStatus.PAID;
+  }
+
+  private async assertNotComplete(id: string): Promise<void> {
+    const booking = await this.findOne(id);
+    if (this.isComplete(booking, booking.invoice as unknown as Invoice)) {
+      throw new BadRequestException(`Booking ${booking.reference} is complete and read-only -- it can only be deleted.`);
+    }
   }
 
   // Moves a booking between the Bookings tab's "Current"/"Archive" lists --
