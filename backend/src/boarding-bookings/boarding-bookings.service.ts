@@ -764,6 +764,15 @@ export class BoardingBookingsService {
       done: invoice?.status === InvoiceStatus.PAID,
       current: false,
     });
+    // Once the dog has actually been checked in, every earlier step counts as
+    // satisfied -- a skipped pre-check-in or an unpaid deposit shouldn't leave
+    // gaps in the timeline of a stay that's already under way.
+    if (booking.checkInAt) {
+      for (const stage of stages) {
+        if (stage.key === 'checkedIn') break;
+        stage.done = true;
+      }
+    }
     const override = this.effectiveOverride(booking, invoice);
     if (override) {
       this.applyStatusOverride(stages, override);
@@ -816,10 +825,8 @@ export class BoardingBookingsService {
   // statusOverride (set via setStatus() below) always wins over the
   // automatic computation, until it's cleared back to automatic.
   //
-  // "Check In Complete" vs "In Progress": both mean "checked in, not yet
-  // checked out" -- the only real signal to tell them apart is whether
-  // check-in happened today (a boarding stay's later days have genuinely
-  // moved on to "in progress") or on an earlier day.
+  // A completed check-in goes straight to "In Progress" (the stay has
+  // started); "Check In Complete" is only ever a manually pinned status now.
   statusLabel(booking: BoardingBooking, invoice?: Invoice | null): BookingStatusLabel {
     return this.effectiveOverride(booking, invoice) ?? this.automaticStatusLabel(booking, invoice);
   }
@@ -840,10 +847,7 @@ export class BoardingBookingsService {
   private automaticStatusLabel(booking: BoardingBooking, invoice?: Invoice | null): BookingStatusLabel {
     if (booking.checkOutAt && invoice?.status === InvoiceStatus.PAID) return 'Booking Complete';
     if (booking.checkOutAt) return 'Check Out Complete';
-    if (booking.checkInAt) {
-      const today = new Date().toISOString().slice(0, 10);
-      return today > booking.startDate ? 'In Progress' : 'Check In Complete';
-    }
+    if (booking.checkInAt) return 'In Progress';
     if (booking.preCheckInSubmission) return 'Pre Check In Complete';
     const amountPaid = invoice?.amountPaid ?? 0;
     if (amountPaid > 0) return 'Deposit Paid';
