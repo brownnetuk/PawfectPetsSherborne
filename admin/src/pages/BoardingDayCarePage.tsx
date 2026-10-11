@@ -1323,6 +1323,36 @@ const STATUS_PILL_COLORS: Record<BookingStatusLabel, { bg: string; color: string
   'Booking Complete': { bg: 'var(--sage-badge)', color: 'var(--brand-green)' },
 };
 
+type BookingsSortKey = 'reference' | 'customer' | 'dogs' | 'type' | 'dates' | 'dropOff' | 'pickUp' | 'invoiced' | 'total' | 'status';
+// Status sorts by how far through the booking's lifecycle it is (the pill
+// colour map is declared in that order) rather than alphabetically.
+const STATUS_ORDER = Object.keys(STATUS_PILL_COLORS) as BookingStatusLabel[];
+
+function bookingsSortValue({ booking, invoice, status }: BoardingBookingWithStatus, key: BookingsSortKey): string | number {
+  switch (key) {
+    case 'reference':
+      return booking.reference;
+    case 'customer':
+      return boardingCustomerLabel(booking.customer).toLowerCase();
+    case 'dogs':
+      return boardingAnimalNames(booking.animals).toLowerCase();
+    case 'type':
+      return booking.type;
+    case 'dates':
+      return `${booking.startDate} ${booking.endDate}`;
+    case 'dropOff':
+      return booking.dropOffTime ?? '';
+    case 'pickUp':
+      return booking.pickUpTime ?? '';
+    case 'invoiced':
+      return booking.invoice ? 1 : 0;
+    case 'total':
+      return invoice ? invoice.total : -1;
+    case 'status':
+      return STATUS_ORDER.indexOf(status);
+  }
+}
+
 function BookingsTab({
   animals,
   customers,
@@ -1355,6 +1385,19 @@ function BookingsTab({
   const [refreshSignal, setRefreshSignal] = useState(0);
   const [viewTab, setViewTab] = useState<'current' | 'complete' | 'archive'>('current');
   const [archiving, setArchiving] = useState<string | null>(null);
+  // Starts with no column active so the list keeps the server's order until
+  // a header is clicked -- same toggle behaviour as the Invoices table.
+  const [sortKey, setSortKey] = useState<BookingsSortKey | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  function toggleSort(key: BookingsSortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
+  const sortProps = { activeKey: sortKey, dir: sortDir, onSort: toggleSort };
 
   useEffect(() => {
     api.listBoardingBookings().then(setItems).catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bookings'));
@@ -1429,20 +1472,30 @@ function BookingsTab({
             const emptyText = { current: 'No bookings yet.', complete: 'No completed bookings.', archive: 'No archived bookings.' };
             return <div className="empty-state">{emptyText[viewTab]}</div>;
           }
+          if (sortKey) {
+            const sign = sortDir === 'asc' ? 1 : -1;
+            filtered.sort((a, b) => {
+              const va = bookingsSortValue(a, sortKey);
+              const vb = bookingsSortValue(b, sortKey);
+              const cmp =
+                typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), undefined, { numeric: true });
+              return cmp * sign;
+            });
+          }
           return (
             <table>
               <thead>
                 <tr>
-                  <th>Reference</th>
-                  <th>Customer</th>
-                  <th>Dog(s)</th>
-                  <th>Type</th>
-                  <th>Dates</th>
-                  <th>Drop off</th>
-                  <th>Pick up</th>
-                  <th>Invoiced</th>
-                  <th>Total</th>
-                  <th>Status</th>
+                  <SortableTh label="Reference" sortKey="reference" {...sortProps} />
+                  <SortableTh label="Customer" sortKey="customer" {...sortProps} />
+                  <SortableTh label="Dog(s)" sortKey="dogs" {...sortProps} />
+                  <SortableTh label="Type" sortKey="type" {...sortProps} />
+                  <SortableTh label="Dates" sortKey="dates" {...sortProps} />
+                  <SortableTh label="Drop off" sortKey="dropOff" {...sortProps} />
+                  <SortableTh label="Pick up" sortKey="pickUp" {...sortProps} />
+                  <SortableTh label="Invoiced" sortKey="invoiced" {...sortProps} />
+                  <SortableTh label="Total" sortKey="total" {...sortProps} />
+                  <SortableTh label="Status" sortKey="status" {...sortProps} />
                   <th></th>
                 </tr>
               </thead>
