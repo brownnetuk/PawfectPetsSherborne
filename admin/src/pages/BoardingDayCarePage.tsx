@@ -10,6 +10,7 @@ import FormFillModal from '../components/FormFillModal';
 import Modal from '../components/Modal';
 import NewBoardingBookingModal from '../components/NewBoardingBookingModal';
 import NewBookingModal from '../components/NewBookingModal';
+import ObservationsCard from '../components/ObservationsCard';
 import type { BoardingEditInitial, DayCareEditInitial } from '../components/NewBookingModal';
 import PoliciesTab from '../components/PoliciesTab';
 import RiskAssessmentsTab from '../components/RiskAssessmentsTab';
@@ -2045,6 +2046,8 @@ function BookingDetail({
               actionLabel={!booking.checkOutSubmission && !readOnly ? 'Fill in' : undefined}
             />
           </div>
+
+          <ObservationsCard bookingId={booking._id} readOnly={readOnly} />
         </div>
       </div>
 

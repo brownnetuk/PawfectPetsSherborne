@@ -536,6 +536,24 @@ export interface BoardingBookingWithStatus {
   status: BookingStatusLabel;
 }
 
+// Care notes staff log against a Boarding & Day Care booking -- see
+// backend's BookingObservation schema.
+export const OBSERVATION_CATEGORIES = ['Toilet', 'Play', 'Medication', 'Feed', 'Groom', 'General'] as const;
+export type ObservationCategory = (typeof OBSERVATION_CATEGORIES)[number];
+export const MAX_OBSERVATION_PHOTOS = 5;
+
+export interface BookingObservation {
+  _id: string;
+  booking: string;
+  observedAt: string;
+  category: ObservationCategory;
+  description?: string;
+  photos: string[];
+  observedBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface BoardingWorkflowSettings {
   preCheckInDaysBefore: number;
   preCheckInFormBoarding: string | null;

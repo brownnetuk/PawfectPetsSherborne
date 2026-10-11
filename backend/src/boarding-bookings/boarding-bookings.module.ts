@@ -21,12 +21,19 @@ import {
 import { SettingsModule } from '../settings/settings.module';
 import { BoardingBookingsController } from './boarding-bookings.controller';
 import { BoardingBookingsService } from './boarding-bookings.service';
+import { BookingObservationsController } from './booking-observations.controller';
+import { BookingObservationsService } from './booking-observations.service';
 import { BoardingBooking, BoardingBookingSchema } from './schemas/boarding-booking.schema';
+import {
+  BookingObservation,
+  BookingObservationSchema,
+} from './schemas/booking-observation.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: BoardingBooking.name, schema: BoardingBookingSchema },
+      { name: BookingObservation.name, schema: BookingObservationSchema },
       // Read-only, for the booking reference counter -- registered directly
       // rather than importing SettingsModule's own forFeature, same
       // "declare your own copy" convention QuotesModule/InvoicesModule use.
@@ -67,8 +74,8 @@ import { BoardingBooking, BoardingBookingSchema } from './schemas/boarding-booki
     SettingsModule,
     AuditLogModule,
   ],
-  controllers: [BoardingBookingsController],
-  providers: [BoardingBookingsService],
+  controllers: [BoardingBookingsController, BookingObservationsController],
+  providers: [BoardingBookingsService, BookingObservationsService],
   exports: [BoardingBookingsService],
 })
 export class BoardingBookingsModule {}
