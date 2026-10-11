@@ -1,188 +1,24 @@
-import { jsPDF } from 'jspdf';
-import logoUrl from '../assets/logo.png';
+import type { jsPDF } from 'jspdf';
 import type { FormField, FormSubmissionRecord } from '../types';
 import { withPetName } from '../forms/formDefaults';
 import { formatMedications } from '../utils/formatMedications';
 import { parseRichLabelRuns } from '../utils/richLabel';
-
-const MARGIN = 40;
-const PAGE_WIDTH = 595.28; // A4, points
-const PAGE_HEIGHT = 841.89;
-const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
-const HEADER_HEIGHT = 74;
-const FOOTER_HEIGHT = 30;
-const CONTENT_BOTTOM = PAGE_HEIGHT - MARGIN - FOOTER_HEIGHT + 14;
-
-// Brand palette -- kept in sync by hand with admin/src/index.css and the
-// other PDF builders (no shared token source between them, same as those).
-const GREEN: [number, number, number] = [31, 59, 44]; // --brand-green
-const ACCENT: [number, number, number] = [232, 150, 60]; // --accent
-const MUTED: [number, number, number] = [111, 125, 114]; // --muted
-const BORDER: [number, number, number] = [227, 232, 222]; // --border
-const INK: [number, number, number] = [35, 44, 38]; // --ink
-
-interface Block {
-  height: number;
-  draw: (doc: jsPDF, y: number) => void;
-}
-
-// Word-wraps richLabel.tsx's **bold**/__underline__ markup for jsPDF, which
-// has no built-in support for mixed-formatting-within-a-line text --
-// doc.splitTextToSize()/doc.text() only know plain strings. Splits each
-// **bold**/__underline__ run into individual words (so wrapping can still
-// break between words *inside* a run), measures each word's width at the
-// given size (bold words use the bold font's own, wider metrics), then
-// greedily packs words onto lines up to maxWidth -- same greedy algorithm
-// doc.splitTextToSize() itself uses, just aware of per-word formatting.
-interface RichWord {
-  text: string;
-  bold: boolean;
-  underline: boolean;
-  width: number;
-}
-
-function richWords(doc: jsPDF, raw: string, fontSize: number): RichWord[] {
-  const words: RichWord[] = [];
-  for (const run of parseRichLabelRuns(raw)) {
-    for (const part of run.text.split(/(\s+)/).filter((p) => p.length > 0)) {
-      doc.setFont('helvetica', run.bold ? 'bold' : 'normal');
-      doc.setFontSize(fontSize);
-      words.push({ text: part, bold: run.bold, underline: run.underline, width: doc.getTextWidth(part) });
-    }
-  }
-  return words;
-}
-
-function wrapRichWords(words: RichWord[], maxWidth: number): RichWord[][] {
-  const lines: RichWord[][] = [];
-  let current: RichWord[] = [];
-  let currentWidth = 0;
-  for (const word of words) {
-    const isSpace = /^\s+$/.test(word.text);
-    if (isSpace && current.length === 0) continue; // never start a line with a space
-    if (currentWidth + word.width > maxWidth && current.length > 0) {
-      lines.push(current);
-      current = [];
-      currentWidth = 0;
-      if (isSpace) continue;
-    }
-    current.push(word);
-    currentWidth += word.width;
-  }
-  if (current.length > 0) lines.push(current);
-  return lines;
-}
-
-// Draws one already-wrapped line of RichWords, switching bold/normal per
-// word and underlining with a drawn rule (same reasoning as checklistBlock's
-// hand-drawn tick above -- not every glyph jsPDF's standard fonts carry
-// renders reliably, but a plain line under the text always does).
-function drawRichLine(doc: jsPDF, words: RichWord[], x: number, y: number, fontSize: number, color: [number, number, number]) {
-  let cursorX = x;
-  doc.setFontSize(fontSize);
-  for (const word of words) {
-    doc.setFont('helvetica', word.bold ? 'bold' : 'normal');
-    doc.setTextColor(...color);
-    doc.text(word.text, cursorX, y);
-    if (word.underline && word.text.trim().length > 0) {
-      doc.setDrawColor(...color);
-      doc.setLineWidth(0.6);
-      doc.line(cursorX, y + 2, cursorX + word.width, y + 2);
-    }
-    cursorX += word.width;
-  }
-}
-
-// Label stacked above its value (not side-by-side columns) -- a long label
-// (e.g. "Vaccination record checked and current") has nowhere near enough
-// room in a fixed-width label column at readable size, and would otherwise
-// run on into the value text next to it. Stacking is robust to any label
-// length and matches ReadOnlyAnswers' own on-screen label-above-value layout.
-// The label itself is word-wrapped (not just uppercased on one line) and
-// richLabel.tsx-aware, since a toggle/consent field's *label* is often the
-// long prose (e.g. "I consent to my dog being boarded...") with a short
-// value ("Yes") -- the reverse of a typical text-field answer.
-function fieldBlock(doc: jsPDF, label: string, value: string): Block {
-  const labelLines = wrapRichWords(richWords(doc, label.toUpperCase(), 8.5), CONTENT_WIDTH);
-  const labelLineHeight = 11;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  const valueLines = doc.splitTextToSize(value || '—', CONTENT_WIDTH) as string[];
-  const height = labelLines.length * labelLineHeight + 6 + valueLines.length * 13 + 6;
-  return {
-    height,
-    draw(doc, y) {
-      let cursorY = y;
-      labelLines.forEach((line) => {
-        drawRichLine(doc, line, MARGIN, cursorY, 8.5, MUTED);
-        cursorY += labelLineHeight;
-      });
-      cursorY += 6;
-      doc.setTextColor(...INK);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      valueLines.forEach((line, i) => doc.text(line, MARGIN, cursorY + i * 13));
-    },
-  };
-}
-
-// Used for a form's "display" (free text) fields -- often the exact wording
-// of what the signer consented to, so this renders in normal ink, not muted,
-// same as customerFormPdf.ts's own paragraphBlock (e.g. the vet authorisation
-// wording that precedes its signature). richLabel.tsx-aware, same reasoning
-// as fieldBlock above.
-function paragraphBlock(doc: jsPDF, text: string): Block {
-  const lines = wrapRichWords(richWords(doc, text, 9.5), CONTENT_WIDTH);
-  const lineHeight = 12;
-  const height = lines.length * lineHeight + 8;
-  return {
-    height,
-    draw(doc, y) {
-      lines.forEach((line, i) => drawRichLine(doc, line, MARGIN, y + i * lineHeight, 9.5, INK));
-    },
-  };
-}
-
-// A muted aside, e.g. "None provided." for an empty repeatable group --
-// distinct from paragraphBlock, which is for real form content.
-function mutedNoteBlock(text: string): Block {
-  return {
-    height: 18,
-    draw(doc, y) {
-      doc.setFont('helvetica', 'italic');
-      doc.setFontSize(9.5);
-      doc.setTextColor(...MUTED);
-      doc.text(text, MARGIN, y);
-      doc.setTextColor(...INK);
-    },
-  };
-}
-
-// A repeatable group's own heading (e.g. "Medication"), one step down from a
-// section title -- mirrors customerFormPdf.ts's subheadingBlock. Single
-// line (unlike fieldBlock/paragraphBlock above) -- these are short headings
-// (e.g. the pre-check-in form's "Boarding-specific questions"), not prose.
-function subheadingBlock(text: string): Block {
-  return {
-    height: 20,
-    draw(doc, y) {
-      // Always-bold text, so measure at bold weight directly (rather than
-      // richWords()'s usual per-run bold/normal) -- otherwise a plain-run
-      // word measured at normal weight would render at bold's wider metrics,
-      // drifting the line out of alignment with its own measured width.
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-      const words: RichWord[] = [];
-      for (const run of parseRichLabelRuns(text)) {
-        for (const part of run.text.split(/(\s+)/).filter((p) => p.length > 0)) {
-          words.push({ text: part, bold: true, underline: run.underline, width: doc.getTextWidth(part) });
-        }
-      }
-      drawRichLine(doc, words, MARGIN, y, 11, ACCENT);
-      doc.setTextColor(...INK);
-    },
-  };
-}
+import {
+  BODY,
+  BrandPdfWriter,
+  checklistBlock,
+  DISPLAY,
+  INNER_WIDTH,
+  loadContactLine,
+  mutedNoteBlock,
+  paragraphBlock,
+  setFont,
+  signatureBlock,
+  spacerBlock,
+  stackedFieldBlock,
+  subheadingBlock,
+  type Block,
+} from './brandPdf';
 
 // Plain text of a richLabel.tsx-marked-up label, for measuring.
 function plainLabel(text: string): string {
@@ -191,231 +27,30 @@ function plainLabel(text: string): string {
     .join('');
 }
 
-// Whether a label fits on one line in the given (bold) heading font -- the
-// test for whether a "display" field is a short heading (e.g. "Client
-// details") or prose (e.g. "I confirm that I have collected Bella..."),
-// which has to wrap as a paragraph instead of running off the page.
-function fitsOneLine(doc: jsPDF, text: string, font: 'times' | 'helvetica', fontSize: number): boolean {
-  doc.setFont(font, 'bold');
+// Whether a label fits on one line in the given heading font -- the test
+// for whether a "display" field is a short heading (e.g. "Client details")
+// or prose (e.g. "I confirm that I have collected Bella..."), which has to
+// wrap as a paragraph instead.
+function fitsOneLine(doc: jsPDF, text: string, font: typeof DISPLAY | typeof BODY, fontSize: number): boolean {
+  setFont(doc, font, 'bold');
   doc.setFontSize(fontSize);
-  return doc.getTextWidth(plainLabel(text)) <= CONTENT_WIDTH;
+  return doc.getTextWidth(plainLabel(text)) <= INNER_WIDTH;
 }
 
 // An inline (not section-opening) "display" field: a short one is a
 // sub-heading, anything longer is body text that wraps to the page width.
 function displayBlock(doc: jsPDF, text: string): Block {
-  return fitsOneLine(doc, text, 'helvetica', 11) ? subheadingBlock(text) : paragraphBlock(doc, text);
+  return fitsOneLine(doc, text, BODY, 10) ? subheadingBlock(doc, text) : paragraphBlock(doc, text);
 }
 
-function signatureBlock(dataUrl: string, label: string): Block {
-  const w = 200;
-  const h = 65;
-  return {
-    height: h + 36,
-    draw(doc, y) {
-      try {
-        doc.addImage(dataUrl, 'PNG', MARGIN, y, w, h);
-      } catch {
-        // Malformed/legacy signature data -- skip the image rather than fail the whole PDF.
-      }
-      doc.setDrawColor(...BORDER);
-      doc.line(MARGIN, y + h + 4, MARGIN + w, y + h + 4);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(...MUTED);
-      doc.text(label, MARGIN, y + h + 16);
-      doc.setTextColor(...INK);
-    },
-  };
+function fieldBlock(doc: jsPDF, label: string, value: string): Block {
+  return stackedFieldBlock(doc, label, value);
 }
 
-function photosBlock(label: string, photos: string[]): Block {
-  return {
-    height: 33,
-    draw(doc, y) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(...MUTED);
-      doc.text(label.toUpperCase(), MARGIN, y);
-      doc.setTextColor(...INK);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.text(`${photos.length} photo${photos.length === 1 ? '' : 's'} attached`, MARGIN, y + 13);
-    },
-  };
-}
-
-function spacerBlock(h: number): Block {
-  return { height: h, draw: () => {} };
-}
-
-// A multichoice answer's selected items, one per line with a tick -- a
-// long comma-joined list (e.g. every belongings item on one wrapped line)
-// reads far worse than a short checklist. The tick is drawn as two line
-// segments (same technique checklistPdf.ts's checklistItemBlock uses), not
-// a "✓" text character -- jsPDF's standard fonts don't reliably have that
-// glyph, so text()-ing it can render blank or as the wrong character.
-function checklistBlock(label: string, items: string[]): Block {
-  const lineHeight = 13;
-  const height = 13 + items.length * lineHeight + 6;
-  return {
-    height,
-    draw(doc, y) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(...MUTED);
-      doc.text(label.toUpperCase(), MARGIN, y);
-      doc.setTextColor(...INK);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      items.forEach((item, i) => {
-        const lineY = y + 13 + i * lineHeight;
-        doc.setDrawColor(...GREEN);
-        doc.setLineWidth(1.1);
-        doc.line(MARGIN + 1, lineY - 3, MARGIN + 3, lineY - 1);
-        doc.line(MARGIN + 3, lineY - 1, MARGIN + 7, lineY - 6);
-        doc.setDrawColor(...BORDER);
-        doc.setLineWidth(1);
-        doc.text(item, MARGIN + 14, lineY);
-      });
-    },
-  };
-}
-
-async function loadLogoDataUrl(): Promise<string | null> {
-  try {
-    const res = await fetch(logoUrl);
-    const blob = await res.blob();
-    return await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return null;
-  }
-}
-
-class PdfWriter {
-  doc = new jsPDF({ unit: 'pt', format: 'a4' });
-  y = MARGIN;
-  private pageCount = 1;
-
-  drawHeader(logo: string | null, subtitle: string) {
-    const doc = this.doc;
-    doc.setFillColor(...GREEN);
-    doc.rect(0, 0, PAGE_WIDTH, HEADER_HEIGHT, 'F');
-
-    const badgeCx = MARGIN + 17;
-    const badgeCy = HEADER_HEIGHT / 2;
-    doc.setFillColor(255, 255, 255);
-    doc.circle(badgeCx, badgeCy, 19, 'F');
-    if (logo) {
-      try {
-        doc.addImage(logo, 'PNG', badgeCx - 14, badgeCy - 14, 28, 28);
-      } catch {
-        // ignore malformed logo data
-      }
-    }
-
-    doc.setFont('times', 'bold');
-    doc.setFontSize(19);
-    doc.setTextColor(255, 255, 255);
-    doc.text('PawfectPets Sherborne', MARGIN + 46, badgeCy - 3);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(224, 233, 226);
-    const wrapped = doc.splitTextToSize(subtitle, PAGE_WIDTH - MARGIN * 2 - 46) as string[];
-    doc.text(wrapped[0] ?? '', MARGIN + 46, badgeCy + 14);
-
-    doc.setTextColor(...INK);
-    this.y = HEADER_HEIGHT + 26;
-  }
-
-  private newPage() {
-    this.doc.addPage();
-    this.pageCount += 1;
-    this.y = MARGIN;
-  }
-
-  /** Forces the next section onto a fresh page, unless one's already blank -- see FormBuilder's "+ New page" field. */
-  startNewPage() {
-    if (this.y > MARGIN) {
-      this.newPage();
-    }
-  }
-
-  private ensureSpace(h: number) {
-    if (this.y + h > CONTENT_BOTTOM) {
-      this.newPage();
-    }
-  }
-
-  // An empty title draws no heading at all -- see buildSections' untitled
-  // "+ New page" sections. A heading too long for one line wraps (each
-  // extra line adding TITLE_LINE_HEIGHT) rather than running off the page.
-  section(title: string, blocks: Block[]) {
-    const doc = this.doc;
-    doc.setFont('times', 'bold');
-    doc.setFontSize(14);
-    const titleLines = title ? (doc.splitTextToSize(title, CONTENT_WIDTH) as string[]) : [];
-    const TITLE_LINE_HEIGHT = 17;
-    const preGap = 10;
-    const headingHeight = titleLines.length > 0 ? preGap + 23 + (titleLines.length - 1) * TITLE_LINE_HEIGHT : 0;
-    const total = headingHeight + blocks.reduce((sum, b) => sum + b.height, 0);
-    const remaining = CONTENT_BOTTOM - this.y;
-    const fitsFreshPage = total <= CONTENT_BOTTOM - MARGIN;
-    if (total > remaining && fitsFreshPage && this.y > MARGIN) {
-      this.newPage();
-    }
-
-    if (titleLines.length > 0) {
-      this.ensureSpace(headingHeight);
-      this.y += preGap;
-      doc.setFont('times', 'bold');
-      doc.setFontSize(14);
-      doc.setTextColor(...GREEN);
-      titleLines.forEach((line, i) => doc.text(line, MARGIN, this.y + i * TITLE_LINE_HEIGHT));
-      doc.setTextColor(...INK);
-      this.y += (titleLines.length - 1) * TITLE_LINE_HEIGHT + 7;
-      doc.setDrawColor(...ACCENT);
-      doc.setLineWidth(1.6);
-      doc.line(MARGIN, this.y, MARGIN + 46, this.y);
-      doc.setDrawColor(...BORDER);
-      doc.setLineWidth(0.75);
-      doc.line(MARGIN + 46, this.y, PAGE_WIDTH - MARGIN, this.y);
-      doc.setLineWidth(1);
-      this.y += 16;
-    } else if (this.y === MARGIN) {
-      // Untitled section at the top of a fresh page: the first block's text
-      // baseline needs the same clearance a heading would have given it.
-      this.y += 12;
-    }
-
-    for (const block of blocks) {
-      this.ensureSpace(block.height);
-      block.draw(doc, this.y);
-      this.y += block.height;
-    }
-  }
-
-  finish(generatedNote: string) {
-    const total = this.doc.getNumberOfPages();
-    for (let i = 1; i <= total; i++) {
-      this.doc.setPage(i);
-      this.doc.setDrawColor(...BORDER);
-      this.doc.setLineWidth(0.75);
-      this.doc.line(MARGIN, PAGE_HEIGHT - MARGIN - 16, PAGE_WIDTH - MARGIN, PAGE_HEIGHT - MARGIN - 16);
-      this.doc.setFont('helvetica', 'normal');
-      this.doc.setFontSize(8);
-      this.doc.setTextColor(...MUTED);
-      this.doc.text(generatedNote, MARGIN, PAGE_HEIGHT - MARGIN - 4);
-      this.doc.text(`Page ${i} of ${total}`, PAGE_WIDTH - MARGIN, PAGE_HEIGHT - MARGIN - 4, { align: 'right' });
-      this.doc.setTextColor(...INK);
-    }
-  }
+// A photo field just notes how many were attached -- the images themselves
+// stay in the app.
+function photosBlock(doc: jsPDF, label: string, photos: string[]): Block {
+  return stackedFieldBlock(doc, label, `${photos.length} photo${photos.length === 1 ? '' : 's'} attached`);
 }
 
 function formatAnswer(field: FormField, value: unknown): string {
@@ -444,10 +79,10 @@ function singleFieldBlock(doc: jsPDF, field: FormField, value: unknown): Block {
     return signatureBlock(value, field.label);
   }
   if (field.type === 'file' && Array.isArray(value) && value.length > 0) {
-    return photosBlock(field.label, value as string[]);
+    return photosBlock(doc, field.label, value as string[]);
   }
   if (field.type === 'multichoice' && Array.isArray(value) && value.length > 0) {
-    return checklistBlock(field.label, value as string[]);
+    return checklistBlock(doc, field.label, value as string[]);
   }
   return fieldBlock(doc, field.label, formatAnswer(field, value));
 }
@@ -530,7 +165,7 @@ function buildSections(
         const opening: boolean = title === null && !field.startsNewPage;
         flush();
         forceNewPage = !!field.startsNewPage;
-        if (fitsOneLine(doc, field.label, 'times', 14)) {
+        if (fitsOneLine(doc, field.label, DISPLAY, 12)) {
           title = field.label;
         } else {
           title = opening ? formName : '';
@@ -565,19 +200,29 @@ function buildSections(
   return sections;
 }
 
-/** Renders a completed (or in-progress) form submission as a branded, multi-section PDF, mirroring customerFormPdf.ts's look. */
+/** Renders a completed (or in-progress) form submission as a branded, multi-section PDF, in the booking confirmation's style. */
 export async function buildFormSubmissionPdf(submission: FormSubmissionRecord): Promise<jsPDF> {
-  const logo = await loadLogoDataUrl();
-  const w = new PdfWriter();
+  const w = new BrandPdfWriter();
+  const [, contact] = await Promise.all([w.init(), loadContactLine()]);
   const doc = w.doc;
-  const now = new Date();
   const who = submission.recipientName || submission.recipientEmail;
-  const subtitle = submission.submittedAt
-    ? `${who} — submitted ${new Date(submission.submittedAt).toLocaleDateString('en-GB')}`
-    : who;
-  w.drawHeader(logo, subtitle);
+  w.drawHeader({
+    title: submission.formName,
+    subtitle: who ? `for ${who}` : undefined,
+    badge: submission.submittedAt
+      ? { label: 'Submitted', value: new Date(submission.submittedAt).toLocaleDateString('en-GB') }
+      : undefined,
+  });
 
   const sections = buildSections(doc, submission.formFieldsSnapshot, submission.answers ?? {}, submission.formName);
+  // The form's name is already the page title, so a section buildSections
+  // titled with it by default (the opening fields, or the signatures
+  // trailing a repeatable group) gets a plainer heading instead.
+  sections.forEach((section, i) => {
+    if (section.title === submission.formName) {
+      section.title = i > 0 && i === sections.length - 1 ? 'Sign-off' : 'Details';
+    }
+  });
   if (submission.formDescription && sections.length > 0) {
     sections[0].blocks.unshift(paragraphBlock(doc, submission.formDescription), spacerBlock(4));
   }
@@ -586,6 +231,6 @@ export async function buildFormSubmissionPdf(submission: FormSubmissionRecord): 
     w.section(section.title, section.blocks);
   }
 
-  w.finish(`Generated ${now.toLocaleDateString('en-GB')} · PawfectPets Sherborne`);
+  w.finish(contact);
   return w.doc;
 }
