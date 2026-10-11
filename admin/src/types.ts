@@ -177,6 +177,9 @@ export interface Booking {
 export interface DayBooking {
   _id: string;
   animal: { _id: string; name: string; species: Species } | string;
+  // Other pets on the same booking (a multi-pet Visits booking is one row per
+  // day, the first pet in `animal`).
+  additionalAnimals?: ({ _id: string; name: string; species: Species } | string)[];
   customer: { _id: string; name: string } | string;
   date: string;
   product: { _id: string; name: string; price: number } | string;

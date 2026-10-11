@@ -7,7 +7,7 @@ import Modal from './Modal';
 import { addDays, buildVisitPlan, dateKey, parseYmd } from '../utils/visitPlan';
 import type { VisitCount, VisitTime } from '../utils/visitPlan';
 import { annualLeaveOn, rangeOverlapsAnnualLeave } from '../utils/annualLeave';
-import { dayCareProductFor } from '../utils/visitMapping';
+import { dayCareProductFor, isVisitProduct } from '../utils/visitMapping';
 import type { Animal, AnnualLeave, Customer, DayBooking } from '../types';
 
 type Service = 'visits' | 'daycare' | 'boarding';
@@ -24,6 +24,11 @@ function animalId(animal: DayBooking['animal']): string {
 }
 function productIdOf(product: DayBooking['product']): string {
   return typeof product === 'string' ? product : product._id;
+}
+// Every pet a row covers -- its main `animal` plus any `additionalAnimals`
+// (a multi-pet Visits booking is a single row per day).
+function bookingAnimalIds(b: DayBooking): string[] {
+  return [animalId(b.animal), ...(b.additionalAnimals ?? []).map(animalId)];
 }
 
 // Passed when reopening this modal from an animal already booked in the
@@ -221,57 +226,132 @@ export default function NewBookingModal({
       // local getters undo the server's local-midnight-to-UTC offset, same
       // fix as productAvailability's dayTypeFor (a raw slice(0,10) compares
       // the wrong calendar day).
-      const existingByKey = new Map(existing.map((b) => [`${animalId(b.animal)}|${dateKey(new Date(b.date))}`, b]));
+      const existingVisitsByDay = new Map<string, DayBooking[]>();
+      for (const b of existing) {
+        if (!isVisitProduct(mapping, productIdOf(b.product))) continue;
+        const key = dateKey(new Date(b.date));
+        existingVisitsByDay.set(key, [...(existingVisitsByDay.get(key) ?? []), b]);
+      }
+
+      // One booking per day for all the selected pets -- one product, billed
+      // once -- not a row per pet. The pet being edited (if still selected)
+      // stays the row's main animal so its existing rows can be updated in
+      // place; the others ride along as additionalAnimals.
+      const primaryId = initial && animalIds.includes(initial.editAnimalId) ? initial.editAnimalId : animalIds[0];
+      const otherIds = animalIds.filter((id) => id !== primaryId);
+      const selected = new Set(animalIds);
+      const travelProductId = travelProductFor(primaryId);
 
       let created = 0;
       let updated = 0;
       let deleted = 0;
       let skipped = 0;
+      const removed = new Set<string>();
 
-      // Editing an existing range: remove that animal's entries for any day
-      // that's no longer in the (possibly shortened/moved) new range. Only
-      // runs while the animal being edited is still checked below -- if
-      // staff unchecked it, leave its existing entries alone rather than
-      // silently deleting them.
-      if (initial && animalIds.includes(initial.editAnimalId)) {
-        const newDateKeys = new Set(plan.map((p) => dateKey(p.date)));
+      async function remove(id: string) {
+        await api.deleteDayBooking(id);
+        removed.add(id);
+        deleted++;
+      }
+      // A pet's own uninvoiced travel row on a given day -- removed alongside
+      // a visit row that's being folded into (or moved off) this booking, so
+      // the day doesn't end up charging travel twice.
+      async function removeTravelFor(pet: string, key: string) {
+        const petTravel = travelProductFor(pet);
+        const row = petTravel
+          ? existing.find(
+              (t) =>
+                !removed.has(t._id) &&
+                !t.invoice &&
+                animalId(t.animal) === pet &&
+                dateKey(new Date(t.date)) === key &&
+                productIdOf(t.product) === petTravel,
+            )
+          : undefined;
+        if (row) await remove(row._id);
+      }
+
+      // Editing an existing range: remove the edited booking's entries for
+      // any day that's no longer in the (possibly shortened/moved) new range,
+      // or every entry if its pet was unchecked (the booking is recreated
+      // below under the first pet still selected).
+      const newDateKeys = new Set(plan.map((p) => dateKey(p.date)));
+      const editRowIds = new Set<string>();
+      if (initial) {
         for (const entry of initial.editEntries) {
-          if (!newDateKeys.has(entry.date)) {
-            await api.deleteDayBooking(entry.bookingId);
-            deleted++;
+          if (primaryId !== initial.editAnimalId || !newDateKeys.has(entry.date)) {
+            await remove(entry.bookingId);
+            if (primaryId !== initial.editAnimalId) await removeTravelFor(initial.editAnimalId, entry.date);
+          } else {
+            editRowIds.add(entry.bookingId);
           }
         }
       }
 
-      for (const id of animalIds) {
-        const travelProductId = travelProductFor(id);
-        const isEditAnimal = initial?.editAnimalId === id;
+      for (const { date, productId, visitTime } of plan) {
+        const key = dateKey(date);
+        const dayVisits = (existingVisitsByDay.get(key) ?? []).filter(
+          (b) => !removed.has(b._id) && bookingAnimalIds(b).some((id) => selected.has(id)),
+        );
+        const editRow = dayVisits.find((b) => editRowIds.has(b._id));
+        const clashes = dayVisits.filter((b) => b !== editRow);
 
-        for (const { date, productId, visitTime } of plan) {
-          const key = `${id}|${dateKey(date)}`;
-          const existingEntry = existingByKey.get(key);
-
-          if (existingEntry) {
-            if (isEditAnimal) {
-              const patch: { product?: string; visitTime?: 'AM' | 'PM' | null } = {};
-              if (productIdOf(existingEntry.product) !== productId) patch.product = productId;
-              if ((existingEntry.visitTime ?? null) !== (visitTime ?? null)) patch.visitTime = visitTime ?? null;
-              if (Object.keys(patch).length > 0) {
-                await api.updateDayBooking(existingEntry._id, patch);
-                updated++;
-              }
-            } else {
-              skipped++;
+        if (initial) {
+          // Updating a booking: fold in any separate, uninvoiced visit rows
+          // the other selected pets already have that day (e.g. older
+          // one-row-per-pet bookings), plus their own travel rows, so the day
+          // ends up as one booking. Invoiced rows, or rows that also cover a
+          // pet that isn't selected here, are left alone.
+          let blocked = false;
+          for (const b of clashes) {
+            if (b.invoice || !bookingAnimalIds(b).every((id) => selected.has(id))) {
+              blocked = true;
+              continue;
             }
+            await remove(b._id);
+            if (animalId(b.animal) !== primaryId) await removeTravelFor(animalId(b.animal), key);
+          }
+          if (blocked && !editRow) {
+            skipped++;
             continue;
           }
+        } else if (clashes.length > 0) {
+          skipped++;
+          continue;
+        }
 
-          await api.createDayBooking({ animal: id, date: dateKey(date), product: productId, quantity: 1, visitTime });
-          created++;
-          if (travelProductId && travelProductId !== productId) {
-            await api.createDayBooking({ animal: id, date: dateKey(date), product: travelProductId, quantity: 1 });
-            created++;
+        if (editRow) {
+          const patch: { product?: string; visitTime?: 'AM' | 'PM' | null; additionalAnimals?: string[] } = {};
+          if (productIdOf(editRow.product) !== productId) patch.product = productId;
+          if ((editRow.visitTime ?? null) !== (visitTime ?? null)) patch.visitTime = visitTime ?? null;
+          const currentOthers = (editRow.additionalAnimals ?? []).map(animalId);
+          if (currentOthers.join(',') !== otherIds.join(',')) patch.additionalAnimals = otherIds;
+          if (Object.keys(patch).length > 0) {
+            await api.updateDayBooking(editRow._id, patch);
+            updated++;
           }
+          continue;
+        }
+
+        await api.createDayBooking({
+          animal: primaryId,
+          additionalAnimals: otherIds,
+          date: key,
+          product: productId,
+          quantity: 1,
+          visitTime,
+        });
+        created++;
+        const hasTravel = existing.some(
+          (t) =>
+            !removed.has(t._id) &&
+            selected.has(animalId(t.animal)) &&
+            dateKey(new Date(t.date)) === key &&
+            productIdOf(t.product) === travelProductId,
+        );
+        if (travelProductId && travelProductId !== productId && !hasTravel) {
+          await api.createDayBooking({ animal: primaryId, date: key, product: travelProductId, quantity: 1 });
+          created++;
         }
       }
 
@@ -681,7 +761,7 @@ export default function NewBookingModal({
         <Modal title="Delete this booking?" onClose={() => setConfirmDelete(false)}>
           <p>
             This permanently removes every day of this booking ({initial?.editEntries.length ?? 0} day
-            {initial && initial.editEntries.length === 1 ? '' : 's'}) for this animal.
+            {initial && initial.editEntries.length === 1 ? '' : 's'}).
           </p>
           <div className="modal-actions">
             <button type="button" className="btn btn-secondary" onClick={() => setConfirmDelete(false)}>

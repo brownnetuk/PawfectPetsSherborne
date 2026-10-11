@@ -1,11 +1,17 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDateString, IsIn, IsInt, IsMongoId, IsOptional, IsString, Matches, Min, ValidateIf } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsMongoId, IsOptional, IsString, Matches, Min, ValidateIf } from 'class-validator';
 
 const TIME_FORMAT = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export class CreateDayBookingDto {
   @IsMongoId()
   animal: string;
+
+  // The other pets sharing this booking (see the DayBooking schema).
+  @IsOptional()
+  @IsArray()
+  @IsMongoId({ each: true })
+  additionalAnimals?: string[];
 
   @IsDateString()
   date: string;

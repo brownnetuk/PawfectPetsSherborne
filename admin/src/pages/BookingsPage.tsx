@@ -100,6 +100,16 @@ function animalId(animal: DayBooking['animal']): string {
 function animalLabel(animal: DayBooking['animal']): string {
   return typeof animal === 'string' ? animal : animal.name;
 }
+// Every pet a row covers -- a multi-pet Visits booking is one row per day with
+// the other pets in additionalAnimals.
+function bookingAnimalIds(b: DayBooking): string[] {
+  return [animalId(b.animal), ...(b.additionalAnimals ?? []).map(animalId)];
+}
+// "Harry", "Harry & Archie", "Harry, Archie & Benji".
+function bookingAnimalsLabel(b: DayBooking): string {
+  const names = [animalLabel(b.animal), ...(b.additionalAnimals ?? []).map(animalLabel)];
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}` : names[0];
+}
 function customerLabel(customer: DayBooking['customer']): string {
   return typeof customer === 'string' ? customer : customer.name;
 }
@@ -327,6 +337,7 @@ export default function BookingsPage() {
       }
       if (showVisits && visitEntries.length > 0) {
         const invoiced = visitEntries.every((b) => !!b.invoice);
+        const name = bookingAnimalsLabel(visitEntries[0]);
         const count = visitMapping ? visitCountForProduct(visitMapping, productId(visitEntries[0].product)) : null;
         if (count === 2) {
           amVisitBadges.push({ key: `${aid}-visit-am`, label: `${name} - AM`, kind: 'visit', invoiced });
@@ -423,7 +434,7 @@ export default function BookingsPage() {
 
     setBookingModal({
       customerId: animal.customer,
-      animalIds: [aid],
+      animalIds: bookingAnimalIds(byDate.get(dateKey(fromDate))!),
       startDate: dateKey(start),
       endDate: dateKey(end),
       visitsPerDay,
@@ -788,7 +799,7 @@ function DayDetailPanel({
   }, [date]);
 
   const ownerOf = (custId: string) => customers.find((c) => c._id === custId);
-  const alreadyAdded = new Set(dayBookings.map((b) => animalId(b.animal)));
+  const alreadyAdded = new Set(dayBookings.flatMap(bookingAnimalIds));
 
   function hasVisitOn(targetDate: Date, aid: string): boolean {
     if (!visitMapping) return false;
@@ -1110,7 +1121,7 @@ function DayDetailPanel({
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {animalLabel(group[0].animal)}
+                      {bookingAnimalsLabel(group[0])}
                     </button>
                     <span
                       style={{

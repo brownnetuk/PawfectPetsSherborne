@@ -282,6 +282,7 @@ class Repository {
 
   Future<DayBooking> createDayBooking({
     required String animalId,
+    List<String> additionalAnimalIds = const [],
     required DateTime date,
     required String productId,
     int quantity = 1,
@@ -289,6 +290,7 @@ class Repository {
   }) async =>
       DayBooking.fromJson(await _client.post('/day-bookings', {
         'animal': animalId,
+        if (additionalAnimalIds.isNotEmpty) 'additionalAnimals': additionalAnimalIds,
         'date': _ymd(date),
         'product': productId,
         'quantity': quantity,

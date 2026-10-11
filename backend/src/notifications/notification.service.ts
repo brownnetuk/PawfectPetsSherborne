@@ -149,7 +149,9 @@ export class NotificationService {
     const dayBookings = await this.dayBookingModel
       .find({ date: { $gte: dayStart, $lt: dayEnd } })
       .exec();
-    const dogCount = new Set(dayBookings.map((b) => b.animal.toString())).size;
+    const dogCount = new Set(
+      dayBookings.flatMap((b) => [b.animal, ...(b.additionalAnimals ?? [])].map((a) => a.toString())),
+    ).size;
     const appointments = await this.appointmentModel
       .countDocuments({ date: { $gte: dayStart, $lt: dayEnd } })
       .exec();

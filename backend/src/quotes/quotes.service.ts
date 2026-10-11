@@ -424,10 +424,14 @@ export class QuotesService {
         if (days.length === 1 || isFirst) visitTime = 'PM';
         else if (isLast) visitTime = 'AM';
       }
-      for (const animal of animals) {
+      // One booking per day covering every pet (one product, billed once) --
+      // not a row per pet.
+      if (animals.length > 0) {
+        const [primary, ...others] = animals;
         await new this.dayBookingModel({
-          animal: animal._id,
-          customer: animal.customer,
+          animal: primary._id,
+          additionalAnimals: others.map((a) => a._id),
+          customer: primary.customer,
           date,
           product: productId,
           quantity: 1,

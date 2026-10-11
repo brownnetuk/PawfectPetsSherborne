@@ -467,6 +467,7 @@ export class PortalService {
       .find({ customer: customerId })
       .sort({ date: -1 })
       .populate('animal', 'name')
+      .populate('additionalAnimals', 'name')
       .populate('product', 'name')
       .exec();
   }
