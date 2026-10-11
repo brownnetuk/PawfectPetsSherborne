@@ -112,7 +112,9 @@ export class BoardingBooking extends Document {
   // from the fields above (see BoardingBookingsService.statusLabel()) --
   // set once staff manually override it from the Booking Detail page,
   // and stays pinned to that value (even across further automatic
-  // progress) until cleared back to automatic or changed again.
+  // progress) until cleared back to automatic or changed again -- except
+  // that a recorded check-in/check-out which moves the booking past the
+  // pinned status supersedes it (see BoardingBookingsService.effectiveOverride()).
   @Prop({ enum: BOOKING_STATUS_LABELS })
   statusOverride?: BookingStatusLabel;
 

@@ -1353,7 +1353,7 @@ function BookingsTab({
   const [autoStage, setAutoStage] = useState<'checkIn' | 'checkOut' | undefined>(undefined);
   const [showNew, setShowNew] = useState(false);
   const [refreshSignal, setRefreshSignal] = useState(0);
-  const [viewTab, setViewTab] = useState<'current' | 'archive'>('current');
+  const [viewTab, setViewTab] = useState<'current' | 'complete' | 'archive'>('current');
   const [archiving, setArchiving] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1407,6 +1407,9 @@ function BookingsTab({
         <button className={viewTab === 'current' ? 'active' : ''} onClick={() => setViewTab('current')}>
           Current
         </button>
+        <button className={viewTab === 'complete' ? 'active' : ''} onClick={() => setViewTab('complete')}>
+          Complete
+        </button>
         <button className={viewTab === 'archive' ? 'active' : ''} onClick={() => setViewTab('archive')}>
           Archive
         </button>
@@ -1415,9 +1418,16 @@ function BookingsTab({
       <div className="card">
         {(() => {
           if (!items) return <div className="empty-state">Loading…</div>;
-          const filtered = items.filter(({ booking }) => (viewTab === 'archive' ? booking.archived : !booking.archived));
+          // Archived wins over complete, so an archived booking only ever
+          // shows under Archive.
+          const filtered = items.filter(({ booking, status }) => {
+            if (viewTab === 'archive') return booking.archived;
+            if (booking.archived) return false;
+            return viewTab === 'complete' ? status === 'Booking Complete' : status !== 'Booking Complete';
+          });
           if (filtered.length === 0) {
-            return <div className="empty-state">{viewTab === 'archive' ? 'No archived bookings.' : 'No bookings yet.'}</div>;
+            const emptyText = { current: 'No bookings yet.', complete: 'No completed bookings.', archive: 'No archived bookings.' };
+            return <div className="empty-state">{emptyText[viewTab]}</div>;
           }
           return (
             <table>
