@@ -8,6 +8,7 @@ import '../models/bank_holiday.dart';
 import '../models/bank_transfer.dart';
 import '../models/boarding_booking.dart';
 import '../models/booking.dart';
+import '../models/booking_observation.dart';
 import '../models/day_booking.dart';
 import '../models/finance_report.dart';
 import '../models/payment.dart' as models;
@@ -564,6 +565,29 @@ class Repository {
       depositPercentage: (json['depositPercentage'] as num?)?.toDouble() ?? 0,
     );
   }
+
+  // --- booking observations (care notes on a boarding/day care booking) ---
+  Future<List<BookingObservation>> listBookingObservations(String bookingId) async =>
+      (await _client.getList('/boarding-bookings/$bookingId/observations'))
+          .map((e) => BookingObservation.fromJson(e))
+          .toList();
+
+  Future<void> createBookingObservation(
+    String bookingId, {
+    required DateTime observedAt,
+    required String category,
+    String? description,
+    List<String> photos = const [],
+  }) =>
+      _client.post('/boarding-bookings/$bookingId/observations', {
+        'observedAt': observedAt.toUtc().toIso8601String(),
+        'category': category,
+        if (description != null && description.isNotEmpty) 'description': description,
+        if (photos.isNotEmpty) 'photos': photos,
+      });
+
+  Future<void> deleteBookingObservation(String bookingId, String id) =>
+      _client.delete('/boarding-bookings/$bookingId/observations/$id');
 
   // --- payments ---
   Future<List<PaymentMethod>> listPaymentMethods() async =>

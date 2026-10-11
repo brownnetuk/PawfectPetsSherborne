@@ -12,6 +12,7 @@ import 'customer_forms_screen.dart';
 import 'form_fill_screen.dart';
 import 'invoice_detail_screen.dart';
 import 'new_boarding_booking_screen.dart';
+import 'observations_screen.dart';
 
 /// The reference-numbered Boarding & Day Care bookings, mirroring the admin's
 /// Boarding & Day Care > Bookings tab: one card per booking with reference,
@@ -603,6 +604,15 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
             if (b.preCheckInSubmission != null)
               _actionButton(Icons.assignment_turned_in_outlined, 'View pre-check-in form',
                   () => _openForm(b.preCheckInSubmission!)),
+            _actionButton(
+              Icons.visibility_outlined,
+              'Observations',
+              () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ObservationsScreen(bookingId: b.id, bookingReference: b.reference),
+                ),
+              ),
+            ),
             if (b.checkInSubmission == null || b.checkOutSubmission == null)
               _actionButton(Icons.swap_horiz_outlined, _startingCheck ? 'Preparing…' : 'Arrive / Depart',
                   _arriveDepart),
