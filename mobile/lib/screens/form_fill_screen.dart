@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
+import '../models/animal.dart';
+import '../models/customer.dart';
 import '../models/form_submission.dart';
 import '../state/auth_provider.dart';
 import '../widgets/signature_pad.dart';
@@ -30,6 +32,14 @@ class FormFillScreen extends StatefulWidget {
   final String? referenceSubmissionId;
   final String referenceLabel;
 
+  /// The booking's customer -- lets the check-in form surface the pets'
+  /// vaccination cards and the customer's emergency contact inline.
+  final String? customerId;
+
+  /// The booking's completed pre-check-in submission, consulted for the
+  /// owner's feeding answers under the feeding-confirmed toggle.
+  final String? preCheckInSubmissionId;
+
   const FormFillScreen({
     super.key,
     required this.submissionId,
@@ -37,6 +47,8 @@ class FormFillScreen extends StatefulWidget {
     this.presetPetNames = const [],
     this.referenceSubmissionId,
     this.referenceLabel = 'Check-in details',
+    this.customerId,
+    this.preCheckInSubmissionId,
   });
 
   @override
@@ -57,6 +69,15 @@ class _FormFillScreenState extends State<FormFillScreen> {
   /// check-out. Null when there's no reference or it failed to load (the
   /// "View" button still reports on-demand failures).
   FormSubmission? _reference;
+
+  /// The booking's pets and customer (when [FormFillScreen.customerId] is
+  /// given) -- feed the vaccination-card thumbnails and the emergency-contact
+  /// modal. Best-effort: the form still fills fine without them.
+  List<Animal> _animals = [];
+  Customer? _customer;
+
+  /// Lazily-fetched pre-check-in submission for the feeding modal.
+  FormSubmission? _preCheckIn;
 
   static final _dateFmt = DateFormat('d MMM yyyy');
   static final _dateTimeFmt = DateFormat('d MMM yyyy, HH:mm');
@@ -79,6 +100,16 @@ class _FormFillScreenState extends State<FormFillScreen> {
           // Inline check-in context is a nicety; the form still fills fine.
         }
       }
+      var animals = <Animal>[];
+      Customer? customer;
+      if (widget.customerId != null) {
+        try {
+          animals = await repo.listAnimals(widget.customerId!);
+          customer = await repo.getCustomer(widget.customerId!);
+        } catch (_) {
+          // Vaccination cards / emergency contact are niceties too.
+        }
+      }
       if (!mounted) return;
       final staffName = context.read<AuthProvider>().staff?.name ?? 'Staff';
       final fields = (json['fields'] as List<dynamic>? ?? [])
@@ -93,6 +124,8 @@ class _FormFillScreenState extends State<FormFillScreen> {
         _fields = fields;
         _formDescription = json['formDescription'] as String?;
         _reference = reference;
+        _animals = animals;
+        _customer = customer;
         _initAnswers(fields);
       });
     } catch (e) {
@@ -158,7 +191,48 @@ class _FormFillScreenState extends State<FormFillScreen> {
         final minRepeats = (f['minRepeats'] as num?)?.toInt() ?? 0;
         _answers[id] = List.generate(minRepeats, (_) => _defaultAnswersFor(groupFields));
       }
+      _prefillBelongingsFromReference(id, groupFields);
     }
+  }
+
+  /// Links check-in to check-out: whatever belongings were ticked for each pet
+  /// at check-in start out ticked on that pet's "Belongings returned" list.
+  /// Matches by pet name when both sides carry one, else by repetition order.
+  void _prefillBelongingsFromReference(String groupId, List<Map<String, dynamic>> groupFields) {
+    final ref = _referenceGroup();
+    if (ref == null) return;
+    bool isBelongings(Map<String, dynamic> f) =>
+        f['type'] == 'multichoice' &&
+        (f['label']?.toString().toLowerCase().contains('belongings') ?? false);
+    String? refBelongingsId;
+    for (final f in ref.fields) {
+      if (isBelongings(f)) refBelongingsId = f['id'] as String?;
+    }
+    final targets = groupFields.where(isBelongings).toList();
+    if (refBelongingsId == null || targets.isEmpty) return;
+    final repetitions = (_answers[groupId] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+    for (var i = 0; i < repetitions.length; i++) {
+      final petName = _petNameOf(groupFields, repetitions[i]);
+      Map<String, dynamic>? refRepetition;
+      if (petName != null && ref.petFieldId != null) {
+        for (final rep in ref.repetitions) {
+          if (rep[ref.petFieldId]?.toString() == petName) refRepetition = rep;
+        }
+      }
+      refRepetition ??= i < ref.repetitions.length ? ref.repetitions[i] : null;
+      if (refRepetition == null) continue;
+      final brought =
+          (refRepetition[refBelongingsId] as List<dynamic>? ?? []).map((v) => v.toString()).toList();
+      if (brought.isEmpty) continue;
+      for (final target in targets) {
+        final options = (target['options'] as List<dynamic>? ?? []).map((o) => o.toString()).toList();
+        repetitions[i] = {
+          ...repetitions[i],
+          target['id'] as String: brought.where(options.contains).toList(),
+        };
+      }
+    }
+    _answers[groupId] = repetitions;
   }
 
   List<Map<String, dynamic>> _groupFields(Map<String, dynamic> group) =>
@@ -358,12 +432,18 @@ class _FormFillScreenState extends State<FormFillScreen> {
           ),
         ));
       case 'toggle':
-        return SwitchListTile(
+        final extra = _toggleExtra(label);
+        final tile = SwitchListTile(
           contentPadding: EdgeInsets.zero,
           dense: true,
           title: Text(label),
           value: value == true,
           onChanged: (v) => setAnswer(id, v),
+        );
+        if (extra == null) return tile;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [tile, extra],
         );
       case 'choice':
         final options = (field['options'] as List<dynamic>? ?? []).map((o) => o.toString()).toList();
@@ -378,6 +458,19 @@ class _FormFillScreenState extends State<FormFillScreen> {
       case 'multichoice':
         final options = (field['options'] as List<dynamic>? ?? []).map((o) => o.toString()).toList();
         final selected = (value as List<dynamic>? ?? []).map((v) => v.toString()).toList();
+        // Belongings lists use sliding switches; other multichoice fields keep
+        // their checkboxes.
+        final useSwitches = label.toLowerCase().contains('belongings');
+        void toggleOption(String option, bool on) {
+          final next = [...selected];
+          if (on) {
+            next.add(option);
+          } else {
+            next.remove(option);
+          }
+          setAnswer(id, next);
+        }
+
         return Padding(
           padding: const EdgeInsets.only(bottom: 4),
           child: Column(
@@ -385,22 +478,23 @@ class _FormFillScreenState extends State<FormFillScreen> {
             children: [
               _fieldLabel(labelText),
               for (final o in options)
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  value: selected.contains(o),
-                  onChanged: (v) {
-                    final next = [...selected];
-                    if (v == true) {
-                      next.add(o);
-                    } else {
-                      next.remove(o);
-                    }
-                    setAnswer(id, next);
-                  },
-                  title: Text(o),
-                ),
+                if (useSwitches)
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    value: selected.contains(o),
+                    onChanged: (v) => toggleOption(o, v),
+                    title: Text(o),
+                  )
+                else
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: selected.contains(o),
+                    onChanged: (v) => toggleOption(o, v == true),
+                    title: Text(o),
+                  ),
             ],
           ),
         );
@@ -517,6 +611,262 @@ class _FormFillScreenState extends State<FormFillScreen> {
       ),
     );
   }
+
+  // --- inline context under the check-in confirmation toggles ---
+
+  /// Context shown under a confirmation toggle, picked by its label: the
+  /// pets' vaccination cards, the owner's pre-check-in feeding answers, or
+  /// the customer's emergency contact.
+  Widget? _toggleExtra(String label) {
+    final lower = label.toLowerCase();
+    if (lower.contains('vaccination record')) return _vaccineCardThumbs();
+    if (lower.contains('feeding') && widget.preCheckInSubmissionId != null) {
+      return _extraLink(Icons.restaurant_outlined, 'View feeding instructions', _showFeedingModal);
+    }
+    if (lower.contains('emergency contact') && _customer != null) {
+      return _extraLink(Icons.contact_phone_outlined, 'View emergency contact', _showEmergencyContact);
+    }
+    return null;
+  }
+
+  Widget _extraLink(IconData icon, String label, VoidCallback onTap) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: _busy ? null : onTap,
+        icon: Icon(icon, size: 18),
+        label: Text(label),
+      ),
+    );
+  }
+
+  /// The booked pets' vaccination cards (from their customer-details records),
+  /// as tappable thumbnails that expand to a zoomable full view.
+  Widget? _vaccineCardThumbs() {
+    final withCards = _animals
+        .where((a) =>
+            (widget.presetPetNames.isEmpty || widget.presetPetNames.contains(a.name)) &&
+            (a.vaccineRecordPhoto?.trim().isNotEmpty ?? false))
+        .toList();
+    if (withCards.isEmpty) return null;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final animal in withCards)
+            InkWell(
+              onTap: () => _showVaccineCard(animal),
+              child: Column(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: _memoryImage(animal.vaccineRecordPhoto!, height: 64, width: 64) ??
+                        Container(
+                          height: 64,
+                          width: 64,
+                          color: Colors.grey.shade200,
+                          child: const Icon(Icons.broken_image_outlined, color: Colors.grey),
+                        ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(animal.name, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Image? _memoryImage(String dataUri, {double? height, double? width, BoxFit fit = BoxFit.cover}) {
+    try {
+      return Image.memory(
+        base64Decode(dataUri.split(',').last),
+        height: height,
+        width: width,
+        fit: fit,
+      );
+    } on FormatException {
+      return null;
+    }
+  }
+
+  void _showVaccineCard(Animal animal) {
+    final image = _memoryImage(animal.vaccineRecordPhoto!, fit: BoxFit.contain);
+    if (image == null) return;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        insetPadding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 4, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text('${animal.name} — vaccination card',
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                  ),
+                ],
+              ),
+            ),
+            Flexible(child: InteractiveViewer(maxScale: 6, child: image)),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The owner's feeding answers from the pre-check-in form, per pet: how many
+  /// times a day, how much, and any specific feeding information.
+  Future<void> _showFeedingModal() async {
+    if (_busy) return;
+    if (_preCheckIn == null) {
+      setState(() => _busy = true);
+      try {
+        _preCheckIn = await context.read<Repository>().getFormSubmission(widget.preCheckInSubmissionId!);
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Failed to load the pre-check-in form.')));
+        }
+        return;
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+    }
+    if (!mounted) return;
+
+    bool isFeeding(Map<String, dynamic> f) {
+      final l = (f['label']?.toString() ?? '').toLowerCase();
+      return l.contains('feed') || l.contains('fed');
+    }
+
+    // Question/answer rows grouped per pet ('' = whole-form answers) -- the
+    // pre-check-in asks the feeding questions inside each pet's section.
+    final byPet = <String, List<(String, String)>>{};
+    final submission = _preCheckIn!;
+    for (final f in submission.fields) {
+      if (f['type'] == 'group') {
+        final groupFields = _groupFields(f);
+        String? petFieldId;
+        for (final gf in groupFields) {
+          if (gf['type'] == 'choice' && gf['optionsSource'] == 'customerPets') {
+            petFieldId = gf['id'] as String?;
+          }
+        }
+        final repetitions = (submission.answers[f['id']] as List<dynamic>? ?? [])
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
+        for (final rep in repetitions) {
+          final pet = (petFieldId != null ? rep[petFieldId]?.toString() : null) ?? '';
+          for (final gf in groupFields.where(isFeeding)) {
+            byPet.putIfAbsent(pet, () => []).add((
+              gf['label'] as String? ?? '',
+              _formatRefAnswer(gf['type'] as String? ?? 'text', rep[gf['id']]),
+            ));
+          }
+        }
+      } else if (isFeeding(f)) {
+        byPet.putIfAbsent('', () => []).add((
+          f['label'] as String? ?? '',
+          _formatRefAnswer(f['type'] as String? ?? 'text', submission.answers[f['id']]),
+        ));
+      }
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _infoSheet(
+        title: 'Feeding instructions',
+        children: byPet.isEmpty
+            ? [Text('No feeding answers on the pre-check-in form.', style: TextStyle(color: Colors.grey.shade600))]
+            : [
+                for (final entry in byPet.entries) ...[
+                  if (entry.key.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8, bottom: 4),
+                      child: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                  for (final (question, answer) in entry.value) _infoRow(question, answer),
+                ],
+              ],
+      ),
+    );
+  }
+
+  /// The customer's emergency contact, from their customer record (which the
+  /// completed pre-check-in form keeps up to date).
+  Future<void> _showEmergencyContact() async {
+    final contact = _customer?.emergencyContact;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _infoSheet(
+        title: 'Emergency contact',
+        children: contact == null
+            ? [Text('No emergency contact on file.', style: TextStyle(color: Colors.grey.shade600))]
+            : [
+                if (contact.sameAsClient) ...[
+                  _infoRow('Contact', 'Same as the client'),
+                  _infoRow('Name', _customer!.name),
+                  _infoRow('Phone', _customer!.phoneNumber ?? '—'),
+                  _infoRow('Email', _customer!.email),
+                  _infoRow('Address', _customer!.address ?? '—'),
+                ] else ...[
+                  _infoRow('Name', contact.name ?? '—'),
+                  _infoRow('Phone', contact.phoneNumber ?? '—'),
+                  _infoRow('Email', contact.email ?? '—'),
+                  _infoRow('Address', contact.address ?? '—'),
+                ],
+              ],
+      ),
+    );
+  }
+
+  Widget _infoSheet({required String title, required List<Widget> children}) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            const SizedBox(height: 10),
+            Flexible(
+              child: SingleChildScrollView(
+                child:
+                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+            Text(value.isEmpty ? '—' : value),
+          ],
+        ),
+      );
 
   // --- inline check-in context inside each pet's check-out section ---
 

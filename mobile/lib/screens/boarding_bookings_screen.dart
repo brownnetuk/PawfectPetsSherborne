@@ -401,6 +401,10 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
             // Shown as a "View check-in details" button while filling in
             // check-out, same context the admin gives.
             referenceSubmissionId: isCheckIn ? null : b.checkInSubmission,
+            // Feeds the vaccination-card thumbnails, feeding-instructions
+            // modal and emergency-contact modal under the check-in toggles.
+            customerId: b.customerId,
+            preCheckInSubmissionId: b.preCheckInSubmission,
           ),
         ),
       );
