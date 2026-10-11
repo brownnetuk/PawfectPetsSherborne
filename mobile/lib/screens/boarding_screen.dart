@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'boarding_bookings_screen.dart';
 import 'home_shell.dart';
+import 'in_progress_screen.dart';
 import 'next_booking_screen.dart';
 
 /// Hub for the Boarding & Day Care area, reached from the bottom bar --
@@ -32,6 +33,16 @@ class BoardingScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const NextBookingScreen()),
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: Icon(Icons.pets_outlined, color: Theme.of(context).colorScheme.primary),
+            title: const Text('In Progress'),
+            subtitle: const Text('Checked-in bookings, until checked out'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const InProgressScreen()),
             ),
           ),
           const Divider(height: 1),
