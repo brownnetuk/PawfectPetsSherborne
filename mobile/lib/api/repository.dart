@@ -569,22 +569,32 @@ class Repository {
   Future<List<PaymentMethod>> listPaymentMethods() async =>
       (await _client.getList('/payment-methods')).map((e) => PaymentMethod.fromJson(e)).toList();
 
-  Future<void> recordPayment({
+  /// Records a payment and returns its id. The server's automatic "Thank You"
+  /// email is suppressed -- the payment sheet asks first and sends it via
+  /// [sendPaymentThankYou] only on a yes.
+  Future<String> recordPayment({
     required String invoiceId,
     required DateTime date,
     required double amount,
     required String accountId,
     String? paymentMethod,
     double? charges,
-  }) async =>
-      _client.post('/payments', {
-        'invoice': invoiceId,
-        'date': date.toIso8601String(),
-        'amount': amount,
-        'account': accountId,
-        if (paymentMethod != null && paymentMethod.isNotEmpty) 'paymentMethod': paymentMethod,
-        if (charges != null && charges > 0) 'charges': charges,
-      });
+  }) async {
+    final created = await _client.post('/payments', {
+      'invoice': invoiceId,
+      'date': date.toIso8601String(),
+      'amount': amount,
+      'account': accountId,
+      if (paymentMethod != null && paymentMethod.isNotEmpty) 'paymentMethod': paymentMethod,
+      if (charges != null && charges > 0) 'charges': charges,
+      'skipThankYouEmail': true,
+    });
+    return created['_id'] as String? ?? '';
+  }
+
+  /// Emails the customer the "Thank You" for a recorded payment.
+  Future<void> sendPaymentThankYou(String paymentId) =>
+      _client.post('/payments/$paymentId/send-email', {});
 
   /// Edits an existing payment. The server reverses the old invoice/account
   /// effects and re-applies them with these values.

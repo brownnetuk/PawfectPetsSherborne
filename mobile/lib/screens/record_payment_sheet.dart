@@ -198,14 +198,16 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
           return;
         }
       }
-      await repo.recordPayment(
-            invoiceId: widget.invoice.id,
-            date: _date,
-            amount: amount,
-            accountId: _account!.id,
-            paymentMethod: _paymentMethod?.name,
-            charges: double.tryParse(_chargesController.text.trim()),
-          );
+      final paymentId = await repo.recordPayment(
+        invoiceId: widget.invoice.id,
+        date: _date,
+        amount: amount,
+        accountId: _account!.id,
+        paymentMethod: _paymentMethod?.name,
+        charges: double.tryParse(_chargesController.text.trim()),
+      );
+      if (!mounted) return;
+      await _offerThankYouEmail(repo, messenger, paymentId);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -218,6 +220,43 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  /// The payment is recorded -- offer to email the customer a thank-you for
+  /// it. Yes sends (reporting any failure), No just closes the prompt.
+  Future<void> _offerThankYouEmail(
+    Repository repo,
+    ScaffoldMessengerState messenger,
+    String paymentId,
+  ) async {
+    if (paymentId.isEmpty) return;
+    final send = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Payment recorded'),
+        content: const Text('Send a thank you for payment email to the customer?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('No'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Yes, send'),
+          ),
+        ],
+      ),
+    );
+    if (send != true) return;
+    try {
+      await repo.sendPaymentThankYou(paymentId);
+      messenger.showSnackBar(const SnackBar(content: Text('Thank-you email sent.')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(e is ApiException ? e.message : 'Failed to send the thank-you email.'),
+      ));
     }
   }
 

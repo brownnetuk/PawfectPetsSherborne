@@ -87,8 +87,9 @@ export class PaymentsService {
       });
       chargesExpense = expense._id;
     }
+    const { skipThankYouEmail, ...paymentFields } = dto;
     const created = new this.paymentModel({
-      ...dto,
+      ...paymentFields,
       paymentId,
       chargesExpense,
     });
@@ -125,7 +126,7 @@ export class PaymentsService {
       address?: string;
       phoneNumber?: string;
     };
-    if (customer?.email) {
+    if (customer?.email && !skipThankYouEmail) {
       try {
         await this.settingsService.sendTemplatedEmail(
           EmailTrigger.PAYMENT_RECEIVED,

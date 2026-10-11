@@ -1,5 +1,13 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsMongoId, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsMongoId,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 
 export class CreatePaymentDto {
   @IsMongoId()
@@ -25,4 +33,11 @@ export class CreatePaymentDto {
 
   @IsMongoId()
   account: string;
+
+  // Suppresses create()'s automatic "Thank You" email -- the staff app asks
+  // the staff member first and sends it via POST /payments/:id/send-email
+  // only if they confirm.
+  @IsOptional()
+  @IsBoolean()
+  skipThankYouEmail?: boolean;
 }
