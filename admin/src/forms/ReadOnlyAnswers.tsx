@@ -1,6 +1,7 @@
 import type { FormField } from '../types';
 import { formatMedications } from '../utils/formatMedications';
 import RichLabel from '../utils/richLabel';
+import { withPetName } from './formDefaults';
 
 // Direct port of frontend/src/forms/ReadOnlyAnswers.tsx -- no CSS
 // dependencies beyond .field/var(--border)/var(--muted), which admin
@@ -9,6 +10,7 @@ import RichLabel from '../utils/richLabel';
 function formatAnswer(field: FormField, value: unknown): string {
   if (value === undefined || value === null || value === '') return '—';
   if (field.type === 'toggle') return value ? 'Yes' : 'No';
+  if (field.type === 'choice' && typeof value === 'string') return field.optionLabels?.[value] ?? value;
   if (field.type === 'medications') return formatMedications(value) || '—';
   if (field.type === 'multichoice' && Array.isArray(value)) {
     return (value as string[]).join(', ') || '—';
@@ -61,7 +63,7 @@ export default function ReadOnlyAnswers({
               {repetitions.map((rep, i) => (
                 <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 14, marginBottom: 12 }}>
                   <strong style={{ fontSize: '0.9rem' }}>{field.repetitionLabels?.[i] ?? `${field.label} ${i + 1}`}</strong>
-                  <ReadOnlyAnswers fields={field.fields} answers={rep} />
+                  <ReadOnlyAnswers fields={withPetName(field.fields, field.repetitionLabels?.[i])} answers={rep} />
                 </div>
               ))}
             </div>

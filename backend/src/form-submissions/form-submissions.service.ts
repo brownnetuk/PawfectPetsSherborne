@@ -100,10 +100,22 @@ function resolveFieldsForRecipient(
       }
     }
     if (field.type === 'group') {
-      copy.fields = resolveFieldsForRecipient(field.fields, placeholders, petNames);
+      copy.fields = resolveFieldsForRecipient(field.fields, groupPlaceholders(field, placeholders), petNames);
     }
     return copy as unknown as Omit<FormField, 'mapping' | 'optionsSource'>;
   });
+}
+
+// A group with one fixed pet per repetition (repetitionLabels -- the
+// pre-check-in form's per-pet pages) keeps {{petName}} as literal text in
+// its own fields, so the fill page/read-only view/PDF can put each page's
+// OWN pet name there; resolving it once here would give every page the same
+// name (or a blank, on a multi-pet booking).
+function groupPlaceholders(group: FormField, placeholders: Record<string, string>): Record<string, string> {
+  if (group.type !== 'group' || !group.repetitionLabels) return placeholders;
+  const rest = { ...placeholders };
+  delete rest.petName;
+  return rest;
 }
 
 // Merges a form's own fields into one repeated "per pet" section, one
@@ -300,15 +312,15 @@ export class FormSubmissionsService {
   async findOneForStaff(id: string) {
     const submission = await this.findOne(id);
     const { placeholders } = await this.placeholdersFor(submission);
-    const resolveLabels = (fields: FormField[]): FormField[] =>
+    const resolveLabels = (fields: FormField[], vars: Record<string, string>): FormField[] =>
       fields.map((field) => {
-        const copy = { ...field, label: interpolatePlaceholders(field.label, placeholders) } as FormField;
-        if (copy.type === 'group') copy.fields = resolveLabels(copy.fields);
+        const copy = { ...field, label: interpolatePlaceholders(field.label, vars) } as FormField;
+        if (copy.type === 'group') copy.fields = resolveLabels(copy.fields, groupPlaceholders(copy, vars));
         return copy;
       });
     return {
       ...submission.toObject(),
-      formFieldsSnapshot: resolveLabels(submission.formFieldsSnapshot as unknown as FormField[]),
+      formFieldsSnapshot: resolveLabels(submission.formFieldsSnapshot as unknown as FormField[], placeholders),
     };
   }
 

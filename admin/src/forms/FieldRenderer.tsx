@@ -83,6 +83,15 @@ export default function FieldRenderer({ field, value, onChange }: Props) {
           <input type="date" value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />
         </div>
       );
+    case 'time':
+      return (
+        <div className="field">
+          <label>
+            <RichLabel text={field.label} /> {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
+          </label>
+          <input type="time" value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />
+        </div>
+      );
     case 'toggle':
       return (
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '10px 0' }}>
@@ -102,7 +111,7 @@ export default function FieldRenderer({ field, value, onChange }: Props) {
             </option>
             {field.options.map((o) => (
               <option key={o} value={o}>
-                {o}
+                {field.optionLabels?.[o] ?? o}
               </option>
             ))}
           </select>

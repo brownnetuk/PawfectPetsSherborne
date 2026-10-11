@@ -1,5 +1,5 @@
 import FieldRenderer from './FieldRenderer';
-import { isFieldVisible } from './formDefaults';
+import { isFieldVisible, withPetName } from './formDefaults';
 import RichLabel from '../utils/richLabel';
 import type { GroupFormField } from '../types';
 
@@ -37,7 +37,7 @@ export default function RepeatableGroup({ field, value, onFieldChange, onAdd, on
               </button>
             )}
           </div>
-          {field.fields
+          {withPetName(field.fields, field.repetitionLabels?.[index])
             .filter((child) => isFieldVisible(child, repetition))
             .map((child) => (
               <FieldRenderer

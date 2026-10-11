@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import logoUrl from '../assets/logo.png';
 import type { FormField, FormSubmissionRecord } from '../types';
+import { withPetName } from '../forms/formDefaults';
 import { formatMedications } from '../utils/formatMedications';
 import { parseRichLabelRuns } from '../utils/richLabel';
 
@@ -420,6 +421,7 @@ class PdfWriter {
 function formatAnswer(field: FormField, value: unknown): string {
   if (value === undefined || value === null || value === '') return '';
   if (field.type === 'toggle') return value ? 'Yes' : 'No';
+  if (field.type === 'choice' && typeof value === 'string') return field.optionLabels?.[value] ?? value;
   if (field.type === 'medications') return formatMedications(value);
   if (field.type === 'multichoice' && Array.isArray(value)) return (value as string[]).join(', ');
   if ((field.type === 'date' || field.type === 'today') && typeof value === 'string') {
@@ -550,7 +552,7 @@ function buildSections(
           const repetitionLabel = field.repetitionLabels?.[i];
           sections.push({
             title: repetitionLabel ? `${field.label} — ${repetitionLabel}` : `${field.label} ${i + 1}`,
-            blocks: repetitionBlocks(doc, field.fields, rep),
+            blocks: repetitionBlocks(doc, withPetName(field.fields, repetitionLabel), rep),
           });
         });
       }

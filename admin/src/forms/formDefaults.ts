@@ -26,3 +26,12 @@ export function isFieldVisible(field: FormField, scopeAnswers: Record<string, un
   const results = rule.conditions.map((c) => String(scopeAnswers[c.fieldId]) === c.equals);
   return rule.mode === 'any' ? results.some(Boolean) : results.every(Boolean);
 }
+
+// The pre-check-in form's per-pet pages keep {{petName}} as literal text
+// (see backend's groupPlaceholders) so each page can show its OWN pet's
+// name -- `name` is that repetition's repetitionLabels entry. A no-op for
+// any other group.
+export function withPetName<T extends { label: string }>(fields: T[], name: string | undefined): T[] {
+  if (!name) return fields;
+  return fields.map((f) => (f.label.includes('{{petName}}') ? { ...f, label: f.label.split('{{petName}}').join(name) } : f));
+}

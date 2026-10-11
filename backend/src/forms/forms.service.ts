@@ -11,6 +11,9 @@ import {
 import { FormField } from './form-field.types';
 import {
   DEFAULT_PRE_CHECKIN_FORM,
+  PRE_CHECKIN_DROP_OFF_FIELDS,
+  PRE_CHECKIN_EXTRA_BOARDING_QUESTIONS,
+  PRE_CHECKIN_LEAD_OPTION_LABELS,
   PRE_CHECKIN_MEDICATIONS_FIELD,
 } from './default-pre-checkin-form';
 import { Form } from './schemas/form.schema';
@@ -55,8 +58,9 @@ export class FormsService implements OnModuleInit {
   // matched by its field ids, same approach as the check-out upgrade below)
   // in line with the current default: no keys/alarm-code questions, the
   // terms/declaration shown live from Settings, and the intake wizard's
-  // multi-entry medication list in place of the old single-entry fields.
-  // Each step only fires while its old shape is still there, so this is a
+  // multi-entry medication list in place of the old single-entry fields,
+  // "On Lead"/"Off Lead" option text, and the extra boarding and drop-off
+  // questions. Each step only fires while its old shape is still there, so this is a
   // no-op on every boot after the first, and a field staff have since
   // reworded or removed is left alone.
   private async upgradePreCheckInForms(): Promise<void> {
@@ -71,13 +75,21 @@ export class FormsService implements OnModuleInit {
       .find({
         $or: [
           { 'fields.id': { $in: [...OLD_SECURITY_IDS, 'cf-ag-termsText', 'cf-ag-declarationText'] } },
-          { 'fields.fields.id': { $in: OLD_MEDICATION_IDS } },
+          { 'fields.fields.id': { $in: [...OLD_MEDICATION_IDS, 'pf-offLeadMode'] } },
         ],
       })
       .exec();
     for (const form of forms) {
       const before = JSON.stringify(form.fields);
       let fields = (form.fields as unknown as FormField[]).filter((f) => !OLD_SECURITY_IDS.includes(f.id));
+      // The lead field's missing optionLabels marks a form that predates the
+      // extra boarding/drop-off questions -- once labelled, none of those are
+      // re-added, so a question staff later delete stays deleted.
+      const addsBoardingQuestions = fields.some(
+        (f) =>
+          f.type === 'group' &&
+          f.fields.some((c) => c.id === 'pf-offLeadMode' && c.type === 'choice' && !c.optionLabels),
+      );
       fields = fields.map((f) => {
         if (f.id === 'cf-secHeading' && f.label === 'Security & Agreement') {
           return { ...f, label: 'Additional information & Agreement' };
@@ -86,16 +98,36 @@ export class FormsService implements OnModuleInit {
           if (f.id === 'cf-ag-termsText') return { ...f, content: 'terms' };
           if (f.id === 'cf-ag-declarationText') return { ...f, content: 'declaration' };
         }
-        if (f.type === 'group' && !f.fields.some((c) => c.id === PRE_CHECKIN_MEDICATIONS_FIELD.id)) {
-          const at = f.fields.findIndex((c) => OLD_MEDICATION_IDS.includes(c.id));
-          if (at !== -1) {
-            const kept = f.fields.filter((c) => !OLD_MEDICATION_IDS.includes(c.id));
-            kept.splice(at, 0, PRE_CHECKIN_MEDICATIONS_FIELD);
-            return { ...f, fields: kept };
+        if (f.type === 'group') {
+          let children = f.fields;
+          if (!children.some((c) => c.id === PRE_CHECKIN_MEDICATIONS_FIELD.id)) {
+            const at = children.findIndex((c) => OLD_MEDICATION_IDS.includes(c.id));
+            if (at !== -1) {
+              children = children.filter((c) => !OLD_MEDICATION_IDS.includes(c.id));
+              children.splice(at, 0, PRE_CHECKIN_MEDICATIONS_FIELD);
+            }
           }
+          children = children.map((c) =>
+            c.id === 'pf-offLeadMode' && c.type === 'choice' && !c.optionLabels
+              ? { ...c, optionLabels: PRE_CHECKIN_LEAD_OPTION_LABELS }
+              : c,
+          );
+          const feedingNotesAt = children.findIndex((c) => c.id === 'bq-feedingNotes');
+          if (addsBoardingQuestions && feedingNotesAt !== -1 && !children.some((c) => c.id === PRE_CHECKIN_EXTRA_BOARDING_QUESTIONS[0].id)) {
+            children = [...children];
+            children.splice(feedingNotesAt + 1, 0, ...PRE_CHECKIN_EXTRA_BOARDING_QUESTIONS);
+          }
+          return children === f.fields ? f : { ...f, fields: children };
         }
         return f;
       });
+      // Drop-off goes last, once, on a form that has the boarding questions.
+      const hasBoardingQuestions = fields.some(
+        (f) => f.type === 'group' && f.fields.some((c) => c.id === 'bq-feedingNotes'),
+      );
+      if (addsBoardingQuestions && hasBoardingQuestions && !fields.some((f) => f.id === PRE_CHECKIN_DROP_OFF_FIELDS[0].id)) {
+        fields = [...fields, ...PRE_CHECKIN_DROP_OFF_FIELDS];
+      }
       if (JSON.stringify(fields) !== before) {
         await this.formModel.updateOne({ _id: form._id }, { $set: { fields } }).exec();
       }

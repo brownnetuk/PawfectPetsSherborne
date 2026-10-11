@@ -48,7 +48,7 @@ export interface FormFieldBase {
 }
 
 export type SimpleFormField = FormFieldBase & {
-  type: 'text' | 'textarea' | 'number' | 'date' | 'toggle' | 'signature';
+  type: 'text' | 'textarea' | 'number' | 'date' | 'time' | 'toggle' | 'signature';
   // {{token}} placeholder support (form-placeholders.util.ts), for
   // text/textarea/number/date only -- pre-fills the customer's initial
   // answer (still editable, not locked) once resolved at findOnePublic()
@@ -117,6 +117,9 @@ export type FileFormField = FormFieldBase & {
 export type ChoiceFormField = FormFieldBase & {
   type: 'choice' | 'multichoice';
   options: string[];
+  // Friendlier text to show for a stored option value, e.g. on_lead ->
+  // "On Lead". The answer (and any visibleWhen/mapping) still uses the value.
+  optionLabels?: Record<string, string>;
   optionsSource?: 'static' | 'customerPets';
 };
 
