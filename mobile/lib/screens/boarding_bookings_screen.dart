@@ -1,9 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
+import '../models/animal.dart';
 import '../models/boarding_booking.dart';
+import '../models/customer.dart';
 import 'customer_forms_screen.dart';
 import 'form_fill_screen.dart';
 import 'invoice_detail_screen.dart';
@@ -283,8 +287,13 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
   bool _sendingPreCheckIn = false;
   bool _startingCheck = false;
   bool _requestingPayment = false;
+  bool _loadingDetails = false;
   DateTime? _preCheckInSentAt;
   String? _paymentRequestType;
+
+  // Fetched on first tap of a dog/customer name, then reused.
+  List<Animal>? _animals;
+  Customer? _customer;
 
   @override
   void initState() {
@@ -525,7 +534,17 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
           Row(
             children: [
               Expanded(
-                child: Text(b.customerName, style: Theme.of(context).textTheme.titleLarge),
+                child: InkWell(
+                  onTap: _loadingDetails ? null : _showCustomerDetails,
+                  child: Text(
+                    b.customerName,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                          decoration: TextDecoration.underline,
+                          decorationColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
+                        ),
+                  ),
+                ),
               ),
               BoardingStatusChip(status: item.status),
             ],
@@ -535,12 +554,12 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
           const SizedBox(height: 12),
           _sectionTitle('Booking'),
           _row('Reference', b.reference),
-          _row('Dog(s)', b.animalNames.isEmpty ? '—' : b.animalNames.join(', ')),
+          _dogsRow(b),
           _row('Type', b.isBoarding ? 'Boarding' : 'Day Care'),
           _row('Dates', formatBoardingDates(b)),
           _row('Drop off', b.dropOffTime.isEmpty ? '—' : b.dropOffTime),
           _row('Pick up', b.pickUpTime.isEmpty ? '—' : b.pickUpTime),
-          _row('Invoiced', b.invoiced ? 'Yes' : 'No'),
+          _invoicedRow(b),
           if ((b.notes ?? '').trim().isNotEmpty) _row('Notes', b.notes!),
           ...[
             const SizedBox(height: 8),
@@ -633,6 +652,226 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
       ],
     );
   }
+
+  // --- tappable dog / customer / invoice details ---
+
+  /// Dog(s) row with each name tappable -- opens a sheet of that pet's
+  /// details from its customer record.
+  Widget _dogsRow(BoardingBooking b) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 110, child: Text('Dog(s)', style: TextStyle(color: Colors.grey.shade600))),
+          Expanded(
+            child: b.animalNames.isEmpty
+                ? const Text('—')
+                : Wrap(
+                    spacing: 10,
+                    children: [
+                      for (final name in b.animalNames)
+                        InkWell(
+                          onTap: _loadingDetails ? null : () => _showDogDetails(name),
+                          child: Text(
+                            name,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.primary,
+                              decoration: TextDecoration.underline,
+                              decorationColor:
+                                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Invoiced row showing the invoice number as a link into the invoice.
+  Widget _invoicedRow(BoardingBooking b) {
+    if (b.invoiceId == null) return _row('Invoiced', 'No');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 110, child: Text('Invoiced', style: TextStyle(color: Colors.grey.shade600))),
+          Expanded(
+            child: InkWell(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  fullscreenDialog: true,
+                  builder: (_) => InvoiceDetailScreen(invoiceId: b.invoiceId!),
+                ),
+              ),
+              child: Text(
+                b.invoiceNumber ?? 'View invoice',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                  decorationColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showCustomerDetails() async {
+    if (_loadingDetails) return;
+    if (_customer == null) {
+      setState(() => _loadingDetails = true);
+      try {
+        _customer = await context.read<Repository>().getCustomer(widget.item.booking.customerId);
+      } catch (e) {
+        if (mounted) {
+          final message = e is ApiException ? e.message : 'Failed to load the customer';
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+        }
+        return;
+      } finally {
+        if (mounted) setState(() => _loadingDetails = false);
+      }
+    }
+    if (!mounted) return;
+    final c = _customer!;
+    final emergency = c.emergencyContact;
+    _showDetailSheet(c.name, [
+      _detailRow('Status', c.status),
+      _detailRow('Email', c.email),
+      _detailRow('Phone', c.phoneNumber ?? '—'),
+      _detailRow('Address', c.address ?? '—'),
+      if (emergency != null) ...[
+        const Padding(
+          padding: EdgeInsets.only(top: 8, bottom: 4),
+          child: Text('Emergency contact', style: TextStyle(fontWeight: FontWeight.w700)),
+        ),
+        if (emergency.sameAsClient)
+          _detailRow('Contact', 'Same as the client')
+        else ...[
+          _detailRow('Name', emergency.name ?? '—'),
+          _detailRow('Phone', emergency.phoneNumber ?? '—'),
+          _detailRow('Email', emergency.email ?? '—'),
+          _detailRow('Address', emergency.address ?? '—'),
+        ],
+      ],
+    ]);
+  }
+
+  Future<void> _showDogDetails(String name) async {
+    if (_loadingDetails) return;
+    if (_animals == null) {
+      setState(() => _loadingDetails = true);
+      try {
+        _animals = await context.read<Repository>().listAnimals(widget.item.booking.customerId);
+      } catch (e) {
+        if (mounted) {
+          final message = e is ApiException ? e.message : 'Failed to load the pet';
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+        }
+        return;
+      } finally {
+        if (mounted) setState(() => _loadingDetails = false);
+      }
+    }
+    if (!mounted) return;
+    Animal? animal;
+    for (final a in _animals!) {
+      if (a.name == name) animal = a;
+    }
+    if (animal == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Couldn't find $name on this customer.")));
+      return;
+    }
+    final dateFmt = DateFormat('d MMM yyyy');
+    _showDetailSheet(animal.name, [
+      if (animal.photos.any((p) => p.trim().isNotEmpty))
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Wrap(
+            spacing: 8,
+            children: [
+              for (final photo in animal.photos.where((p) => p.trim().isNotEmpty))
+                if (_photoThumb(photo) case final Widget thumb) thumb,
+            ],
+          ),
+        ),
+      _detailRow('Species', animal.species),
+      _detailRow('Breed', animal.breed),
+      _detailRow('Sex', animal.sex),
+      _detailRow('Age', '${animal.age}'),
+      if ((animal.colourMarkings ?? '').isNotEmpty) _detailRow('Colour', animal.colourMarkings!),
+      _detailRow(
+        'Vaccinated',
+        animal.vaccinated
+            ? 'Yes${animal.vaccineExpiryDate != null ? ' · expires ${dateFmt.format(animal.vaccineExpiryDate!.toLocal())}' : ''}'
+            : 'No',
+      ),
+      if ((animal.microchipNumber ?? '').isNotEmpty) _detailRow('Microchip', animal.microchipNumber!),
+      if (animal.neuteredStatus != null) _detailRow('Neutered', animal.neuteredStatus!),
+      if (animal.insured == true) _detailRow('Insurer', animal.insurer ?? 'Insured'),
+      if ((animal.temperamentNotes ?? '').isNotEmpty) _detailRow('Temperament', animal.temperamentNotes!),
+    ]);
+  }
+
+  Widget? _photoThumb(String dataUri) {
+    try {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.memory(
+          base64Decode(dataUri.split(',').last),
+          height: 96,
+          width: 96,
+          fit: BoxFit.cover,
+        ),
+      );
+    } on FormatException {
+      return null;
+    }
+  }
+
+  void _showDetailSheet(String title, List<Widget> children) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+              const SizedBox(height: 10),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+            Text(value.isEmpty ? '—' : value),
+          ],
+        ),
+      );
 
   Widget _sectionTitle(String title) => Padding(
         padding: const EdgeInsets.only(top: 16, bottom: 8),
