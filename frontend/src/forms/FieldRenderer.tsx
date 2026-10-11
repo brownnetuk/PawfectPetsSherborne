@@ -1,8 +1,10 @@
 import { ChoiceGroup, MultiChoiceField, TextField, ToggleField } from './fields';
+import MedicationEntriesField from '../intake/MedicationEntriesField';
 import PhotoUpload from '../intake/PhotoUpload';
+import SettingsContent from './SettingsContent';
 import RichLabel from './richLabel';
 import SignaturePad from '../intake/SignaturePad';
-import type { FormField } from '../types';
+import type { FormField, MedicationEntry } from '../types';
 
 interface Props {
   field: FormField;
@@ -16,6 +18,7 @@ interface Props {
 export default function FieldRenderer({ field, value, onChange }: Props) {
   switch (field.type) {
     case 'display':
+      if (field.content) return <SettingsContent content={field.content} fallback={field.label} />;
       return field.startsNewPage ? (
         <div style={{ marginTop: 28, paddingTop: 20, borderTop: '2px solid var(--border)' }}>
           <h3 style={{ margin: 0 }}>
@@ -116,6 +119,18 @@ export default function FieldRenderer({ field, value, onChange }: Props) {
       );
     case 'file':
       return <PhotoUpload value={Array.isArray(value) ? (value as string[]) : []} onChange={onChange} />;
+    case 'medications':
+      return (
+        <div className="field">
+          <label>
+            <RichLabel text={field.label} /> {field.required && <span className="required">*</span>}
+          </label>
+          <MedicationEntriesField
+            medications={Array.isArray(value) ? (value as MedicationEntry[]) : []}
+            onChange={onChange}
+          />
+        </div>
+      );
     case 'signature':
       return (
         <div className="field">

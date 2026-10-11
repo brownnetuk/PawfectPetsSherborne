@@ -232,6 +232,16 @@ export type DisplayFormField = FormFieldBase & {
   // Set by the admin's "+ New page" button -- a stronger section-divider
   // style here on the live fill form (no real pagination of its own).
   startsNewPage?: boolean;
+  // Shows the current terms/declaration from Settings > Business Info (the
+  // same copy the intake wizard's AgreementStep shows) in place of `label`,
+  // which stays as the fallback.
+  content?: 'terms' | 'declaration';
+};
+
+// A list of medications, rendered with the intake wizard's own
+// MedicationEntriesField -- the answer is a MedicationEntry[].
+export type MedicationsFormField = FormFieldBase & {
+  type: 'medications';
 };
 
 // Auto-filled, non-editable -- the answer is the date (or date+time) at the
@@ -264,7 +274,13 @@ export type GroupFormField = FormFieldBase & {
 };
 
 export type FormField =
-  SimpleFormField | FileFormField | ChoiceFormField | GroupFormField | DisplayFormField | AutoDateFormField;
+  | SimpleFormField
+  | FileFormField
+  | ChoiceFormField
+  | GroupFormField
+  | DisplayFormField
+  | AutoDateFormField
+  | MedicationsFormField;
 
 export interface FormSubmissionPublic {
   _id: string;

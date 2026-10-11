@@ -10,6 +10,15 @@ import type { FormField, FormSubmissionPublic, GroupFormField } from '../types';
 type LoadState = 'loading' | 'not-found' | 'already-completed' | 'ready' | 'submitted';
 
 function isEmpty(field: FormField, value: unknown): boolean {
+  // Same rule as the intake wizard: at least one medication, and every one
+  // listed has a name (the only required part of an entry).
+  if (field.type === 'medications') {
+    return (
+      !Array.isArray(value) ||
+      value.length === 0 ||
+      (value as { name?: string }[]).some((m) => !m?.name?.trim())
+    );
+  }
   if (field.type === 'file' || field.type === 'multichoice') {
     return !Array.isArray(value) || value.length === 0;
   }
@@ -57,6 +66,10 @@ function buildPages(fields: FormField[], answers: Record<string, unknown>): Page
   }
   flush();
   return pages;
+}
+
+function isPaginatedForm(fields: FormField[]): boolean {
+  return fields.some((field) => field.type === 'display' && field.startsNewPage);
 }
 
 // The page's own section heading reads better as its progress-bar label than
@@ -188,6 +201,13 @@ export default function FormFillPage({ submissionId }: { submissionId: string })
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // On a paginated form only the last page's Submit button may submit --
+    // pressing Enter in a field on an earlier page would otherwise send the
+    // whole form from wherever the customer happens to be.
+    if (submission && isPaginatedForm(submission.fields)) {
+      const visible = submission.fields.filter((field) => isFieldVisible(field, answers));
+      if (currentPage < buildPages(visible, answers).length - 1) return;
+    }
     const validationError = validate();
     if (validationError) {
       setError(validationError);
@@ -300,7 +320,7 @@ export default function FormFillPage({ submissionId }: { submissionId: string })
   // Opt-in: a form only becomes a paginated wizard once it has at least one
   // "+ New page" marker -- every other form keeps rendering exactly as
   // before (see buildPages' comment above for why).
-  const isPaginated = submission.fields.some((field) => field.type === 'display' && field.startsNewPage);
+  const isPaginated = isPaginatedForm(submission.fields);
 
   if (!isPaginated) {
     return (
@@ -386,12 +406,18 @@ export default function FormFillPage({ submissionId }: { submissionId: string })
           ) : (
             <span />
           )}
+          {/* Distinct keys so React mounts a NEW button rather than flipping
+              the Next button's type to "submit" in place: clicking Next on
+              the second-to-last page re-renders before the browser runs the
+              click's default action, which then saw a submit button and sent
+              the form straight off the last page before it could be filled. */}
           {isLastPage ? (
-            <button className="btn btn-primary" type="submit" disabled={submitting}>
+            <button key="submit" className="btn btn-primary" type="submit" disabled={submitting}>
               {submitting ? 'Submitting…' : 'Submit'}
             </button>
           ) : (
             <button
+              key="next"
               className="btn btn-primary"
               type="button"
               onClick={() => page && handleNextPage(page, pages.length - 1)}

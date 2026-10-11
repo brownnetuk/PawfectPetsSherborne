@@ -29,6 +29,7 @@ const SIMPLE_TYPES: { type: FormField['type']; label: string }[] = [
   { type: 'multichoice', label: 'Multiple choice' },
   { type: 'file', label: 'File / photo' },
   { type: 'signature', label: 'Signature' },
+  { type: 'medications', label: 'Medication list' },
   { type: 'display', label: 'Free text' },
   { type: 'today', label: "Today's date" },
   { type: 'datetime', label: 'Date & time' },

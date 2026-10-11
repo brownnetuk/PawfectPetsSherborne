@@ -1,6 +1,7 @@
+import MedicationEntriesField from '../components/MedicationEntriesField';
 import PhotoUpload from '../components/PhotoUpload';
 import SignaturePad from '../components/SignaturePad';
-import type { FormField } from '../types';
+import type { FormField, MedicationEntry } from '../types';
 import RichLabel from '../utils/richLabel';
 
 interface Props {
@@ -128,6 +129,18 @@ export default function FieldRenderer({ field, value, onChange }: Props) {
     }
     case 'file':
       return <PhotoUpload value={Array.isArray(value) ? (value as string[]) : []} onChange={onChange} />;
+    case 'medications':
+      return (
+        <div className="field">
+          <label>
+            <RichLabel text={field.label} /> {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
+          </label>
+          <MedicationEntriesField
+            medications={Array.isArray(value) ? (value as MedicationEntry[]) : []}
+            onChange={onChange}
+          />
+        </div>
+      );
     case 'signature':
       return (
         <div className="field">

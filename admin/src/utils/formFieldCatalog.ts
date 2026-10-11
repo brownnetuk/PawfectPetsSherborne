@@ -8,7 +8,7 @@ import type { FieldTarget } from '../types';
 // map to a boolean-kind path); `speciesRestriction` flags Animal paths that
 // only apply to some species -- purely informational here (the backend
 // strips these server-side per submission; see form-submission-mapping.util.ts).
-export type MappingKind = 'string' | 'number' | 'boolean' | 'date' | 'enum' | 'signature' | 'photos';
+export type MappingKind = 'string' | 'number' | 'boolean' | 'date' | 'enum' | 'signature' | 'photos' | 'medications';
 
 export interface MappingTarget {
   target: FieldTarget;
@@ -86,6 +86,7 @@ export const ANIMAL_MAPPING_TARGETS: MappingTarget[] = [
   { target: 'animal', path: 'allergies.status', label: 'Allergies / intolerances', kind: 'enum', enumValues: YES_NO_UNSURE },
   { target: 'animal', path: 'allergies.details', label: 'Allergy details', kind: 'string' },
   { target: 'animal', path: 'medication.onMedication', label: 'On medication', kind: 'boolean' },
+  { target: 'animal', path: 'medication.medications', label: 'Medications (full list)', kind: 'medications' },
   { target: 'animal', path: 'medication.medications[0].name', label: 'Medication: name', kind: 'string' },
   { target: 'animal', path: 'medication.medications[0].illnessTreating', label: 'Medication: illness treating', kind: 'string' },
   { target: 'animal', path: 'medication.medications[0].dosage', label: 'Medication: dosage', kind: 'string' },
@@ -118,6 +119,8 @@ export function compatibleKinds(fieldType: string): MappingKind[] {
       return ['photos'];
     case 'signature':
       return ['signature'];
+    case 'medications':
+      return ['medications'];
     default:
       return [];
   }

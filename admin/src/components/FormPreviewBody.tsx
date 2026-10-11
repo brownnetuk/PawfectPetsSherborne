@@ -310,6 +310,13 @@ function PreviewField({
           <div className="empty-state">📎 File / photo upload (not shown in preview)</div>
         </div>
       );
+    case 'medications':
+      return (
+        <div className="field">
+          {label}
+          <div className="empty-state">💊 Medication list -- name, illness, dosage, frequency, vet prescribed, we administer, additional info</div>
+        </div>
+      );
     case 'signature':
       return (
         <div className="field">

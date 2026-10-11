@@ -10,6 +10,13 @@ import Modal from './Modal';
 import type { FormField, FormSubmissionPublic, FormSubmissionRecord } from '../types';
 
 function isEmpty(field: FormField, value: unknown): boolean {
+  if (field.type === 'medications') {
+    return (
+      !Array.isArray(value) ||
+      value.length === 0 ||
+      (value as { name?: string }[]).some((m) => !m?.name?.trim())
+    );
+  }
   if (field.type === 'file' || field.type === 'multichoice') {
     return !Array.isArray(value) || value.length === 0;
   }
