@@ -107,6 +107,7 @@ h2 {
 .field input[type='email'],
 .field input[type='number'],
 .field input[type='date'],
+.field input[type='time'],
 .field textarea,
 .field select {
   width: 100%;
