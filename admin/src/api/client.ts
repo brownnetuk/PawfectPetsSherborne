@@ -399,6 +399,7 @@ export function getBoardingPlan(start: string, end: string, dogCount: number): P
 }
 export interface DayBookingInput {
   animal: string;
+  additionalAnimals?: string[];
   date: string;
   product: string;
   quantity?: number;

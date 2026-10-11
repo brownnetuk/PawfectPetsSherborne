@@ -3,7 +3,11 @@
 class DayBooking {
   final String id;
   final String animalId;
+  // Every pet on the booking, e.g. "Harry, Archie & Benji" -- a multi-pet
+  // Visits booking is one row per day with the other pets in
+  // [additionalAnimalIds] (backend `additionalAnimals`).
   final String animalName;
+  final List<String> additionalAnimalIds;
   final String species;
   final String customerId;
   final String customerName;
@@ -36,6 +40,7 @@ class DayBooking {
     required this.id,
     required this.animalId,
     required this.animalName,
+    this.additionalAnimalIds = const [],
     required this.species,
     required this.customerId,
     required this.customerName,
@@ -62,10 +67,17 @@ class DayBooking {
     final invoice = json['invoice'];
     String idOf(dynamic v) =>
         v is Map<String, dynamic> ? (v['_id'] as String? ?? '') : (v as String? ?? '');
+    String nameOf(dynamic v) => v is Map<String, dynamic> ? (v['name'] as String? ?? '') : '';
+    final others = (json['additionalAnimals'] as List<dynamic>?) ?? const [];
+    final names = [nameOf(animal), ...others.map(nameOf)].where((n) => n.isNotEmpty).toList();
+    final joinedNames = names.length > 1
+        ? '${names.sublist(0, names.length - 1).join(', ')} & ${names.last}'
+        : names.join();
     return DayBooking(
       id: json['_id'] as String,
       animalId: idOf(animal),
-      animalName: animal is Map<String, dynamic> ? (animal['name'] as String? ?? '') : '',
+      animalName: joinedNames,
+      additionalAnimalIds: others.map(idOf).toList(),
       species: animal is Map<String, dynamic> ? (animal['species'] as String? ?? '') : '',
       customerId: idOf(customer),
       customerName: customer is Map<String, dynamic> ? (customer['name'] as String? ?? '') : '',

@@ -131,15 +131,20 @@ describe('createBookingsFromVisitPlan', () => {
       .createBookingsFromVisitPlan(fetched!, invoiceId);
 
     const bookings = await dayBookingModel.find().sort({ date: 1 }).exec();
-    // 5 days x 2 animals, minus the unmapped 2-visit weekend day (26th) = 8.
-    expect(bookings).toHaveLength(8);
+    // One booking per day covering both pets (not one per pet): 5 days minus
+    // the unmapped 2-visit weekend day (26th) = 4.
+    expect(bookings).toHaveLength(4);
+    for (const b of bookings) {
+      const pets = [b.animal, ...b.additionalAnimals].map(String).sort();
+      expect(pets).toEqual([String(rosie._id), String(alfie._id)].sort());
+    }
 
     const byDay = new Map<string, DayBooking[]>();
     for (const b of bookings) {
       const key = `${b.date.getFullYear()}-${b.date.getMonth() + 1}-${b.date.getDate()}`;
       byDay.set(key, [...(byDay.get(key) ?? []), b]);
     }
-    expect(byDay.get('2026-12-23')!.map((b) => String(b.product))).toEqual([String(weekday1._id), String(weekday1._id)]);
+    expect(byDay.get('2026-12-23')!.map((b) => String(b.product))).toEqual([String(weekday1._id)]);
     expect(byDay.get('2026-12-23')![0].visitTime).toBe('PM'); // single-visit first day
     expect(byDay.get('2026-12-24')![0].product.toString()).toBe(String(weekday2._id));
     expect(byDay.get('2026-12-25')![0].product.toString()).toBe(String(holiday2._id)); // bank holiday

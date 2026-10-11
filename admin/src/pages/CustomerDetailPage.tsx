@@ -1139,7 +1139,7 @@ function BookingsTab({ customer, animals }: { customer: Customer; animals: Anima
         }}
       >
         <span style={{ fontWeight: 600, minWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {dbAnimalLabel(b.animal)}
+          {[b.animal, ...(b.additionalAnimals ?? [])].map(dbAnimalLabel).join(', ')}
         </span>
         {label && (
           <span

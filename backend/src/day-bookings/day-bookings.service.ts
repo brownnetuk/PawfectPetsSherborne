@@ -275,6 +275,7 @@ export class DayBookingsService {
     }
     const created = await new this.dayBookingModel({
       animal: dto.animal,
+      additionalAnimals: (dto.additionalAnimals ?? []).filter((id) => id !== dto.animal),
       customer: animal.customer,
       date: toDayStart(dto.date),
       product: dto.product,
@@ -301,6 +302,7 @@ export class DayBookingsService {
 
     return created.populate([
       { path: 'animal', select: 'name species' },
+      { path: 'additionalAnimals', select: 'name species' },
       { path: 'customer', select: 'name' },
       { path: 'product', select: 'name price' },
       { path: 'invoice', select: 'invoiceNumber' },
@@ -314,6 +316,7 @@ export class DayBookingsService {
     return this.dayBookingModel
       .find({ date: { $gte: toDayStart(from), $lt: toDayStart(to) } })
       .populate('animal', 'name species')
+      .populate('additionalAnimals', 'name species')
       .populate('customer', 'name')
       .populate('product', 'name price')
       .populate('invoice', 'invoiceNumber')
@@ -328,6 +331,7 @@ export class DayBookingsService {
     return this.dayBookingModel
       .find({ customer: customerId })
       .populate('animal', 'name species')
+      .populate('additionalAnimals', 'name species')
       .populate('customer', 'name')
       .populate('product', 'name price')
       .populate('invoice', 'invoiceNumber')
@@ -341,6 +345,7 @@ export class DayBookingsService {
     const dayBooking = await this.dayBookingModel
       .findByIdAndUpdate(id, update, { new: true })
       .populate('animal', 'name species')
+      .populate('additionalAnimals', 'name species')
       .populate('customer', 'name')
       .populate('product', 'name price')
       .populate('invoice', 'invoiceNumber')
@@ -364,6 +369,7 @@ export class DayBookingsService {
     return this.dayBookingModel
       .find({ stayId })
       .populate('animal', 'name species')
+      .populate('additionalAnimals', 'name species')
       .populate('customer', 'name')
       .populate('product', 'name price')
       .populate('invoice', 'invoiceNumber')

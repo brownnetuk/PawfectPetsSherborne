@@ -135,37 +135,45 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
         from: start,
         to: DateTime(end.year, end.month, end.day + 1),
       );
-      final existingKeys = existing.map((b) => '${b.animalId}|${_ymd(b.date.toLocal())}').toSet();
+      final existingKeys = {
+        for (final b in existing)
+          for (final id in [b.animalId, ...b.additionalAnimalIds]) '$id|${_ymd(b.date.toLocal())}',
+      };
+
+      // One booking per day for all the selected pets (one product, billed
+      // once) -- the first pet is the booking's animal, the rest ride along
+      // as additionalAnimals -- not a booking per pet.
+      final ids = _animalIds.toList();
+      final primaryId = ids.first;
+      final otherIds = ids.sublist(1);
+      final animal = widget.animals.where((a) => a.id == primaryId).firstOrNull;
+      final owner = animal == null ? null : _ownerOf(animal.customerId);
+      final travelId = (owner?.travelChargeable ?? false) ? owner?.travelProductId : null;
 
       var created = 0;
       var skipped = 0;
-      for (final id in _animalIds) {
-        final animal = widget.animals.where((a) => a.id == id).firstOrNull;
-        final owner = animal == null ? null : _ownerOf(animal.customerId);
-        final travelId =
-            (owner?.travelChargeable ?? false) ? owner?.travelProductId : null;
-        for (final entry in plan) {
-          if (existingKeys.contains('$id|${_ymd(entry.date)}')) {
-            skipped++;
-            continue;
-          }
+      for (final entry in plan) {
+        if (ids.any((id) => existingKeys.contains('$id|${_ymd(entry.date)}'))) {
+          skipped++;
+          continue;
+        }
+        await repo.createDayBooking(
+          animalId: primaryId,
+          additionalAnimalIds: otherIds,
+          date: entry.date,
+          productId: entry.productId,
+          quantity: 1,
+          visitTime: entry.visitTime,
+        );
+        created++;
+        if (travelId != null && travelId.isNotEmpty && travelId != entry.productId) {
           await repo.createDayBooking(
-            animalId: id,
+            animalId: primaryId,
             date: entry.date,
-            productId: entry.productId,
+            productId: travelId,
             quantity: 1,
-            visitTime: entry.visitTime,
           );
           created++;
-          if (travelId != null && travelId.isNotEmpty && travelId != entry.productId) {
-            await repo.createDayBooking(
-              animalId: id,
-              date: entry.date,
-              productId: travelId,
-              quantity: 1,
-            );
-            created++;
-          }
         }
       }
       setState(() {

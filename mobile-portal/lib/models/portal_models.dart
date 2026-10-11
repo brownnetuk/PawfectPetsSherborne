@@ -512,7 +512,12 @@ class Booking {
       // Stored at server-local midnight and serialised as UTC — convert to
       // local so it lands on the right calendar day on the device.
       date: DateTime.parse(json['date'] as String).toLocal(),
-      animalName: animal is Map<String, dynamic> ? (animal['name'] as String? ?? '') : '',
+      // Every pet on the booking -- a multi-pet visit is one booking with the
+      // other pets in additionalAnimals.
+      animalName: [animal, ...((json['additionalAnimals'] as List<dynamic>?) ?? const [])]
+          .map((a) => a is Map<String, dynamic> ? (a['name'] as String? ?? '') : '')
+          .where((n) => n.isNotEmpty)
+          .join(', '),
       productName: product is Map<String, dynamic> ? (product['name'] as String? ?? '') : '',
       quantity: (json['quantity'] as num?)?.toInt() ?? 1,
       visitTime: json['visitTime'] as String?,

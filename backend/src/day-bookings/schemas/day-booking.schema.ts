@@ -18,6 +18,12 @@ export class DayBooking extends Document {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Animal.name, required: true, index: true })
   animal: Types.ObjectId;
 
+  // The other pets on the same booking -- a Visits booking for a customer
+  // with several pets is one row per day (one product, billed once) with the
+  // first pet in `animal` and the rest here, rather than a row per pet.
+  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: Animal.name }], default: [] })
+  additionalAnimals: Types.ObjectId[];
+
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Customer.name, required: true, index: true })
   customer: Types.ObjectId;
 
