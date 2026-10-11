@@ -1787,6 +1787,10 @@ function BookingDetail({
 
   const { booking, invoice, stages, status } = data;
   const balance = invoice ? invoice.total - (invoice.amountPaid ?? 0) : 0;
+  // Checked out and paid: the booking is read-only, only Delete stays
+  // available (the backend enforces the same rule -- see
+  // BoardingBookingsService.isComplete()).
+  const readOnly = !!booking.checkOutAt && invoice?.status === 'paid';
 
   return (
     <div>
@@ -1808,26 +1812,31 @@ function BookingDetail({
           >
             {status}
           </span>
-          <select
-            value={booking.statusOverride ?? ''}
-            onChange={(e) => handleSetStatus(e.target.value)}
-            disabled={savingStatus}
-            title="Override the status manually, or choose Automatic to let it follow the booking's progress"
-            style={{ fontSize: '0.78rem', padding: '3px 6px', borderRadius: 6, border: '1px solid var(--border)', color: 'var(--muted)' }}
-          >
-            <option value="">Automatic</option>
-            {BOOKING_STATUS_LABELS.map((label) => (
-              <option key={label} value={label}>
-                {label}
-              </option>
-            ))}
-          </select>
+          {!readOnly && (
+            <select
+              value={booking.statusOverride ?? ''}
+              onChange={(e) => handleSetStatus(e.target.value)}
+              disabled={savingStatus}
+              title="Override the status manually, or choose Automatic to let it follow the booking's progress"
+              style={{ fontSize: '0.78rem', padding: '3px 6px', borderRadius: 6, border: '1px solid var(--border)', color: 'var(--muted)' }}
+            >
+              <option value="">Automatic</option>
+              {BOOKING_STATUS_LABELS.map((label) => (
+                <option key={label} value={label}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          )}
+          {readOnly && <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>Read only</span>}
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-secondary" onClick={() => setShowConfirmation(true)}>
-            Booking Confirmation
-          </button>
-          {booking.invoice && (
+          {!readOnly && (
+            <button className="btn btn-secondary" onClick={() => setShowConfirmation(true)}>
+              Booking Confirmation
+            </button>
+          )}
+          {!readOnly && booking.invoice && (
             <button className="btn btn-secondary" onClick={() => setShowAmend(true)}>
               Amend dates
             </button>
@@ -1903,7 +1912,7 @@ function BookingDetail({
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div className="section-title" style={{ marginBottom: 0 }}>Invoice</div>
-              {invoice && balance > 0 && (
+              {!readOnly && invoice && balance > 0 && (
                 <button className="btn btn-secondary" onClick={() => setShowAddPayment(true)}>
                   Add payment
                 </button>
@@ -1929,7 +1938,7 @@ function BookingDetail({
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Paid so far</span><span>£{(invoice.amountPaid ?? 0).toFixed(2)}</span></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Balance</span><span style={{ fontWeight: 600 }}>£{balance.toFixed(2)}</span></div>
                 </div>
-                {!booking.paymentRequestType && (
+                {!readOnly && !booking.paymentRequestType && (
                   <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
                     <button className="btn btn-secondary" disabled={requesting} onClick={() => handleRequestPayment('deposit')}>
                       Request deposit
@@ -1959,28 +1968,28 @@ function BookingDetail({
               onClick={
                 booking.preCheckInSubmission
                   ? () => handleViewSubmission(booking.preCheckInSubmission)
-                  : booking.invoice
+                  : booking.invoice && !readOnly
                     ? handleSendPreCheckIn
                     : undefined
               }
-              actionLabel={!booking.preCheckInSubmission && booking.invoice ? 'Send now' : undefined}
-              secondaryLabel={booking.preCheckInSubmission ? (resendingPreCheckIn ? 'Resending…' : 'Resend') : undefined}
+              actionLabel={!booking.preCheckInSubmission && booking.invoice && !readOnly ? 'Send now' : undefined}
+              secondaryLabel={booking.preCheckInSubmission && !readOnly ? (resendingPreCheckIn ? 'Resending…' : 'Resend') : undefined}
               secondaryDisabled={resendingPreCheckIn}
-              onSecondaryClick={booking.preCheckInSubmission ? handleResendPreCheckIn : undefined}
+              onSecondaryClick={booking.preCheckInSubmission && !readOnly ? handleResendPreCheckIn : undefined}
             />
             <FormRow
               label="Check-in"
               sub={booking.checkInAt ? `${new Date(booking.checkInAt).toLocaleString('en-GB')} · ${booking.checkInBy}` : 'Not yet'}
               status={booking.checkInSubmission ? 'Completed' : 'Not started'}
-              onClick={booking.checkInSubmission ? () => handleViewSubmission(booking.checkInSubmission) : startCheckIn}
-              actionLabel={!booking.checkInSubmission ? 'Fill in' : undefined}
+              onClick={booking.checkInSubmission ? () => handleViewSubmission(booking.checkInSubmission) : readOnly ? undefined : startCheckIn}
+              actionLabel={!booking.checkInSubmission && !readOnly ? 'Fill in' : undefined}
             />
             <FormRow
               label="Check-out"
               sub={booking.checkOutAt ? `${new Date(booking.checkOutAt).toLocaleString('en-GB')} · ${booking.checkOutBy}` : 'Not yet'}
               status={booking.checkOutSubmission ? 'Completed' : 'Not started'}
-              onClick={booking.checkOutSubmission ? () => handleViewSubmission(booking.checkOutSubmission) : startCheckOut}
-              actionLabel={!booking.checkOutSubmission ? 'Fill in' : undefined}
+              onClick={booking.checkOutSubmission ? () => handleViewSubmission(booking.checkOutSubmission) : readOnly ? undefined : startCheckOut}
+              actionLabel={!booking.checkOutSubmission && !readOnly ? 'Fill in' : undefined}
             />
           </div>
         </div>
