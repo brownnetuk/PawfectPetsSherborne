@@ -182,6 +182,29 @@ function subheadingBlock(text: string): Block {
   };
 }
 
+// Plain text of a richLabel.tsx-marked-up label, for measuring.
+function plainLabel(text: string): string {
+  return parseRichLabelRuns(text)
+    .map((run) => run.text)
+    .join('');
+}
+
+// Whether a label fits on one line in the given (bold) heading font -- the
+// test for whether a "display" field is a short heading (e.g. "Client
+// details") or prose (e.g. "I confirm that I have collected Bella..."),
+// which has to wrap as a paragraph instead of running off the page.
+function fitsOneLine(doc: jsPDF, text: string, font: 'times' | 'helvetica', fontSize: number): boolean {
+  doc.setFont(font, 'bold');
+  doc.setFontSize(fontSize);
+  return doc.getTextWidth(plainLabel(text)) <= CONTENT_WIDTH;
+}
+
+// An inline (not section-opening) "display" field: a short one is a
+// sub-heading, anything longer is body text that wraps to the page width.
+function displayBlock(doc: jsPDF, text: string): Block {
+  return fitsOneLine(doc, text, 'helvetica', 11) ? subheadingBlock(text) : paragraphBlock(doc, text);
+}
+
 function signatureBlock(dataUrl: string, label: string): Block {
   const w = 200;
   const h = 65;
@@ -328,9 +351,17 @@ class PdfWriter {
     }
   }
 
+  // An empty title draws no heading at all -- see buildSections' untitled
+  // "+ New page" sections. A heading too long for one line wraps (each
+  // extra line adding TITLE_LINE_HEIGHT) rather than running off the page.
   section(title: string, blocks: Block[]) {
+    const doc = this.doc;
+    doc.setFont('times', 'bold');
+    doc.setFontSize(14);
+    const titleLines = title ? (doc.splitTextToSize(title, CONTENT_WIDTH) as string[]) : [];
+    const TITLE_LINE_HEIGHT = 17;
     const preGap = 10;
-    const headingHeight = preGap + 23;
+    const headingHeight = titleLines.length > 0 ? preGap + 23 + (titleLines.length - 1) * TITLE_LINE_HEIGHT : 0;
     const total = headingHeight + blocks.reduce((sum, b) => sum + b.height, 0);
     const remaining = CONTENT_BOTTOM - this.y;
     const fitsFreshPage = total <= CONTENT_BOTTOM - MARGIN;
@@ -338,23 +369,28 @@ class PdfWriter {
       this.newPage();
     }
 
-    this.ensureSpace(headingHeight);
-    this.y += preGap;
-    const doc = this.doc;
-    doc.setFont('times', 'bold');
-    doc.setFontSize(14);
-    doc.setTextColor(...GREEN);
-    doc.text(title, MARGIN, this.y);
-    doc.setTextColor(...INK);
-    this.y += 7;
-    doc.setDrawColor(...ACCENT);
-    doc.setLineWidth(1.6);
-    doc.line(MARGIN, this.y, MARGIN + 46, this.y);
-    doc.setDrawColor(...BORDER);
-    doc.setLineWidth(0.75);
-    doc.line(MARGIN + 46, this.y, PAGE_WIDTH - MARGIN, this.y);
-    doc.setLineWidth(1);
-    this.y += 16;
+    if (titleLines.length > 0) {
+      this.ensureSpace(headingHeight);
+      this.y += preGap;
+      doc.setFont('times', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(...GREEN);
+      titleLines.forEach((line, i) => doc.text(line, MARGIN, this.y + i * TITLE_LINE_HEIGHT));
+      doc.setTextColor(...INK);
+      this.y += (titleLines.length - 1) * TITLE_LINE_HEIGHT + 7;
+      doc.setDrawColor(...ACCENT);
+      doc.setLineWidth(1.6);
+      doc.line(MARGIN, this.y, MARGIN + 46, this.y);
+      doc.setDrawColor(...BORDER);
+      doc.setLineWidth(0.75);
+      doc.line(MARGIN + 46, this.y, PAGE_WIDTH - MARGIN, this.y);
+      doc.setLineWidth(1);
+      this.y += 16;
+    } else if (this.y === MARGIN) {
+      // Untitled section at the top of a fresh page: the first block's text
+      // baseline needs the same clearance a heading would have given it.
+      this.y += 12;
+    }
 
     for (const block of blocks) {
       this.ensureSpace(block.height);
@@ -420,7 +456,7 @@ function singleFieldBlock(doc: jsPDF, field: FormField, value: unknown): Block {
 // full section is buildSections' job below.
 function repetitionBlocks(doc: jsPDF, fields: FormField[], answers: Record<string, unknown>): Block[] {
   return fields.map((field) =>
-    field.type === 'display' ? subheadingBlock(field.label) : singleFieldBlock(doc, field, answers[field.id]),
+    field.type === 'display' ? displayBlock(doc, field.label) : singleFieldBlock(doc, field, answers[field.id]),
   );
 }
 
@@ -482,12 +518,22 @@ function buildSections(
       // signature) -- same subheadingBlock() treatment repetitionBlocks()
       // already gives an inline display field inside a group's own
       // repetition, just applied here for a top-level one.
+      // A label too long for a one-line heading (e.g. a "+ New page"
+      // field holding a whole consent statement) is the section's first
+      // paragraph instead -- under the form's name for the opening section,
+      // untitled for a new page.
       if (title === null || field.startsNewPage) {
+        const opening: boolean = title === null && !field.startsNewPage;
         flush();
-        title = field.label;
         forceNewPage = !!field.startsNewPage;
+        if (fitsOneLine(doc, field.label, 'times', 14)) {
+          title = field.label;
+        } else {
+          title = opening ? formName : '';
+          blocks.push(paragraphBlock(doc, field.label));
+        }
       } else {
-        blocks.push(subheadingBlock(field.label));
+        blocks.push(displayBlock(doc, field.label));
       }
       continue;
     }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import * as api from '../api/client';
 import { buildFormSubmissionPdf } from '../pdf/formSubmissionPdf';
 import type { FormSubmissionRecord } from '../types';
 import Modal from './Modal';
@@ -17,7 +18,15 @@ export default function ViewFormSubmissionModal({
     if (submission.status !== 'completed') return;
     let cancelled = false;
     let objectUrl: string | null = null;
-    buildFormSubmissionPdf(submission)
+    // Re-fetched by id rather than rendered straight from `submission` --
+    // a list row carries the raw formFieldsSnapshot, while GET by id
+    // resolves {{petName}} etc. in its labels (findOneForStaff). Falls back
+    // to the row as given if that fetch fails.
+    api
+      .getFormSubmission(submission._id)
+      .then((full) => ({ ...submission, formFieldsSnapshot: full.formFieldsSnapshot }))
+      .catch(() => submission)
+      .then((resolved) => buildFormSubmissionPdf(resolved))
       .then((doc) => {
         if (cancelled) return;
         // A blob URL, not doc.output('datauristring') -- jsPDF's datauristring

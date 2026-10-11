@@ -36,7 +36,7 @@ export class FormSubmissionsController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.formSubmissionsService.findOne(id);
+    return this.formSubmissionsService.findOneForStaff(id);
   }
 
   @Patch(':id')
