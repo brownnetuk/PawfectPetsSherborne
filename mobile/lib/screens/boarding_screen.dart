@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'boarding_bookings_screen.dart';
+import 'completed_bookings_screen.dart';
 import 'home_shell.dart';
 import 'in_progress_screen.dart';
 import 'next_booking_screen.dart';
@@ -43,6 +44,16 @@ class BoardingScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const InProgressScreen()),
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: Icon(Icons.task_alt_outlined, color: Theme.of(context).colorScheme.primary),
+            title: const Text('Completed Bookings'),
+            subtitle: const Text('Bookings whose check-out is done'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const CompletedBookingsScreen()),
             ),
           ),
           const Divider(height: 1),

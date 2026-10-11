@@ -20,8 +20,14 @@ class BoardingBookingsScreen extends StatefulWidget {
   State<BoardingBookingsScreen> createState() => _BoardingBookingsScreenState();
 }
 
+/// Statuses of a booking whose check-out is done -- these live on the hub's
+/// Completed screen rather than the main Bookings list.
+const kCompletedBoardingStatuses = {'Check Out Complete', 'Booking Complete'};
+
 class _BoardingBookingsScreenState extends State<BoardingBookingsScreen> {
   late Future<List<BoardingBookingWithStatus>> _future;
+  final TextEditingController _search = TextEditingController();
+  String? _statusFilter;
 
   @override
   void initState() {
@@ -29,10 +35,25 @@ class _BoardingBookingsScreenState extends State<BoardingBookingsScreen> {
     _future = context.read<Repository>().listBoardingBookings();
   }
 
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
   Future<void> _refresh() async {
     final future = context.read<Repository>().listBoardingBookings();
     setState(() => _future = future);
     await future;
+  }
+
+  bool _matchesSearch(BoardingBookingWithStatus item) {
+    final query = _search.text.trim().toLowerCase();
+    if (query.isEmpty) return true;
+    final b = item.booking;
+    return b.reference.toLowerCase().contains(query) ||
+        b.customerName.toLowerCase().contains(query) ||
+        b.animalNames.any((n) => n.toLowerCase().contains(query));
   }
 
   @override
@@ -65,17 +86,79 @@ class _BoardingBookingsScreenState extends State<BoardingBookingsScreen> {
                 : 'Failed to load bookings';
             return Center(child: Text(message, textAlign: TextAlign.center));
           }
-          final items = snapshot.data ?? [];
-          if (items.isEmpty) {
+          // Checked-out bookings move to the hub's Completed screen.
+          final active = (snapshot.data ?? [])
+              .where((i) => !kCompletedBoardingStatuses.contains(i.status))
+              .toList();
+          if (active.isEmpty) {
             return const Center(child: Text('No bookings yet.'));
           }
-          return RefreshIndicator(
-            onRefresh: _refresh,
-            child: ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: items.length,
-              itemBuilder: (context, i) => _bookingCard(context, items[i]),
-            ),
+          final statuses = {for (final i in active) i.status}.toList()..sort();
+          if (_statusFilter != null && !statuses.contains(_statusFilter)) _statusFilter = null;
+          final items = active
+              .where((i) => (_statusFilter == null || i.status == _statusFilter) && _matchesSearch(i))
+              .toList();
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                child: TextField(
+                  controller: _search,
+                  decoration: InputDecoration(
+                    hintText: 'Search reference, customer or dog',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    suffixIcon: _search.text.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () => setState(() => _search.clear()),
+                          ),
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              SizedBox(
+                height: 48,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: FilterChip(
+                        label: const Text('All'),
+                        selected: _statusFilter == null,
+                        onSelected: (_) => setState(() => _statusFilter = null),
+                      ),
+                    ),
+                    for (final status in statuses)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: FilterChip(
+                          label: Text(status),
+                          selected: _statusFilter == status,
+                          onSelected: (selected) =>
+                              setState(() => _statusFilter = selected ? status : null),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: items.isEmpty
+                    ? const Center(child: Text('No bookings match.'))
+                    : RefreshIndicator(
+                        onRefresh: _refresh,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                          itemCount: items.length,
+                          itemBuilder: (context, i) => _bookingCard(context, items[i]),
+                        ),
+                      ),
+              ),
+            ],
           );
         },
       ),
