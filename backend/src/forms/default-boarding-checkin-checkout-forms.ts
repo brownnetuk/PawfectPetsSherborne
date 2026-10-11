@@ -67,15 +67,57 @@ export const DEFAULT_CHECKIN_FORM: { name: string; description: string; fields: 
   ],
 };
 
+// The check-out form's "did anything happen during the stay" toggles, each
+// paired with a details box that only appears once its toggle is ticked
+// (visibleWhen) -- required while visible, so a ticked toggle can't be
+// submitted without saying what happened. Exported so FormsService can add
+// a missing details box to a check-out form that was seeded before these
+// existed (seeding never touches a form once it exists).
+export const CHECKOUT_STAY_TOGGLES: { toggle: FormField; details: FormField }[] = [
+  {
+    toggle: { id: 'co-incidents', type: 'toggle', label: 'Any incidents during the stay', required: false },
+    details: {
+      id: 'co-incidentsDetails',
+      type: 'textarea',
+      label: 'Incident details (what happened)',
+      required: true,
+      visibleWhen: { mode: 'all', conditions: [{ fieldId: 'co-incidents', equals: 'true' }] },
+    },
+  },
+  {
+    toggle: { id: 'co-vetTreatment', type: 'toggle', label: 'Any veterinary treatment during the stay', required: false },
+    details: {
+      id: 'co-vetTreatmentDetails',
+      type: 'textarea',
+      label: 'Veterinary treatment details (what happened)',
+      required: true,
+      visibleWhen: { mode: 'all', conditions: [{ fieldId: 'co-vetTreatment', equals: 'true' }] },
+    },
+  },
+  {
+    toggle: {
+      id: 'co-medicationAdministered',
+      type: 'toggle',
+      label: 'Any medication administered during the stay',
+      required: false,
+    },
+    details: {
+      id: 'co-medicationAdministeredDetails',
+      type: 'textarea',
+      label: 'Medication details (what was given, when)',
+      required: true,
+      visibleWhen: { mode: 'all', conditions: [{ fieldId: 'co-medicationAdministered', equals: 'true' }] },
+    },
+  },
+];
+
 export const DEFAULT_CHECKOUT_FORM: { name: string; description: string; fields: FormField[] } = {
   name: 'Departure Check-Out',
   description: 'Completed by staff when a dog is collected from boarding or day care.',
   fields: [
     { id: 'co-departureDateTime', type: 'datetime', label: 'Date & time of departure', required: false },
     { id: 'co-releasedBy', type: 'text', label: 'Released by (staff)', required: true, defaultValue: '{{staffMemberSignedIn}}' },
-    { id: 'co-incidents', type: 'toggle', label: 'Any incidents during the stay', required: false },
-    { id: 'co-vetTreatment', type: 'toggle', label: 'Any veterinary treatment during the stay', required: false },
-    { id: 'co-medicationAdministered', type: 'toggle', label: 'Any medication administered during the stay', required: false },
+    ...CHECKOUT_STAY_TOGGLES.flatMap(({ toggle, details }) => [toggle, details]),
     { id: 'co-feesPaid', type: 'toggle', label: 'Fees paid in full', required: false },
     {
       id: 'co-pets',
