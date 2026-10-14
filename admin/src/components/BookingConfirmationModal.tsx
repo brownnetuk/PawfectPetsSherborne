@@ -13,10 +13,12 @@ export default function BookingConfirmationModal({
   booking,
   invoice,
   onClose,
+  onSent,
 }: {
   booking: BoardingBooking;
   invoice: Invoice | null;
   onClose: () => void;
+  onSent?: () => void;
 }) {
   const docRef = useRef<jsPDF | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -56,6 +58,7 @@ export default function BookingConfirmationModal({
     setSending(true);
     try {
       await api.sendBoardingBookingConfirmation(booking._id, doc.output('datauristring'), fileName);
+      onSent?.();
       setResult({
         ok: true,
         message: `The booking confirmation for ${booking.reference} was emailed to ${customer?.email ?? 'the customer'}.`,

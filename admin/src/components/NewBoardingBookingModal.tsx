@@ -91,7 +91,7 @@ export default function NewBoardingBookingModal({
       <form onSubmit={handleSubmit}>
         <div className="field">
           <label>Customer</label>
-          <CustomerPicker customers={customers} value={custId} onChange={handleCustomerChange} />
+          <CustomerPicker customers={customers} animals={animals} value={custId} onChange={handleCustomerChange} />
         </div>
         <div className="field">
           <label>Type</label>

@@ -224,6 +224,19 @@ export class BoardingBookingsService {
     return booking;
   }
 
+  // GET /boarding-bookings/:id only: bookings whose confirmation was emailed
+  // before confirmationSentAt existed get it back-filled from the Activity
+  // log, so the Booking Detail page's "Booking Confirmation Sent" row is
+  // right for them too.
+  async backfillConfirmationSent(booking: BoardingBooking): Promise<void> {
+    if (booking.confirmationSentAt) return;
+    const customerId = (booking.customer as unknown as { _id?: unknown })?._id ?? booking.customer;
+    const sentAt = await this.auditLogService.findBookingConfirmationSentAt(String(customerId), booking.reference);
+    if (!sentAt) return;
+    booking.confirmationSentAt = sentAt;
+    await this.boardingBookingModel.updateOne({ reference: booking.reference }, { confirmationSentAt: sentAt }).exec();
+  }
+
   // Used by the Dashboard tab's Arriving/Departing/Day Care Today lists (a
   // stayId is all a DayBooking row carries) to find which BoardingBooking,
   // if any, a click should jump to -- null (not a 404) when the stay
@@ -692,6 +705,7 @@ export class BoardingBookingsService {
       undefined,
       actor,
     );
+    await this.boardingBookingModel.updateOne({ _id: booking._id }, { confirmationSentAt: new Date() }).exec();
   }
 
   // Hourly look-ahead scan: no existing @Cron in this codebase looks more
