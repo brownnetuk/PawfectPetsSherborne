@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { escapeHtml, renderHtmlToPdf } from './htmlToPdf';
+import { buildInvoicePdf } from './invoicePdf';
 import logoUrl from '../assets/logo.png';
 import { interpolateBookingPlaceholders } from '../utils/bookingPlaceholders';
 import type { BoardingBooking, BusinessInfo, Invoice } from '../types';
@@ -75,7 +76,11 @@ function card(title: string, rows: string): string {
   </div>`;
 }
 
-/** Renders a boarding/day care booking as a branded, customer-facing confirmation PDF. */
+/**
+ * Renders a boarding/day care booking as a branded, customer-facing
+ * confirmation PDF, ending with the booking's invoice (same layout as the
+ * Invoices page PDF) when it has one.
+ */
 export async function buildBookingConfirmationPdf(
   booking: BoardingBooking,
   invoice: Invoice | null,
@@ -160,5 +165,6 @@ export async function buildBookingConfirmationPdf(
 
   await loadBrandFonts();
   await renderHtmlToPdf(doc, html);
+  if (invoice) await buildInvoicePdf(invoice, 'invoice', businessInfo, doc);
   return doc;
 }
