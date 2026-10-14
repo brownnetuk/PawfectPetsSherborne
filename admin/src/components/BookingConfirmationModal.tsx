@@ -34,8 +34,13 @@ export default function BookingConfirmationModal({
     let cancelled = false;
     (async () => {
       try {
-        const info = await api.getBusinessInfo();
-        const doc = await buildBookingConfirmationPdf(booking, invoice, info);
+        // The booking's own `invoice` is populated without its customer
+        // details, so fetch the full record for the invoice page at the end.
+        const [info, fullInvoice] = await Promise.all([
+          api.getBusinessInfo(),
+          invoice ? api.getInvoice(invoice._id) : Promise.resolve(null),
+        ]);
+        const doc = await buildBookingConfirmationPdf(booking, fullInvoice, info);
         if (cancelled) return;
         docRef.current = doc;
         url = URL.createObjectURL(doc.output('blob'));

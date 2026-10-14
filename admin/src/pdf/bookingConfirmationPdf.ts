@@ -13,6 +13,7 @@ import {
   renderHtmlToPdf,
   sectionHeading,
 } from './htmlToPdf';
+import { buildInvoicePdf } from './invoicePdf';
 import { interpolateBookingPlaceholders } from '../utils/bookingPlaceholders';
 import type { BoardingBooking, BusinessInfo, Invoice } from '../types';
 
@@ -42,7 +43,11 @@ function formatDateTime(dateIso: string, time: string): string {
   return `${date}, ${time}`;
 }
 
-/** Renders a boarding/day care booking as a branded, customer-facing confirmation PDF. */
+/**
+ * Renders a boarding/day care booking as a branded, customer-facing
+ * confirmation PDF, ending with the booking's invoice (same layout as the
+ * Invoices page PDF) when it has one.
+ */
 export async function buildBookingConfirmationPdf(
   booking: BoardingBooking,
   invoice: Invoice | null,
@@ -110,5 +115,6 @@ export async function buildBookingConfirmationPdf(
 
   await loadBrandFonts();
   await renderHtmlToPdf(doc, html);
+  if (invoice) await buildInvoicePdf(invoice, 'invoice', businessInfo, doc);
   return doc;
 }

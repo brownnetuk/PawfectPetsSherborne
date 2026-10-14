@@ -639,12 +639,19 @@ function injectVisitSchedule(template: PdfTemplateElement[], record: Invoice | Q
   ];
 }
 
+/**
+ * Renders an invoice/quote PDF. Pass `appendTo` to draw it onto fresh pages at
+ * the end of an existing A4 document instead (the Booking Confirmation PDF
+ * ends with the booking's invoice this way).
+ */
 export async function buildInvoicePdf(
   record: Invoice | Quote,
   kind: 'invoice' | 'quote',
   businessInfo: BusinessInfo,
+  appendTo?: jsPDF,
 ): Promise<jsPDF> {
-  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const doc = appendTo ?? new jsPDF({ unit: 'pt', format: 'a4' });
+  if (appendTo) doc.addPage('a4', 'portrait');
   await registerBrandFonts(doc);
   const rawTemplate = businessInfo.invoicePdfTemplate?.length
     ? (businessInfo.invoicePdfTemplate as unknown as PdfTemplateElement[])
