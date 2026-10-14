@@ -87,6 +87,14 @@ export class BoardingBooking extends Document {
   @Prop()
   preCheckInSentAt?: Date;
 
+  // Set each time the Booking Confirmation is emailed
+  // (BoardingBookingsService.sendConfirmation()) -- drives the "Booking
+  // Confirmation Sent" row on the Booking Detail page. Bookings emailed
+  // before this field existed are back-filled from the Activity log on
+  // first view (see BoardingBookingsService.backfillConfirmationSent()).
+  @Prop()
+  confirmationSentAt?: Date;
+
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: FormSubmission.name })
   preCheckInSubmission?: Types.ObjectId;
 

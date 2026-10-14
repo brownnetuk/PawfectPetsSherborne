@@ -1960,6 +1960,7 @@ function BookingDetail({
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Notes</span><span>{booking.notes || '—'}</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Drop off</span><span>{new Date(booking.startDate).toLocaleDateString('en-GB')}, {booking.dropOffTime}</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Pick up</span><span>{new Date(booking.endDate).toLocaleDateString('en-GB')}, {booking.pickUpTime}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}><span style={{ color: 'var(--muted)' }}>Booking Confirmation Sent</span><span>{booking.confirmationSentAt ? 'Yes' : 'No'}</span></div>
             </div>
           </div>
 
@@ -2052,7 +2053,12 @@ function BookingDetail({
       </div>
 
       {showConfirmation && (
-        <BookingConfirmationModal booking={booking} invoice={invoice ?? null} onClose={() => setShowConfirmation(false)} />
+        <BookingConfirmationModal
+          booking={booking}
+          invoice={invoice ?? null}
+          onClose={() => setShowConfirmation(false)}
+          onSent={refresh}
+        />
       )}
       {showAmend && (
         <AmendBoardingBookingDatesModal

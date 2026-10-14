@@ -53,6 +53,26 @@ export class AuditLogService {
     }
   }
 
+  // Latest "Booking confirmation emailed" entry for a booking reference --
+  // lets BoardingBookingsService back-fill confirmationSentAt for bookings
+  // emailed before that field existed. The reference only lives in the
+  // description ("BK00010 confirmation emailed to ..."), hence the prefix match.
+  async findBookingConfirmationSentAt(customerId: string, reference: string): Promise<Date | undefined> {
+    if (!Types.ObjectId.isValid(customerId)) return undefined;
+    const escaped = reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const entry = await this.auditLogModel
+      .findOne({
+        customer: new Types.ObjectId(customerId),
+        title: 'Booking confirmation emailed',
+        description: { $regex: `^${escaped} ` },
+      })
+      .sort({ createdAt: -1 })
+      .select('createdAt')
+      .lean<{ createdAt?: Date }>()
+      .exec();
+    return entry?.createdAt;
+  }
+
   /**
    * Called by GET /audit-log/:id/pixel.gif when a sent email's tracking
    * pixel loads. First-open only (guarded by the openedAt filter, same

@@ -498,6 +498,7 @@ export interface BoardingBooking {
   paymentRequestType?: 'deposit' | 'full';
   preCheckInSentAt?: string;
   preCheckInSubmission?: string;
+  confirmationSentAt?: string;
   checkInSubmission?: string;
   checkInAt?: string;
   checkInBy?: string;

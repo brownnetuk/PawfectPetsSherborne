@@ -31,6 +31,7 @@ export class BoardingBookingsController {
   @Get(':id')
   async findOne(@Param('id') id: string) {
     const booking = await this.boardingBookingsService.findOne(id);
+    await this.boardingBookingsService.backfillConfirmationSent(booking);
     return this.boardingBookingsService.withStatus(booking);
   }
 

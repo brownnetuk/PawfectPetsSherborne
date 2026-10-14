@@ -602,7 +602,7 @@ export default function NewBookingModal({
       <form onSubmit={handleSubmit}>
         <div className="field">
           <label>Customer</label>
-          <CustomerPicker customers={customers} value={custId} onChange={handleCustomerChange} />
+          <CustomerPicker customers={customers} animals={animals} value={custId} onChange={handleCustomerChange} />
         </div>
         {!initial && !boardingInitial && !dayCareInitial && (
           <div className="field">
