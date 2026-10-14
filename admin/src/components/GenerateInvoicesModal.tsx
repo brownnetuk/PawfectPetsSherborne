@@ -252,7 +252,7 @@ export default function GenerateInvoicesModal({
                     onClick={() => setExpandedId(expanded ? null : g.customerId)}
                     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: 8 }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
                       <input
                         type="checkbox"
                         checked={ticked}
@@ -263,27 +263,31 @@ export default function GenerateInvoicesModal({
                       <span style={{ display: 'inline-flex', transform: expanded ? 'rotate(180deg)' : undefined, color: 'var(--muted)' }}>
                         <ChevronDownIcon />
                       </span>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 700 }}>{g.customerName}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, overflowWrap: 'anywhere' }}>{g.customerName}</div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
                           {g.lineItems.length} line item{g.lineItems.length === 1 ? '' : 's'}
                         </div>
-                        {g.paidInvoice && (
-                          <div style={{ fontSize: '0.8rem', color: 'var(--warn, #cc7a24)' }}>
-                            Invoice {g.paidInvoice.invoiceNumber} for this month is fully paid — skipped.
-                          </div>
-                        )}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                    <div style={{ fontWeight: 700, flexShrink: 0 }}>£{g.total.toFixed(2)}</div>
+                  </div>
+                  {(g.paidInvoice || g.invoices.length > 0) && (
+                    // Indented to line up with the name, under the checkbox and chevron.
+                    <div style={{ paddingLeft: 48, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {g.paidInvoice && (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--warn, #cc7a24)' }}>
+                          Invoice {g.paidInvoice.invoiceNumber} for this month is fully paid — skipped.
+                        </div>
+                      )}
                       {g.invoices.length > 0 && (
                         <select
                           className="select-inline"
                           value={matchInvoice[g.customerId] ?? ''}
                           disabled={!ticked}
-                          onClick={(e) => e.stopPropagation()}
                           onChange={(e) => setMatchInvoice({ ...matchInvoice, [g.customerId]: e.target.value })}
                           aria-label={`Invoice for ${g.customerName}`}
+                          style={{ maxWidth: '100%', alignSelf: 'flex-start' }}
                         >
                           <option value="">New invoice</option>
                           {g.invoices.map((inv) => (
@@ -293,9 +297,8 @@ export default function GenerateInvoicesModal({
                           ))}
                         </select>
                       )}
-                      <div style={{ fontWeight: 700 }}>£{g.total.toFixed(2)}</div>
                     </div>
-                  </div>
+                  )}
                   {expanded && (
                     <table style={{ width: '100%', marginTop: 10, fontSize: '0.85rem' }}>
                       <thead>
