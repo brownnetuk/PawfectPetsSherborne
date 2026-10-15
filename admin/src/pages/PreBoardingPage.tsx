@@ -11,6 +11,14 @@ function formLink(id: string): string {
   return `${INTAKE_URL}/pre-boarding/${id}`;
 }
 
+// Names are typed by the owner on the form, so a form that hasn't come
+// back yet only knows how many dogs it covers.
+function dogsLabel(form: PreBoardingFormRecord): string {
+  if (form.dogNames.length > 0) return form.dogNames.join(', ');
+  const count = form.dogCount ?? 1;
+  return count === 1 ? '1 dog' : `${count} dogs`;
+}
+
 function ownerName(form: PreBoardingFormRecord): string {
   return [form.firstName, form.surname].filter(Boolean).join(' ');
 }
@@ -105,7 +113,7 @@ export default function PreBoardingPage({ embedded = false }: { embedded?: boole
                     <div>{ownerName(f)}</div>
                     <div style={{ color: 'var(--muted)', fontSize: 12 }}>{f.email}</div>
                   </td>
-                  <td>{f.dogNames.join(', ')}</td>
+                  <td>{dogsLabel(f)}</td>
                   <td>
                     <ResultBadge form={f} />
                   </td>
@@ -176,20 +184,12 @@ function NewPreBoardingFormModal({
   const [firstName, setFirstName] = useState('');
   const [surname, setSurname] = useState('');
   const [email, setEmail] = useState('');
-  const [dogNames, setDogNames] = useState<string[]>(['']);
+  const [dogCount, setDogCount] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  function setDogCount(count: number) {
-    setDogNames((prev) => Array.from({ length: count }, (_, i) => prev[i] ?? ''));
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (dogNames.some((n) => !n.trim())) {
-      setError("Please fill in every dog's name.");
-      return;
-    }
     setSaving(true);
     setError(null);
     try {
@@ -197,7 +197,7 @@ function NewPreBoardingFormModal({
         firstName: firstName.trim(),
         surname: surname.trim() || undefined,
         email: email.trim(),
-        dogNames: dogNames.map((n) => n.trim()),
+        dogCount,
       });
       onCreated(form);
     } catch (err) {
@@ -227,7 +227,7 @@ function NewPreBoardingFormModal({
         </div>
         <div className="field">
           <label>How many dogs?</label>
-          <select value={dogNames.length} onChange={(e) => setDogCount(Number(e.target.value))}>
+          <select value={dogCount} onChange={(e) => setDogCount(Number(e.target.value))}>
             {Array.from({ length: MAX_DOGS }, (_, i) => i + 1).map((n) => (
               <option key={n} value={n}>
                 {n}
@@ -235,19 +235,9 @@ function NewPreBoardingFormModal({
             ))}
           </select>
         </div>
-        {dogNames.map((name, i) => (
-          <div className="field" key={i}>
-            <label>{dogNames.length > 1 ? `Dog ${i + 1} name` : "Dog's name"}</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setDogNames((prev) => prev.map((n, j) => (j === i ? e.target.value : n)))}
-              required
-            />
-          </div>
-        ))}
         <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
-          The questions from Settings &gt; Pre-Boarding are added once for each dog, with their name filled in.
+          The owner fills in each dog's name on the form, and the questions from Settings &gt; Pre-Boarding are
+          asked once for each dog.
         </p>
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
@@ -321,7 +311,7 @@ function ViewPreBoardingFormModal({
     );
   }
 
-  const title = `Pre-boarding: ${form.dogNames.join(', ')}`;
+  const title = `Pre-boarding: ${form.dogNames.length > 0 ? form.dogNames.join(', ') : ownerName(form)}`;
 
   if (form.status !== 'completed') {
     return (

@@ -497,6 +497,8 @@ export interface PreBoardingPublicQuestion {
 export interface PreBoardingPublic {
   _id: string;
   firstName: string;
+  dogCount: number;
+  // Only set on older forms where staff entered the names.
   dogNames: string[];
   status: 'pending' | 'completed';
   questions: PreBoardingPublicQuestion[];

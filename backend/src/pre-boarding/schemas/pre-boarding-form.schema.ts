@@ -17,6 +17,12 @@ export class PreBoardingForm extends Document {
   @Prop({ required: true })
   email: string;
 
+  // How many dogs the form covers. Older forms only have dogNames, so read
+  // it through dogCountOf() (pre-boarding.service.ts).
+  @Prop()
+  dogCount?: number;
+
+  // Filled in by the owner on submit (staff entered them on older forms).
   @Prop({ type: [String], default: [] })
   dogNames: string[];
 

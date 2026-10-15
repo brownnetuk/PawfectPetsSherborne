@@ -1,11 +1,11 @@
 import {
-  ArrayMaxSize,
-  ArrayMinSize,
-  IsArray,
   IsEmail,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Max,
+  Min,
 } from 'class-validator';
 
 export class CreatePreBoardingFormDto {
@@ -20,10 +20,9 @@ export class CreatePreBoardingFormDto {
   @IsEmail()
   email: string;
 
-  @IsArray()
-  @ArrayMinSize(1)
-  @ArrayMaxSize(10)
-  @IsString({ each: true })
-  @IsNotEmpty({ each: true })
-  dogNames: string[];
+  // The owner types each dog's name on the form itself.
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  dogCount: number;
 }

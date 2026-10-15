@@ -1431,7 +1431,7 @@ export function createPreBoardingForm(input: {
   firstName: string;
   surname?: string;
   email: string;
-  dogNames: string[];
+  dogCount: number;
 }): Promise<PreBoardingFormRecord> {
   return request('/pre-boarding', { method: 'POST', body: JSON.stringify(input) });
 }

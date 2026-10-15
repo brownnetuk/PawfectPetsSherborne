@@ -72,6 +72,6 @@ export class PreBoardingController {
   @Public()
   @Post(':id/submit')
   submit(@Param('id') id: string, @Body() dto: SubmitPreBoardingFormDto) {
-    return this.preBoardingService.submit(id, dto.answers);
+    return this.preBoardingService.submit(id, dto.dogNames, dto.answers);
   }
 }

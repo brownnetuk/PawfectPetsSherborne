@@ -1316,6 +1316,8 @@ export interface PreBoardingFormRecord {
   firstName: string;
   surname?: string;
   email: string;
+  dogCount?: number;
+  // Typed by the owner, so empty until the form comes back.
   dogNames: string[];
   status: 'pending' | 'completed';
   maxScore: number;
