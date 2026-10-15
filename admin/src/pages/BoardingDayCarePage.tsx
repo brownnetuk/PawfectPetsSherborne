@@ -20,6 +20,7 @@ import ViewAnimalModal from '../components/ViewAnimalModal';
 import ViewCustomerModal from '../components/ViewCustomerModal';
 import ViewFormSubmissionModal from '../components/ViewFormSubmissionModal';
 import { ChevronDownIcon, TrashIcon } from '../components/icons';
+import PreBoardingPage from './PreBoardingPage';
 import { buildChecklistPdf, buildChecklistsPdf } from '../pdf/checklistPdf';
 import {
   BOOKING_STATUS_LABELS,
@@ -169,9 +170,10 @@ interface StayEditHandlers {
   onDelete: (stayId: string) => void;
 }
 
-type Tab = 'dashboard' | 'bookings' | 'occupancy' | 'riskAssessments' | 'policies' | 'checklists';
+type Tab = 'dashboard' | 'preBoarding' | 'bookings' | 'occupancy' | 'riskAssessments' | 'policies' | 'checklists';
 const TAB_LABELS: Record<Tab, string> = {
   dashboard: 'Dashboard',
+  preBoarding: 'Pre-Boarding',
   bookings: 'Bookings',
   occupancy: 'Occupancy',
   riskAssessments: 'Risk Assessments',
@@ -279,7 +281,7 @@ export default function BoardingDayCarePage() {
         <h1>Boarding &amp; Day Care</h1>
       </div>
       <div className="tabs">
-        {(['dashboard', 'bookings', 'occupancy', 'riskAssessments', 'policies', 'checklists'] as Tab[]).map((t) => (
+        {(['dashboard', 'preBoarding', 'bookings', 'occupancy', 'riskAssessments', 'policies', 'checklists'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -289,6 +291,7 @@ export default function BoardingDayCarePage() {
       {tab === 'dashboard' && (
         <DashboardTab mapping={mapping} refreshSignal={refreshSignal} onNavigateToBooking={handleNavigateToBooking} {...editHandlers} />
       )}
+      {tab === 'preBoarding' && <PreBoardingPage embedded />}
       {tab === 'occupancy' && <OccupancyTab mapping={mapping} />}
       {tab === 'bookings' && (
         <BookingsTab
