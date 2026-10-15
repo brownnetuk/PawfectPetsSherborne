@@ -229,10 +229,14 @@ export function fetchPreBoardingForm(id: string): Promise<PreBoardingPublic> {
   return request(`/pre-boarding/${id}/public`);
 }
 
-export function submitPreBoardingForm(id: string, answers: Record<string, PreBoardingAnswer>[]) {
+export function submitPreBoardingForm(
+  id: string,
+  dogNames: string[],
+  answers: Record<string, PreBoardingAnswer>[],
+) {
   return request(`/pre-boarding/${id}/submit`, {
     method: 'POST',
-    body: JSON.stringify({ answers }),
+    body: JSON.stringify({ dogNames, answers }),
   });
 }
 

@@ -31,12 +31,18 @@ import {
 } from './schemas/pre-boarding-form.schema';
 import { PreBoardingSettings } from './schemas/pre-boarding-settings.schema';
 
-const DEFAULT_EMAIL_SUBJECT =
+// The first default template (Admin 1.0.155) used {{dog_names}}, which is
+// no longer known when the email goes out -- an untouched copy of it is
+// swapped for the current default in onModuleInit().
+const PREVIOUS_DEFAULT_EMAIL_SUBJECT =
   'A few questions before {{dog_names}} boards with us';
+const PREVIOUS_DEFAULT_EMAIL_BODY_SNIPPET =
+  'Thanks for your interest in boarding {{dog_names}} with us.';
+const DEFAULT_EMAIL_SUBJECT = 'A few questions before your dog stays with us';
 const DEFAULT_EMAIL_BODY = `<div style="max-width:600px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;">
 <div style="padding:8px 0 20px;">{{logo}}<strong style="font-size:1.15rem;">{{businessName}}</strong></div>
 <p style="margin:0 0 16px;">Hi {{name}},</p>
-<p style="margin:0 0 16px;">Thanks for your interest in boarding {{dog_names}} with us. Because your dog stays in our home, we ask every owner to fill in a short questionnaire first so we can make sure it's the right fit for {{dog_names}} and for the other dogs staying with us.</p>
+<p style="margin:0 0 16px;">Thanks for your interest in boarding with us. Because dogs stay in our home, we ask every owner to fill in a short questionnaire first so we can make sure it's the right fit for your dog and for the other dogs staying with us.</p>
 <p style="margin:0 0 24px;">It takes about 10 minutes. Please answer as honestly as you can, as there are no wrong answers.</p>
 <p style="margin:0 0 24px;"><a href="{{link}}" style="background:#0f3a5f;color:#ffffff;padding:12px 22px;border-radius:6px;text-decoration:none;font-weight:700;display:inline-block;">Fill in the questionnaire</a></p>
 <p style="margin:0 0 16px;">We'll be in touch once we've had a look at your answers.</p>
@@ -49,6 +55,14 @@ const QUESTION_TYPES: PreBoardingQuestionType[] = ['yesno', 'choice', 'text'];
 function joinNames(names: string[]): string {
   if (names.length <= 1) return names[0] ?? '';
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+function dogCountOf(form: PreBoardingForm): number {
+  return form.dogCount ?? form.dogNames.length;
+}
+
+function escapeRegex(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function str(value: unknown): string {
@@ -163,6 +177,18 @@ export class PreBoardingService implements OnModuleInit {
           { upsert: true },
         )
         .exec();
+      await this.emailTemplateModel
+        .updateOne(
+          {
+            trigger: EmailTrigger.PRE_BOARDING,
+            subject: PREVIOUS_DEFAULT_EMAIL_SUBJECT,
+            body: { $regex: escapeRegex(PREVIOUS_DEFAULT_EMAIL_BODY_SNIPPET) },
+          },
+          {
+            $set: { subject: DEFAULT_EMAIL_SUBJECT, body: DEFAULT_EMAIL_BODY },
+          },
+        )
+        .exec();
     } catch {
       // Not fatal: staff can still set the template up by hand.
     }
@@ -223,7 +249,7 @@ export class PreBoardingService implements OnModuleInit {
       firstName: dto.firstName.trim(),
       surname: dto.surname?.trim() || undefined,
       email: dto.email.trim(),
-      dogNames: dto.dogNames.map((n) => n.trim()),
+      dogCount: dto.dogCount,
       questionsSnapshot: questions as unknown as Record<string, unknown>[],
       maxScore: settings.maxScore,
     });
@@ -265,7 +291,13 @@ export class PreBoardingService implements OnModuleInit {
       {
         name: form.firstName,
         link: this.link(id),
-        dog_names: joinNames(form.dogNames),
+        // Names aren't known until the owner fills the form in.
+        dog_names:
+          form.dogNames.length > 0
+            ? joinNames(form.dogNames)
+            : dogCountOf(form) > 1
+              ? 'your dogs'
+              : 'your dog',
       },
     );
     form.lastEmailedAt = new Date();
@@ -295,24 +327,34 @@ export class PreBoardingService implements OnModuleInit {
     return {
       _id: form._id,
       firstName: form.firstName,
+      dogCount: dogCountOf(form),
       dogNames: form.dogNames,
       status: form.status,
       questions,
     };
   }
 
-  async submit(id: string, rawAnswers: Record<string, unknown>[]) {
+  async submit(
+    id: string,
+    rawDogNames: string[],
+    rawAnswers: Record<string, unknown>[],
+  ) {
     const form = await this.findOne(id);
     if (form.status === PreBoardingFormStatus.COMPLETED) {
       throw new BadRequestException('This form has already been submitted.');
     }
-    if (rawAnswers.length !== form.dogNames.length) {
+    const count = dogCountOf(form);
+    if (rawAnswers.length !== count || rawDogNames.length !== count) {
       throw new BadRequestException('Answers are needed for every dog.');
+    }
+    const dogNames = rawDogNames.map((n) => n.trim().slice(0, 100));
+    if (dogNames.some((n) => !n)) {
+      throw new BadRequestException("Please fill in every dog's name.");
     }
     const questions =
       form.questionsSnapshot as unknown as PreBoardingQuestion[];
 
-    const answers = form.dogNames.map((dogName, dogIndex) => {
+    const answers = dogNames.map((dogName, dogIndex) => {
       const raw = rawAnswers[dogIndex] ?? {};
       const clean: Record<string, PreBoardingAnswer> = {};
       // Questions are walked in order so a hidden question's stale answer
@@ -345,9 +387,10 @@ export class PreBoardingService implements OnModuleInit {
       return clean;
     });
 
-    const results = form.dogNames.map((dogName, i) =>
+    const results = dogNames.map((dogName, i) =>
       scoreDog(questions, dogName, answers[i], form.maxScore),
     );
+    form.dogNames = dogNames;
     form.answers = answers;
     form.results = results as unknown as Record<string, unknown>[];
     form.suitable = results.every((r) => r.suitable);

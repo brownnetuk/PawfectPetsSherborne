@@ -2570,7 +2570,7 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
   ],
   pre_boarding: [
     { key: 'name', hint: "the owner's first name" },
-    { key: 'dog_names', hint: 'the dogs\' names, e.g. "Autumn and Biscuit"' },
+    { key: 'dog_names', hint: '"your dog" or "your dogs" (the owner fills in the names on the form)' },
     { key: 'link', hint: 'the link to the questionnaire' },
     ...BUSINESS_PLACEHOLDERS,
   ],

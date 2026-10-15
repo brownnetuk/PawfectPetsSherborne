@@ -110,6 +110,34 @@ describe('PreBoardingService', () => {
     expect(template?.body).toContain('{{link}}');
   });
 
+  it('replaces an untouched copy of the old {{dog_names}} template', async () => {
+    await emailTemplateModel.updateOne(
+      { trigger: EmailTrigger.PRE_BOARDING },
+      {
+        subject: 'A few questions before {{dog_names}} boards with us',
+        body: '<p>Thanks for your interest in boarding {{dog_names}} with us.</p>',
+      },
+    );
+    await service.onModuleInit();
+    const template = await emailTemplateModel
+      .findOne({ trigger: EmailTrigger.PRE_BOARDING })
+      .exec();
+    expect(template?.subject).not.toContain('{{dog_names}}');
+    expect(template?.body).not.toContain('{{dog_names}}');
+  });
+
+  it('leaves an edited template alone', async () => {
+    await emailTemplateModel.updateOne(
+      { trigger: EmailTrigger.PRE_BOARDING },
+      { subject: 'My own subject', body: '<p>My own body</p>' },
+    );
+    await service.onModuleInit();
+    const template = await emailTemplateModel
+      .findOne({ trigger: EmailTrigger.PRE_BOARDING })
+      .exec();
+    expect(template?.subject).toBe('My own subject');
+  });
+
   it('rejects a condition that points at a later question', async () => {
     await expect(
       service.updateSettings({ questions: [questions[1], questions[0]] }),
@@ -120,7 +148,7 @@ describe('PreBoardingService', () => {
     const form = await service.create({
       firstName: 'Caroline',
       email: 'c@example.com',
-      dogNames: ['Autumn'],
+      dogCount: 1,
     });
     const pub = await service.findOnePublic(String(form._id));
     expect(JSON.stringify(pub)).not.toMatch(/score|autoFail/);
@@ -130,26 +158,30 @@ describe('PreBoardingService', () => {
     const form = await service.create({
       firstName: 'Caroline',
       email: 'c@example.com',
-      dogNames: ['Autumn', 'Biscuit'],
+      dogCount: 2,
     });
     const id = String(form._id);
-    await service.submit(id, [
-      // Female, not in season, chews (+3): suitable at max 5.
-      {
-        sex: { value: 'female' },
-        season: { value: 'no' },
-        bitten: { value: 'no', details: 'dropped: no details asked' },
-        chewing: { value: 'yes' },
-      },
-      // Male with a stale "season: yes" left over -- hidden, so no auto-fail.
-      // Bitten (+6) takes him over the pass mark.
-      {
-        sex: { value: 'male' },
-        season: { value: 'yes' },
-        bitten: { value: 'yes', details: 'Nipped a dog in 2024' },
-        chewing: { value: 'no' },
-      },
-    ]);
+    await service.submit(
+      id,
+      ['Autumn', 'Biscuit'],
+      [
+        // Female, not in season, chews (+3): suitable at max 5.
+        {
+          sex: { value: 'female' },
+          season: { value: 'no' },
+          bitten: { value: 'no', details: 'dropped: no details asked' },
+          chewing: { value: 'yes' },
+        },
+        // Male with a stale "season: yes" left over -- hidden, so no auto-fail.
+        // Bitten (+6) takes him over the pass mark.
+        {
+          sex: { value: 'male' },
+          season: { value: 'yes' },
+          bitten: { value: 'yes', details: 'Nipped a dog in 2024' },
+          chewing: { value: 'no' },
+        },
+      ],
+    );
     const saved = await service.findOne(id);
     const results = saved.results as unknown as {
       score: number;
@@ -171,25 +203,30 @@ describe('PreBoardingService', () => {
     expect(saved.answers?.[0]).not.toHaveProperty('bitten.details');
     expect(saved.answers?.[1]).not.toHaveProperty('season');
     expect(saved.suitable).toBe(false);
-    await expect(service.submit(id, [{}, {}])).rejects.toThrow(
-      'already been submitted',
-    );
+    expect(saved.dogNames).toEqual(['Autumn', 'Biscuit']);
+    await expect(
+      service.submit(id, ['Autumn', 'Biscuit'], [{}, {}]),
+    ).rejects.toThrow('already been submitted');
   });
 
   it('auto-fails regardless of score', async () => {
     const form = await service.create({
       firstName: 'Caroline',
       email: 'c@example.com',
-      dogNames: ['Autumn'],
+      dogCount: 1,
     });
-    await service.submit(String(form._id), [
-      {
-        sex: { value: 'female' },
-        season: { value: 'yes' },
-        bitten: { value: 'no' },
-        chewing: { value: 'no' },
-      },
-    ]);
+    await service.submit(
+      String(form._id),
+      ['Autumn'],
+      [
+        {
+          sex: { value: 'female' },
+          season: { value: 'yes' },
+          bitten: { value: 'no' },
+          chewing: { value: 'no' },
+        },
+      ],
+    );
     const saved = await service.findOne(String(form._id));
     expect(saved.results?.[0]).toMatchObject({
       score: 0,
@@ -198,14 +235,32 @@ describe('PreBoardingService', () => {
     });
   });
 
+  it('requires a name for every dog', async () => {
+    const form = await service.create({
+      firstName: 'Caroline',
+      email: 'c@example.com',
+      dogCount: 2,
+    });
+    await expect(
+      service.submit(String(form._id), ['Autumn', ' '], [{}, {}]),
+    ).rejects.toThrow("every dog's name");
+    await expect(
+      service.submit(String(form._id), ['Autumn'], [{}, {}]),
+    ).rejects.toThrow('every dog');
+  });
+
   it('requires visible required questions', async () => {
     const form = await service.create({
       firstName: 'Caroline',
       email: 'c@example.com',
-      dogNames: ['Autumn'],
+      dogCount: 1,
     });
     await expect(
-      service.submit(String(form._id), [{ sex: { value: 'female' } }]),
+      service.submit(
+        String(form._id),
+        ['Autumn'],
+        [{ sex: { value: 'female' } }],
+      ),
     ).rejects.toThrow('Could Autumn come into season?');
   });
 
@@ -213,7 +268,7 @@ describe('PreBoardingService', () => {
     const form = await service.create({
       firstName: 'Caroline',
       email: 'c@example.com',
-      dogNames: ['Autumn', 'Biscuit', 'Pip'],
+      dogCount: 3,
     });
     await service.send(String(form._id));
     const [trigger, to, vars] = sendTemplatedEmail.mock.lastCall as [
@@ -224,7 +279,7 @@ describe('PreBoardingService', () => {
     expect(trigger).toBe(EmailTrigger.PRE_BOARDING);
     expect(to).toBe('c@example.com');
     expect(vars.name).toBe('Caroline');
-    expect(vars.dog_names).toBe('Autumn, Biscuit and Pip');
+    expect(vars.dog_names).toBe('your dogs');
     expect(vars.link).toContain(`/pre-boarding/${String(form._id)}`);
     expect(
       (await service.findOne(String(form._id))).lastEmailedAt,
