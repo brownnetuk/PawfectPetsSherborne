@@ -480,3 +480,29 @@ export type PdfTemplateElement =
   | PdfQrElement
   | PdfItemTableElement
   | PdfVisitTableElement;
+
+// --- Public pre-boarding questionnaire (`/pre-boarding/:id`) -- scores and
+// auto-fail flags are never sent to the browser.
+export interface PreBoardingPublicQuestion {
+  id: string;
+  section: string;
+  text: string;
+  type: 'yesno' | 'choice' | 'text';
+  required: boolean;
+  detailsPrompt?: string;
+  showWhen?: { questionId: string; value: string }[];
+  options: { value: string; label: string; askDetails: boolean }[];
+}
+
+export interface PreBoardingPublic {
+  _id: string;
+  firstName: string;
+  dogNames: string[];
+  status: 'pending' | 'completed';
+  questions: PreBoardingPublicQuestion[];
+}
+
+export interface PreBoardingAnswer {
+  value: string;
+  details?: string;
+}

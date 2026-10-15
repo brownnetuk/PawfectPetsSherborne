@@ -5,6 +5,8 @@ import type {
   IntakeState,
   InvoiceRecord,
   PetDetails,
+  PreBoardingAnswer,
+  PreBoardingPublic,
   PublicBusinessInfo,
   QuoteRecord,
   VetPracticeRecord,
@@ -216,6 +218,19 @@ export function fetchFormSubmission(id: string): Promise<FormSubmissionPublic> {
 
 export function submitFormSubmission(id: string, answers: Record<string, unknown>) {
   return request(`/form-submissions/${id}/submit`, {
+    method: 'POST',
+    body: JSON.stringify({ answers }),
+  });
+}
+
+// --- Public pre-boarding questionnaire (`/pre-boarding/:id`) ---
+
+export function fetchPreBoardingForm(id: string): Promise<PreBoardingPublic> {
+  return request(`/pre-boarding/${id}/public`);
+}
+
+export function submitPreBoardingForm(id: string, answers: Record<string, PreBoardingAnswer>[]) {
+  return request(`/pre-boarding/${id}/submit`, {
     method: 'POST',
     body: JSON.stringify({ answers }),
   });

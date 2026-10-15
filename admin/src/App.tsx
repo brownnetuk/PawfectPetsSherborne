@@ -11,6 +11,7 @@ const CustomersPage = lazy(() => import('./pages/CustomersPage'));
 const CustomerDetailPage = lazy(() => import('./pages/CustomerDetailPage'));
 const EnquiriesPage = lazy(() => import('./pages/EnquiriesPage'));
 const BookingsPage = lazy(() => import('./pages/BookingsPage'));
+const PreBoardingPage = lazy(() => import('./pages/PreBoardingPage'));
 const BoardingDayCarePage = lazy(() => import('./pages/BoardingDayCarePage'));
 const FinancialPage = lazy(() => import('./pages/FinancialPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="/enquiries" element={<EnquiriesPage />} />
           <Route path="/customers" element={<CustomersPage />} />
           <Route path="/customers/:id" element={<CustomerDetailPage />} />
+          <Route path="/pre-boarding" element={<PreBoardingPage />} />
           <Route path="/bookings" element={<BookingsPage />} />
           <Route path="/invoices" element={<InvoicesPage />} />
           <Route path="/financial" element={<FinancialPage />} />

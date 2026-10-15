@@ -50,6 +50,7 @@ import { EmailGroupsModule } from './email-groups/email-groups.module';
 import { EmailMessagesModule } from './email-messages/email-messages.module';
 import { PoliciesModule } from './policies/policies.module';
 import { StaffTrainingModule } from './staff-training/staff-training.module';
+import { PreBoardingModule } from './pre-boarding/pre-boarding.module';
 
 @Module({
   imports: [
@@ -112,6 +113,7 @@ import { StaffTrainingModule } from './staff-training/staff-training.module';
     EmailMessagesModule,
     PoliciesModule,
     StaffTrainingModule,
+    PreBoardingModule,
     RolesModule,
     PortalModule,
     MessagesModule,

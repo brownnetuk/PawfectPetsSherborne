@@ -2,6 +2,7 @@ import AddPetFlow from './intake/AddPetFlow';
 import IntakeForm from './intake/IntakeForm';
 import FormFillPage from './forms/FormFillPage';
 import DocumentView from './documents/DocumentView';
+import PreBoardingFillPage from './pre-boarding/PreBoardingFillPage';
 
 function parseUrl(): {
   customerId: string | null;
@@ -30,13 +31,21 @@ function parseUrl(): {
   return { customerId: match ? match[1] : null, addPet: false, formSubmissionId: null, documentKind: null, documentId: null };
 }
 
+function parsePreBoardingId(): string | null {
+  const match = window.location.pathname.match(/^\/pre-boarding\/([a-fA-F0-9]{24})\/?$/);
+  return match ? match[1] : null;
+}
+
 export default function App() {
+  const preBoardingId = parsePreBoardingId();
   const { customerId, addPet, formSubmissionId, documentKind, documentId } = parseUrl();
 
   return (
     <div className="page">
       <div className="brand-header">PawfectPets Sherborne</div>
-      {documentKind && documentId ? (
+      {preBoardingId ? (
+        <PreBoardingFillPage formId={preBoardingId} />
+      ) : documentKind && documentId ? (
         <DocumentView kind={documentKind} id={documentId} />
       ) : formSubmissionId ? (
         <FormFillPage submissionId={formSubmissionId} />
