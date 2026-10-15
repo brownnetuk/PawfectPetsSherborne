@@ -50,6 +50,97 @@ class _ObservationsScreenState extends State<ObservationsScreen> {
     if (added == true && mounted) setState(_load);
   }
 
+  Future<void> _editObservation(BookingObservation observation) async {
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _ObservationFormSheet(bookingId: widget.bookingId, existing: observation),
+    );
+    if (saved == true && mounted) setState(_load);
+  }
+
+  /// Full read-only view of one observation with Edit / Delete underneath.
+  Future<void> _showObservation(BookingObservation o) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(o.category,
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  ),
+                  Text(_dateTimeFmt.format(o.observedAt),
+                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        (o.description ?? '').trim().isEmpty ? 'No description.' : o.description!,
+                        style: (o.description ?? '').trim().isEmpty
+                            ? TextStyle(color: Colors.grey.shade600)
+                            : null,
+                      ),
+                      if (o.photos.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final photo in o.photos)
+                              if (_thumb(photo) case final Widget thumb) thumb,
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Text('Observed by ${o.observedBy}',
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.of(sheetContext).pop('edit'),
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text('Edit'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.of(sheetContext).pop('delete'),
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      label: const Text('Delete'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'edit') await _editObservation(o);
+    if (action == 'delete') await _delete(o);
+  }
+
   Future<void> _delete(BookingObservation observation) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -120,7 +211,10 @@ class _ObservationsScreenState extends State<ObservationsScreen> {
   Widget _observationCard(BookingObservation o) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _showObservation(o),
+        child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,6 +268,7 @@ class _ObservationsScreenState extends State<ObservationsScreen> {
             Text('Observed by ${o.observedBy}', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
           ],
         ),
+        ),
       ),
     );
   }
@@ -205,21 +300,24 @@ class _ObservationsScreenState extends State<ObservationsScreen> {
   }
 }
 
-/// Add-observation form: date & time (default now), category, description,
-/// up to 5 photos -- the same fields as the admin's form.
+/// Add/edit observation form: date & time (default now), category,
+/// description, up to 5 photos -- the same fields as the admin's form.
+/// Passing [existing] pre-fills it and saves as an update.
 class _ObservationFormSheet extends StatefulWidget {
   final String bookingId;
-  const _ObservationFormSheet({required this.bookingId});
+  final BookingObservation? existing;
+  const _ObservationFormSheet({required this.bookingId, this.existing});
 
   @override
   State<_ObservationFormSheet> createState() => _ObservationFormSheetState();
 }
 
 class _ObservationFormSheetState extends State<_ObservationFormSheet> {
-  DateTime _observedAt = DateTime.now();
-  String _category = 'General';
-  final TextEditingController _description = TextEditingController();
-  final List<String> _photos = [];
+  late DateTime _observedAt = widget.existing?.observedAt ?? DateTime.now();
+  late String _category = widget.existing?.category ?? 'General';
+  late final TextEditingController _description =
+      TextEditingController(text: widget.existing?.description ?? '');
+  late final List<String> _photos = [...?widget.existing?.photos];
   bool _saving = false;
   bool _picking = false;
 
@@ -268,13 +366,26 @@ class _ObservationFormSheetState extends State<_ObservationFormSheet> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      await context.read<Repository>().createBookingObservation(
-            widget.bookingId,
-            observedAt: _observedAt,
-            category: _category,
-            description: _description.text.trim(),
-            photos: _photos,
-          );
+      final repo = context.read<Repository>();
+      final existing = widget.existing;
+      if (existing == null) {
+        await repo.createBookingObservation(
+          widget.bookingId,
+          observedAt: _observedAt,
+          category: _category,
+          description: _description.text.trim(),
+          photos: _photos,
+        );
+      } else {
+        await repo.updateBookingObservation(
+          widget.bookingId,
+          existing.id,
+          observedAt: _observedAt,
+          category: _category,
+          description: _description.text.trim(),
+          photos: _photos,
+        );
+      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -297,7 +408,8 @@ class _ObservationFormSheetState extends State<_ObservationFormSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Add observation', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+              Text(widget.existing == null ? 'Add observation' : 'Edit observation',
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
               const SizedBox(height: 14),
               InkWell(
                 onTap: _pickObservedAt,

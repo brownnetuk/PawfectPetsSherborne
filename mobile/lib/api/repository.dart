@@ -586,6 +586,23 @@ class Repository {
         if (photos.isNotEmpty) 'photos': photos,
       });
 
+  Future<void> updateBookingObservation(
+    String bookingId,
+    String id, {
+    required DateTime observedAt,
+    required String category,
+    String? description,
+    List<String> photos = const [],
+  }) =>
+      // Unlike create, always sends description/photos so clearing them on an
+      // edit actually clears them (the admin form does the same).
+      _client.patch('/boarding-bookings/$bookingId/observations/$id', {
+        'observedAt': observedAt.toUtc().toIso8601String(),
+        'category': category,
+        'description': description ?? '',
+        'photos': photos,
+      });
+
   Future<void> deleteBookingObservation(String bookingId, String id) =>
       _client.delete('/boarding-bookings/$bookingId/observations/$id');
 
