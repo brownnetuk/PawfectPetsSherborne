@@ -38,7 +38,9 @@ const successBox = {
   fontWeight: 500,
 } as const;
 
-export default function PreBoardingPage() {
+// Rendered as the Pre-Boarding tab of Boarding & Day Care (embedded, so the
+// page's own heading gives way to the tab bar above it).
+export default function PreBoardingPage({ embedded = false }: { embedded?: boolean }) {
   const [forms, setForms] = useState<PreBoardingFormRecord[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
@@ -70,8 +72,8 @@ export default function PreBoardingPage() {
 
   return (
     <div>
-      <div className="page-header">
-        <h1>Pre-Boarding</h1>
+      <div className="page-header" style={embedded ? { justifyContent: 'flex-end' } : undefined}>
+        {!embedded && <h1>Pre-Boarding</h1>}
         <button className="btn btn-primary" onClick={() => setShowNew(true)}>
           New Form
         </button>

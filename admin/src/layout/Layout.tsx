@@ -15,7 +15,6 @@ import {
   FinancialIcon,
   InvoicesIcon,
   LogoutIcon,
-  PreBoardingIcon,
   ReportsIcon,
   SettingsIcon,
   TrainingIcon,
@@ -133,10 +132,6 @@ export default function Layout() {
           <NavLink to="/customers" className={({ isActive }) => (isActive ? 'active' : '')}>
             <CustomersIcon />
             Customers
-          </NavLink>
-          <NavLink to="/pre-boarding" className={({ isActive }) => (isActive ? 'active' : '')}>
-            <PreBoardingIcon />
-            Pre-Boarding
           </NavLink>
           <NavLink to="/bookings" className={({ isActive }) => (isActive ? 'active' : '')}>
             <BookingsIcon />
