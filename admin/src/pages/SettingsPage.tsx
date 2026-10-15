@@ -12,6 +12,7 @@ import FormsListCard from '../components/FormsListCard';
 import Modal from '../components/Modal';
 import NamedListCard from '../components/NamedListCard';
 import PdfTemplateDesigner from '../components/PdfTemplateDesigner';
+import PreBoardingSettingsTab from '../components/PreBoardingSettingsTab';
 import RichTextEditor from '../components/RichTextEditor';
 import { BOOKING_PLACEHOLDERS } from '../utils/bookingPlaceholders';
 import type { RichTextEditorHandle } from '../components/RichTextEditor';
@@ -54,6 +55,7 @@ type Tab =
   | 'invoices'
   | 'bookings'
   | 'boarding'
+  | 'preBoarding'
   | 'forms'
   | 'financial'
   | 'notifications';
@@ -66,6 +68,7 @@ const TAB_LABELS: Record<Tab, string> = {
   invoices: 'Invoice/Quotes',
   bookings: 'Bookings',
   boarding: 'Boarding',
+  preBoarding: 'Pre-Boarding',
   forms: 'Forms',
   financial: 'Finance',
   notifications: 'Notifications',
@@ -81,7 +84,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="tabs">
-        {(['business', 'staff', 'email', 'templates', 'invoices', 'bookings', 'boarding', 'forms', 'financial', 'notifications'] as Tab[]).map((t) => (
+        {(['business', 'staff', 'email', 'templates', 'invoices', 'bookings', 'boarding', 'preBoarding', 'forms', 'financial', 'notifications'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -95,6 +98,7 @@ export default function SettingsPage() {
       {tab === 'invoices' && <InvoicesSettingsTab />}
       {tab === 'bookings' && <BookingsSettingsTab />}
       {tab === 'boarding' && <BoardingSettingsTab />}
+      {tab === 'preBoarding' && <PreBoardingSettingsTab />}
       {tab === 'forms' && <FormsTab />}
       {tab === 'financial' && <FinancialTab />}
       {tab === 'notifications' && <NotificationsSettingsTab />}
@@ -2243,6 +2247,11 @@ export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: 
     description:
       'The wrapper used by Communications > Email for one-off emails to customers or groups -- {{emailBodyText}} is where the text and formatting composed there is inserted.',
   },
+  {
+    value: 'pre_boarding',
+    label: 'Pre-Boarding Questionnaire',
+    description: 'Sent from the Pre-Boarding page when staff choose "Send email" on a pre-boarding form.',
+  },
 ];
 
 // Every trigger is edited as raw HTML (RichTextEditor) and sent through as-is
@@ -2557,6 +2566,12 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
     { key: 'pet_names', hint: "the booked pets' names, comma-separated" },
     { key: 'drop_off', hint: 'the drop-off date and time' },
     { key: 'pick_up', hint: 'the pick-up date and time' },
+    ...BUSINESS_PLACEHOLDERS,
+  ],
+  pre_boarding: [
+    { key: 'name', hint: "the owner's first name" },
+    { key: 'dog_names', hint: 'the dogs\' names, e.g. "Autumn and Biscuit"' },
+    { key: 'link', hint: 'the link to the questionnaire' },
     ...BUSINESS_PLACEHOLDERS,
   ],
   generic: [

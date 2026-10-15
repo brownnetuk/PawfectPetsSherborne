@@ -45,6 +45,10 @@ export enum EmailTrigger {
   // composed body (rich text, sent as raw HTML) is inserted, and
   // {{campaignSubject}} is the subject staff typed when composing it.
   GENERIC = 'generic',
+  // The pre-boarding questionnaire link sent from the Pre-Boarding page
+  // (PreBoardingService.send()) -- seeded with a default template on first
+  // start so sending works before staff have set one up.
+  PRE_BOARDING = 'pre_boarding',
 }
 
 // One document per trigger (enforced via the unique index below) -- avoids

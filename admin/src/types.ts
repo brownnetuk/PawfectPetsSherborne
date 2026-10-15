@@ -783,7 +783,8 @@ export type EmailTrigger =
   | 'post_registration'
   | 'form_copy'
   | 'booking_confirmation'
-  | 'generic';
+  | 'generic'
+  | 'pre_boarding';
 
 export interface EmailTemplate {
   trigger: EmailTrigger;
@@ -1262,4 +1263,67 @@ export interface SubmitAttemptResult {
   passed: boolean;
   passMarkPercent: number;
   review: { text: string; options: string[]; correctIndex: number; selectedIndex: number }[];
+}
+
+// --- pre-boarding (mirrors backend/src/pre-boarding/pre-boarding.types.ts) ---
+export type PreBoardingQuestionType = 'yesno' | 'choice' | 'text';
+
+export interface PreBoardingOption {
+  value: string;
+  label: string;
+  score: number;
+  askDetails: boolean;
+  autoFail: boolean;
+}
+
+export interface PreBoardingCondition {
+  questionId: string;
+  value: string;
+}
+
+export interface PreBoardingQuestion {
+  id: string;
+  section: string;
+  text: string;
+  type: PreBoardingQuestionType;
+  options: PreBoardingOption[];
+  detailsPrompt?: string;
+  required: boolean;
+  active: boolean;
+  showWhen?: PreBoardingCondition[];
+}
+
+export interface PreBoardingSettings {
+  maxScore: number;
+  questions: PreBoardingQuestion[];
+}
+
+export interface PreBoardingAnswer {
+  value: string;
+  details?: string;
+}
+
+export interface PreBoardingDogResult {
+  dogName: string;
+  score: number;
+  autoFailed: boolean;
+  flags: { question: string; answer: string; score: number; autoFail: boolean; details?: string }[];
+  suitable: boolean;
+}
+
+export interface PreBoardingFormRecord {
+  _id: string;
+  firstName: string;
+  surname?: string;
+  email: string;
+  dogNames: string[];
+  status: 'pending' | 'completed';
+  maxScore: number;
+  questionsSnapshot?: PreBoardingQuestion[];
+  answers?: Record<string, PreBoardingAnswer>[];
+  results?: PreBoardingDogResult[];
+  suitable?: boolean;
+  lastEmailedAt?: string;
+  submittedAt?: string;
+  createdAt: string;
 }

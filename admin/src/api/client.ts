@@ -46,6 +46,9 @@ import type {
   MyTrainingListEntry,
   Payment,
   PaymentMethod,
+  PreBoardingFormRecord,
+  PreBoardingQuestion,
+  PreBoardingSettings,
   Policy,
   Product,
   ProductAvailability,
@@ -1403,4 +1406,38 @@ export function startTrainingAttempt(moduleId: string): Promise<StartAttemptResu
 }
 export function submitTrainingAttempt(attemptId: string, answers: number[]): Promise<SubmitAttemptResult> {
   return request(`/training/my/attempts/${attemptId}/submit`, { method: 'POST', body: JSON.stringify({ answers }) });
+}
+
+// --- pre-boarding ---
+export function getPreBoardingSettings(): Promise<PreBoardingSettings> {
+  return request('/pre-boarding/settings');
+}
+export function updatePreBoardingSettings(patch: {
+  maxScore?: number;
+  questions?: PreBoardingQuestion[];
+}): Promise<PreBoardingSettings> {
+  return request('/pre-boarding/settings', { method: 'PUT', body: JSON.stringify(patch) });
+}
+export function resetPreBoardingQuestions(): Promise<PreBoardingSettings> {
+  return request('/pre-boarding/settings/reset-questions', { method: 'POST' });
+}
+export function listPreBoardingForms(): Promise<PreBoardingFormRecord[]> {
+  return request('/pre-boarding');
+}
+export function getPreBoardingForm(id: string): Promise<PreBoardingFormRecord> {
+  return request(`/pre-boarding/${id}`);
+}
+export function createPreBoardingForm(input: {
+  firstName: string;
+  surname?: string;
+  email: string;
+  dogNames: string[];
+}): Promise<PreBoardingFormRecord> {
+  return request('/pre-boarding', { method: 'POST', body: JSON.stringify(input) });
+}
+export function sendPreBoardingForm(id: string): Promise<void> {
+  return request(`/pre-boarding/${id}/send`, { method: 'POST' });
+}
+export function deletePreBoardingForm(id: string): Promise<void> {
+  return request(`/pre-boarding/${id}`, { method: 'DELETE' });
 }
