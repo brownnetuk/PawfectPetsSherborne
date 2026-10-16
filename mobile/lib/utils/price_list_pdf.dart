@@ -93,7 +93,10 @@ Future<Uint8List> buildPriceListPdf({
           ),
         ),
         pw.Container(
-          decoration: pw.BoxDecoration(color: _yellow, borderRadius: pw.BorderRadius.circular(999)),
+          // Unlike Flutter, the pdf package doesn't clamp an oversized corner
+          // radius -- a 999 "pill" radius here paints giant blobs over the
+          // whole header, so keep it at half the pill's height.
+          decoration: pw.BoxDecoration(color: _yellow, borderRadius: pw.BorderRadius.circular(10)),
           padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: pw.Text(today, style: displayStyle(11, _blue)),
         ),
