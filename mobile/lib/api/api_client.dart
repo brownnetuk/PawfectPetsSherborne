@@ -81,6 +81,14 @@ class ApiClient {
         timeout: const Duration(seconds: 60),
       );
 
+  /// POST to an endpoint whose success response has no body (e.g. the
+  /// fire-an-email routes) -- [post] would choke casting the empty body.
+  Future<void> postVoid(String path, Map<String, dynamic> body) => _handle<void>(
+        () => http.post(_uri(path), headers: _headers, body: jsonEncode(body)),
+        (_) {},
+        timeout: const Duration(seconds: 60),
+      );
+
   Future<Map<String, dynamic>> patch(String path, Map<String, dynamic> body) => _handle(
         () => http.patch(_uri(path), headers: _headers, body: jsonEncode(body)),
         (json) => json as Map<String, dynamic>,

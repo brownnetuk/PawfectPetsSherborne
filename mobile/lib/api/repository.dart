@@ -633,9 +633,10 @@ class Repository {
     return created['_id'] as String? ?? '';
   }
 
-  /// Emails the customer the "Thank You" for a recorded payment.
+  /// Emails the customer the "Thank You" for a recorded payment. The server
+  /// responds with no body, hence postVoid.
   Future<void> sendPaymentThankYou(String paymentId) =>
-      _client.post('/payments/$paymentId/send-email', {});
+      _client.postVoid('/payments/$paymentId/send-email', {});
 
   /// Edits an existing payment. The server reverses the old invoice/account
   /// effects and re-applies them with these values.
