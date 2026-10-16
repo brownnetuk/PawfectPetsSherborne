@@ -837,13 +837,16 @@ class _BookingsScreenState extends State<BookingsScreen> {
       minVerticalPadding: 2,
       leading: Icon(Icons.circle, size: 12, color: colour),
       title: Text(
-        b.productName.isEmpty ? '(product)' : b.productName,
+        // A stay's pick-up-day row is presence-only, same label as the admin.
+        b.placeholder ? 'Pick-up (no charge)' : (b.productName.isEmpty ? '(product)' : b.productName),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontSize: 13.5),
       ),
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
-      trailing: Text(_money.format(b.lineTotal), style: const TextStyle(fontWeight: FontWeight.w600)),
+      trailing: b.placeholder
+          ? null
+          : Text(_money.format(b.lineTotal), style: const TextStyle(fontWeight: FontWeight.w600)),
       onTap: () => _editEntry(b),
     );
   }

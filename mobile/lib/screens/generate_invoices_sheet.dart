@@ -55,7 +55,11 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
     try {
       final bookings =
           await context.read<Repository>().listDayBookings(from: _monthStart, to: _monthEndExclusive);
-      final billable = bookings.where((b) => b.invoiceId == null || b.invoiceId!.isEmpty).toList();
+      // Same filter as the admin's GenerateInvoicesModal: uninvoiced rows,
+      // excluding a boarding stay's never-billed pick-up placeholder.
+      final billable = bookings
+          .where((b) => (b.invoiceId == null || b.invoiceId!.isEmpty) && !b.placeholder)
+          .toList();
 
       final byCustomer = <String, List<DayBooking>>{};
       for (final b in billable) {

@@ -58,7 +58,10 @@ class DayBooking {
     this.pickUpTime,
   });
 
-  double get lineTotal => productPrice * quantity;
+  /// A boarding stay's pick-up-day placeholder row is presence-only and never
+  /// billed, so it contributes nothing to revenue (otherwise a Thu->Fri stay
+  /// would count the boarding charge on both days).
+  double get lineTotal => placeholder ? 0 : productPrice * quantity;
 
   factory DayBooking.fromJson(Map<String, dynamic> json) {
     final animal = json['animal'];
