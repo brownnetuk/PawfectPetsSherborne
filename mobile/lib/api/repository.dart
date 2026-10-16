@@ -357,6 +357,39 @@ class Repository {
     return (json['depositPercentage'] as num?)?.toDouble();
   }
 
+  /// Business name + contact line for the price-list PDF's header/sign-off.
+  Future<({String name, String contactLine})> getBusinessContact() async {
+    final json = await _client.get('/settings/business');
+    final contact = [json['telephone'], json['email']]
+        .whereType<String>()
+        .where((v) => v.trim().isNotEmpty)
+        .join('  ·  ');
+    return (name: json['name'] as String? ?? 'PawfectPets Sherborne', contactLine: contact);
+  }
+
+  /// The business logo bytes (Settings > Business Info), or null if none.
+  Future<Uint8List?> getBusinessLogo() async {
+    try {
+      return await _client.getBytes('/settings/business/logo');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Emails the price-list PDF (built client-side) to an ad-hoc recipient.
+  Future<void> sendPriceListEmail({
+    required String recipientName,
+    required String recipientEmail,
+    required String attachmentData,
+    required String attachmentName,
+  }) =>
+      _client.postVoid('/products/price-list/email', {
+        'recipientName': recipientName,
+        'recipientEmail': recipientEmail,
+        'attachmentData': attachmentData,
+        'attachmentName': attachmentName,
+      });
+
   // --- notification settings (global push preferences) ---
   Future<NotificationSettings> getNotificationSettings() async =>
       NotificationSettings.fromJson(await _client.get('/settings/notifications'));

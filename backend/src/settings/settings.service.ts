@@ -586,6 +586,36 @@ export class SettingsService {
   }
 
   /**
+   * Sends a one-off branded HTML email without a configured template (unlike
+   * sendTemplatedEmail), with an optional PDF attachment -- used by the staff
+   * app's "email the price list", whose recipient is typed in ad hoc rather
+   * than being a customer. Wrapped to the same 600px width every templated
+   * email gets.
+   */
+  async sendDirectEmail(
+    to: string,
+    subject: string,
+    html: string,
+    attachment?: { data: string; name: string },
+  ): Promise<void> {
+    const settings = await this.getSendableSettings();
+    const token = await this.getAccessToken(
+      settings.tenantId,
+      settings.clientId,
+      settings.clientSecret,
+    );
+    await this.graphSendMail(
+      settings.fromAddress,
+      token,
+      to,
+      subject,
+      `<div style="max-width:600px;margin:0 auto;">${html}</div>`,
+      'HTML',
+      attachment,
+    );
+  }
+
+  /**
    * Sends a customer-facing email using the template configured for the
    * given trigger (e.g. "here's your registration link"). When `customerId`
    * is given, also creates the "sent" Activity entry up front (before the

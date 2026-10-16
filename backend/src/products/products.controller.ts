@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { CreateProductDto } from './dto/create-product.dto';
+import { SendPriceListDto } from './dto/send-price-list.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
 
@@ -19,6 +20,13 @@ export class ProductsController {
   @Get()
   findAll() {
     return this.productsService.findAll();
+  }
+
+  // Not gated: any staff member can email the price list to a prospect from
+  // the staff app's Price List screen.
+  @Post('price-list/email')
+  emailPriceList(@Body() dto: SendPriceListDto) {
+    return this.productsService.emailPriceList(dto);
   }
 
   @RequirePermission('settings.manage')
