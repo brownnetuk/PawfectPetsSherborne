@@ -85,15 +85,15 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
   Future<void> _confirmDelete(Payment payment) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete payment?'),
         content: Text(
           'This permanently removes payment ${payment.paymentId} and restores its amount to the invoice\'s outstanding balance.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child: Text('Delete', style: TextStyle(color: Colors.red.shade600)),
           ),
         ],

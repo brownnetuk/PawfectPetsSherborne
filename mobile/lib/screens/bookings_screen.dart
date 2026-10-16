@@ -288,13 +288,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
   Future<void> _confirmDeleteAppointment(Appointment a) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete appointment?'),
         content: Text('Remove the appointment${a.customerName.isNotEmpty ? ' with ${a.customerName}' : ''}?'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child: Text('Delete', style: TextStyle(color: Colors.red.shade600)),
           ),
         ],

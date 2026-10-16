@@ -41,14 +41,14 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen> {
     final repo = context.read<Repository>();
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete pet?'),
         content: Text('This permanently deletes ${_animal.name}. This cannot be undone.'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Delete'),
           ),
         ],

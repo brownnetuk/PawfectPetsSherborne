@@ -49,12 +49,12 @@ Future<bool> confirmProductAvailability(
   if (message == null) return true;
   final ok = await showDialog<bool>(
     context: context,
-    builder: (_) => AlertDialog(
+    builder: (dialogContext) => AlertDialog(
       title: const Text('Check product type'),
       content: Text(message),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Use anyway')),
+        TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Use anyway')),
       ],
     ),
   );

@@ -123,13 +123,13 @@ class _QuotesScreenState extends State<QuotesScreen> {
     final repo = context.read<Repository>();
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Convert to invoice'),
         content: Text('Mark ${q.quoteNumber} as accepted, create an invoice from it, '
             'and email ${q.customerName} a deposit request?'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Convert')),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Convert')),
         ],
       ),
     );
@@ -167,12 +167,12 @@ class _QuotesScreenState extends State<QuotesScreen> {
     final repo = context.read<Repository>();
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Send quote'),
         content: Text('Email quote ${q.quoteNumber} to ${q.customerName}?'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Send')),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Send')),
         ],
       ),
     );

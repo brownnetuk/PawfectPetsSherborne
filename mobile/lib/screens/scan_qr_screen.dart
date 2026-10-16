@@ -67,7 +67,7 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
     final controller = TextEditingController();
     final url = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Enter server URL'),
         content: TextField(
           controller: controller,
@@ -77,9 +77,9 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
           decoration: const InputDecoration(labelText: 'Server URL'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            onPressed: () => Navigator.of(dialogContext).pop(controller.text.trim()),
             child: const Text('Connect'),
           ),
         ],

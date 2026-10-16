@@ -149,14 +149,14 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   Future<void> _confirmRemoveItem(int index) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Remove line item?'),
         content: const Text('This removes the selected line from the invoice.'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Remove'),
           ),
         ],

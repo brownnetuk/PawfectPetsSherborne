@@ -48,12 +48,12 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
     final repo = context.read<Repository>();
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Send quote'),
         content: Text('Email quote ${quote.quoteNumber} to ${quote.customerName}?'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Send')),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Send')),
         ],
       ),
     );

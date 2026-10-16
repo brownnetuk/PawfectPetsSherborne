@@ -226,13 +226,13 @@ class _MessageThreadScreenState extends State<MessageThreadScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete message?'),
         content: const Text('This removes it for everyone.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             style: TextButton.styleFrom(foregroundColor: const Color(0xFFC0392B)),
             child: const Text('Delete'),
           ),

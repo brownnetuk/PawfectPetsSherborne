@@ -47,7 +47,7 @@ class _SelectCustomerScreenState extends State<SelectCustomerScreen> {
     final emailController = TextEditingController();
     final result = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Manual customer'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -67,8 +67,8 @@ class _SelectCustomerScreenState extends State<SelectCustomerScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Use')),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Use')),
         ],
       ),
     );

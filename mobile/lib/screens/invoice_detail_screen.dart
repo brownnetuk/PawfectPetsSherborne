@@ -50,12 +50,16 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   Future<bool> _confirm(String title, String message, String confirmLabel) async {
     final result = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      // Must pop with the dialog's own context: showDialog puts the dialog on
+      // the root navigator, while this screen lives inside a tab's nested
+      // navigator -- popping with the screen context targets the wrong
+      // navigator and the dialog never resolves.
+      builder: (dialogContext) => AlertDialog(
         title: Text(title),
         content: Text(message),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: Text(confirmLabel)),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: Text(confirmLabel)),
         ],
       ),
     );
