@@ -390,6 +390,23 @@ td {
   border-bottom: 1px solid #f0f2f4;
 }
 
+/* Denser list rows (Zoho-style): one line per row, names never wrap. */
+.table-compact th,
+.table-compact td {
+  padding-left: 12px;
+  padding-right: 12px;
+  white-space: nowrap;
+}
+
+.table-compact td {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
+.table-compact .badge {
+  padding: 2px 10px;
+}
+
 tbody tr {
   transition: background 0.12s ease;
 }

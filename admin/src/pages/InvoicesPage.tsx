@@ -485,7 +485,8 @@ function InvoicesTab() {
             </div>
           </div>
         ) : (
-          <table>
+          <div style={{ overflowX: 'auto' }}>
+          <table className="table-compact">
             <thead>
               <tr>
                 <th style={{ width: 34 }}>
@@ -574,6 +575,7 @@ function InvoicesTab() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
         </div>
         {viewing && (
