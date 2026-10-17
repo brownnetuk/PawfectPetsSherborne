@@ -13,18 +13,123 @@ export function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-/** The shared branded header every "export as PDF" document opens with. */
-export function pdfBrandHeader(): string {
-  return `<div style="display:flex;align-items:center;gap:16px;border-bottom:3px solid #e8963c;padding-bottom:16px;margin-bottom:26px;">
-    <img src="${logoUrl}" style="height:48px;width:48px;object-fit:contain;" />
-    <div style="font-family:Georgia,'Times New Roman',serif;font-weight:bold;font-size:24px;color:#1f3b2c;">PawfectPets Sherborne</div>
+// Brand palette and type from the Pawfect Pets social posts, shared by every
+// html2canvas-captured PDF (booking confirmation, policies, risk
+// assessments): a bold blue ground, yellow highlights, a pink call-out band
+// and cream lettering, with Archivo Black display headings over DM Sans body
+// text (both loaded from Google Fonts in index.html). brandPdf.ts draws the
+// same look as vector text for the jsPDF-drawn documents.
+export const BLUE = '#0072b5';
+export const YELLOW = '#fdf101';
+export const PINK = '#d7385e';
+export const CREAM = '#fbf7ee';
+export const INK = '#1d2a33';
+export const MUTED = '#5f6f7a';
+export const RULE = '#d9e6ef';
+export const DISPLAY_FONT = "'Archivo Black', 'Arial Black', Helvetica, sans-serif";
+export const BODY_FONT = "'DM Sans', Helvetica, Arial, sans-serif";
+
+// html2canvas draws with whatever fonts are already loaded, so make sure the
+// web fonts have arrived before the capture or it falls back to Helvetica.
+export async function loadBrandFonts(): Promise<void> {
+  if (!document.fonts) return;
+  await Promise.all(
+    ['400 20px "Archivo Black"', '400 13px "DM Sans"', '700 13px "DM Sans"', 'italic 400 13px "DM Sans"'].map((f) =>
+      document.fonts.load(f).catch(() => undefined),
+    ),
+  );
+}
+
+/** Muted label left, bold value right, ruled off underneath. */
+export function fieldRow(label: string, value: string, highlight = false): string {
+  const valueStyle = highlight
+    ? `background:${PINK};color:#fff;border-radius:999px;padding:1px 10px;`
+    : '';
+  return `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:5px 0;border-bottom:1px solid ${RULE};font-size:13px;line-height:1.35;">
+    <span style="color:${MUTED};white-space:nowrap;">${escapeHtml(label)}</span>
+    <span style="font-weight:700;text-align:right;${valueStyle}">${escapeHtml(value)}</span>
   </div>`;
 }
 
-export function pdfFooter(): string {
-  return `<div style="margin-top:40px;padding-top:12px;border-top:1px solid #e3e8de;font-size:10px;color:#6f7d72;">
-    Generated ${new Date().toLocaleDateString('en-GB')} &middot; PawfectPets Sherborne
+/** Archivo Black heading in blue over a short yellow bar. */
+export function sectionHeading(title: string): string {
+  return `<h2 style="font-family:${DISPLAY_FONT};font-weight:400;font-size:16px;line-height:1.2;color:${BLUE};margin:0 0 6px;">${escapeHtml(title)}<span style="display:block;width:34px;height:4px;background:${YELLOW};border-radius:2px;margin-top:5px;"></span></h2>`;
+}
+
+/** A cream, rounded section card with a heading. */
+export function card(title: string, body: string): string {
+  return `<div style="flex:1;min-width:0;background:${CREAM};border-radius:12px;padding:14px 16px 10px;">
+    ${sectionHeading(title)}
+    ${body}
   </div>`;
+}
+
+/** Styles for staff-written rich text (policies, booking terms) in the brand look. */
+export function richTextStyles(className: string): string {
+  return `<style>
+    .${className} { font-size:13px; line-height:1.45; color:${INK}; }
+    .${className} p { margin:0 0 6px; }
+    .${className} ul, .${className} ol { margin:4px 0 6px; padding-left:20px; }
+    .${className} li { margin:0 0 2px; }
+    .${className} h1, .${className} h2, .${className} h3, .${className} h4 { font-family:${DISPLAY_FONT}; font-weight:400; color:${BLUE}; line-height:1.2; margin:14px 0 6px; }
+    .${className} h1 { font-size:20px; } .${className} h2 { font-size:17px; } .${className} h3, .${className} h4 { font-size:14px; }
+    .${className} b, .${className} strong { color:${BLUE}; }
+    .${className} u { text-decoration:none; font-weight:700; color:${PINK}; }
+    .${className} a { color:${BLUE}; }
+    .${className} table { border-collapse:collapse; width:100%; }
+    .${className} td, .${className} th { border-bottom:1px solid ${RULE}; padding:4px 6px; text-align:left; }
+  </style>`;
+}
+
+export interface BrandHeaderOptions {
+  /** Title, with its last word picked out in yellow, e.g. "Booking confirmed". */
+  title: string;
+  /** Italic line under the title, e.g. "for Caroline Leatherdale". */
+  subtitle?: string;
+  /** Small caps label and yellow pill on the right, e.g. "Reference" / "BK00010". */
+  badge?: { label: string; value: string };
+}
+
+/** The blue header band every branded PDF opens with (see bookingConfirmationPdf.ts). */
+export function pdfBrandHeader({ title, subtitle, badge }: BrandHeaderOptions): string {
+  const words = title.trim().split(/\s+/);
+  const highlight = words.length > 1 ? words.pop()! : '';
+  const titleHtml = `${escapeHtml(words.join(' '))}${highlight ? ` <span style="color:${YELLOW};border-bottom:4px solid ${YELLOW};">${escapeHtml(highlight)}</span>` : ''}`;
+  return `<div style="background:${BLUE};border-radius:14px;padding:18px 22px;display:flex;align-items:center;gap:18px;color:${CREAM};">
+    <div style="flex:none;width:78px;height:78px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;">
+      <img src="${logoUrl}" style="width:64px;height:64px;object-fit:contain;" />
+    </div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;">Pawfect Pets &middot; Sherborne</div>
+      <div style="font-family:${DISPLAY_FONT};font-size:30px;line-height:1.1;letter-spacing:-0.01em;margin:4px 0 4px;">${titleHtml}</div>
+      ${subtitle ? `<div style="font-size:13px;font-style:italic;">${escapeHtml(subtitle)}</div>` : ''}
+    </div>
+    ${
+      badge
+        ? `<div style="flex:none;text-align:right;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;opacity:0.85;">${escapeHtml(badge.label)}</div>
+      <div style="display:inline-block;margin-top:4px;background:${YELLOW};color:${BLUE};font-family:${DISPLAY_FONT};font-size:18px;padding:4px 12px;border-radius:999px;white-space:nowrap;">${escapeHtml(badge.value)}</div>
+    </div>`
+        : ''
+    }
+  </div>`;
+}
+
+/**
+ * The closing pink "Questions? Just get in touch" band (when there's a
+ * contact line) and the generated date, as on the booking confirmation.
+ * `contact` is already-escaped HTML.
+ */
+export function pdfFooter(contact = ''): string {
+  return `${
+    contact
+      ? `<div style="margin-top:18px;background:${PINK};border-radius:12px;padding:11px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;color:#fff;">
+    <div style="font-weight:700;font-size:14px;">Questions? Just get in touch</div>
+    <div style="font-size:12px;text-align:right;">${contact}</div>
+  </div>`
+      : ''
+  }
+  <div style="margin-top:${contact ? 6 : 18}px;font-size:9.5px;color:${MUTED};text-align:right;">Generated ${new Date().toLocaleDateString('en-GB')}</div>`;
 }
 
 // Vertical extents (CSS px, relative to `container`) of every line that acts as
@@ -94,8 +199,8 @@ export async function renderHtmlToPdf(doc: jsPDF, html: string): Promise<void> {
   container.style.zIndex = '-1';
   container.style.background = '#fff';
   container.style.width = `${renderWidthPx}px`;
-  container.style.fontFamily = 'Helvetica, Arial, sans-serif';
-  container.style.color = '#232c26';
+  container.style.fontFamily = BODY_FONT;
+  container.style.color = INK;
   container.style.fontSize = '15px';
   container.style.lineHeight = '1.55';
   container.innerHTML = html;
