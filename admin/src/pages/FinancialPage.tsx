@@ -316,9 +316,9 @@ function ExpensesCard() {
               <th>Date</th>
               <th>Category</th>
               <th>Payee</th>
+              <th>Paid From</th>
               <th>Description</th>
               <th>Amount</th>
-              <th>Account</th>
               <th>Attachment</th>
               <th></th>
             </tr>
@@ -329,9 +329,9 @@ function ExpensesCard() {
                 <td>{new Date(e.date).toLocaleDateString('en-GB')}</td>
                 <td>{e.category}</td>
                 <td>{e.payee || '—'}</td>
+                <td>{expenseAccountLabel(e.account)}</td>
                 <td>{e.description || '—'}</td>
                 <td>£{e.amount.toFixed(2)}</td>
-                <td>{expenseAccountLabel(e.account)}</td>
                 <td>
                   {e.receipt ? (
                     <span style={{ color: 'var(--brand-green)', fontWeight: 700 }} title="Has an attachment">

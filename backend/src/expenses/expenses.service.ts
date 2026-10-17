@@ -37,7 +37,9 @@ export class ExpensesService {
   }
 
   async findOne(id: string): Promise<Expense> {
-    const expense = await this.expenseModel.findById(id).exec();
+    // Populated like findAll() so the staff app's detail view can show the
+    // "Paid from" account name, not just an id.
+    const expense = await this.expenseModel.findById(id).populate('account', 'name type').exec();
     if (!expense) {
       throw new NotFoundException(`Expense ${id} not found`);
     }
@@ -64,7 +66,9 @@ export class ExpensesService {
     if (updated.account) {
       await this.bankAccountsService.adjustBalance(updated.account, -updated.amount);
     }
-    return updated;
+    // Populated only after the balance adjustments above, which need the raw
+    // account id rather than a populated doc.
+    return updated.populate('account', 'name type');
   }
 
   async remove(id: string): Promise<void> {

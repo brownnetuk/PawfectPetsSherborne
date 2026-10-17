@@ -803,6 +803,12 @@ class Repository {
   Future<List<ExpenseCategory>> listExpenseCategories() async =>
       (await _client.getList('/expense-categories')).map((e) => ExpenseCategory.fromJson(e)).toList();
 
+  Future<ExpenseCategory> createExpenseCategory(String name) async =>
+      ExpenseCategory.fromJson(await _client.post('/expense-categories', {'name': name}));
+
+  Future<Vendor> createVendor(String name) async =>
+      Vendor.fromJson(await _client.post('/vendors', {'name': name}));
+
   Future<List<BankAccountRef>> listBankAccounts() async =>
       (await _client.getList('/bank-accounts')).map((e) => BankAccountRef.fromJson(e)).toList();
 

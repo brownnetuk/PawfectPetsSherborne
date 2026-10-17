@@ -63,11 +63,18 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
       final accounts = await repo.listBankAccounts();
       return (categories, vendors, accounts);
     }();
-    // Pre-select the dropdowns for edit mode once the lookups have loaded.
+    // Pre-select the dropdowns for edit mode once the lookups have loaded; a
+    // new expense starts on the account marked default in the admin.
     _lookups.then((data) {
-      if (!mounted || e == null) return;
+      if (!mounted) return;
       final (categories, vendors, accounts) = data;
       setState(() {
+        if (e == null) {
+          for (final a in accounts) {
+            if (a.isDefault) _account = a;
+          }
+          return;
+        }
         for (final c in categories) {
           if (c.name == e.category) _category = c;
         }
@@ -131,6 +138,54 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
 
   void _snack(String m) {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
+
+  /// Prompts for a name, creates the category/vendor on the server, inserts
+  /// it into the loaded lookups and selects it.
+  Future<void> _addLookup({required bool isCategory}) async {
+    final controller = TextEditingController();
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(isCategory ? 'New category' : 'New vendor'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(labelText: isCategory ? 'Category name' : 'Vendor name'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Add')),
+        ],
+      ),
+    );
+    final name = controller.text.trim();
+    controller.dispose();
+    if (save != true || name.isEmpty || !mounted) return;
+    try {
+      final repo = context.read<Repository>();
+      final (categories, vendors, accounts) = await _lookups;
+      if (isCategory) {
+        final created = await repo.createExpenseCategory(name);
+        setState(() {
+          _lookups = Future.value(([...categories, created], vendors, accounts));
+          _category = created;
+        });
+      } else {
+        final created = await repo.createVendor(name);
+        setState(() {
+          _lookups = Future.value((categories, [...vendors, created], accounts));
+          _payee = created;
+        });
+      }
+    } catch (e) {
+      _snack(e is ApiException
+          ? e.message
+          : 'Failed to add the ${isCategory ? 'category' : 'vendor'}');
+    }
   }
 
   Future<void> _submit() async {
@@ -241,12 +296,20 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
           }
           final (categories, vendors, accounts) = snapshot.data!;
           if (categories.isEmpty) {
-            return const SizedBox(
-              height: 160,
+            return SizedBox(
+              height: 180,
               child: Center(
-                child: Text(
-                  'No expense categories set up yet. Add them in the admin app first.',
-                  textAlign: TextAlign.center,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('No expense categories set up yet.', textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: () => _addLookup(isCategory: true),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Add category'),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -268,13 +331,27 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<ExpenseCategory>(
-                  initialValue: _category,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Category'),
-                  hint: const Text('Choose a category'),
-                  items: categories.map((c) => DropdownMenuItem(value: c, child: Text(c.name))).toList(),
-                  onChanged: (c) => setState(() => _category = c),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<ExpenseCategory>(
+                        initialValue: _category,
+                        isExpanded: true,
+                        decoration: const InputDecoration(labelText: 'Category'),
+                        hint: const Text('Choose a category'),
+                        items: categories
+                            .map((c) => DropdownMenuItem(value: c, child: Text(c.name)))
+                            .toList(),
+                        onChanged: (c) => setState(() => _category = c),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle_outline),
+                      tooltip: 'Add category',
+                      onPressed: () => _addLookup(isCategory: true),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -282,15 +359,27 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
                   decoration: const InputDecoration(labelText: 'Description'),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<Vendor>(
-                  initialValue: _payee,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Vendor', hintText: 'Optional'),
-                  items: [
-                    const DropdownMenuItem<Vendor>(value: null, child: Text('No vendor')),
-                    ...vendors.map((v) => DropdownMenuItem(value: v, child: Text(v.name))),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<Vendor>(
+                        initialValue: _payee,
+                        isExpanded: true,
+                        decoration: const InputDecoration(labelText: 'Vendor', hintText: 'Optional'),
+                        items: [
+                          const DropdownMenuItem<Vendor>(value: null, child: Text('No vendor')),
+                          ...vendors.map((v) => DropdownMenuItem(value: v, child: Text(v.name))),
+                        ],
+                        onChanged: (v) => setState(() => _payee = v),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle_outline),
+                      tooltip: 'Add vendor',
+                      onPressed: () => _addLookup(isCategory: false),
+                    ),
                   ],
-                  onChanged: (v) => setState(() => _payee = v),
                 ),
                 const SizedBox(height: 12),
                 TextField(
