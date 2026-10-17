@@ -135,7 +135,7 @@ export default function Layout() {
           </NavLink>
           <NavLink to="/bookings" className={({ isActive }) => (isActive ? 'active' : '')}>
             <BookingsIcon />
-            Bookings
+            Calendar
           </NavLink>
           <NavLink to="/invoices" className={({ isActive }) => (isActive ? 'active' : '')}>
             <InvoicesIcon />

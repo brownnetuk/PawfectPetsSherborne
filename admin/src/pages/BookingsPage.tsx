@@ -450,7 +450,7 @@ export default function BookingsPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>Bookings</h1>
+        <h1>Calendar</h1>
       </div>
       {error && <div className="error-banner">{error}</div>}
 
