@@ -2,6 +2,7 @@ import { useState } from 'react';
 import * as api from '../api/client';
 import Modal from './Modal';
 import type { DayBooking, Invoice, LineItem } from '../types';
+import { applyTravelLine, travelProductForCustomer } from '../utils/travelLines';
 
 function productIdOf(product: DayBooking['product']): string {
   return typeof product === 'string' ? product : product._id;
@@ -42,7 +43,7 @@ export default function BookingInvoicePrompt({
     setBusy(true);
     setError(null);
     try {
-      const products = await api.listProducts();
+      const [products, customer] = await Promise.all([api.listProducts(), api.getCustomer(customerId)]);
       const productById = new Map(products.map((p) => [p._id, p]));
       const byProduct = new Map<string, LineItem>();
       for (const b of billable) {
@@ -68,7 +69,8 @@ export default function BookingInvoicePrompt({
       // New invoices are always created as Draft by the backend.
       const invoice = await api.createInvoice({
         customer: customerId,
-        lineItems: Array.from(byProduct.values()),
+        // Travel follows the other products' quantity (2 x Visit -> 2 x Travel).
+        lineItems: applyTravelLine(Array.from(byProduct.values()), travelProductForCustomer(customer, products), products),
         issueDate: dateKey(new Date()),
         // Same as the monthly run: due on the last date the invoice covers.
         dueDate: last,
