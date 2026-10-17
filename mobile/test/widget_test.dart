@@ -44,7 +44,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('PawfectPets Sherborne'), findsOneWidget);
+    expect(find.text('PAWFECT PETS · SHERBORNE'), findsOneWidget);
     expect(find.text('Staff sign in'), findsOneWidget);
   });
 }

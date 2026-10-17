@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../state/auth_provider.dart';
 import 'scan_qr_screen.dart';
+import '../theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -77,6 +79,11 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
+        // No title on sign-in, so no blue header band -- just the action.
+        backgroundColor: Colors.white,
+        foregroundColor: brandMuted,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
+        shape: const RoundedRectangleBorder(),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -94,12 +101,30 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'PawfectPets Sherborne',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                Image.asset('assets/images/logo.png', height: 72),
+                const SizedBox(height: 16),
+                const Text(
+                  'PAWFECT PETS · SHERBORNE',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 2, color: brandBlue),
                 ),
                 const SizedBox(height: 4),
-                Text('Staff sign in', style: TextStyle(color: Colors.grey.shade600)),
+                const Text.rich(
+                  TextSpan(
+                    text: 'Staff ',
+                    children: [
+                      TextSpan(
+                        text: 'sign in',
+                        style: TextStyle(
+                          color: brandPink,
+                          decoration: TextDecoration.underline,
+                          decorationColor: brandYellow,
+                          decorationThickness: 3,
+                        ),
+                      ),
+                    ],
+                  ),
+                  style: TextStyle(fontFamily: displayFont, fontSize: 28, color: brandBlue),
+                ),
                 const SizedBox(height: 24),
                 if (_error != null) ...[
                   Container(

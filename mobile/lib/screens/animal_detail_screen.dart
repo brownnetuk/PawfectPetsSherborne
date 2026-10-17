@@ -7,6 +7,7 @@ import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/animal.dart';
 import 'edit_animal_screen.dart';
+import '../widgets/brand.dart';
 
 /// Read-only view of everything on file for a single pet, reached by tapping a
 /// pet on the customer detail screen. The overflow menu edits or deletes it.
@@ -226,18 +227,7 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen> {
     );
   }
 
-  Widget _section(String title) => Padding(
-        padding: const EdgeInsets.only(top: 20, bottom: 8),
-        child: Text(
-          title.toUpperCase(),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-            color: Colors.grey.shade600,
-          ),
-        ),
-      );
+  Widget _section(String title) => BrandHeading(title, padding: const EdgeInsets.only(top: 20, bottom: 8));
 
   Widget _row(String label, String value) => Padding(
         padding: const EdgeInsets.only(bottom: 10),

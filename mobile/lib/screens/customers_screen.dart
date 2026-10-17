@@ -8,6 +8,8 @@ import '../widgets/status_badge.dart';
 import 'customer_detail_screen.dart';
 import 'home_shell.dart';
 import 'settings_screen.dart';
+import '../widgets/brand.dart';
+import '../theme.dart';
 
 class CustomersScreen extends StatefulWidget {
   const CustomersScreen({super.key});
@@ -99,7 +101,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
         label: const Text('New customer'),
       ),
       appBar: AppBar(
-        title: const Text('Customers'),
+        toolbarHeight: brandTitleHeight,
+        title: const BrandTitle(lead: 'Our', highlight: 'customers'),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
@@ -112,7 +115,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(104),
-          child: Padding(
+          child: OnBrandBar(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Column(
               children: [
@@ -159,7 +162,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 ),
               ],
             ),
-          ),
+          )),
         ),
       ),
       body: RefreshIndicator(

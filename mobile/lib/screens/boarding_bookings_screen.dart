@@ -13,6 +13,8 @@ import 'form_fill_screen.dart';
 import 'invoice_detail_screen.dart';
 import 'new_boarding_booking_screen.dart';
 import 'observations_screen.dart';
+import '../theme.dart';
+import '../widgets/brand.dart';
 
 /// The reference-numbered Boarding & Day Care bookings, mirroring the admin's
 /// Boarding & Day Care > Bookings tab: one card per booking with reference,
@@ -192,20 +194,14 @@ class _BoardingBookingsScreenState extends State<BoardingBookingsScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      b.reference,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
+                    child: Align(alignment: Alignment.centerLeft, child: RefPill(b.reference)),
                   ),
                   if (b.invoiced)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: Tooltip(
                         message: 'Invoiced',
-                        child: Icon(Icons.check_circle_outline, size: 18, color: Colors.green.shade700),
+                        child: Icon(Icons.check_circle_outline, size: 18, color: brandBlue),
                       ),
                     ),
                   BoardingStatusChip(status: item.status),
@@ -241,8 +237,8 @@ String formatBoardingDates(BoardingBooking b) {
   return '$start – $end';
 }
 
-/// Status pill matching the admin's colour scheme: grey for Confirmed, blue
-/// for Invoice Raised, orange for the awaiting-action states, green for the
+/// Status pill in the brand palette: neutral for Confirmed, blue tint for
+/// Invoice Raised, yellow for the awaiting-action states, solid blue for the
 /// completed ones.
 class BoardingStatusChip extends StatelessWidget {
   final String status;
@@ -250,21 +246,21 @@ class BoardingStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (status) {
-      'Confirmed' => Colors.grey.shade700,
-      'Invoice Raised' => Colors.blue.shade700,
-      'Deposit Requested' || 'In Progress' => Colors.orange.shade800,
-      _ => Colors.green.shade700,
+    final (background, foreground) = switch (status) {
+      'Confirmed' => (const Color(0xFFEEF1F3), brandInk),
+      'Invoice Raised' => (brandBlueTint, brandBlueDark),
+      'Deposit Requested' || 'In Progress' => (brandYellowTint, brandInk),
+      _ => (brandBlue, Colors.white),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: background,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         status,
-        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
+        style: TextStyle(color: foreground, fontSize: 12, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -528,7 +524,7 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
     final item = widget.item;
     final b = item.booking;
     return Scaffold(
-      appBar: AppBar(title: Text(b.reference)),
+      appBar: AppBar(title: RefPill(b.reference, fontSize: 16)),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -626,7 +622,7 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
     );
   }
 
-  /// The workflow condensed to one line: the stage the booking is on now and
+  /// The workflow as a segmented bar over one line: the stage the booking is on now and
   /// the step that follows it (e.g. "Deposit paid  →  Next: Pre-check-in").
   /// All-done bookings just show the final stage with a tick.
   Widget _progressLine() {
@@ -637,8 +633,30 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
     if (allDone) currentIndex = stages.length - 1;
     final current = stages[currentIndex];
     final next = currentIndex + 1 < stages.length ? stages[currentIndex + 1] : null;
-    final color = allDone ? Colors.green.shade700 : Colors.orange.shade800;
-    return Row(
+    const color = brandBlue;
+    // One segment per workflow stage: done stages solid blue, the current one
+    // yellow, the rest a pale rule -- the booking's progress at a glance.
+    final bar = Row(
+      children: [
+        for (var i = 0; i < stages.length; i++) ...[
+          if (i > 0) const SizedBox(width: 4),
+          Expanded(
+            child: Container(
+              height: 6,
+              decoration: BoxDecoration(
+                color: i < currentIndex || allDone
+                    ? brandBlue
+                    : i == currentIndex
+                        ? brandYellow
+                        : brandRule,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+    final line = Row(
       children: [
         Icon(allDone ? Icons.check_circle_outline : Icons.timelapse, size: 16, color: color),
         const SizedBox(width: 6),
@@ -660,6 +678,10 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
           ),
         ),
       ],
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [bar, const SizedBox(height: 8), line],
     );
   }
 
@@ -883,18 +905,7 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
         ),
       );
 
-  Widget _sectionTitle(String title) => Padding(
-        padding: const EdgeInsets.only(top: 16, bottom: 8),
-        child: Text(
-          title.toUpperCase(),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-            color: Colors.grey.shade600,
-          ),
-        ),
-      );
+  Widget _sectionTitle(String title) => BrandHeading(title, padding: const EdgeInsets.only(top: 16, bottom: 8));
 
   Widget _row(String label, String value) => Padding(
         padding: const EdgeInsets.only(bottom: 10),

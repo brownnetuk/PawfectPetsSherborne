@@ -8,6 +8,7 @@ import '../models/bank_holiday.dart';
 import '../models/customer.dart';
 import '../models/invoice.dart';
 import '../models/product.dart';
+import '../widgets/brand.dart';
 
 /// Everything the form needs, loaded up front.
 class _FormData {
@@ -423,18 +424,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         ),
       );
 
-  Widget _sectionTitle(String title) => Padding(
-        padding: const EdgeInsets.only(top: 8, bottom: 8),
-        child: Text(
-          title.toUpperCase(),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-            color: Colors.grey.shade600,
-          ),
-        ),
-      );
+  Widget _sectionTitle(String title) => BrandSectionLabel(title, padding: const EdgeInsets.only(top: 8, bottom: 8));
 }
 
 /// Backs one line item: a product chosen from the catalogue plus an editable

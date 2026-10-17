@@ -6,6 +6,7 @@ import '../api/repository.dart';
 import '../models/bank_account.dart';
 import '../models/bank_transfer.dart';
 import 'bank_transfer_form_sheet.dart';
+import '../widgets/brand.dart';
 
 /// Shows the bank accounts with their balances (tap to drill into an account's
 /// transactions) plus the recorded transfers between accounts, with add / edit
@@ -131,13 +132,7 @@ class _BankTransfersScreenState extends State<BankTransfersScreen> {
     }
   }
 
-  Widget _sectionTitle(String title) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-        child: Text(
-          title.toUpperCase(),
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: Colors.grey.shade600),
-        ),
-      );
+  Widget _sectionTitle(String title) => BrandSectionLabel(title, padding: const EdgeInsets.fromLTRB(16, 20, 16, 8));
 
   @override
   Widget build(BuildContext context) {

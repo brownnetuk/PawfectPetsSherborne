@@ -4,6 +4,7 @@ import 'home_shell.dart';
 import 'invoices_screen.dart';
 import 'price_list_screen.dart';
 import 'quotes_screen.dart';
+import '../widgets/brand.dart';
 
 /// Hub for the back-office area, reached from the bottom bar. Groups
 /// Invoices, Quotes and the Financial hub under one entry so the nav bar has
@@ -14,7 +15,11 @@ class BusinessScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Business'), actions: const [LogoutAction()]),
+      appBar: AppBar(
+        toolbarHeight: brandTitleHeight,
+        title: const BrandTitle(lead: 'Our', highlight: 'business'),
+        actions: const [LogoutAction()],
+      ),
       body: ListView(
         children: [
           _tile(context, Icons.receipt_long_outlined, 'Invoices',

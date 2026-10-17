@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/customer.dart';
+import '../theme.dart';
 
 /// What [SelectCustomerScreen] returns: either an existing customer or, when
 /// [SelectCustomerScreen.allowManual] is set, a manually-typed name + email.
@@ -94,7 +95,7 @@ class _SelectCustomerScreenState extends State<SelectCustomerScreen> {
         title: const Text('Select customer'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
-          child: Padding(
+          child: OnBrandBar(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: Row(
               children: [
@@ -116,7 +117,7 @@ class _SelectCustomerScreenState extends State<SelectCustomerScreen> {
                 ),
               ],
             ),
-          ),
+          )),
         ),
       ),
       body: FutureBuilder<(List<Customer>, Map<String, List<String>>)>(

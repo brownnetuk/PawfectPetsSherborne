@@ -136,6 +136,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
             onPressed: _sending ? null : _emailPriceList,
           ),
           TextButton.icon(
+            style: TextButton.styleFrom(foregroundColor: Colors.white),
             onPressed: () => setState(() => _sortAsc = !_sortAsc),
             icon: const Icon(Icons.sort_by_alpha, size: 18),
             label: Text(_sortAsc ? 'A-Z' : 'Z-A'),
