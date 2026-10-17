@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'financial_screen.dart';
 import 'home_shell.dart';
-import 'invoicing_screen.dart';
+import 'invoices_screen.dart';
 import 'price_list_screen.dart';
+import 'quotes_screen.dart';
 
-/// Hub for the back-office area, reached from the bottom bar. Groups the
-/// Invoicing (Invoices & Quotes) and Financial hubs under one entry so the
-/// nav bar has room for the Boarding tab.
+/// Hub for the back-office area, reached from the bottom bar. Groups
+/// Invoices, Quotes and the Financial hub under one entry so the nav bar has
+/// room for the Boarding tab.
 class BusinessScreen extends StatelessWidget {
   const BusinessScreen({super.key});
 
@@ -16,8 +17,11 @@ class BusinessScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Business'), actions: const [LogoutAction()]),
       body: ListView(
         children: [
-          _tile(context, Icons.receipt_long_outlined, 'Invoicing',
-              'Invoices and quotes', const InvoicingScreen()),
+          _tile(context, Icons.receipt_long_outlined, 'Invoices',
+              'Create, send and record invoices', const InvoicesScreen()),
+          const Divider(height: 1),
+          _tile(context, Icons.request_quote_outlined, 'Quotes',
+              'Create and send quotes', const QuotesScreen()),
           const Divider(height: 1),
           _tile(context, Icons.account_balance_wallet_outlined, 'Financial',
               'Snapshot, payments, expenses and bank transfers', const FinancialScreen()),
