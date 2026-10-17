@@ -14,6 +14,8 @@ import 'customer_defaults_screen.dart';
 import 'customer_forms_screen.dart';
 import 'customer_notes_screen.dart';
 import 'edit_customer_screen.dart';
+import '../theme.dart';
+import '../widgets/brand.dart';
 
 class CustomerDetailScreen extends StatefulWidget {
   final String customerId;
@@ -136,7 +138,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                         Flexible(
                           child: Text(
                             customer.name,
-                            style: Theme.of(context).textTheme.titleLarge,
+                            style: const TextStyle(fontFamily: displayFont, fontSize: 20, color: brandBlue),
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -334,18 +337,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     );
   }
 
-  Widget _sectionTitle(String title) => Padding(
-        padding: const EdgeInsets.only(top: 16, bottom: 8),
-        child: Text(
-          title.toUpperCase(),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-            color: Colors.grey.shade600,
-          ),
-        ),
-      );
+  Widget _sectionTitle(String title) => BrandHeading(title, padding: const EdgeInsets.only(top: 16, bottom: 8));
 
   Widget _row(String label, String value) => Padding(
         padding: const EdgeInsets.only(bottom: 10),

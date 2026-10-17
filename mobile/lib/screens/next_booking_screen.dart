@@ -4,6 +4,7 @@ import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/boarding_booking.dart';
 import 'boarding_bookings_screen.dart';
+import '../widgets/brand.dart';
 
 /// Boarding > Next Booking: today's arrivals and departures plus the next two
 /// upcoming bookings. A booking stays here while it's still to be checked out
@@ -111,18 +112,7 @@ class _NextBookingScreenState extends State<NextBookingScreen> {
     );
   }
 
-  Widget _heading(String title) => Padding(
-        padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
-        child: Text(
-          title.toUpperCase(),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-            color: Colors.grey.shade600,
-          ),
-        ),
-      );
+  Widget _heading(String title) => BrandSectionLabel(title, padding: const EdgeInsets.fromLTRB(4, 12, 4, 8));
 
   Widget _none(String message) => Padding(
         padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
@@ -151,13 +141,7 @@ class _NextBookingScreenState extends State<NextBookingScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      b.reference,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
+                    child: Align(alignment: Alignment.centerLeft, child: RefPill(b.reference)),
                   ),
                   BoardingStatusChip(status: item.status),
                 ],

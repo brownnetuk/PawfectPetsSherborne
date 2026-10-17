@@ -11,6 +11,7 @@ import 'home_shell.dart';
 import 'invoice_detail_screen.dart';
 import 'record_payment_sheet.dart';
 import 'select_customer_screen.dart';
+import '../theme.dart';
 
 class InvoicesScreen extends StatefulWidget {
   const InvoicesScreen({super.key});
@@ -176,7 +177,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
         actions: const [LogoutAction()],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(104),
-          child: Padding(
+          child: OnBrandBar(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Column(
               children: [
@@ -225,7 +226,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                 ),
               ],
             ),
-          ),
+          )),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(

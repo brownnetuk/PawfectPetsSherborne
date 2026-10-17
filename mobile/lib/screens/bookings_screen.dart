@@ -16,11 +16,20 @@ import 'add_appointment_sheet.dart';
 import 'generate_invoices_sheet.dart';
 import 'home_shell.dart';
 import 'visits_booking_sheet.dart';
+import '../theme.dart';
+import '../widgets/brand.dart';
 
 // The calendar's day data: bookings (walks + visits) and appointments.
 typedef _DayData = (List<DayBooking> bookings, List<Appointment> appointments);
 
 // Customer.regularDays weekday keys, indexed by DateTime.weekday (1=Mon..7=Sun).
+// Colour per booking type (filter chips, entry dots), from the brand palette.
+const _walkColour = brandBlue;
+const _visitColour = Color(0xFFD9A600);
+const _dayCareColour = brandPink;
+const _boardingColour = brandInk;
+const _appointmentColour = brandMuted;
+
 const _weekdayKeys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
 enum _BookingView { day, week }
@@ -245,19 +254,19 @@ class _BookingsScreenState extends State<BookingsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: Icon(Icons.directions_walk, color: Colors.green.shade600),
+              leading: const Icon(Icons.directions_walk, color: _walkColour),
               title: const Text('Dog Walk'),
               subtitle: const Text('Add a dog to this day'),
               onTap: () => Navigator.of(context).pop('walk'),
             ),
             ListTile(
-              leading: Icon(Icons.home_outlined, color: Colors.amber.shade800),
+              leading: const Icon(Icons.home_outlined, color: _visitColour),
               title: const Text('Visits'),
               subtitle: const Text('Book visits across a date range'),
               onTap: () => Navigator.of(context).pop('visits'),
             ),
             ListTile(
-              leading: Icon(Icons.event_note, color: Colors.blue.shade600),
+              leading: const Icon(Icons.event_note, color: _appointmentColour),
               title: const Text('Appointment'),
               subtitle: const Text('A standalone calendar entry'),
               onTap: () => Navigator.of(context).pop('appointment'),
@@ -397,10 +406,17 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final isToday = _dateOnly(DateTime.now()) == _day;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bookings'),
+        toolbarHeight: brandTitleHeight,
+        title: const BrandTitle(lead: 'All', highlight: 'bookings'),
         actions: [
           if (!isToday)
             TextButton(
+              style: TextButton.styleFrom(
+                backgroundColor: brandYellow,
+                foregroundColor: brandBlue,
+                visualDensity: VisualDensity.compact,
+                textStyle: const TextStyle(fontWeight: FontWeight.w700),
+              ),
               onPressed: () => setState(() {
                 _day = _dateOnly(DateTime.now());
                 _future = _load();
@@ -496,11 +512,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            chip('Walks', _showWalks, Colors.green.shade600, (v) => setState(() => _showWalks = v)),
-            chip('Visits', _showVisits, Colors.amber.shade800, (v) => setState(() => _showVisits = v)),
-            chip('Day Care', _showDayCare, Colors.deepPurple.shade400, (v) => setState(() => _showDayCare = v)),
-            chip('Boarding', _showBoarding, Colors.teal.shade600, (v) => setState(() => _showBoarding = v)),
-            chip('Appts', _showAppointments, Colors.blue.shade600, (v) => setState(() => _showAppointments = v)),
+            chip('Walks', _showWalks, _walkColour, (v) => setState(() => _showWalks = v)),
+            chip('Visits', _showVisits, _visitColour, (v) => setState(() => _showVisits = v)),
+            chip('Day Care', _showDayCare, _dayCareColour, (v) => setState(() => _showDayCare = v)),
+            chip('Boarding', _showBoarding, _boardingColour, (v) => setState(() => _showBoarding = v)),
+            chip('Appts', _showAppointments, _appointmentColour, (v) => setState(() => _showAppointments = v)),
           ],
         ),
       ),
@@ -628,7 +644,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
               children: [
                 for (final a in recommended)
                   ActionChip(
-                    avatar: Icon(Icons.pets, size: 16, color: Colors.green.shade700),
+                    avatar: const Icon(Icons.pets, size: 16, color: brandBlue),
                     label: Text.rich(
                       TextSpan(
                         text: a.name,
@@ -774,7 +790,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
   Widget _animalCard(List<DayBooking> group, List<DayBooking> all) {
     final first = group.first;
-    // Green tick bottom-right once everything on the card has been invoiced.
+    // Blue tick bottom-right once everything on the card has been invoiced.
     final invoiced = group.every((b) => b.invoiceId != null && b.invoiceId!.isNotEmpty);
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
@@ -787,10 +803,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.pets, size: 18),
+                    const Icon(Icons.pets, size: 18, color: brandBlue),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(first.animalName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                      child: Text(first.animalName,
+                          style: const TextStyle(fontFamily: displayFont, fontSize: 15, color: brandBlue)),
                     ),
                     Text(first.customerName,
                         style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
@@ -806,7 +823,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
             Positioned(
               right: 8,
               bottom: 6,
-              child: Icon(Icons.check_circle, size: 18, color: Colors.green.shade600),
+              child: const Icon(Icons.check_circle, size: 18, color: brandBlue),
             ),
         ],
       ),
@@ -817,17 +834,17 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final Color colour;
     final String subtitle;
     if (b.boardingStay || _visitMapping.isBoardingProduct(b.productId)) {
-      colour = Colors.teal.shade600;
+      colour = _boardingColour;
       subtitle = 'Boarding · Qty ${b.quantity}';
     } else if (_visitMapping.isDayCareProduct(b.productId)) {
-      colour = Colors.deepPurple.shade400;
+      colour = _dayCareColour;
       subtitle = 'Day Care · Qty ${b.quantity}';
     } else if (_visitMapping.isVisitProduct(b.productId)) {
-      colour = Colors.amber.shade800;
+      colour = _visitColour;
       final time = _visitTime(b, all);
       subtitle = 'Visit${time != null ? ' · $time' : ''} · Qty ${b.quantity}';
     } else {
-      colour = Colors.green.shade600;
+      colour = _walkColour;
       subtitle = 'Walk · Qty ${b.quantity}';
     }
     return ListTile(
@@ -860,7 +877,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
       dense: true,
       visualDensity: const VisualDensity(vertical: -3),
       contentPadding: const EdgeInsets.only(left: 16, right: 8),
-      leading: Icon(Icons.event_note, size: 20, color: Colors.blue.shade600),
+      leading: const Icon(Icons.event_note, size: 20, color: _appointmentColour),
       title: Text.rich(
         TextSpan(
           text: a.customerName.isEmpty ? (a.reason.isEmpty ? 'Appointment' : a.reason) : a.customerName,
@@ -885,18 +902,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
-  Widget _sectionTitle(String title) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-        child: Text(
-          title.toUpperCase(),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-            color: Colors.grey.shade600,
-          ),
-        ),
-      );
+  Widget _sectionTitle(String title) => BrandSectionLabel(title, padding: const EdgeInsets.fromLTRB(16, 16, 16, 6));
 
   Widget _annualLeaveBanner(AnnualLeave leave) => Container(
         margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
@@ -924,21 +930,28 @@ class _BookingsScreenState extends State<BookingsScreen> {
         margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.green.shade50,
-          borderRadius: BorderRadius.circular(12),
+          color: brandBlue,
+          borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
-                Icon(Icons.payments_outlined, size: 18, color: Colors.green.shade700),
+                const Icon(Icons.payments_outlined, size: 18, color: Colors.white),
                 const SizedBox(width: 8),
-                Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text(label.toUpperCase(),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, color: Colors.white, fontSize: 12, letterSpacing: 1.2)),
               ],
             ),
-            Text(_money.format(amount),
-                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade800, fontSize: 16)),
+            // The PDF's yellow reference pill, holding the day/week total.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(color: brandYellow, borderRadius: BorderRadius.circular(999)),
+              child: Text(_money.format(amount),
+                  style: const TextStyle(fontFamily: displayFont, color: brandBlue, fontSize: 15)),
+            ),
           ],
         ),
       );

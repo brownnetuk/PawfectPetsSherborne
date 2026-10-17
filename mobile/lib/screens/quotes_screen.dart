@@ -10,6 +10,7 @@ import 'create_quote_screen.dart';
 import 'home_shell.dart';
 import 'quote_detail_screen.dart';
 import 'select_customer_screen.dart';
+import '../theme.dart';
 
 class QuotesScreen extends StatefulWidget {
   const QuotesScreen({super.key});
@@ -226,7 +227,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
         actions: const [LogoutAction()],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(104),
-          child: Padding(
+          child: OnBrandBar(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Column(
               children: [
@@ -274,7 +275,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
                 ),
               ],
             ),
-          ),
+          )),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(

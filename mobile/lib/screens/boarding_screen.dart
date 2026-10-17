@@ -4,6 +4,7 @@ import 'completed_bookings_screen.dart';
 import 'home_shell.dart';
 import 'in_progress_screen.dart';
 import 'next_booking_screen.dart';
+import '../widgets/brand.dart';
 
 /// Hub for the Boarding & Day Care area, reached from the bottom bar --
 /// mirrors the admin's Boarding & Day Care page. Links to Bookings and to
@@ -14,7 +15,11 @@ class BoardingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Boarding'), actions: const [LogoutAction()]),
+      appBar: AppBar(
+        toolbarHeight: brandTitleHeight,
+        title: const BrandTitle(lead: 'Dog', highlight: 'boarding'),
+        actions: const [LogoutAction()],
+      ),
       body: ListView(
         children: [
           ListTile(

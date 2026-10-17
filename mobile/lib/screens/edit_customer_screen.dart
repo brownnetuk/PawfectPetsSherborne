@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/customer.dart';
+import '../widgets/brand.dart';
 
 /// Staff edit of a customer's record -- mirrors the admin's Edit Customer
 /// modal: client details, emergency contact, emergency vet, and security.
@@ -266,16 +267,5 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
     );
   }
 
-  Widget _sectionTitle(String title) => Padding(
-        padding: const EdgeInsets.only(top: 12, bottom: 8),
-        child: Text(
-          title.toUpperCase(),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-            color: Colors.grey.shade600,
-          ),
-        ),
-      );
+  Widget _sectionTitle(String title) => BrandSectionLabel(title, padding: const EdgeInsets.only(top: 12, bottom: 8));
 }

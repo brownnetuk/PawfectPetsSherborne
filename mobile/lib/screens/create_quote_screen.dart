@@ -11,6 +11,7 @@ import '../models/product.dart';
 import '../models/quote.dart';
 import '../models/visit_mapping.dart';
 import '../utils/visit_plan.dart';
+import '../widgets/brand.dart';
 
 class _FormData {
   final List<Product> products;
@@ -1048,13 +1049,7 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
         ),
       );
 
-  Widget _sectionTitle(String title) => Padding(
-        padding: const EdgeInsets.only(top: 8, bottom: 8),
-        child: Text(
-          title.toUpperCase(),
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: Colors.grey.shade600),
-        ),
-      );
+  Widget _sectionTitle(String title) => BrandSectionLabel(title, padding: const EdgeInsets.only(top: 8, bottom: 8));
 }
 
 class _LineItemEntry {

@@ -4,6 +4,7 @@ import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/boarding_booking.dart';
 import 'boarding_bookings_screen.dart';
+import '../widgets/brand.dart';
 
 /// Boarding > Completed: bookings whose check-out is done ('Check Out
 /// Complete' / 'Booking Complete'), most recent stay first -- they move here
@@ -91,13 +92,7 @@ class _CompletedBookingsScreenState extends State<CompletedBookingsScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      b.reference,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
+                    child: Align(alignment: Alignment.centerLeft, child: RefPill(b.reference)),
                   ),
                   if (b.invoiced)
                     Padding(

@@ -4,6 +4,7 @@ import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/boarding_booking.dart';
 import 'boarding_bookings_screen.dart';
+import '../widgets/brand.dart';
 
 /// Boarding > In Progress: every booking that has been checked in but not yet
 /// checked out, soonest departure first. A booking appears here the moment its
@@ -102,13 +103,7 @@ class _InProgressScreenState extends State<InProgressScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      b.reference,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
+                    child: Align(alignment: Alignment.centerLeft, child: RefPill(b.reference)),
                   ),
                   BoardingStatusChip(status: item.status),
                 ],

@@ -8,6 +8,7 @@ import '../models/message.dart';
 import '../theme.dart';
 import 'home_shell.dart';
 import 'select_customer_screen.dart';
+import '../widgets/brand.dart';
 
 /// Staff conversation list. Tapping a row opens the thread with that customer.
 class MessagesScreen extends StatefulWidget {
@@ -83,7 +84,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Messages'),
+        toolbarHeight: brandTitleHeight,
+        title: const BrandTitle(lead: 'Your', highlight: 'messages'),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_square),
@@ -118,10 +120,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
         final c = _conversations[i];
         return ListTile(
           leading: CircleAvatar(
-            backgroundColor: const Color(0xFFEAF5EE),
+            backgroundColor: brandBlue,
             child: Text(
               c.name.isNotEmpty ? c.name[0].toUpperCase() : '?',
-              style: const TextStyle(color: brandGreenDark, fontWeight: FontWeight.bold),
+              style: const TextStyle(color: brandYellow, fontFamily: displayFont),
             ),
           ),
           title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -133,7 +135,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
           trailing: c.unread > 0
               ? Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(color: brandGreen, borderRadius: BorderRadius.circular(999)),
+                  decoration: BoxDecoration(color: brandPink, borderRadius: BorderRadius.circular(999)),
                   child: Text('${c.unread}',
                       style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                 )
@@ -318,11 +320,11 @@ class _Bubble extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: fromStaff ? brandGreen : const Color(0xFFEEF1F4),
+                color: fromStaff ? brandBlue : brandCream,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Text(message.body,
-                  style: TextStyle(color: fromStaff ? Colors.white : Colors.black87)),
+                  style: TextStyle(color: fromStaff ? Colors.white : brandInk)),
             ),
             const SizedBox(height: 2),
             Text(

@@ -7,6 +7,7 @@ import '../models/expense.dart';
 import 'expense_detail_screen.dart';
 import 'expense_form_sheet.dart';
 import 'home_shell.dart';
+import '../theme.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -75,7 +76,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         actions: const [LogoutAction()],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(120),
-          child: Padding(
+          child: OnBrandBar(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
             child: Column(
               children: [
@@ -134,7 +135,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                 ),
               ],
             ),
-          ),
+          )),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
