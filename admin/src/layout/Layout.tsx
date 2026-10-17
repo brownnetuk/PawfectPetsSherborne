@@ -99,7 +99,10 @@ export default function Layout() {
           <span className="logo-badge">
             <img src={logo} alt="" />
           </span>
-          Pawfect Pets
+          <span>
+            Pawfect Pets
+            <span className="sidebar-brand-sub">Sherborne · Admin</span>
+          </span>
         </div>
         <nav>
           <NavLink to="/boarding-daycare" className={({ isActive }) => (isActive ? 'active' : '')}>

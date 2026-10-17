@@ -1,32 +1,37 @@
+/* palette from the booking confirmation PDF and the staff app: brand blue
+   header bands, yellow highlight pills, cream cards, pink actions. The
+   --brand-green / --sage names are kept so the many inline var() uses across
+   the pages pick the new colours up without being renamed. */
 :root {
-  /* palette pulled from pawfectpetssherborne.co.uk: forest-green headings,
-     warm orange CTAs, sage-cream backdrop, pastel accent chips */
-  --brand-green: #1f3b2c;
-  --brand-green-soft: #2f5540;
-  --accent: #e8963c;
-  --accent-dark: #cc7a24;
-  --accent-light: #fbefe0;
-  --sage: #f3f6ee;
-  --sage-badge: #e5eeda;
-  --ink: #232c26;
-  --muted: #6f7d72;
-  --border: #e3e8de;
-  --bg: #f6f7f2;
+  --brand-green: #0072b5;
+  --brand-green-soft: #005a8f;
+  --accent: #0072b5;
+  --accent-dark: #005a8f;
+  --accent-light: #e6f1f8;
+  --highlight: #fdf101;
+  --action: #c72f56;
+  --action-dark: #a3203f;
+  --sage: #fbf7ee;
+  --sage-badge: #e6f1f8;
+  --ink: #1d2a33;
+  --muted: #5f6f7a;
+  --border: #d9e6ef;
+  --bg: #ffffff;
   --card: #ffffff;
-  --error: #c85a4a;
-  --error-light: #fbe9e5;
-  --warn: #cc7a24;
-  --warn-light: #fbefe0;
-  --info: #4a7a94;
-  --info-light: #e8f1f5;
-  --shadow-sm: 0 1px 2px rgba(31, 59, 44, 0.06);
-  --shadow-md: 0 6px 20px rgba(31, 59, 44, 0.08);
-  --shadow-lg: 0 16px 40px rgba(31, 59, 44, 0.16);
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
-  --font: 'Work Sans', system-ui, -apple-system, sans-serif;
-  --font-display: 'Fraunces', Georgia, serif;
+  --error: #c72f56;
+  --error-light: #fbe5ea;
+  --warn: #7a6100;
+  --warn-light: #fdf9c4;
+  --info: #005a8f;
+  --info-light: #e6f1f8;
+  --shadow-sm: 0 1px 2px rgba(0, 61, 97, 0.06);
+  --shadow-md: 0 6px 20px rgba(0, 61, 97, 0.08);
+  --shadow-lg: 0 16px 40px rgba(0, 61, 97, 0.16);
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --font: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-display: 'Archivo Black', 'DM Sans', sans-serif;
   color-scheme: light;
 }
 
@@ -44,8 +49,8 @@ body {
 
 h1, h2, h3 {
   font-family: var(--font-display);
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 
 #root {
@@ -62,10 +67,9 @@ h1, h2, h3 {
   width: 240px;
   flex-shrink: 0;
   background: var(--sage);
-  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding: 22px 16px;
+  padding: 24px 16px;
 }
 
 .sidebar-brand {
@@ -73,21 +77,33 @@ h1, h2, h3 {
   align-items: center;
   gap: 10px;
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.1rem;
+  font-weight: 400;
+  font-size: 1.05rem;
+  line-height: 1.1;
   color: var(--brand-green);
   padding: 4px 8px 26px;
+}
+
+.sidebar-brand-sub {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--font);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .sidebar-brand .logo-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   background: white;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 0 0 2px var(--brand-green);
   flex-shrink: 0;
   overflow: hidden;
 }
@@ -108,12 +124,13 @@ h1, h2, h3 {
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 10px 14px;
-  color: var(--muted);
+  min-height: 42px;
+  padding: 0 14px;
+  color: var(--ink);
   text-decoration: none;
   font-size: 0.92rem;
   font-weight: 500;
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
@@ -123,15 +140,14 @@ h1, h2, h3 {
 }
 
 .sidebar nav a:hover {
-  background: rgba(31, 59, 44, 0.06);
+  background: rgba(0, 114, 181, 0.08);
   color: var(--brand-green);
 }
 
 .sidebar nav a.active {
-  color: white;
-  font-weight: 600;
-  background: var(--brand-green);
-  box-shadow: var(--shadow-sm);
+  color: var(--brand-green);
+  font-weight: 700;
+  background: var(--highlight);
 }
 
 .sidebar nav a.active svg {
@@ -145,14 +161,15 @@ h1, h2, h3 {
   align-items: center;
   gap: 11px;
   width: 100%;
-  padding: 10px 14px;
+  min-height: 42px;
+  padding: 0 14px;
   background: none;
   border: none;
-  color: var(--muted);
+  color: var(--ink);
   font-family: inherit;
   font-size: 0.92rem;
   font-weight: 500;
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
@@ -163,13 +180,13 @@ h1, h2, h3 {
 }
 
 .sidebar nav button.nav-group-toggle:hover {
-  background: rgba(31, 59, 44, 0.06);
+  background: rgba(0, 114, 181, 0.08);
   color: var(--brand-green);
 }
 
 .sidebar nav button.nav-group-toggle.active {
   color: var(--brand-green);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .sidebar nav button.nav-group-toggle .chevron {
@@ -198,9 +215,8 @@ h1, h2, h3 {
   justify-content: flex-end;
   align-items: center;
   gap: 14px;
-  padding: 14px 32px;
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
+  padding: 14px 32px 0;
+  background: var(--bg);
   position: relative;
   z-index: 5;
 }
@@ -217,17 +233,18 @@ h1, h2, h3 {
 }
 
 .topbar .avatar {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: var(--brand-green);
-  color: white;
+  background: var(--highlight);
+  color: var(--brand-green);
+  box-shadow: 0 0 0 2px var(--brand-green);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 0.78rem;
   font-weight: 700;
-  font-family: var(--font-display);
+  font-family: var(--font);
 }
 
 .topbar .avatar-btn {
@@ -262,7 +279,55 @@ h1, h2, h3 {
 .page-header h1 {
   margin: 0;
   font-size: 1.5rem;
-  font-weight: 800;
+}
+
+/* A page's own header (not one inside a tab) is the brand's blue band, like
+   the staff app and the booking confirmation PDF: white display type with a
+   yellow underline, yellow primary button. Colour vars are re-pointed inside
+   it so inline muted/ink text stays readable on the blue. */
+.content > div > .page-header {
+  --ink: #ffffff;
+  --muted: rgba(255, 255, 255, 0.86);
+  background: var(--brand-green);
+  color: #ffffff;
+  border-radius: 28px;
+  padding: 26px 32px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.content > div > .page-header h1 {
+  font-size: 2rem;
+  line-height: 1.15;
+  color: #ffffff;
+}
+.content > div > .page-header h1::after {
+  content: '';
+  display: block;
+  width: 56px;
+  height: 5px;
+  margin-top: 10px;
+  border-radius: 3px;
+  background: var(--highlight);
+}
+.content > div > .page-header .btn-primary {
+  background: var(--highlight);
+  color: var(--brand-green);
+}
+.content > div > .page-header .btn-primary:hover:not(:disabled) {
+  background: #ffffff;
+  color: var(--brand-green);
+}
+.content > div > .page-header .btn-secondary {
+  background: transparent;
+  color: #ffffff;
+  border: 1.5px solid #ffffff;
+}
+.content > div > .page-header .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.content > div > .page-header .btn-link {
+  color: #ffffff;
 }
 
 /* --- buttons --- */
@@ -275,33 +340,32 @@ h1, h2, h3 {
   border: none;
   font-size: 0.88rem;
   font-family: var(--font);
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.15s ease;
 }
 
 .btn-primary {
-  background: var(--accent);
-  color: var(--brand-green);
+  background: var(--action);
+  color: white;
 }
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent-dark);
+  background: var(--action-dark);
   color: white;
 }
 .btn-primary:disabled {
-  background: #ecd6b8;
-  color: #a99772;
+  background: #ecc3cd;
+  color: #ffffff;
   cursor: not-allowed;
 }
 
 .btn-secondary {
   background: white;
   color: var(--brand-green);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--brand-green);
 }
 .btn-secondary:hover {
-  background: var(--sage);
-  border-color: #d3ddc8;
+  background: var(--accent-light);
 }
 
 .btn-success {
@@ -315,7 +379,7 @@ h1, h2, h3 {
 .btn-danger {
   background: white;
   color: var(--error);
-  border: 1px solid #eecabf;
+  border: 1.5px solid #f0b8c6;
 }
 .btn-danger:hover:not(:disabled) {
   background: var(--error-light);
@@ -334,7 +398,7 @@ h1, h2, h3 {
 .btn-link {
   background: none;
   border: none;
-  color: var(--accent-dark);
+  color: var(--brand-green);
   cursor: pointer;
   font-size: 0.85rem;
   font-weight: 600;
@@ -347,17 +411,16 @@ h1, h2, h3 {
 
 /* --- cards / tables --- */
 .card {
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: var(--sage);
+  border: none;
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
   padding: 22px;
   margin-bottom: 22px;
 }
 
 .card h2 {
   margin-top: 0;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
 }
 
 table {
@@ -369,13 +432,13 @@ table {
 th {
   text-align: left;
   padding: 13px 16px;
-  color: var(--muted);
+  color: var(--brand-green);
   font-weight: 700;
   font-size: 0.72rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   border-bottom: 1px solid var(--border);
-  background: #fafbfc;
+  background: transparent;
 }
 
 thead tr:first-child th:first-child {
@@ -387,7 +450,7 @@ thead tr:first-child th:last-child {
 
 td {
   padding: 14px 16px;
-  border-bottom: 1px solid #f0f2f4;
+  border-bottom: 1px solid #ebe3d2;
 }
 
 /* Denser list rows (Zoho-style): one line per row, names never wrap. */
@@ -412,7 +475,7 @@ tbody tr {
 }
 
 tbody tr:hover {
-  background: #fafbfc;
+  background: rgba(255, 255, 255, 0.75);
   cursor: pointer;
 }
 
@@ -458,8 +521,8 @@ tbody tr:last-child td {
 .badge-cancelled { background: var(--error-light); color: var(--error); }
 .badge-draft { background: #eceff2; color: var(--muted); }
 .badge-sent { background: var(--info-light); color: var(--info); }
-.badge-paid { background: var(--sage-badge); color: var(--brand-green); }
-.badge-overdue { background: var(--error-light); color: var(--error); }
+.badge-paid { background: var(--brand-green); color: white; }
+.badge-overdue { background: var(--error); color: white; }
 .badge-accepted { background: var(--sage-badge); color: var(--brand-green); }
 .badge-declined { background: var(--error-light); color: var(--error); }
 .badge-expired { background: #eceff2; color: var(--muted); }
@@ -531,7 +594,7 @@ tbody tr:last-child td {
 .field select:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(232, 150, 60, 0.2);
+  box-shadow: 0 0 0 3px rgba(0, 114, 181, 0.18);
 }
 .field textarea {
   min-height: 70px;
@@ -596,7 +659,7 @@ tbody tr:last-child td {
 .select-inline:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(232, 150, 60, 0.2);
+  box-shadow: 0 0 0 3px rgba(0, 114, 181, 0.18);
 }
 .field-row {
   display: grid;
@@ -671,7 +734,7 @@ table input[type='number'] {
 table input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(232, 150, 60, 0.2);
+  box-shadow: 0 0 0 3px rgba(0, 114, 181, 0.18);
 }
 /* The Item Table's Quantity/Rate/Discount cells are narrow enough that the
    native up/down spinner buttons crowd out the digits (a price like 26.25
@@ -805,7 +868,7 @@ table input:focus {
   width: 96vw;
 }
 
-/* Same olive green as the "Active" status pill (--sage-badge) -- used to set
+/* Same light blue as the "Active" status pill (--sage-badge) -- used to set
    a pet's details apart as sectioned white cards on top, rather than one flat
    white sheet. */
 .modal.modal-olive {
@@ -869,10 +932,7 @@ table input:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  background:
-    radial-gradient(circle at 15% 15%, rgba(232, 150, 60, 0.12), transparent 45%),
-    radial-gradient(circle at 85% 85%, rgba(31, 59, 44, 0.08), transparent 45%),
-    var(--sage);
+  background: var(--brand-green);
   padding: 20px;
 }
 .login-card {
@@ -908,10 +968,8 @@ table input:focus {
   color: var(--brand-green);
 }
 .login-tagline {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 500;
-  color: var(--accent-dark);
+  font-weight: 700;
+  color: var(--muted);
 }
 
 /* --- misc --- */
@@ -958,27 +1016,34 @@ table input:focus {
 
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
-  border-bottom: 1px solid var(--border);
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px;
+  background: var(--sage);
+  border-radius: 999px;
   margin-bottom: 22px;
 }
 .tabs button {
-  padding: 10px 18px;
+  min-height: 38px;
+  padding: 0 18px;
   background: none;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-radius: 999px;
   cursor: pointer;
+  font-family: inherit;
   font-size: 0.9rem;
   font-weight: 500;
   color: var(--muted);
-  transition: color 0.12s ease;
+  transition: color 0.12s ease, background 0.12s ease;
 }
 .tabs button:hover {
   color: var(--ink);
 }
 .tabs button.active {
-  color: var(--brand-green);
-  border-bottom-color: var(--accent);
+  color: white;
+  background: var(--brand-green);
   font-weight: 700;
 }
 
