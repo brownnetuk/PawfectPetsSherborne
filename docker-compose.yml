@@ -47,7 +47,7 @@ services:
       PUBLIC_INTAKE_URL: ${PUBLIC_INTAKE_URL}
       # The real deployed admin/intake URLs a browser is allowed to call this
       # API from -- see backend/.env.example. Set in Portainer's stack env,
-      # e.g. https://admin.pawfectpetssherborne.co.uk,https://intake.pawfectpetssherborne.co.uk
+      # e.g. https://admin.pawfectpetssherborne.co.uk,https://intake.pawfectpetssherborne.co.uk,https://portal.pawfectpetssherborne.co.uk
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       # APNs credentials for appointment-reminder push (see the
       # appointment-push-setup notes). Leave unset to disable push -- the
@@ -98,13 +98,28 @@ services:
     networks:
       - pawfectpets
 
+  # The browser customer portal (portal/) -- customers sign in with an
+  # emailed code plus the last 3 digits of their mobile. Add its public URL
+  # (e.g. https://portal.pawfectpetssherborne.co.uk) to ALLOWED_ORIGINS above.
+  portal:
+    build:
+      context: ./portal
+      args:
+        VITE_API_URL: ${PUBLIC_API_URL}
+    pull_policy: build
+    restart: unless-stopped
+    ports:
+      - "8082:80"
+    networks:
+      - pawfectpets
+
   # Replaces a reverse proxy + manual TLS: cloudflared makes an outbound-only
   # connection to Cloudflare's edge, so nothing here needs a port opened on
   # the host to be reachable from the internet. Public Hostname routing
   # (which domain maps to which internal service) is configured in the
   # Cloudflare Zero Trust dashboard for this tunnel, not in this file --
   # point each hostname at http://backend:3000 / http://admin:80 /
-  # http://frontend:80 there (the in-network service names above, since
+  # http://frontend:80 / http://portal:80 there (the in-network service names above, since
   # cloudflared reaches them over this same Docker network).
   cloudflared:
     image: cloudflare/cloudflared:latest

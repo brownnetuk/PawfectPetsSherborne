@@ -25,6 +25,9 @@ export enum EmailTrigger {
   PORTAL_PASSWORD_RESET = 'portal_password_reset',
   // Sent to a customer when staff switch on their Customer Portal access.
   PORTAL_ENABLED = 'portal_enabled',
+  // Web customer portal (portal.<domain>) sign-in: a short-lived 6-digit
+  // code, followed in the browser by the last 3 digits of their mobile.
+  PORTAL_WEB_LOGIN_CODE = 'portal_web_login_code',
   // Sent on request from the intake form's own "Send a copy by Email"
   // button on the thank-you screen, right after a customer completes their
   // registration -- carries a PDF snapshot of what they just submitted as

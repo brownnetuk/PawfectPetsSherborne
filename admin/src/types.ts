@@ -808,6 +808,7 @@ export type EmailTrigger =
   | 'portal_login_code'
   | 'portal_password_reset'
   | 'portal_enabled'
+  | 'portal_web_login_code'
   | 'post_registration'
   | 'form_copy'
   | 'booking_confirmation'

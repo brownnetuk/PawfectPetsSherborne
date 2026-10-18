@@ -3,7 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ClientIpThrottlerGuard } from './common/client-ip-throttler.guard';
 import { AppController } from './app.controller';
 import { AnnualLeaveModule } from './annual-leave/annual-leave.module';
 import { AppointmentsModule } from './appointments/appointments.module';
@@ -131,7 +132,7 @@ import { PreBoardingModule } from './pre-boarding/pre-boarding.module';
     { provide: APP_GUARD, useClass: PermissionsGuard },
     // Runs on every route, including @Public() ones -- rate limiting has
     // nothing to do with who's logged in.
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: ClientIpThrottlerGuard },
   ],
 })
 export class AppModule {}

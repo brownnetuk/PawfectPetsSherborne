@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   Length,
+  Matches,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -39,6 +40,20 @@ export class VerifyCodeDto {
   @IsString()
   @Length(6, 6)
   code: string;
+}
+
+// Web portal sign-in, step 3 (see PortalWebLoginService).
+export class WebVerifyPhoneDto {
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  @Length(64, 64)
+  stepToken: string;
+
+  @IsString()
+  @Matches(/^\d{3}$/, { message: 'Enter the last 3 digits of your mobile number.' })
+  digits: string;
 }
 
 export class SetPasswordDto {

@@ -432,6 +432,12 @@ export class PortalService {
     return this.quotes.findAll(customerId);
   }
 
+  async quotePdf(customerId: string, id: string): Promise<Buffer> {
+    const quote = await this.quotes.findOne(id);
+    this.assertOwnership(quote, customerId);
+    return this.quotes.renderPdf(id);
+  }
+
   async acceptQuote(customerId: string, id: string) {
     const quote = await this.quotes.findOne(id);
     this.assertOwnership(quote, customerId);
