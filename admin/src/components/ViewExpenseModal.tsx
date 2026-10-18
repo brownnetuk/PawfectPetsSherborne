@@ -5,8 +5,9 @@ import { bankAccountTypeLabel } from '../utils/bankAccountType';
 interface Props {
   expense: Expense;
   onClose: () => void;
-  onEdit: () => void;
-  onRefund: () => void;
+  // Left out where the modal is read-only (e.g. a report's drill-down).
+  onEdit?: () => void;
+  onRefund?: () => void;
 }
 
 function accountLabel(account: Expense['account']): string {
@@ -58,12 +59,16 @@ export default function ViewExpenseModal({ expense, onClose, onEdit, onRefund }:
         <button type="button" className="btn btn-secondary" onClick={onClose}>
           Close
         </button>
-        <button type="button" className="btn btn-secondary" onClick={onRefund}>
-          Refund
-        </button>
-        <button type="button" className="btn btn-primary" onClick={onEdit}>
-          Edit
-        </button>
+        {onRefund && (
+          <button type="button" className="btn btn-secondary" onClick={onRefund}>
+            Refund
+          </button>
+        )}
+        {onEdit && (
+          <button type="button" className="btn btn-primary" onClick={onEdit}>
+            Edit
+          </button>
+        )}
       </div>
     </Modal>
   );
