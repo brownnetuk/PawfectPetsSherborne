@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import * as api from '../api/client';
 import DateInput from '../components/DateInput';
 import { inDateRange } from '../components/DateRangeFilterBar';
@@ -6,7 +7,7 @@ import ExpensesByCategoryChart from '../components/ExpensesByCategoryChart';
 import IncomeExpenseChart from '../components/IncomeExpenseChart';
 import SortableTh from '../components/SortableTh';
 import ViewExpenseModal from '../components/ViewExpenseModal';
-import type { Expense, ExpenseCategoryTotal, IncomeExpenseMonth } from '../types';
+import type { CreditNote, Expense, ExpenseCategoryTotal, IncomeExpenseMonth, Invoice, OtherIncome, Payment } from '../types';
 import {
   REPORT_RANGE_LABELS,
   type ReportRangePreset,
@@ -14,11 +15,12 @@ import {
   reportRange,
 } from '../utils/reportDateRange';
 
-type Tab = 'pl' | 'expensesByCategory';
+type Tab = 'pl' | 'expensesByCategory' | 'incomeByCustomer';
 
 const TAB_LABELS: Record<Tab, string> = {
   pl: 'P/L',
   expensesByCategory: 'Expense Summary by Category',
+  incomeByCustomer: 'Income Summary by Customer',
 };
 
 export default function ReportsPage() {
@@ -31,7 +33,7 @@ export default function ReportsPage() {
       </div>
 
       <div className="tabs">
-        {(['pl', 'expensesByCategory'] as Tab[]).map((t) => (
+        {(['pl', 'expensesByCategory', 'incomeByCustomer'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -40,6 +42,7 @@ export default function ReportsPage() {
 
       {tab === 'pl' && <ProfitAndLossReport />}
       {tab === 'expensesByCategory' && <ExpenseSummaryByCategoryReport />}
+      {tab === 'incomeByCustomer' && <IncomeSummaryByCustomerReport />}
     </div>
   );
 }
@@ -114,6 +117,50 @@ function ProfitAndLossReport() {
 
 const RANGE_PRESETS = Object.keys(REPORT_RANGE_LABELS) as ReportRangePreset[];
 
+type DateRange = { from: string; to: string };
+
+function rangeLabel(range: DateRange): string {
+  return range.from && range.to ? `From ${formatIsoDay(range.from)} To ${formatIsoDay(range.to)}` : 'Choose a date range';
+}
+
+// Date Range dropdown shared by the date-ranged reports; "Custom" swaps in
+// From/To boxes.
+function ReportDateRangePicker({ range, onChange }: { range: DateRange; onChange: (next: DateRange) => void }) {
+  const [preset, setPreset] = useState<ReportRangePreset>('thisYear');
+
+  function pickPreset(next: ReportRangePreset) {
+    setPreset(next);
+    if (next !== 'custom') onChange(reportRange(next));
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+      {preset === 'custom' && (
+        <>
+          <div className="field" style={{ marginBottom: 0, width: 150 }}>
+            <label>From</label>
+            <DateInput value={range.from} onChange={(from) => onChange({ ...range, from })} />
+          </div>
+          <div className="field" style={{ marginBottom: 0, width: 150 }}>
+            <label>To</label>
+            <DateInput value={range.to} onChange={(to) => onChange({ ...range, to })} />
+          </div>
+        </>
+      )}
+      <div className="field" style={{ marginBottom: 0 }}>
+        <label>Date Range</label>
+        <select className="select-inline" value={preset} onChange={(e) => pickPreset(e.target.value as ReportRangePreset)}>
+          {RANGE_PRESETS.map((p) => (
+            <option key={p} value={p}>
+              {REPORT_RANGE_LABELS[p]}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 type CategorySortKey = 'category' | 'total';
 
 // Expenses totalled per category over a chosen date range (defaults to the
@@ -122,7 +169,6 @@ type CategorySortKey = 'category' | 'total';
 function ExpenseSummaryByCategoryReport() {
   const [expenses, setExpenses] = useState<Expense[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [preset, setPreset] = useState<ReportRangePreset>('thisYear');
   const [range, setRange] = useState(() => reportRange('thisYear'));
   const [sortKey, setSortKey] = useState<CategorySortKey>('category');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -135,11 +181,6 @@ function ExpenseSummaryByCategoryReport() {
       .then(setExpenses)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load the report'));
   }, []);
-
-  function pickPreset(next: ReportRangePreset) {
-    setPreset(next);
-    if (next !== 'custom') setRange(reportRange(next));
-  }
 
   function toggleSort(key: CategorySortKey) {
     if (key === sortKey) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -165,8 +206,6 @@ function ExpenseSummaryByCategoryReport() {
   }, [inRange, sortKey, sortDir]);
 
   const total = categories.reduce((sum, c) => sum + c.total, 0);
-  const rangeLabel =
-    range.from && range.to ? `From ${formatIsoDay(range.from)} To ${formatIsoDay(range.to)}` : 'Choose a date range';
   const categoryExpenses = category ? inRange.filter((e) => e.category === category) : [];
   const categoryTotal = categoryExpenses.reduce((sum, e) => sum + e.amount, 0);
 
@@ -176,32 +215,9 @@ function ExpenseSummaryByCategoryReport() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
           <div>
             <h2 style={{ marginBottom: 2 }}>Expense Summary by Category</h2>
-            <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: 0 }}>{rangeLabel}</p>
+            <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: 0 }}>{rangeLabel(range)}</p>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            {preset === 'custom' && (
-              <>
-                <div className="field" style={{ marginBottom: 0, width: 150 }}>
-                  <label>From</label>
-                  <DateInput value={range.from} onChange={(from) => setRange({ ...range, from })} />
-                </div>
-                <div className="field" style={{ marginBottom: 0, width: 150 }}>
-                  <label>To</label>
-                  <DateInput value={range.to} onChange={(to) => setRange({ ...range, to })} />
-                </div>
-              </>
-            )}
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label>Date Range</label>
-              <select className="select-inline" value={preset} onChange={(e) => pickPreset(e.target.value as ReportRangePreset)}>
-                {RANGE_PRESETS.map((p) => (
-                  <option key={p} value={p}>
-                    {REPORT_RANGE_LABELS[p]}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+          <ReportDateRangePicker range={range} onChange={setRange} />
         </div>
         {error && <div className="error-banner">{error}</div>}
         {expenses === null && !error && <div className="empty-state">Loading…</div>}
@@ -291,6 +307,224 @@ function ExpenseSummaryByCategoryReport() {
       )}
 
       {viewing && <ViewExpenseModal expense={viewing} onClose={() => setViewing(null)} />}
+    </div>
+  );
+}
+
+function refId(ref: { _id: string } | string | null | undefined): string | null {
+  if (!ref) return null;
+  return typeof ref === 'string' ? ref : ref._id;
+}
+
+type CustomerIncome = { id: string; name: string; payments: number; credits: number; net: number };
+type CustomerSortKey = 'name' | 'net';
+type IncomeLine = { key: string; date: string; kind: 'Payment' | 'Credit Note'; reference: string; amount: number };
+
+// Income per customer over a chosen date range, on the same basis as the P/L
+// report: payments received (via the invoice they were paid against) minus
+// credit notes issued. Other income isn't tied to a customer, so it gets one
+// line of its own and the grand total still matches the P/L.
+function IncomeSummaryByCustomerReport() {
+  const [payments, setPayments] = useState<Payment[] | null>(null);
+  const [invoices, setInvoices] = useState<Invoice[] | null>(null);
+  const [creditNotes, setCreditNotes] = useState<CreditNote[] | null>(null);
+  const [otherIncome, setOtherIncome] = useState<OtherIncome[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [range, setRange] = useState(() => reportRange('thisYear'));
+  const [sortKey, setSortKey] = useState<CustomerSortKey>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [customerId, setCustomerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([api.listPayments(), api.listInvoices(), api.listCreditNotes(), api.listOtherIncome()])
+      .then(([p, i, c, o]) => {
+        setPayments(p);
+        setInvoices(i);
+        setCreditNotes(c);
+        setOtherIncome(o);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load the report'));
+  }, []);
+
+  function toggleSort(key: CustomerSortKey) {
+    if (key === sortKey) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    else {
+      setSortKey(key);
+      setSortDir(key === 'net' ? 'desc' : 'asc');
+    }
+  }
+
+  const { customers, linesByCustomer, otherIncomeTotal } = useMemo(() => {
+    const invoiceCustomer = new Map<string, { id: string; name: string }>();
+    for (const inv of invoices ?? []) {
+      const id = refId(inv.customer);
+      if (id) invoiceCustomer.set(inv._id, { id, name: typeof inv.customer === 'string' ? 'Unknown customer' : inv.customer.name });
+    }
+
+    const rows = new Map<string, CustomerIncome>();
+    const lines = new Map<string, IncomeLine[]>();
+    const rowFor = (id: string, name: string) => {
+      let row = rows.get(id);
+      if (!row) {
+        row = { id, name, payments: 0, credits: 0, net: 0 };
+        rows.set(id, row);
+        lines.set(id, []);
+      }
+      return row;
+    };
+
+    for (const p of payments ?? []) {
+      if (!inDateRange(p.date, range.from, range.to)) continue;
+      const invoiceId = refId(p.invoice);
+      const customer = (invoiceId && invoiceCustomer.get(invoiceId)) || { id: 'unknown', name: 'Unknown customer' };
+      const row = rowFor(customer.id, customer.name);
+      row.payments += p.amount;
+      lines.get(customer.id)!.push({
+        key: p._id,
+        date: p.date,
+        kind: 'Payment',
+        reference: p.invoice && typeof p.invoice !== 'string' ? `${p.paymentId} · ${p.invoice.invoiceNumber}` : p.paymentId,
+        amount: p.amount,
+      });
+    }
+    for (const c of creditNotes ?? []) {
+      if (!inDateRange(c.date, range.from, range.to)) continue;
+      const id = refId(c.customer) ?? 'unknown';
+      const row = rowFor(id, typeof c.customer === 'string' ? 'Unknown customer' : c.customer.name);
+      row.credits += c.amount;
+      lines.get(id)!.push({ key: c._id, date: c.date, kind: 'Credit Note', reference: c.creditNoteNumber, amount: -c.amount });
+    }
+    for (const row of rows.values()) row.net = row.payments - row.credits;
+    for (const l of lines.values()) l.sort((a, b) => a.date.localeCompare(b.date));
+
+    const sign = sortDir === 'asc' ? 1 : -1;
+    const sorted = [...rows.values()].sort((a, b) =>
+      sortKey === 'net' ? sign * (a.net - b.net) : sign * a.name.localeCompare(b.name),
+    );
+    const other = (otherIncome ?? [])
+      .filter((o) => inDateRange(o.date, range.from, range.to))
+      .reduce((sum, o) => sum + o.amount, 0);
+    return { customers: sorted, linesByCustomer: lines, otherIncomeTotal: other };
+  }, [payments, invoices, creditNotes, otherIncome, range, sortKey, sortDir]);
+
+  const loaded = payments && invoices && creditNotes && otherIncome;
+  const customerTotal = customers.reduce((sum, c) => sum + c.net, 0);
+  const total = customerTotal + otherIncomeTotal;
+  const selected = customerId ? customers.find((c) => c.id === customerId) : null;
+  const selectedLines = customerId ? (linesByCustomer.get(customerId) ?? []) : [];
+
+  return (
+    <div>
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <h2 style={{ marginBottom: 2 }}>Income Summary by Customer</h2>
+            <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: 0 }}>{rangeLabel(range)}</p>
+            <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: 0 }}>
+              Payments received, minus credit notes issued.
+            </p>
+          </div>
+          <ReportDateRangePicker
+            range={range}
+            onChange={(next) => {
+              setRange(next);
+              setCustomerId(null);
+            }}
+          />
+        </div>
+        {error && <div className="error-banner">{error}</div>}
+        {!loaded && !error && <div className="empty-state">Loading…</div>}
+        {loaded && customers.length === 0 && otherIncomeTotal === 0 && (
+          <div className="empty-state">No income recorded in this period.</div>
+        )}
+      </div>
+
+      {loaded && !selected && (customers.length > 0 || otherIncomeTotal !== 0) && (
+        <div className="card" style={{ padding: 0 }}>
+          <table>
+            <thead>
+              <tr>
+                <SortableTh label="Customer" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <th>Payments</th>
+                <th>Credit Notes</th>
+                <SortableTh label="Net Income" sortKey="net" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <th>% of Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {customers.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.id === 'unknown' ? c.name : <Link to={`/customers/${c.id}`}>{c.name}</Link>}</td>
+                  <td>£{c.payments.toFixed(2)}</td>
+                  <td>{c.credits ? `−£${c.credits.toFixed(2)}` : '—'}</td>
+                  <td>
+                    <button
+                      className="btn-link"
+                      style={{ color: 'var(--accent)', fontSize: 'inherit' }}
+                      title={`Show ${c.name}'s payments and credit notes`}
+                      onClick={() => setCustomerId(c.id)}
+                    >
+                      £{c.net.toFixed(2)}
+                    </button>
+                  </td>
+                  <td>{total > 0 ? `${((c.net / total) * 100).toFixed(1)}%` : '—'}</td>
+                </tr>
+              ))}
+              {otherIncomeTotal !== 0 && (
+                <tr>
+                  <td style={{ fontStyle: 'italic' }}>Other income (not from a customer)</td>
+                  <td></td>
+                  <td></td>
+                  <td>£{otherIncomeTotal.toFixed(2)}</td>
+                  <td>{total > 0 ? `${((otherIncomeTotal / total) * 100).toFixed(1)}%` : '—'}</td>
+                </tr>
+              )}
+              <tr style={{ fontWeight: 700 }}>
+                <td>Total</td>
+                <td></td>
+                <td></td>
+                <td>£{total.toFixed(2)}</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {selected && (
+        <div className="card" style={{ padding: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
+            <h3 style={{ margin: 0 }}>{selected.name}</h3>
+            <button className="btn btn-secondary btn-sm" onClick={() => setCustomerId(null)}>
+              Back to summary
+            </button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Reference</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectedLines.map((l) => (
+                <tr key={l.key}>
+                  <td>{new Date(l.date).toLocaleDateString('en-GB')}</td>
+                  <td>{l.kind}</td>
+                  <td>{l.reference}</td>
+                  <td>{l.amount < 0 ? `−£${(-l.amount).toFixed(2)}` : `£${l.amount.toFixed(2)}`}</td>
+                </tr>
+              ))}
+              <tr style={{ fontWeight: 700 }}>
+                <td colSpan={3}>Total</td>
+                <td>£{selected.net.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
