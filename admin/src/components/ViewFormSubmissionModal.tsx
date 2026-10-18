@@ -32,7 +32,7 @@ export default function ViewFormSubmissionModal({
         // A blob URL, not doc.output('datauristring') -- jsPDF's datauristring
         // embeds a non-standard ";filename=...;" segment that breaks Chrome's
         // PDF viewer when used as an iframe src (see CustomerDetailPage.tsx's
-        // toPdfIframeSrc for the same bug hit -- and fixed -- there).
+        // SnapshotPdfFrame for the same bug hit -- and fixed -- there).
         objectUrl = URL.createObjectURL(doc.output('blob'));
         setPdfUrl(objectUrl);
       })
