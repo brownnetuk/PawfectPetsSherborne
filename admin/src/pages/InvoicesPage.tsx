@@ -5,9 +5,7 @@ import ActionsMenu from '../components/ActionsMenu';
 import DocumentFormModal from '../components/DocumentFormModal';
 import { MailIcon, MailOpenIcon } from '../components/icons';
 import InvoiceActivityPanel from '../components/InvoiceActivityPanel';
-import InvoiceHtmlView from '../components/InvoiceHtmlView';
 import Modal from '../components/Modal';
-import QuoteHtmlView from '../components/QuoteHtmlView';
 import RecordPaymentModal from '../components/RecordPaymentModal';
 import RequestDepositModal from '../components/RequestDepositModal';
 import SendPreviewModal, { customerLabel } from '../components/SendPreviewModal';
@@ -179,6 +177,24 @@ function matchesQuoteFilters(q: Quote, f: Filters): boolean {
   return inDateRange(q.validUntil, f.from, f.to);
 }
 
+// The generated PDF shown inline, fitted to the pane's width. Same blob-URL
+// iframe approach as BookingConfirmationModal's preview.
+function PdfPreview({ url, loading, title }: { url: string | null; loading: boolean; title: string }) {
+  return (
+    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      {url ? (
+        <iframe
+          title={`${title} preview`}
+          src={`${url}#navpanes=0&view=FitH`}
+          style={{ width: '100%', height: '78vh', border: '1px solid var(--border)', borderRadius: 8, background: '#fff' }}
+        />
+      ) : (
+        loading && <div className="empty-state">Preparing preview…</div>
+      )}
+    </div>
+  );
+}
+
 export default function InvoicesPage() {
   const [tab, setTab] = useState<Tab>('invoices');
 
@@ -221,6 +237,7 @@ function InvoicesTab() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [activityVersion, setActivityVersion] = useState(0);
+  const [activityOpen, setActivityOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkSendConfirm, setBulkSendConfirm] = useState(false);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
@@ -254,9 +271,9 @@ function InvoicesTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoices]);
 
-  // Shows the invoice instantly as HTML (InvoiceHtmlView, below) once
-  // businessInfo is available -- doesn't wait on the PDF, which is only
-  // needed for the Download link and generates in the background.
+  // The preview is the generated PDF itself (in an iframe, below), so it
+  // always matches the restyled layout the customer receives and the
+  // Download button hands over.
   async function handleViewPdf(inv: Invoice) {
     if (pdfUrl) URL.revokeObjectURL(pdfUrl);
     setPdfUrl(null);
@@ -280,6 +297,29 @@ function InvoicesTab() {
     setPdfUrl(null);
     setPdfError(null);
     setViewing(null);
+  }
+
+  // After a refresh, rebuild the open preview if that invoice changed (an
+  // edit, a payment) so the PDF doesn't show stale figures.
+  useEffect(() => {
+    if (!viewing || !invoices) return;
+    const fresh = invoices.find((inv) => inv._id === viewing._id);
+    if (fresh && JSON.stringify(fresh) !== JSON.stringify(viewing)) handleViewPdf(fresh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoices]);
+
+  function invoiceActions(inv: Invoice) {
+    return [
+      { label: 'Edit', onClick: () => setEditing(inv) },
+      {
+        label: sendingId === inv._id ? 'Sending…' : 'Send',
+        onClick: () => setSendPreview(inv),
+        disabled: sendingId === inv._id,
+      },
+      { label: 'Payments', onClick: () => setRecordingPayment(inv) },
+      { label: 'Request Deposit', onClick: () => setRequestingDeposit(inv) },
+      { label: 'Delete', onClick: () => setDeleting(inv), danger: true, dividerBefore: true },
+    ];
   }
 
   async function handleStatusChange(id: string, status: string) {
@@ -306,6 +346,7 @@ function InvoicesTab() {
     setDeleteError(null);
     try {
       await api.deleteInvoice(deleting._id);
+      if (viewing?._id === deleting._id) closePdf();
       setDeleting(null);
       refresh();
     } catch (err) {
@@ -403,13 +444,12 @@ function InvoicesTab() {
       </div>
       {error && <div className="error-banner">{error}</div>}
 
-      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
-        <div className="card" style={{ padding: 0, flex: 1, minWidth: 0 }}>
+      <div className="card" style={{ padding: 0 }}>
         {!invoices || invoices.length === 0 ? (
           <div className="empty-state">{invoices === null ? 'Loading…' : 'No invoices yet.'}</div>
         ) : viewing ? (
           <div style={{ display: 'flex', alignItems: 'stretch' }}>
-            <div style={{ width: 260, flexShrink: 0, borderRight: '1px solid var(--border)' }}>
+            <div style={{ width: 220, flexShrink: 0, borderRight: '1px solid var(--border)', maxHeight: '85vh', overflowY: 'auto' }}>
               {visibleInvoices.map((inv) => (
                 <div
                   key={inv._id}
@@ -421,28 +461,8 @@ function InvoicesTab() {
                     background: inv._id === viewing._id ? 'var(--sage)' : undefined,
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 600 }}>{inv.invoiceNumber}</div>
-                      <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{customerLabel(inv.customer)}</div>
-                    </div>
-                    <div onClick={(e) => e.stopPropagation()}>
-                      <ActionsMenu
-                        items={[
-                          { label: 'View', onClick: () => handleViewPdf(inv) },
-                          { label: 'Edit', onClick: () => setEditing(inv) },
-                          {
-                            label: sendingId === inv._id ? 'Sending…' : 'Send',
-                            onClick: () => setSendPreview(inv),
-                            disabled: sendingId === inv._id,
-                          },
-                          { label: 'Payments', onClick: () => setRecordingPayment(inv) },
-                          { label: 'Request Deposit', onClick: () => setRequestingDeposit(inv) },
-                          { label: 'Delete', onClick: () => setDeleting(inv), danger: true, dividerBefore: true },
-                        ]}
-                      />
-                    </div>
-                  </div>
+                  <div style={{ fontWeight: 600 }}>{inv.invoiceNumber}</div>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{customerLabel(inv.customer)}</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
                     <span className={`badge badge-${inv.status}`}>{inv.status}</span>
                     <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
@@ -458,10 +478,11 @@ function InvoicesTab() {
               ))}
             </div>
 
-            <div style={{ flex: 1, minWidth: 0, padding: '20px 24px', maxHeight: '85vh', overflowY: 'auto' }}>
+            <div style={{ flex: 1, minWidth: 0, padding: '20px 24px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, maxWidth: 900, margin: '0 auto 16px' }}>
                 <h3 style={{ margin: 0 }}>Invoice {viewing.invoiceNumber}</h3>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <ActionsMenu items={invoiceActions(viewing)} />
                   {pdfUrl ? (
                     <a href={pdfUrl} download={`${viewing.invoiceNumber}.pdf`} className="btn btn-secondary btn-sm">
                       Download
@@ -476,12 +497,17 @@ function InvoicesTab() {
                   </button>
                 </div>
               </div>
+              <div style={{ maxWidth: 900, margin: '0 auto 12px' }}>
+                <InvoiceActivityPanel
+                  key={viewing._id}
+                  invoiceId={viewing._id}
+                  refreshToken={activityVersion}
+                  open={activityOpen}
+                  onToggle={() => setActivityOpen((o) => !o)}
+                />
+              </div>
               {pdfError && <div className="error-banner" style={{ maxWidth: 900, margin: '0 auto 16px' }}>{pdfError}</div>}
-              {businessInfo ? (
-                <InvoiceHtmlView invoice={viewing} businessInfo={businessInfo} />
-              ) : (
-                <div className="empty-state">Loading…</div>
-              )}
+              <PdfPreview url={pdfUrl} loading={pdfLoading} title={`Invoice ${viewing.invoiceNumber}`} />
             </div>
           </div>
         ) : (
@@ -556,31 +582,12 @@ function InvoicesTab() {
                     {isPartiallyPaid(inv) && <span className="badge badge-partially_paid">Partially Paid</span>}
                   </td>
                   <td onClick={(e) => e.stopPropagation()}>
-                    <ActionsMenu
-                      items={[
-                        { label: 'View', onClick: () => handleViewPdf(inv) },
-                        { label: 'Edit', onClick: () => setEditing(inv) },
-                        {
-                          label: sendingId === inv._id ? 'Sending…' : 'Send',
-                          onClick: () => setSendPreview(inv),
-                          disabled: sendingId === inv._id,
-                        },
-                        { label: 'Payments', onClick: () => setRecordingPayment(inv) },
-                        { label: 'Request Deposit', onClick: () => setRequestingDeposit(inv) },
-                        { label: 'Delete', onClick: () => setDeleting(inv), danger: true, dividerBefore: true },
-                      ]}
-                    />
+                    <ActionsMenu items={[{ label: 'View', onClick: () => handleViewPdf(inv) }, ...invoiceActions(inv)]} />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          </div>
-        )}
-        </div>
-        {viewing && (
-          <div style={{ width: 480, flexShrink: 0 }}>
-            <InvoiceActivityPanel key={viewing._id} invoiceId={viewing._id} refreshToken={activityVersion} />
           </div>
         )}
       </div>
@@ -750,6 +757,18 @@ function QuotesTab() {
     setViewing(null);
   }
 
+  function quoteActions(q: Quote) {
+    return [
+      { label: 'Edit', onClick: () => setEditing(q) },
+      {
+        label: sendingId === q._id ? 'Sending…' : 'Send',
+        onClick: () => setSendPreview(q),
+        disabled: sendingId === q._id,
+      },
+      { label: 'Delete', onClick: () => setDeleting(q), danger: true, dividerBefore: true },
+    ];
+  }
+
   async function handleStatusChange(id: string, status: string) {
     await api.updateQuoteStatus(id, status);
     refresh();
@@ -774,6 +793,7 @@ function QuotesTab() {
     setDeleteError(null);
     try {
       await api.deleteQuote(deleting._id);
+      if (viewing?._id === deleting._id) closePdf();
       setDeleting(null);
       refresh();
     } catch (err) {
@@ -804,7 +824,7 @@ function QuotesTab() {
           <div className="empty-state">{quotes === null ? 'Loading…' : 'No quotes yet.'}</div>
         ) : viewing ? (
           <div style={{ display: 'flex', alignItems: 'stretch' }}>
-            <div style={{ width: 420, flexShrink: 0, borderRight: '1px solid var(--border)' }}>
+            <div style={{ width: 320, flexShrink: 0, borderRight: '1px solid var(--border)', maxHeight: '85vh', overflowY: 'auto' }}>
               <table>
                 <tbody>
                   {visibleQuotes.map((q) => (
@@ -831,30 +851,17 @@ function QuotesTab() {
                         <span className={`badge badge-${q.status}`}>{q.status}</span>
                         <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: 4 }}>£{q.total.toFixed(2)}</div>
                       </td>
-                      <td onClick={(e) => e.stopPropagation()} style={{ padding: '10px 8px 10px 0' }}>
-                        <ActionsMenu
-                          items={[
-                            { label: 'View', onClick: () => handleViewPdf(q) },
-                            { label: 'Edit', onClick: () => setEditing(q) },
-                            {
-                              label: sendingId === q._id ? 'Sending…' : 'Send',
-                              onClick: () => setSendPreview(q),
-                              disabled: sendingId === q._id,
-                            },
-                            { label: 'Delete', onClick: () => setDeleting(q), danger: true, dividerBefore: true },
-                          ]}
-                        />
-                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            <div style={{ flex: 1, minWidth: 0, padding: '20px 24px', maxHeight: '85vh', overflowY: 'auto' }}>
+            <div style={{ flex: 1, minWidth: 0, padding: '20px 24px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, maxWidth: 900, margin: '0 auto 16px' }}>
                 <h3 style={{ margin: 0 }}>Quote {viewing.quoteNumber}</h3>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <ActionsMenu items={quoteActions(viewing)} />
                   {pdfUrl ? (
                     <a href={pdfUrl} download={`${viewing.quoteNumber}.pdf`} className="btn btn-secondary btn-sm">
                       Download
@@ -870,11 +877,7 @@ function QuotesTab() {
                 </div>
               </div>
               {pdfError && <div className="error-banner" style={{ maxWidth: 900, margin: '0 auto 16px' }}>{pdfError}</div>}
-              {businessInfo ? (
-                <QuoteHtmlView quote={viewing} businessInfo={businessInfo} />
-              ) : (
-                <div className="empty-state">Loading…</div>
-              )}
+              <PdfPreview url={pdfUrl} loading={pdfLoading} title={`Quote ${viewing.quoteNumber}`} />
             </div>
           </div>
         ) : (
@@ -932,18 +935,7 @@ function QuotesTab() {
                   </td>
                   <td>{new Date(q.validUntil).toLocaleDateString('en-GB')}</td>
                   <td onClick={(e) => e.stopPropagation()}>
-                    <ActionsMenu
-                      items={[
-                        { label: 'View', onClick: () => handleViewPdf(q) },
-                        { label: 'Edit', onClick: () => setEditing(q) },
-                        {
-                          label: sendingId === q._id ? 'Sending…' : 'Send',
-                          onClick: () => setSendPreview(q),
-                          disabled: sendingId === q._id,
-                        },
-                        { label: 'Delete', onClick: () => setDeleting(q), danger: true, dividerBefore: true },
-                      ]}
-                    />
+                    <ActionsMenu items={[{ label: 'View', onClick: () => handleViewPdf(q) }, ...quoteActions(q)]} />
                   </td>
                 </tr>
               ))}

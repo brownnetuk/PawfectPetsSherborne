@@ -343,6 +343,7 @@ h1, h2, h3 {
   font-weight: 700;
   cursor: pointer;
   transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.15s ease;
+  text-decoration: none; /* <a className="btn"> (e.g. Download) shouldn't look like a link */
 }
 
 .btn-primary {
