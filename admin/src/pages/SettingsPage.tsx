@@ -23,6 +23,7 @@ import SortableTh from '../components/SortableTh';
 import { bankAccountTypeLabel } from '../utils/bankAccountType';
 import { buildItemsTableHtml, escapeHtml, interpolateBody, interpolateSubject } from '../utils/emailTemplate';
 import { PERMISSION_CATALOG } from '../utils/permissionCatalog';
+import { useCollapsibleCards } from '../utils/useCollapsibleCards';
 import { AVAILABILITY_LABELS } from '../utils/productAvailability';
 import type {
   AnnualLeave,
@@ -77,9 +78,11 @@ const TAB_LABELS: Record<Tab, string> = {
 
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('business');
+  const containerRef = useRef<HTMLDivElement>(null);
+  useCollapsibleCards(containerRef);
 
   return (
-    <div>
+    <div ref={containerRef}>
       <div className="page-header">
         <h1>Settings</h1>
       </div>
