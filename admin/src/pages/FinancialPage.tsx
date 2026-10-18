@@ -3,6 +3,7 @@ import * as api from '../api/client';
 import AddPaymentModal from '../components/AddPaymentModal';
 import BankTransferModal from '../components/BankTransferModal';
 import CreditNoteModal from '../components/CreditNoteModal';
+import DateRangeFilterBar, { currentMonthFilters, inDateRange, matchesSearch } from '../components/DateRangeFilterBar';
 import ExpenseModal from '../components/ExpenseModal';
 import Modal from '../components/Modal';
 import OtherIncomeModal from '../components/OtherIncomeModal';
@@ -80,6 +81,7 @@ function PaymentsCard() {
   const [sendingReceipt, setSendingReceipt] = useState<Payment | null>(null);
   const [receiptBusy, setReceiptBusy] = useState(false);
   const [receiptError, setReceiptError] = useState<string | null>(null);
+  const [filters, setFilters] = useState(currentMonthFilters);
 
   function refresh() {
     api
@@ -100,6 +102,25 @@ function PaymentsCard() {
           ...otherIncome.map((o): PaymentRow => ({ kind: 'otherIncome', date: o.date, createdAt: o.createdAt, income: o })),
         ].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
       : null;
+
+  const visibleRows = (rows ?? []).filter((row) => {
+    if (!inDateRange(row.date, filters.from, filters.to)) return false;
+    const date = new Date(row.date).toLocaleDateString('en-GB');
+    if (row.kind === 'otherIncome') {
+      const o = row.income;
+      return matchesSearch(filters.search, ['Other income', date, o.receivedFrom, o.description, o.amount.toFixed(2), accountLabel(o.account)]);
+    }
+    const p = row.payment;
+    return matchesSearch(filters.search, [
+      p.paymentId,
+      date,
+      invoiceLabel(p.invoice),
+      p.amount.toFixed(2),
+      p.charges?.toFixed(2),
+      p.paymentMethod,
+      accountLabel(p.account),
+    ]);
+  });
 
   async function handleDeleteIncome() {
     if (!deletingIncome) return;
@@ -185,6 +206,14 @@ function PaymentsCard() {
         </div>
       </div>
       {error && <div className="error-banner">{error}</div>}
+      {rows && rows.length > 0 && (
+        <DateRangeFilterBar
+          filters={filters}
+          onChange={setFilters}
+          searchPlaceholder="Payment ID, invoice, method…"
+          dates={rows.map((r) => r.date)}
+        />
+      )}
       {!rows || rows.length === 0 ? (
         <div className="empty-state">{rows === null ? 'Loading…' : 'No payments recorded yet.'}</div>
       ) : (
@@ -202,7 +231,14 @@ function PaymentsCard() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
+            {visibleRows.length === 0 && (
+              <tr>
+                <td colSpan={8} className="empty-state">
+                  No payments match these filters.
+                </td>
+              </tr>
+            )}
+            {visibleRows.map((row) => {
               if (row.kind === 'otherIncome') {
                 const o = row.income;
                 return (
@@ -372,6 +408,7 @@ function ExpensesCard() {
   const [deleting, setDeleting] = useState<Expense | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [filters, setFilters] = useState(currentMonthFilters);
 
   function refresh() {
     api
@@ -380,6 +417,19 @@ function ExpensesCard() {
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load expenses'));
   }
   useEffect(refresh, []);
+
+  const visibleExpenses = (expenses ?? []).filter(
+    (e) =>
+      inDateRange(e.date, filters.from, filters.to) &&
+      matchesSearch(filters.search, [
+        new Date(e.date).toLocaleDateString('en-GB'),
+        e.category,
+        e.payee,
+        expenseAccountLabel(e.account),
+        e.description,
+        e.amount.toFixed(2),
+      ]),
+  );
 
   async function handleDelete() {
     if (!deleting) return;
@@ -410,6 +460,14 @@ function ExpensesCard() {
         </button>
       </div>
       {error && <div className="error-banner">{error}</div>}
+      {expenses && expenses.length > 0 && (
+        <DateRangeFilterBar
+          filters={filters}
+          onChange={setFilters}
+          searchPlaceholder="Category, payee, description…"
+          dates={expenses.map((e) => e.date)}
+        />
+      )}
       {!expenses || expenses.length === 0 ? (
         <div className="empty-state">{expenses === null ? 'Loading…' : 'No expenses recorded yet.'}</div>
       ) : (
@@ -427,7 +485,14 @@ function ExpensesCard() {
             </tr>
           </thead>
           <tbody>
-            {expenses.map((e) => (
+            {visibleExpenses.length === 0 && (
+              <tr>
+                <td colSpan={8} className="empty-state">
+                  No expenses match these filters.
+                </td>
+              </tr>
+            )}
+            {visibleExpenses.map((e) => (
               <tr key={e._id} onClick={() => setViewing(e)}>
                 <td>{new Date(e.date).toLocaleDateString('en-GB')}</td>
                 <td>{e.category}</td>
