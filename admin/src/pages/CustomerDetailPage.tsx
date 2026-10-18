@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import * as api from '../api/client';
 import ActionsMenu from '../components/ActionsMenu';
@@ -37,6 +37,7 @@ import type {
 } from '../types';
 import { addDays, dateKey } from '../utils/visitPlan';
 import { isVisitProduct, visitCountForProduct } from '../utils/visitMapping';
+import { dataUriToBlob, downloadReceipt } from '../utils/receiptFile';
 import { WEEKDAYS } from '../types';
 import { compressImageToDataUrl } from '../utils/compressImage';
 import { useAuth } from '../auth/AuthContext';
@@ -53,13 +54,27 @@ function statusLabel(status: string): string {
 // A partial payment doesn't change the invoice's underlying status (it stays
 // "sent" until fully covered -- see InvoicesService.applyPayment()) -- this
 // is purely a derived display badge layered alongside the real status.
-// jsPDF's `datauristring` output embeds a non-standard `;filename=...;`
-// segment between the media type and `;base64,`, which breaks Chrome's PDF
-// viewer when used as an iframe src (it renders a blank page even though the
-// same string works fine for a plain <a download> link). Strip it so stored
-// snapshots -- old and new -- render correctly.
-function toPdfIframeSrc(dataUri: string | undefined): string | undefined {
-  return dataUri?.replace(/^data:application\/pdf;filename=[^;]*;base64,/, 'data:application/pdf;base64,');
+// Stored registration snapshots are base64 data: URIs, but they're shown via
+// a local object URL rather than as the iframe src directly -- Chrome renders
+// a data: PDF in an iframe as a blank white page once it's more than a couple
+// of MB (and jsPDF's non-standard ";filename=...;" segment breaks it even
+// when it isn't). Same approach as ViewExpenseModal's PdfReceipt.
+function SnapshotPdfFrame({ dataUri }: { dataUri: string }) {
+  const url = useMemo(() => URL.createObjectURL(dataUriToBlob(dataUri)), [dataUri]);
+  useEffect(() => () => URL.revokeObjectURL(url), [url]);
+  return (
+    <iframe
+      src={url}
+      title="Registration form PDF snapshot"
+      style={{ width: '100%', height: '75vh', border: '1px solid var(--border)', borderRadius: 8 }}
+    />
+  );
+}
+
+// Through a blob URL for the same reason -- a multi-MB data: URI as an <a
+// href> is just as unreliable as one in an iframe.
+function downloadSnapshot(entry: AuditLogEntry) {
+  if (entry.attachmentData) downloadReceipt(entry.attachmentData, entry.attachmentName || 'registration-form.pdf');
 }
 
 function isPartiallyPaid(inv: Invoice): boolean {
@@ -374,6 +389,10 @@ export default function CustomerDetailPage() {
           customer={customer}
           alarmInstructions={alarmInstructions}
           onRevealAlarm={revealAlarm}
+          registrationSnapshot={auditLog.find(
+            (e) => e.type === 'registration_email_sent' && e.attachmentData,
+          )}
+          onViewSnapshot={setViewingSnapshot}
         />
       )}
       {tab === 'pets' && <PetsTab customer={customer} animals={animals} onChange={refresh} />}
@@ -522,22 +541,14 @@ export default function CustomerDetailPage() {
           onClose={() => setViewingSnapshot(null)}
           xl
         >
-          <iframe
-            src={toPdfIframeSrc(viewingSnapshot.attachmentData)}
-            title="Registration form PDF snapshot"
-            style={{ width: '100%', height: '75vh', border: '1px solid var(--border)', borderRadius: 8 }}
-          />
+          {viewingSnapshot.attachmentData && <SnapshotPdfFrame dataUri={viewingSnapshot.attachmentData} />}
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setViewingSnapshot(null)}>
               Close
             </button>
-            <a
-              href={viewingSnapshot.attachmentData}
-              download={viewingSnapshot.attachmentName || 'registration-form.pdf'}
-              className="btn btn-primary"
-            >
+            <button className="btn btn-primary" onClick={() => downloadSnapshot(viewingSnapshot)}>
               Download
-            </a>
+            </button>
           </div>
         </Modal>
       )}
@@ -549,16 +560,22 @@ function OverviewTab({
   customer,
   alarmInstructions,
   onRevealAlarm,
+  registrationSnapshot,
+  onViewSnapshot,
 }: {
   customer: Customer;
   alarmInstructions: string | null;
   onRevealAlarm: () => void;
+  // The newest stored registration form PDF (auditLog is newest first).
+  registrationSnapshot?: AuditLogEntry;
+  onViewSnapshot: (entry: AuditLogEntry) => void;
 }) {
   return (
     <>
       <div className="card">
         <div className="section-title">Client details</div>
-        <dl className="kv-grid">
+        {/* Wider label column than the default 140px so "Customer Registration Form" stays on one line. */}
+        <dl className="kv-grid" style={{ gridTemplateColumns: '210px 1fr' }}>
           <dt>Name</dt>
           <dd>{customer.name}</dd>
           <dt>Address</dt>
@@ -567,6 +584,21 @@ function OverviewTab({
           <dd>{customer.phoneNumber || '—'}</dd>
           <dt>Email</dt>
           <dd>{customer.email}</dd>
+          <dt>Customer Registration Form</dt>
+          <dd>
+            {registrationSnapshot ? (
+              <span style={{ display: 'inline-flex', gap: 12 }}>
+                <button type="button" className="btn-link" onClick={() => onViewSnapshot(registrationSnapshot)}>
+                  View
+                </button>
+                <button type="button" className="btn-link" onClick={() => downloadSnapshot(registrationSnapshot)}>
+                  Download
+                </button>
+              </span>
+            ) : (
+              '—'
+            )}
+          </dd>
         </dl>
       </div>
 
@@ -1717,14 +1749,14 @@ function AuditLogTab({
                       >
                         View
                       </button>
-                      <a
-                        href={e.attachmentData}
-                        download={e.attachmentName || 'registration-form.pdf'}
+                      <button
+                        type="button"
                         className="btn-link"
                         style={{ fontSize: '0.8rem' }}
+                        onClick={() => downloadSnapshot(e)}
                       >
                         Download PDF
-                      </a>
+                      </button>
                     </div>
                   )}
                 </div>
