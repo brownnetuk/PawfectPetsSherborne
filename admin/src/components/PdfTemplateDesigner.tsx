@@ -42,13 +42,13 @@ function defaultElement(type: PdfElementType): PdfTemplateElement {
   const base = { id: newId(), x: 60, y: 60, width: 160, height: 24 };
   switch (type) {
     case 'text':
-      return { ...base, type, content: 'New text', fontSize: 10, fontWeight: 'normal', color: '#232c26', align: 'left' };
+      return { ...base, type, content: 'New text', fontSize: 10, fontWeight: 'normal', color: '#1d2a33', align: 'left' };
     case 'image':
       return { ...base, type, width: 60, height: 60, src: 'logo' };
     case 'line':
-      return { ...base, type, width: 160, height: 0, strokeColor: '#e3e8de', lineWidth: 1 };
+      return { ...base, type, width: 160, height: 0, strokeColor: '#d9e6ef', lineWidth: 0.75 };
     case 'rect':
-      return { ...base, type, width: 160, height: 60, fillColor: '#f3f6ee', strokeColor: undefined };
+      return { ...base, type, width: 160, height: 60, fillColor: '#fbf7ee', strokeColor: undefined, radius: 9 };
     case 'qrcode':
       return { ...base, type, width: 64, height: 64, content: '{{bankName}} {{sortCode}} {{accountNumber}}' };
     case 'itemTable':
@@ -472,6 +472,8 @@ function ElementPreview({ el }: { el: PdfTemplateElement }) {
             height: '100%',
             fontSize: Math.max(el.fontSize * SCALE, 6),
             fontWeight: el.fontWeight === 'bold' ? 700 : 400,
+            fontStyle: el.fontWeight === 'italic' ? 'italic' : undefined,
+            fontFamily: el.font === 'display' ? "'Archivo Black', 'Arial Black', sans-serif" : "'DM Sans', Helvetica, sans-serif",
             color: el.color,
             textAlign: el.align,
             whiteSpace: 'pre-wrap',
@@ -511,6 +513,7 @@ function ElementPreview({ el }: { el: PdfTemplateElement }) {
             height: '100%',
             background: el.fillColor,
             border: el.strokeColor ? `1px solid ${el.strokeColor}` : undefined,
+            borderRadius: el.radius ? el.radius * SCALE : undefined,
           }}
         />
       );
@@ -676,9 +679,17 @@ function PropertyPanel({
             </div>
             <div className="field">
               <label>Weight</label>
-              <select value={selected.fontWeight} onChange={(e) => onChange({ fontWeight: e.target.value as 'normal' | 'bold' })}>
+              <select value={selected.fontWeight} onChange={(e) => onChange({ fontWeight: e.target.value as 'normal' | 'bold' | 'italic' })}>
                 <option value="normal">Normal</option>
                 <option value="bold">Bold</option>
+                <option value="italic">Italic</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Font</label>
+              <select value={selected.font ?? 'body'} onChange={(e) => onChange({ font: e.target.value as 'body' | 'display' })}>
+                <option value="body">Body (DM Sans)</option>
+                <option value="display">Heading (Archivo Black)</option>
               </select>
             </div>
           </div>
@@ -753,6 +764,10 @@ function PropertyPanel({
               value={selected.strokeColor ?? '#ffffff'}
               onChange={(e) => onChange({ strokeColor: e.target.value })}
             />
+          </div>
+          <div className="field">
+            <label>Corner radius</label>
+            <input type="number" min={0} value={selected.radius ?? 0} onChange={(e) => onChange({ radius: Number(e.target.value) })} />
           </div>
         </div>
       )}

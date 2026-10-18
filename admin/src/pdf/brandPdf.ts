@@ -84,7 +84,7 @@ function loadFontFiles() {
  * the brand family names to it) if they can't be fetched, so a PDF still
  * comes out offline rather than failing outright.
  */
-async function registerBrandFonts(doc: jsPDF): Promise<boolean> {
+export async function registerBrandFonts(doc: jsPDF): Promise<boolean> {
   try {
     for (const f of await loadFontFiles()) {
       doc.addFileToVFS(f.file, f.data);

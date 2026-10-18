@@ -434,7 +434,9 @@ export interface PdfTextElement extends PdfElementBase {
   type: 'text';
   content: string;
   fontSize: number;
-  fontWeight: 'normal' | 'bold';
+  fontWeight: 'normal' | 'bold' | 'italic';
+  /** 'display' draws in Archivo Black (headings); body text is DM Sans. */
+  font?: 'body' | 'display';
   color: string;
   align: 'left' | 'center' | 'right';
   rotation?: number;
@@ -455,6 +457,8 @@ export interface PdfRectElement extends PdfElementBase {
   type: 'rect';
   fillColor?: string;
   strokeColor?: string;
+  /** Corner radius in points; half the height makes a pill, half the width of a square a circle. */
+  radius?: number;
 }
 
 export interface PdfQrElement extends PdfElementBase {

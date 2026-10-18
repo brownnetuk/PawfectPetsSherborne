@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
 import logoUrl from '../assets/logo.png';
+import { registerBrandFonts } from './brandPdf';
 import type {
   DocCustomerRef,
   DocLineItem,
@@ -24,11 +25,45 @@ export const PAGE_HEIGHT = 841.89;
 const TOP_MARGIN = 40;
 const BOTTOM_MARGIN = 40;
 
-const INK = '#232c26';
-const BORDER = '#e3e8de';
+// Brand palette and type from the booking confirmation PDF (the Pawfect Pets
+// social posts): a bold blue ground, yellow highlights, a pink call-out band
+// and cream cards, with Archivo Black display headings over DM Sans body
+// text. Kept in sync by hand with admin/src/pdf/brandPdf.ts.
+const BLUE = '#0072b5';
+const YELLOW = '#fdf101';
+const PINK = '#d7385e';
+const CREAM = '#fbf7ee';
+const INK = '#1d2a33';
+const MUTED = '#5f6f7a';
+const BORDER = '#d9e6ef';
+const DISPLAY = 'ArchivoBlack';
+const BODY = 'DMSans';
+
+// Templates saved before the restyle carry the old green/orange palette;
+// map those colours onto their brand equivalents so a customised layout
+// still comes out in the booking confirmation's look.
+const LEGACY_COLOURS: Record<string, string> = {
+  '#1f3b2c': BLUE,
+  '#232c26': INK,
+  '#6f7d72': MUTED,
+  '#e3e8de': BORDER,
+  '#f3f6ee': CREAM,
+  '#c85a4a': PINK,
+  '#e8963c': PINK,
+};
+
+/** Sets a brand font, falling back to Helvetica if the brand fonts weren't embedded. */
+function setPdfFont(doc: jsPDF, family: 'display' | 'body', style: 'normal' | 'bold' | 'italic' = 'normal') {
+  if (BODY in doc.getFontList()) {
+    doc.setFont(family === 'display' ? DISPLAY : BODY, family === 'display' ? 'normal' : style);
+  } else {
+    doc.setFont('helvetica', family === 'display' ? 'bold' : style);
+  }
+}
 
 function hexToRgb(hex: string): [number, number, number] {
-  const clean = hex.replace('#', '');
+  const mapped = LEGACY_COLOURS[hex.toLowerCase()] ?? hex;
+  const clean = mapped.replace('#', '');
   const n = parseInt(clean.length === 3 ? clean.replace(/(.)/g, '$1$1') : clean, 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
@@ -187,6 +222,8 @@ function isInvoiceOnlyMoneyEl(el: PdfTemplateElement): boolean {
 }
 function quotifyWording(s: string): string {
   return s
+    .replace(/Invoice date/g, 'Quote date')
+    .replace(/Due date/g, 'Valid until')
     .replace(/Invoice Date/gi, 'Quote Date')
     .replace(/Due Date/gi, 'Valid Until')
     .replace(/Invoice#/gi, 'Quote#')
@@ -216,8 +253,8 @@ const TABLE_COLUMNS = [
   { key: 'price', label: 'Unit Price', ratio: 0.16, align: 'right' as const },
   { key: 'total', label: 'Line Total', ratio: 0.2, align: 'right' as const },
 ];
-const TABLE_HEADER_HEIGHT = 22;
-const TABLE_ROW_PADDING = 8;
+const TABLE_HEADER_HEIGHT = 24;
+const TABLE_ROW_PADDING = 10;
 
 interface MeasuredRow {
   lines: string[];
@@ -228,7 +265,7 @@ interface MeasuredRow {
 
 function measureTableRows(doc: jsPDF, lineItems: DocLineItem[], width: number): MeasuredRow[] {
   const descWidth = width * TABLE_COLUMNS[1].ratio - 10;
-  doc.setFont('helvetica', 'normal');
+  setPdfFont(doc, 'body', 'bold');
   doc.setFontSize(9.5);
   return lineItems.map((item, index) => {
     const lines = doc.splitTextToSize(item.description, descWidth) as string[];
@@ -236,17 +273,19 @@ function measureTableRows(doc: jsPDF, lineItems: DocLineItem[], width: number): 
   });
 }
 
+// A rounded blue header bar with small cream capitals, like the booking
+// confirmation's header band.
 function drawTableHeader(doc: jsPDF, x: number, y: number, width: number) {
-  doc.setFillColor(35, 44, 38);
-  doc.rect(x, y, width, TABLE_HEADER_HEIGHT, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(255, 255, 255);
+  doc.setFillColor(...hexToRgb(BLUE));
+  doc.roundedRect(x, y, width, TABLE_HEADER_HEIGHT, 7, 7, 'F');
+  setPdfFont(doc, 'body', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...hexToRgb(CREAM));
   let cx = x;
   for (const col of TABLE_COLUMNS) {
     const colWidth = width * col.ratio;
-    const tx = col.align === 'right' ? cx + colWidth - 6 : cx + 6;
-    doc.text(col.label, tx, y + TABLE_HEADER_HEIGHT / 2 + 3, { align: col.align });
+    const tx = col.align === 'right' ? cx + colWidth - 8 : cx + 8;
+    doc.text(col.label.toUpperCase(), tx, y + TABLE_HEADER_HEIGHT / 2 + 2.5, { align: col.align, charSpace: 0.6 });
     cx += colWidth;
   }
   doc.setTextColor(...hexToRgb(INK));
@@ -257,10 +296,10 @@ function drawTableRow(doc: jsPDF, x: number, y: number, width: number, row: Meas
   const rowMid = y + row.height / 2;
   for (const col of TABLE_COLUMNS) {
     const colWidth = width * col.ratio;
-    const tx = col.align === 'right' ? cx + colWidth - 6 : cx + 6;
-    doc.setFont('helvetica', 'normal');
+    const tx = col.align === 'right' ? cx + colWidth - 8 : cx + 8;
+    setPdfFont(doc, 'body', col.key === 'desc' || col.key === 'total' ? 'bold' : 'normal');
     doc.setFontSize(9.5);
-    doc.setTextColor(...hexToRgb(INK));
+    doc.setTextColor(...hexToRgb(col.key === 'no' ? MUTED : INK));
     if (col.key === 'no') {
       doc.text(String(row.index + 1), tx, rowMid + 3, { align: col.align });
     } else if (col.key === 'desc') {
@@ -276,8 +315,8 @@ function drawTableRow(doc: jsPDF, x: number, y: number, width: number, row: Meas
     cx += colWidth;
   }
   doc.setDrawColor(...hexToRgb(BORDER));
-  doc.setLineWidth(0.5);
-  doc.line(x, y + row.height, x + width, y + row.height);
+  doc.setLineWidth(0.75);
+  doc.line(x + 4, y + row.height, x + width - 4, y + row.height);
 }
 
 function drawItemTable(
@@ -306,7 +345,7 @@ function drawItemTable(
 
 function drawText(doc: jsPDF, el: Extract<PdfTemplateElement, { type: 'text' }>, vars: Record<string, string>) {
   const text = substitute(el.content, vars);
-  doc.setFont('helvetica', el.fontWeight === 'bold' ? 'bold' : 'normal');
+  setPdfFont(doc, el.font === 'display' ? 'display' : 'body', el.fontWeight);
   doc.setFontSize(el.fontSize);
   doc.setTextColor(...hexToRgb(el.color));
   const lineHeight = el.fontSize * 1.25;
@@ -334,7 +373,9 @@ function drawRect(doc: jsPDF, el: Extract<PdfTemplateElement, { type: 'rect' }>)
   if (hasFill) doc.setFillColor(...hexToRgb(el.fillColor!));
   if (hasStroke) doc.setDrawColor(...hexToRgb(el.strokeColor!));
   const style = hasFill && hasStroke ? 'FD' : hasFill ? 'F' : 'S';
-  doc.rect(el.x, el.y, el.width, el.height, style);
+  const r = Math.min(el.radius ?? 0, el.width / 2, el.height / 2);
+  if (r > 0) doc.roundedRect(el.x, el.y, el.width, el.height, r, r, style);
+  else doc.rect(el.x, el.y, el.width, el.height, style);
 }
 
 function drawImage(doc: jsPDF, el: Extract<PdfTemplateElement, { type: 'image' }>, logo: string | null) {
@@ -364,295 +405,68 @@ function drawQr(doc: jsPDF, el: Extract<PdfTemplateElement, { type: 'qrcode' }>,
 }
 
 export const DEFAULT_INVOICE_TEMPLATE: PdfTemplateElement[] = [
-  { id: 'logo', type: 'image', x: 40, y: 30, width: 50, height: 50, src: 'logo' },
-  {
-    id: 'business-name',
-    type: 'text',
-    x: 100,
-    y: 38,
-    width: 220,
-    height: 20,
-    content: '{{businessName}}',
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#1f3b2c',
-    align: 'left',
-  },
-  {
-    id: 'business-address',
-    type: 'text',
-    x: 100,
-    y: 58,
-    width: 220,
-    height: 70,
-    content: '{{businessAddress}}\n{{businessTown}} {{businessPostcode}}\n{{businessTelephone}}\n{{businessEmail}}\n{{businessWebsite}}',
-    fontSize: 8.5,
-    fontWeight: 'normal',
-    color: '#6f7d72',
-    align: 'left',
-  },
-  {
-    id: 'doc-title',
-    type: 'text',
-    x: 350,
-    y: 40,
-    width: 205,
-    height: 30,
-    content: '{{docTypeLabel}}',
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#232c26',
-    align: 'right',
-  },
-  {
-    id: 'doc-number',
-    type: 'text',
-    x: 350,
-    y: 72,
-    width: 205,
-    height: 16,
-    content: '{{docNumberLabel}} {{invoiceNumber}}',
-    fontSize: 9.5,
-    fontWeight: 'normal',
-    color: '#232c26',
-    align: 'right',
-  },
-  {
-    id: 'balance-due-top',
-    type: 'text',
-    x: 350,
-    y: 92,
-    width: 205,
-    height: 30,
-    content: 'Balance Due\n£{{balanceDue}}',
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#232c26',
-    align: 'right',
-    visibleWhen: 'invoice-only',
-  },
-  {
-    id: 'paid-stamp',
-    type: 'text',
-    x: 0,
-    y: 90,
-    width: 140,
-    height: 30,
-    content: 'PAID',
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#1f3b2c',
-    align: 'center',
-    rotation: 35,
-    visibleWhen: 'paid',
-  },
-  {
-    id: 'header-divider',
-    type: 'line',
-    x: 40,
-    y: 140,
-    width: 515,
-    height: 0,
-    strokeColor: '#e3e8de',
-    lineWidth: 1,
-  },
-  {
-    id: 'invoice-to-label',
-    type: 'text',
-    x: 40,
-    y: 156,
-    width: 250,
-    height: 14,
-    content: '{{docToLabel}}',
-    fontSize: 8.5,
-    fontWeight: 'bold',
-    color: '#6f7d72',
-    align: 'left',
-  },
-  {
-    id: 'invoice-to-body',
-    type: 'text',
-    x: 40,
-    y: 172,
-    width: 260,
-    height: 60,
-    content: '{{customerName}}\n{{customerAddress}}',
-    fontSize: 9.5,
-    fontWeight: 'normal',
-    color: '#232c26',
-    align: 'left',
-  },
-  {
-    id: 'invoice-date-row',
-    type: 'text',
-    x: 350,
-    y: 156,
-    width: 205,
-    height: 14,
-    content: '{{docDateLabel}}   {{invoiceDate}}',
-    fontSize: 9,
-    fontWeight: 'normal',
-    color: '#232c26',
-    align: 'right',
-  },
-  {
-    id: 'terms-row',
-    type: 'text',
-    x: 350,
-    y: 172,
-    width: 205,
-    height: 14,
-    content: 'Terms :   {{terms}}',
-    fontSize: 9,
-    fontWeight: 'normal',
-    color: '#232c26',
-    align: 'right',
-  },
-  {
-    id: 'due-date-row',
-    type: 'text',
-    x: 350,
-    y: 188,
-    width: 205,
-    height: 14,
-    content: '{{dueDateLabel}}   {{dueDate}}',
-    fontSize: 9,
-    fontWeight: 'normal',
-    color: '#232c26',
-    align: 'right',
-  },
-  { id: 'item-table', type: 'itemTable', x: 40, y: 230, width: 515, height: 140 },
-  {
-    id: 'summary-subtotal',
-    type: 'text',
-    x: 350,
-    y: 390,
-    width: 205,
-    height: 14,
-    content: 'Sub Total   £{{subtotal}}',
-    fontSize: 9.5,
-    fontWeight: 'normal',
-    color: '#232c26',
-    align: 'right',
-  },
-  {
-    id: 'summary-total',
-    type: 'text',
-    x: 350,
-    y: 406,
-    width: 205,
-    height: 16,
-    content: 'Total   £{{total}}',
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#232c26',
-    align: 'right',
-  },
-  {
-    id: 'summary-paid',
-    type: 'text',
-    x: 350,
-    y: 424,
-    width: 205,
-    height: 14,
-    content: 'Payment Made   (-) £{{amountPaid}}',
-    fontSize: 9.5,
-    fontWeight: 'normal',
-    color: '#c85a4a',
-    align: 'right',
-    visibleWhen: 'invoice-only',
-  },
-  {
-    id: 'summary-box',
-    type: 'rect',
-    x: 340,
-    y: 440,
-    width: 215,
-    height: 26,
-    fillColor: '#f3f6ee',
-    visibleWhen: 'invoice-only',
-  },
-  {
-    id: 'summary-balance',
-    type: 'text',
-    x: 350,
-    y: 448,
-    width: 195,
-    height: 16,
-    content: 'Balance Due   £{{balanceDue}}',
-    fontSize: 10.5,
-    fontWeight: 'bold',
-    color: '#232c26',
-    align: 'right',
-    visibleWhen: 'invoice-only',
-  },
-  {
-    id: 'notes-label',
-    type: 'text',
-    x: 40,
-    y: 480,
-    width: 300,
-    height: 14,
-    content: 'Notes',
-    fontSize: 9,
-    fontWeight: 'bold',
-    color: '#232c26',
-    align: 'left',
-  },
-  {
-    id: 'notes-body',
-    type: 'text',
-    x: 40,
-    y: 494,
-    width: 300,
-    height: 20,
-    content: '{{notes}}',
-    fontSize: 9,
-    fontWeight: 'normal',
-    color: '#6f7d72',
-    align: 'left',
-  },
-  {
-    id: 'bank-label',
-    type: 'text',
-    x: 40,
-    y: 528,
-    width: 300,
-    height: 14,
-    content: 'BANK Transfer Details',
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#232c26',
-    align: 'left',
-  },
-  {
-    id: 'bank-body',
-    type: 'text',
-    x: 40,
-    y: 544,
-    width: 320,
-    height: 50,
-    content: 'Account Name :   {{businessName}}\nAccount Sort Code :   {{sortCode}}\nAccount Number :   {{accountNumber}}',
-    fontSize: 9,
-    fontWeight: 'normal',
-    color: '#232c26',
-    align: 'left',
-  },
-  { id: 'qr-code', type: 'qrcode', x: 40, y: 610, width: 64, height: 64, content: '{{bankName}} {{sortCode}} {{accountNumber}}' },
-  {
-    id: 'qr-caption',
-    type: 'text',
-    x: 114,
-    y: 620,
-    width: 220,
-    height: 40,
-    content: 'Scan the QR code to view the configured information.',
-    fontSize: 8,
-    fontWeight: 'normal',
-    color: '#6f7d72',
-    align: 'left',
-  },
+  // Header band: logo in a white circle, title in cream, number in a yellow pill.
+  { id: 'header-band', type: 'rect', x: 40, y: 40, width: 515, height: 80, fillColor: BLUE, radius: 10 },
+  { id: 'logo-badge', type: 'rect', x: 56, y: 53, width: 54, height: 54, fillColor: '#ffffff', radius: 27 },
+  { id: 'logo', type: 'image', x: 61, y: 58, width: 44, height: 44, src: 'logo' },
+  { id: 'header-eyebrow', type: 'text', x: 124, y: 55, width: 220, height: 10, content: 'PAWFECT PETS  ·  SHERBORNE', fontSize: 7.5, fontWeight: 'bold', color: CREAM, align: 'left' },
+  { id: 'doc-title', type: 'text', x: 124, y: 64, width: 220, height: 28, content: '{{docTypeLabel}}', fontSize: 24, fontWeight: 'normal', color: CREAM, align: 'left', font: 'display' },
+  { id: 'header-customer', type: 'text', x: 124, y: 94, width: 220, height: 14, content: 'for {{customerName}}', fontSize: 9, fontWeight: 'italic', color: CREAM, align: 'left' },
+  { id: 'doc-number-label', type: 'text', x: 415, y: 62, width: 124, height: 10, content: 'NUMBER', fontSize: 6.5, fontWeight: 'bold', color: CREAM, align: 'right' },
+  { id: 'doc-number-pill', type: 'rect', x: 429, y: 74, width: 110, height: 20, fillColor: YELLOW, radius: 10 },
+  { id: 'doc-number', type: 'text', x: 429, y: 77, width: 110, height: 14, content: '{{invoiceNumber}}', fontSize: 11, fontWeight: 'normal', color: BLUE, align: 'center', font: 'display' },
+  { id: 'paid-pill', type: 'rect', x: 479, y: 99, width: 60, height: 14, fillColor: PINK, radius: 7, visibleWhen: 'paid' },
+  { id: 'paid-stamp', type: 'text', x: 479, y: 101, width: 60, height: 10, content: 'PAID', fontSize: 8, fontWeight: 'bold', color: '#ffffff', align: 'center', visibleWhen: 'paid' },
+  // Customer and document details, side by side in cream cards.
+  { id: 'invoice-to-card', type: 'rect', x: 40, y: 136, width: 250, height: 100, fillColor: CREAM, radius: 9 },
+  { id: 'invoice-to-label', type: 'text', x: 54, y: 148, width: 222, height: 16, content: 'Invoice to', fontSize: 12, fontWeight: 'normal', color: BLUE, align: 'left', font: 'display' },
+  { id: 'invoice-to-bar', type: 'rect', x: 54, y: 166, width: 24, height: 3, fillColor: YELLOW, radius: 1.5 },
+  { id: 'invoice-to-body', type: 'text', x: 54, y: 174, width: 222, height: 54, content: '{{customerName}}\n{{customerAddress}}\n{{customerEmail}}', fontSize: 9.5, fontWeight: 'normal', color: INK, align: 'left' },
+  { id: 'details-card', type: 'rect', x: 305, y: 136, width: 250, height: 100, fillColor: CREAM, radius: 9 },
+  { id: 'details-label', type: 'text', x: 319, y: 148, width: 222, height: 16, content: 'Invoice details', fontSize: 12, fontWeight: 'normal', color: BLUE, align: 'left', font: 'display' },
+  { id: 'details-bar', type: 'rect', x: 319, y: 166, width: 24, height: 3, fillColor: YELLOW, radius: 1.5 },
+  { id: 'invoice-date-label', type: 'text', x: 319, y: 176, width: 90, height: 12, content: 'Invoice date', fontSize: 9, fontWeight: 'normal', color: MUTED, align: 'left' },
+  { id: 'invoice-date-row', type: 'text', x: 409, y: 175.5, width: 132, height: 12, content: '{{invoiceDate}}', fontSize: 9.5, fontWeight: 'bold', color: INK, align: 'right' },
+  { id: 'invoice-date-rule', type: 'line', x: 319, y: 191, width: 222, height: 0, strokeColor: BORDER, lineWidth: 0.75 },
+  { id: 'terms-label', type: 'text', x: 319, y: 193, width: 90, height: 12, content: 'Terms', fontSize: 9, fontWeight: 'normal', color: MUTED, align: 'left' },
+  { id: 'terms-row', type: 'text', x: 409, y: 192.5, width: 132, height: 12, content: '{{terms}}', fontSize: 9.5, fontWeight: 'bold', color: INK, align: 'right' },
+  { id: 'terms-rule', type: 'line', x: 319, y: 208, width: 222, height: 0, strokeColor: BORDER, lineWidth: 0.75 },
+  { id: 'due-date-label', type: 'text', x: 319, y: 210, width: 90, height: 12, content: 'Due date', fontSize: 9, fontWeight: 'normal', color: MUTED, align: 'left' },
+  { id: 'due-date-row', type: 'text', x: 409, y: 209.5, width: 132, height: 12, content: '{{dueDate}}', fontSize: 9.5, fontWeight: 'bold', color: INK, align: 'right' },
+  { id: 'due-date-rule', type: 'line', x: 319, y: 225, width: 222, height: 0, strokeColor: BORDER, lineWidth: 0.75 },
+  { id: 'item-table', type: 'itemTable', x: 40, y: 256, width: 515, height: 120 },
+  // Notes and bank details down the left; the money summary card on the right.
+  { id: 'notes-label', type: 'text', x: 42, y: 396, width: 246, height: 16, content: 'Notes', fontSize: 12, fontWeight: 'normal', color: BLUE, align: 'left', font: 'display' },
+  { id: 'notes-bar', type: 'rect', x: 42, y: 414, width: 24, height: 3, fillColor: YELLOW, radius: 1.5 },
+  { id: 'notes-body', type: 'text', x: 42, y: 422, width: 246, height: 28, content: '{{notes}}', fontSize: 9, fontWeight: 'normal', color: INK, align: 'left' },
+  { id: 'bank-card', type: 'rect', x: 40, y: 466, width: 250, height: 104, fillColor: CREAM, radius: 9 },
+  { id: 'bank-label', type: 'text', x: 54, y: 478, width: 222, height: 16, content: 'Pay by bank transfer', fontSize: 12, fontWeight: 'normal', color: BLUE, align: 'left', font: 'display' },
+  { id: 'bank-bar', type: 'rect', x: 54, y: 496, width: 24, height: 3, fillColor: YELLOW, radius: 1.5 },
+  { id: 'bank-body', type: 'text', x: 54, y: 506, width: 150, height: 40, content: 'Account name: {{businessName}}\nSort code: {{sortCode}}\nAccount no: {{accountNumber}}', fontSize: 9, fontWeight: 'normal', color: INK, align: 'left' },
+  { id: 'qr-caption', type: 'text', x: 54, y: 548, width: 150, height: 12, content: 'Or scan the QR code for our details.', fontSize: 7.5, fontWeight: 'normal', color: MUTED, align: 'left' },
+  { id: 'qr-code', type: 'qrcode', x: 212, y: 494, width: 64, height: 64, content: '{{bankName}} {{sortCode}} {{accountNumber}}' },
+  { id: 'summary-card', type: 'rect', x: 305, y: 396, width: 250, height: 112, fillColor: CREAM, radius: 9, visibleWhen: 'invoice-only' },
+  { id: 'summary-card-quote', type: 'rect', x: 305, y: 396, width: 250, height: 80, fillColor: CREAM, radius: 9, visibleWhen: 'quote-only' },
+  { id: 'summary-label', type: 'text', x: 319, y: 408, width: 222, height: 16, content: 'Summary', fontSize: 12, fontWeight: 'normal', color: BLUE, align: 'left', font: 'display' },
+  { id: 'summary-bar', type: 'rect', x: 319, y: 426, width: 24, height: 3, fillColor: YELLOW, radius: 1.5 },
+  { id: 'summary-subtotal-label', type: 'text', x: 319, y: 436, width: 110, height: 12, content: 'Sub total', fontSize: 9, fontWeight: 'normal', color: MUTED, align: 'left' },
+  { id: 'summary-subtotal', type: 'text', x: 429, y: 435.5, width: 112, height: 12, content: '£{{subtotal}}', fontSize: 9.5, fontWeight: 'bold', color: INK, align: 'right' },
+  { id: 'summary-subtotal-rule', type: 'line', x: 319, y: 451, width: 222, height: 0, strokeColor: BORDER, lineWidth: 0.75 },
+  { id: 'summary-total-label', type: 'text', x: 319, y: 453, width: 110, height: 12, content: 'Total', fontSize: 9, fontWeight: 'normal', color: MUTED, align: 'left' },
+  { id: 'summary-total', type: 'text', x: 429, y: 452.5, width: 112, height: 12, content: '£{{total}}', fontSize: 9.5, fontWeight: 'bold', color: INK, align: 'right' },
+  { id: 'summary-total-rule', type: 'line', x: 319, y: 468, width: 222, height: 0, strokeColor: BORDER, lineWidth: 0.75 },
+  { id: 'summary-paid-label', type: 'text', x: 319, y: 470, width: 110, height: 12, content: 'Payments received', fontSize: 9, fontWeight: 'normal', color: MUTED, align: 'left', visibleWhen: 'invoice-only' },
+  { id: 'summary-paid', type: 'text', x: 429, y: 469.5, width: 112, height: 12, content: '£{{amountPaid}}', fontSize: 9.5, fontWeight: 'bold', color: INK, align: 'right', visibleWhen: 'invoice-only' },
+  { id: 'summary-paid-rule', type: 'line', x: 319, y: 485, width: 222, height: 0, strokeColor: BORDER, lineWidth: 0.75, visibleWhen: 'invoice-only' },
+  { id: 'summary-balance-label', type: 'text', x: 319, y: 488, width: 110, height: 12, content: 'Balance due', fontSize: 9, fontWeight: 'normal', color: MUTED, align: 'left', visibleWhen: 'invoice-only' },
+  { id: 'summary-box', type: 'rect', x: 471, y: 485, width: 70, height: 16, fillColor: PINK, radius: 8, visibleWhen: 'invoice-only' },
+  { id: 'summary-balance', type: 'text', x: 471, y: 487.5, width: 70, height: 12, content: '£{{balanceDue}}', fontSize: 9.5, fontWeight: 'bold', color: '#ffffff', align: 'center', visibleWhen: 'invoice-only' },
+  // Sign-off band, as on the booking confirmation.
+  { id: 'contact-band', type: 'rect', x: 40, y: 590, width: 515, height: 30, fillColor: PINK, radius: 9 },
+  { id: 'contact-heading', type: 'text', x: 56, y: 596, width: 483, height: 14, content: 'Questions? Just get in touch', fontSize: 10, fontWeight: 'bold', color: '#ffffff', align: 'left' },
+  { id: 'contact-details', type: 'text', x: 56, y: 597.5, width: 483, height: 12, content: '{{businessTelephone}}  ·  {{businessEmail}}', fontSize: 8.5, fontWeight: 'normal', color: '#ffffff', align: 'right' },
 ];
+
 
 function rangesOverlap(a1: number, a2: number, b1: number, b2: number): boolean {
   return a1 < b2 && b1 < a2;
@@ -664,7 +478,7 @@ function measureTextNaturalHeight(
   vars: Record<string, string>,
 ): number {
   const text = substitute(el.content, vars);
-  doc.setFont('helvetica', el.fontWeight === 'bold' ? 'bold' : 'normal');
+  setPdfFont(doc, el.font === 'display' ? 'display' : 'body', el.fontWeight);
   doc.setFontSize(el.fontSize);
   const lineHeight = el.fontSize * 1.25;
   const wrapped = text.split('\n').flatMap((line) => doc.splitTextToSize(line, el.width) as string[]);
@@ -725,26 +539,25 @@ function resolveLayout(
 // Visits/Day Care/Boarding.
 const VISIT_TITLE_H = 14;
 const VISIT_ROW_H = 18;
-const VISIT_LABEL_W = 60;
+const VISIT_LABEL_W = 70;
 function drawVisitTable(doc: jsPDF, el: PdfVisitTableElement): void {
-  doc.setFont('helvetica', 'bold');
+  setPdfFont(doc, 'body', 'bold');
   doc.setFontSize(9);
-  doc.setTextColor(...hexToRgb('#232c26'));
+  doc.setTextColor(...hexToRgb(BLUE));
   doc.text(el.title, el.x, el.y + 9);
   const tableY = el.y + VISIT_TITLE_H;
   doc.setDrawColor(...hexToRgb(BORDER));
-  doc.setLineWidth(0.5);
+  doc.setLineWidth(0.75);
   el.rows.forEach(([label, value], i) => {
     const ry = tableY + i * VISIT_ROW_H;
-    doc.rect(el.x, ry, VISIT_LABEL_W, VISIT_ROW_H);
-    doc.rect(el.x + VISIT_LABEL_W, ry, el.width - VISIT_LABEL_W, VISIT_ROW_H);
-    doc.setFont('helvetica', 'bold');
+    setPdfFont(doc, 'body', 'normal');
     doc.setFontSize(8.5);
-    doc.setTextColor(...hexToRgb('#232c26'));
-    doc.text(label, el.x + 6, ry + 12);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...hexToRgb('#6f7d72'));
-    doc.text(value, el.x + VISIT_LABEL_W + 6, ry + 12);
+    doc.setTextColor(...hexToRgb(MUTED));
+    doc.text(label, el.x, ry + 12);
+    setPdfFont(doc, 'body', 'bold');
+    doc.setTextColor(...hexToRgb(INK));
+    doc.text(value, el.x + VISIT_LABEL_W, ry + 12);
+    doc.line(el.x, ry + VISIT_ROW_H, el.x + el.width, ry + VISIT_ROW_H);
   });
 }
 
@@ -788,6 +601,7 @@ export async function buildInvoicePdf(
   businessInfo: PublicBusinessInfo,
 ): Promise<jsPDF> {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  await registerBrandFonts(doc);
   const rawTemplate = businessInfo.invoicePdfTemplate?.length
     ? (businessInfo.invoicePdfTemplate as unknown as PdfTemplateElement[])
     : DEFAULT_INVOICE_TEMPLATE;
