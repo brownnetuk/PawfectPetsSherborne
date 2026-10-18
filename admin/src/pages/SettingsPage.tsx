@@ -13,6 +13,7 @@ import Modal from '../components/Modal';
 import NamedListCard from '../components/NamedListCard';
 import PdfTemplateDesigner from '../components/PdfTemplateDesigner';
 import PreBoardingSettingsTab from '../components/PreBoardingSettingsTab';
+import RegistrationPdfsCard from '../components/RegistrationPdfsCard';
 import RichTextEditor from '../components/RichTextEditor';
 import { BOOKING_PLACEHOLDERS } from '../utils/bookingPlaceholders';
 import type { RichTextEditorHandle } from '../components/RichTextEditor';
@@ -119,7 +120,12 @@ function FormsTab() {
     );
   }
 
-  return <FormsListCard onEdit={(form) => setEditing(form ?? 'new')} />;
+  return (
+    <>
+      <FormsListCard onEdit={(form) => setEditing(form ?? 'new')} />
+      <RegistrationPdfsCard />
+    </>
+  );
 }
 
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;

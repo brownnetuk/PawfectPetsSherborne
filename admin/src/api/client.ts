@@ -980,6 +980,25 @@ export function listAuditLog(customerId: string): Promise<AuditLogEntry[]> {
 export function listAuditLogForInvoice(invoiceId: string): Promise<AuditLogEntry[]> {
   return request(`/audit-log?invoice=${invoiceId}`);
 }
+// Settings > Forms "Regenerate registration PDFs" -- metadata only (no
+// attachmentData), then the rebuilt PDF goes back one entry at a time.
+export interface RegistrationSnapshot {
+  _id: string;
+  customer: string;
+  title: string;
+  createdAt: string;
+  attachmentName?: string;
+  regeneratedAt?: string;
+}
+export function listRegistrationSnapshots(): Promise<RegistrationSnapshot[]> {
+  return request('/audit-log/registration-snapshots');
+}
+export function replaceSnapshotAttachment(entryId: string, attachmentData: string, attachmentName: string): Promise<void> {
+  return request(`/audit-log/${entryId}/attachment`, {
+    method: 'PATCH',
+    body: JSON.stringify({ attachmentData, attachmentName }),
+  });
+}
 export function getIncomeChart(customerId: string, months: number): Promise<IncomeMonth[]> {
   return request(`/audit-log/income?customer=${customerId}&months=${months}`);
 }

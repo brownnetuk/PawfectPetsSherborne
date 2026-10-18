@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -105,6 +105,54 @@ export class AuditLogService {
     } catch {
       // best-effort, same as record() above
     }
+  }
+
+  // Every stored registration form PDF (sent-email and intake-completion
+  // snapshots alike, both REGISTRATION_EMAIL_SENT) -- just the metadata, not
+  // the PDFs themselves, for Settings > Forms "Regenerate registration PDFs"
+  // to work through one customer at a time.
+  findRegistrationSnapshots(): Promise<AuditLogEntry[]> {
+    return this.auditLogModel
+      .find({
+        type: AuditEventType.REGISTRATION_EMAIL_SENT,
+        attachmentData: { $exists: true, $ne: '' },
+      })
+      .select('customer title createdAt attachmentName regeneratedAt')
+      .sort({ createdAt: -1 })
+      .exec();
+  }
+
+  // Swaps a registration snapshot's PDF for one the admin app just rebuilt
+  // in the current style, keeping the originally stored PDF in
+  // originalAttachmentData the first time round (see the schema's comment).
+  async replaceRegistrationAttachment(
+    entryId: string,
+    data: string,
+    name: string,
+  ): Promise<void> {
+    const entry = await this.auditLogModel
+      .findOne({
+        _id: entryId,
+        type: AuditEventType.REGISTRATION_EMAIL_SENT,
+        attachmentData: { $exists: true, $ne: '' },
+      })
+      .select('+originalAttachmentData attachmentData attachmentName')
+      .exec();
+    if (!entry) {
+      throw new NotFoundException(`Registration snapshot ${entryId} not found`);
+    }
+    const update: Record<string, unknown> = {
+      attachmentData: data,
+      attachmentName: name,
+      regeneratedAt: new Date(),
+    };
+    if (!entry.originalAttachmentData) {
+      update.originalAttachmentData = entry.attachmentData;
+      update.originalAttachmentName = entry.attachmentName;
+    }
+    await this.auditLogModel
+      .updateOne({ _id: entryId }, { $set: update })
+      .exec();
   }
 
   findForCustomer(customerId: string): Promise<AuditLogEntry[]> {

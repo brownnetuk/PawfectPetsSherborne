@@ -817,6 +817,8 @@ Auth column legend:
 | GET | `/audit-log?customer=&invoice=` | staff | Entries for an invoice (takes precedence) or a customer, newest first. 400 if neither is given. |
 | GET | `/audit-log/:id/pixel.gif` | public | Tracking pixel. `markOpened(id)` (first open only) creates an `email_read` entry titled with `readTitle`. Always serves the GIF with `no-store`. |
 | GET | `/audit-log/income?customer=&months=` | staff | Per-month net of `payment_received − payment_removed` amounts for the last `months` (default 6) |
+| GET | `/audit-log/registration-snapshots` | `settings.manage` | Every `registration_email_sent` entry with a stored PDF: `customer`, `title`, `createdAt`, `attachmentName`, `regeneratedAt` only (no PDF data). Used by Settings > Forms "Regenerate registration PDFs". |
+| PATCH | `/audit-log/:id/attachment` | `settings.manage` | `{ attachmentData, attachmentName }` replaces a registration snapshot's PDF, stamps `regeneratedAt` and, the first time only, keeps the previous PDF in `originalAttachmentData`/`originalAttachmentName`. 404 for any other entry type. |
 
 ---
 
@@ -1046,6 +1048,8 @@ The `AuditEventType` enum has these values:
 | `amount` | Number | optional (payment events) |
 | `actor` | String | required, default `'System'` |
 | `attachmentData` / `attachmentName` | String (data URI) / String | optional |
+| `originalAttachmentData` / `originalAttachmentName` | String (data URI) / String | `select: false`; the PDF as first stored, kept when a regeneration replaces it |
+| `regeneratedAt` | Date | set when the PDF was rebuilt in the current style |
 | `openedAt` | Date | set by the pixel |
 | `readTitle` | String | title for the auto "read" entry |
 
