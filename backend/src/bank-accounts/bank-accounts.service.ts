@@ -21,6 +21,21 @@ export interface BankTransaction {
   amount: number;
   balance: number;
   type: 'payment' | 'other_income' | 'expense' | 'credit_note' | 'bank_transfer';
+  // Statement-style fields for the Financial > Bank Accounts tab: `label` is
+  // the row's headline ("Customer Payment", an expense's category...),
+  // `party` the "Customer: ..." / "Payee: ..." subline, and `reference` the
+  // payment ID, invoice/credit note number or the reference typed in.
+  label: string;
+  party?: string;
+  reference?: string;
+}
+
+// One period of an account's statement: `from` inclusive, `to` exclusive;
+// either end left out means open-ended (from the account's reconciliation
+// anchor, or up to now).
+export interface StatementRange {
+  from?: Date;
+  to?: Date;
 }
 
 @Injectable()
@@ -205,20 +220,20 @@ export class BankAccountsService {
   }
 
   /**
-   * The account's own statement for one calendar month: every Payment,
-   * OtherIncome, Expense, CreditNote, and BankTransfer recorded against it,
-   * merged into a single signed, running-balance ledger -- Payment and
-   * OtherIncome credit (+), Expense
-   * and CreditNote debits (-), same sign convention `adjustBalance` already
-   * uses for each of them; a BankTransfer credits (+) when this account is
-   * the destination and debits (-) when it's the source. The period's own
-   * opening balance sums from the account's reconciliation anchor
-   * (openingBalanceDate/openingBalance, see setOpeningBalance() -- defaults
-   * to account creation / £0 if never reconciled) rather than from the
-   * beginning of time, so it stays correct even when older, now-superseded
-   * transaction history exists before it.
+   * The account's own statement for one period: every Payment, OtherIncome,
+   * Expense, CreditNote, and BankTransfer recorded against it, merged into a
+   * single signed, running-balance ledger -- Payment and OtherIncome credit
+   * (+), Expense and CreditNote debit (-), same sign convention
+   * `adjustBalance` already uses for each of them; a BankTransfer credits (+)
+   * when this account is the destination and debits (-) when it's the
+   * source. The period's own opening balance sums from the account's
+   * reconciliation anchor (openingBalanceDate/openingBalance, see
+   * setOpeningBalance() -- defaults to account creation / £0 if never
+   * reconciled) rather than from the beginning of time, so it stays correct
+   * even when older, now-superseded transaction history exists before it.
+   * A period with no `from` starts at that anchor.
    */
-  async getTransactions(accountId: string, month: number, year: number) {
+  async getTransactions(accountId: string, range: StatementRange) {
     const account = await this.bankAccountModel.findById(accountId).exec();
     if (!account) {
       throw new NotFoundException(`Bank account ${accountId} not found`);
@@ -227,8 +242,8 @@ export class BankAccountsService {
     const anchorDate = account.openingBalanceDate ?? createdAt;
     const anchorBalance = account.openingBalance ?? 0;
 
-    const periodStart = new Date(year, month - 1, 1);
-    const periodEnd = new Date(year, month, 1);
+    const periodStart = range.from ?? anchorDate;
+    const dateFilter = { $gte: periodStart, ...(range.to ? { $lt: range.to } : {}) };
     const accountObjectId = new Types.ObjectId(accountId);
 
     const [
@@ -244,62 +259,31 @@ export class BankAccountsService {
       transfersBefore,
     ] = await Promise.all([
       this.paymentModel
-        .find({
-          account: accountId,
-          date: { $gte: periodStart, $lt: periodEnd },
-        })
-        .populate('invoice', 'invoiceNumber')
-        .exec(),
-      this.otherIncomeModel
-        .find({
-          account: accountId,
-          date: { $gte: periodStart, $lt: periodEnd },
+        .find({ account: accountId, date: dateFilter })
+        .populate({
+          path: 'invoice',
+          select: 'invoiceNumber customer',
+          populate: { path: 'customer', select: 'name firstName surname' },
         })
         .exec(),
-      this.expenseModel
-        .find({
-          account: accountId,
-          date: { $gte: periodStart, $lt: periodEnd },
-        })
-        .exec(),
+      this.otherIncomeModel.find({ account: accountId, date: dateFilter }).exec(),
+      this.expenseModel.find({ account: accountId, date: dateFilter }).exec(),
       this.creditNoteModel
-        .find({
-          account: accountId,
-          date: { $gte: periodStart, $lt: periodEnd },
-        })
+        .find({ account: accountId, date: dateFilter })
+        .populate('customer', 'name firstName surname')
         .exec(),
       this.bankTransferModel
         .find({
           $or: [{ fromAccount: accountId }, { toAccount: accountId }],
-          date: { $gte: periodStart, $lt: periodEnd },
+          date: dateFilter,
         })
         .populate('fromAccount', 'name')
         .populate('toAccount', 'name')
         .exec(),
-      this.sumBetween(
-        this.paymentModel,
-        accountObjectId,
-        anchorDate,
-        periodStart,
-      ),
-      this.sumBetween(
-        this.otherIncomeModel,
-        accountObjectId,
-        anchorDate,
-        periodStart,
-      ),
-      this.sumBetween(
-        this.expenseModel,
-        accountObjectId,
-        anchorDate,
-        periodStart,
-      ),
-      this.sumBetween(
-        this.creditNoteModel,
-        accountObjectId,
-        anchorDate,
-        periodStart,
-      ),
+      this.sumBetween(this.paymentModel, accountObjectId, anchorDate, periodStart),
+      this.sumBetween(this.otherIncomeModel, accountObjectId, anchorDate, periodStart),
+      this.sumBetween(this.expenseModel, accountObjectId, anchorDate, periodStart),
+      this.sumBetween(this.creditNoteModel, accountObjectId, anchorDate, periodStart),
       this.sumTransfersBetween(accountObjectId, anchorDate, periodStart),
     ]);
 
@@ -310,12 +294,16 @@ export class BankAccountsService {
     const unbalanced: UnbalancedTransaction[] = [
       ...payments.map((p): UnbalancedTransaction => {
         const invoice = p.invoice as unknown as
-          { invoiceNumber?: string } | undefined;
+          { invoiceNumber?: string; customer?: CustomerNameFields | null } | null | undefined;
+        const customer = customerName(invoice?.customer);
         return {
           date: p.date,
           description: `Payment ${p.paymentId}${invoice?.invoiceNumber ? ` — ${invoice.invoiceNumber}` : ''}`,
           amount: p.amount,
           type: 'payment',
+          label: 'Customer Payment',
+          party: customer ? `Customer: ${customer}` : undefined,
+          reference: [invoice?.invoiceNumber, p.paymentId].filter(Boolean).join(' · '),
         };
       }),
       ...otherIncome.map((o): UnbalancedTransaction => ({
@@ -323,27 +311,51 @@ export class BankAccountsService {
         description: `Other income — ${o.receivedFrom}${o.description ? ` — ${o.description}` : ''}`,
         amount: o.amount,
         type: 'other_income',
+        label: o.description || 'Other Income',
+        party: `Received from: ${o.receivedFrom}`,
       })),
       ...expenses.map((e): UnbalancedTransaction => ({
         date: e.date,
         description: e.description || e.category,
         amount: -e.amount,
         type: 'expense',
+        label: e.category,
+        party: e.payee ? `Payee: ${e.payee}` : e.description || undefined,
+        reference: e.reference || undefined,
       })),
-      ...creditNotes.map((c): UnbalancedTransaction => ({
-        date: c.date,
-        description: `Credit note ${c.creditNoteNumber} — ${c.reason}`,
-        amount: -c.amount,
-        type: 'credit_note',
-      })),
+      ...creditNotes.map((c): UnbalancedTransaction => {
+        const customer = customerName(c.customer as unknown as CustomerNameFields | null);
+        return {
+          date: c.date,
+          description: `Credit note ${c.creditNoteNumber} — ${c.reason}`,
+          amount: -c.amount,
+          type: 'credit_note',
+          label: 'Credit Note Refund',
+          party: customer ? `Customer: ${customer}` : undefined,
+          reference: c.creditNoteNumber,
+        };
+      }),
       ...transfers.map((t): UnbalancedTransaction => {
         const from = t.fromAccount as unknown as { _id: Types.ObjectId; name?: string };
         const to = t.toAccount as unknown as { _id: Types.ObjectId; name?: string };
         const isSource = from._id.toString() === accountId;
         const reference = t.reference ? ` — ${t.reference}` : '';
+        const shared = { date: t.date, type: 'bank_transfer' as const, reference: t.reference || undefined };
         return isSource
-          ? { date: t.date, description: `Transfer to ${to.name ?? 'another account'}${reference}`, amount: -t.amount, type: 'bank_transfer' }
-          : { date: t.date, description: `Transfer from ${from.name ?? 'another account'}${reference}`, amount: t.amount, type: 'bank_transfer' };
+          ? {
+              ...shared,
+              description: `Transfer to ${to.name ?? 'another account'}${reference}`,
+              amount: -t.amount,
+              label: 'Transfer Out',
+              party: `To: ${to.name ?? 'another account'}`,
+            }
+          : {
+              ...shared,
+              description: `Transfer from ${from.name ?? 'another account'}${reference}`,
+              amount: t.amount,
+              label: 'Transfer In',
+              party: `From: ${from.name ?? 'another account'}`,
+            };
       }),
     ].sort((a, b) => a.date.getTime() - b.date.getTime());
 
@@ -353,6 +365,13 @@ export class BankAccountsService {
       return { ...t, balance: running };
     });
 
-    return { openingBalance, transactions };
+    return { openingBalance, closingBalance: running, transactions };
   }
+}
+
+type CustomerNameFields = { name?: string; firstName?: string; surname?: string };
+
+function customerName(customer: CustomerNameFields | null | undefined): string | undefined {
+  if (!customer) return undefined;
+  return customer.name || [customer.firstName, customer.surname].filter(Boolean).join(' ') || undefined;
 }

@@ -279,10 +279,16 @@ export interface BankTransaction {
   amount: number;
   balance: number;
   type: 'payment' | 'other_income' | 'expense' | 'credit_note' | 'bank_transfer';
+  /** Statement headline, e.g. "Customer Payment" or an expense's category. */
+  label: string;
+  /** Subline such as "Customer: Chris West" or "Payee: Morrisons". */
+  party?: string;
+  reference?: string;
 }
 
 export interface BankAccountStatement {
   openingBalance: number;
+  closingBalance: number;
   transactions: BankTransaction[];
 }
 

@@ -11,9 +11,10 @@ import ViewExpenseModal from '../components/ViewExpenseModal';
 import { CopyIcon, InvoicesIcon, MailIcon, PencilIcon, TrashIcon } from '../components/icons';
 import { buildReceiptPdf } from '../pdf/receiptPdf';
 import type { BankTransfer, CreditNote, Expense, OtherIncome, Payment } from '../types';
+import BankAccountsTab from './BankAccountsTab';
 import FinancialSnapshotTab from './FinancialSnapshotTab';
 
-type Tab = 'snapshot' | 'payments' | 'expenses' | 'creditNotes' | 'bankTransfers';
+type Tab = 'snapshot' | 'payments' | 'expenses' | 'creditNotes' | 'bankTransfers' | 'bankAccounts';
 
 const TAB_LABELS: Record<Tab, string> = {
   snapshot: 'Snapshot',
@@ -21,6 +22,7 @@ const TAB_LABELS: Record<Tab, string> = {
   expenses: 'Expenses',
   creditNotes: 'Credit Notes',
   bankTransfers: 'Bank Transfers',
+  bankAccounts: 'Bank Accounts',
 };
 
 export default function FinancialPage() {
@@ -33,7 +35,7 @@ export default function FinancialPage() {
       </div>
 
       <div className="tabs">
-        {(['snapshot', 'payments', 'expenses', 'creditNotes', 'bankTransfers'] as Tab[]).map((t) => (
+        {(['snapshot', 'payments', 'expenses', 'creditNotes', 'bankTransfers', 'bankAccounts'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -45,6 +47,7 @@ export default function FinancialPage() {
       {tab === 'expenses' && <ExpensesCard />}
       {tab === 'creditNotes' && <CreditNotesCard />}
       {tab === 'bankTransfers' && <BankTransfersCard />}
+      {tab === 'bankAccounts' && <BankAccountsTab />}
     </div>
   );
 }

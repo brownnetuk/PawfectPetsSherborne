@@ -1246,3 +1246,120 @@ table input:focus {
 .signature-actions .hint {
   color: var(--muted);
 }
+
+/* --- Financial > Bank Accounts --- */
+.bank-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.bank-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+
+.bank-tile:hover {
+  border-color: var(--brand-green);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.bank-tile-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.bank-tile-default {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.bank-tile-name {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.bank-tile-details {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-top: 2px;
+}
+
+.bank-tile-balance-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-top: 16px;
+}
+
+.bank-tile-balance {
+  font-weight: 700;
+  font-size: 1.4rem;
+}
+
+.statement-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.statement-summary > div {
+  background: var(--card);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.statement-summary span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.statement-scroll {
+  overflow-x: auto;
+}
+
+.statement-table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.statement-table tbody tr:hover {
+  cursor: default;
+}
+
+.statement-label {
+  font-weight: 600;
+}
+
+.statement-party {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-top: 2px;
+}
+
+.statement-balance {
+  font-weight: 700;
+}
+
+.statement-opening td {
+  background: rgba(255, 255, 255, 0.6);
+}
