@@ -4663,11 +4663,11 @@ Every page uses the same pattern: local `useState`, a `useEffect` fetch through 
 #### `FinancialPage.tsx` (`/financial`) and `FinancialSnapshotTab.tsx`
 
 - **Tabs:** **Snapshot · Payments · Expenses · Credit Notes · Bank Transfers**.
-- **Payments** (`listPayments` + `listOtherIncome`, merged newest first). Columns: Payment ID · Date · Invoice · Amount · Charges · Payment Method · Account. **Other Income** opens `OtherIncomeModal` (Date, Received from, Description, Amount, Account → `createOtherIncome`); those rows show an "Other income" badge and Received from / Description in the Invoice column, with only Delete (`deleteOtherIncome`). **Add payment** opens `AddPaymentModal`. Payment row actions:
+- **Payments** (`listPayments` + `listOtherIncome`, merged newest first). Columns: Date · Invoice · Payment ID · Amount · Charges · Payment Method · Account. **Other Income** opens `OtherIncomeModal` (Date, Received from, Description, Amount, Account → `createOtherIncome`); those rows show an "Other income" badge and Received from / Description in the Invoice column, with only Delete (`deleteOtherIncome`). **Add payment** opens `AddPaymentModal`. Payment row actions:
   - "Send payment received email" (`sendPaymentReceivedEmail`).
   - "Send receipt": calls `getInvoice`, builds `buildReceiptPdf(payment, invoice)`, then `sendPaymentReceipt(id, dataUri, "Receipt <paymentId>.pdf")`.
   - Delete (`deletePayment`).
-- **Expenses** (`listExpenses`). Columns: Date · Category · Payee · Description · Amount · Account · Attachment. Rows open `ViewExpenseModal`, which offers Edit. New and Edit open `ExpenseModal`. Delete calls `deleteExpense`.
+- **Expenses** (`listExpenses`). Columns: Date · Payee · Category · Paid From · Description · Amount · Attachment. Rows open `ViewExpenseModal`, which offers Edit. New and Edit open `ExpenseModal`. Delete calls `deleteExpense`.
 - **Credit Notes** (`listCreditNotes`). Columns: Number · Date · Customer · Invoice · Amount · Reason. New opens `CreditNoteModal`; delete calls `deleteCreditNote`.
 - **Bank Transfers** (`listBankTransfers`). Columns: Date · Reference · Source Account · Destination Account · Amount. New opens `BankTransferModal`; delete calls `deleteBankTransfer`.
 - **Snapshot.** Eight cards you can drag to reorder with native HTML5 drag-and-drop. The order is saved to `localStorage['pawfectpets_admin_snapshot_order']` (inside try/catch, with unknown or missing card IDs reconciled). `cashFlow` and `projectedFlow` span both grid columns. Every card fetches its own data:
