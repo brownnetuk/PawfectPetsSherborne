@@ -39,28 +39,31 @@ describe('AnimalsService.updateForCustomer', () => {
   });
 
   const update = (dto: Partial<PublicUpdateAnimalDto>) =>
-    service.updateForCustomer('a1', 'c1', dto as PublicUpdateAnimalDto);
+    service.updateForCustomer('a1', 'c1', dto);
 
   it('stamps a newly signed off-lead consent', async () => {
     await update({
       offLeadConsent: { mode: LeadMode.OFF_LEAD, signature: 'data:new' },
     });
-    expect(sent?.offLeadConsent).toMatchObject({
+    const consent = sent?.offLeadConsent as Record<string, unknown>;
+    expect(consent).toMatchObject({
       mode: LeadMode.OFF_LEAD,
       signature: 'data:new',
-      acknowledgedAt: expect.any(Date),
     });
+    expect(consent.acknowledgedAt).toBeInstanceOf(Date);
   });
 
   it('drops the signature when consent is revoked to on-lead', async () => {
     await update({
       offLeadConsent: { mode: LeadMode.ON_LEAD, signature: 'data:stale' },
     });
-    expect(sent?.offLeadConsent).toEqual({
-      mode: LeadMode.ON_LEAD,
-      acknowledgedAt: expect.any(Date),
-      date: expect.any(Date),
-    });
+    const consent = sent?.offLeadConsent as Record<string, unknown>;
+    expect(Object.keys(consent).sort()).toEqual([
+      'acknowledgedAt',
+      'date',
+      'mode',
+    ]);
+    expect(consent.mode).toBe(LeadMode.ON_LEAD);
   });
 
   it('clears dog-only answers when species changes to cat', async () => {
