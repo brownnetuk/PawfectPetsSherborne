@@ -39,6 +39,7 @@ export interface Profile {
   postcode?: string;
   emergencyContact: EmergencyContact | null;
   emergencyVet: EmergencyVet | null;
+  offLeadConsentText?: string;
 }
 
 export type ProfileUpdate = Partial<
@@ -72,14 +73,59 @@ export interface QuoteRecord {
   validUntil: string;
 }
 
-export interface AnimalRecord {
-  _id: string;
+export type TriState = 'yes' | 'no' | 'unsure';
+
+export interface MedicationEntry {
   name: string;
-  species?: string;
-  breed?: string;
-  sex?: string;
+  illnessTreating?: string;
+  dosage?: string;
+  frequency?: string;
+  vetPrescribed: boolean;
+  administeredByPawfectPets: boolean;
+  additionalInfo?: string;
+}
+
+export type Species = 'dog' | 'cat' | 'other';
+
+export interface OffLeadConsent {
+  mode: 'on_lead' | 'off_lead';
+  signature?: string;
+  acknowledgedAt?: string;
+}
+
+// The customer-editable part of an Animal (backend CreateAnimalDto).
+export interface PetFields {
+  species: Species;
+  name: string;
+  breed: string;
+  sex: 'male' | 'female';
+  age: number;
   dateOfBirth?: string;
-  age?: number;
+  vaccinated: boolean;
+  vaccineExpiryDate?: string;
+  colourMarkings?: string;
+  microchipNumber?: string;
+  insured?: boolean;
+  insurer?: string;
+  neuteredStatus?: 'neutered' | 'spayed' | 'no';
+  lastSeasonEndDate?: string;
+  temperamentNotes?: string;
+  aggressionToPeople: boolean;
+  aggressionToPeopleDetails?: string;
+  aggressionToOtherAnimals?: boolean;
+  aggressionToOtherAnimalsDetails?: string;
+  travelsWellInCar?: TriState;
+  travelsWellInCarDetails?: string;
+  chasesLivestock?: TriState;
+  chasesLivestockDetails?: string;
+  allergies: { status: TriState; details?: string };
+  medication: { onMedication: boolean; medications?: MedicationEntry[] };
+  photos?: string[];
+  offLeadConsent?: OffLeadConsent;
+}
+
+export interface AnimalRecord extends PetFields {
+  _id: string;
 }
 
 export interface BookingRecord {
