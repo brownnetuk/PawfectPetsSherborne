@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as api from '../api/client';
 import DateInput from './DateInput';
 import { TimeReadout } from './DateTimeReadout';
@@ -11,6 +11,7 @@ import { ChevronDownIcon } from './icons';
 import { buildVisitPlan, parseYmd as parseVisitYmd } from '../utils/visitPlan';
 import type { VisitCount } from '../utils/visitPlan';
 import { dayCareProductFor } from '../utils/visitMapping';
+import { travelProductForCustomer, travelQuantityFor, withTravelQuantity } from '../utils/travelLines';
 import type { Animal, BankHoliday, Customer, Invoice, InvoiceTerm, LineItem, Product, Quote, VisitMapping } from '../types';
 
 function customerId(customer: Invoice['customer'] | Quote['customer']): string {
@@ -512,23 +513,29 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
     api.listAnimals(custId).then(setCustomerPets).catch(() => setCustomerPets([]));
   }, [custId]);
 
-  // Invoices only, and only for a brand-new document (not `existing`, which
-  // keeps whatever line items it already has) -- Settings > Customer
-  // Defaults > Travel. A functional update plus the description check keeps
-  // this idempotent, so switching the customer dropdown back and forth (or
-  // this effect re-running for any other reason) never adds a duplicate.
+  // Invoices only -- Settings > Customer Defaults > Travel. The travel line's
+  // quantity follows the other products in the Item Table (1 x Visit -> 1 x
+  // Travel, 2 x Visit -> 2 x Travel), added/removed as products come and go.
+  // It only re-syncs when that count actually changes, so opening an existing
+  // invoice leaves it as saved and a hand-edited travel quantity sticks until
+  // the other products change again.
+  const travelProduct =
+    kind === 'invoice' ? travelProductForCustomer(customers.find((c) => c._id === custId), products) : null;
+  const travelTarget = travelProduct ? travelQuantityFor(lineItems, travelProduct, products) : null;
+  const lastTravelTarget = useRef<number | null | undefined>(undefined);
   useEffect(() => {
-    if (existing || kind !== 'invoice' || !custId || products.length === 0) return;
-    const selected = customers.find((c) => c._id === custId);
-    if (!selected?.travelChargeable || !selected.travelProduct) return;
-    const travelProduct = products.find((p) => p._id === selected.travelProduct);
-    if (!travelProduct) return;
-    setLineItems((prev) =>
-      prev.some((item) => item.description === travelProduct.name)
-        ? prev
-        : [...prev, { description: travelProduct.name, quantity: 1, unitPrice: travelProduct.price, discountPercent: 0 }],
-    );
-  }, [custId, products, customers, existing, kind]);
+    if (!travelProduct || travelTarget === null) {
+      lastTravelTarget.current = undefined;
+      return;
+    }
+    const previous = lastTravelTarget.current;
+    lastTravelTarget.current = travelTarget;
+    // First sync for this customer on an existing invoice: take it as saved.
+    if (previous === undefined && existing && custId === customerId(existing.customer)) return;
+    if (previous === travelTarget) return;
+    setLineItems((prev) => withTravelQuantity(prev, travelProduct, travelTarget));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [travelProduct?._id, travelTarget]);
 
   // Re-suggests the due date/valid-until date when staff explicitly change the
   // term or issue date -- wired to these onChange handlers (not a reactive

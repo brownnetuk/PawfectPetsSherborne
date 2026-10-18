@@ -3,6 +3,7 @@ import * as api from '../api/client';
 import Modal from './Modal';
 import { ChevronDownIcon } from './icons';
 import type { DayBooking, Invoice, InvoiceTerm, LineItem } from '../types';
+import { applyTravelLine, travelProductForCustomer } from '../utils/travelLines';
 
 function lineItemAmount(item: LineItem): number {
   return item.quantity * item.unitPrice * (1 - (item.discountPercent ?? 0) / 100);
@@ -89,8 +90,13 @@ export default function GenerateInvoicesModal({
   const monthLabel = anchorDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 
   useEffect(() => {
-    Promise.all([api.listDayBookings(dateKey(monthStart), dateKey(monthEndExclusive)), api.listInvoices()])
-      .then(([bookings, invoices]) => {
+    Promise.all([
+      api.listDayBookings(dateKey(monthStart), dateKey(monthEndExclusive)),
+      api.listInvoices(),
+      api.listCustomers(),
+      api.listProducts(),
+    ])
+      .then(([bookings, invoices, customers, products]) => {
         // Only what hasn't already been invoiced -- repeat runs this month
         // only pick up newly-added/changed bookings. Placeholder rows (boarding
         // pick-up-day presence markers) are never billed.
@@ -113,12 +119,18 @@ export default function GenerateInvoicesModal({
             if (existing) existing.quantity += b.quantity;
             else byProduct.set(pid, { name, price, quantity: b.quantity });
           }
-          const lineItems: LineItem[] = Array.from(byProduct.values()).map((p) => ({
-            description: p.name,
-            quantity: p.quantity,
-            unitPrice: p.price,
-            discountPercent: 0,
-          }));
+          // Travel follows the customer's other products (2 x Visit -> 2 x
+          // Travel) rather than however many travel rows were booked.
+          const lineItems: LineItem[] = applyTravelLine(
+            Array.from(byProduct.values()).map((p) => ({
+              description: p.name,
+              quantity: p.quantity,
+              unitPrice: p.price,
+              discountPercent: 0,
+            })),
+            travelProductForCustomer(customers.find((c) => c._id === cid), products),
+            products,
+          );
           const total = lineItems.reduce((sum, li) => sum + li.quantity * li.unitPrice, 0);
           const lastDate = custBookings
             .map((b) => dateKey(new Date(b.date)))
