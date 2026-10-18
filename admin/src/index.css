@@ -423,6 +423,50 @@ h1, h2, h3 {
   font-size: 1.1rem;
 }
 
+/* Settings cards collapse on their header (see utils/useCollapsibleCards). */
+.card-collapse-header {
+  cursor: pointer;
+  user-select: none;
+}
+.card-collapse-header [role='button']:focus-visible,
+.card-collapse-header[role='button']:focus-visible {
+  outline: 2px solid var(--brand-green);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.card-collapse-header :is(h2, h3),
+:is(h2, h3).card-collapse-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-collapse-header :is(h2, h3)::before,
+:is(h2, h3).card-collapse-header::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+  margin: 0 4px 3px 2px;
+  flex-shrink: 0;
+}
+.card-collapsed .card-collapse-header :is(h2, h3)::before,
+.card-collapsed :is(h2, h3).card-collapse-header::before {
+  transform: rotate(-45deg);
+  margin-bottom: 0;
+}
+.card-collapsed > :not(.card-collapse-header),
+.card-collapsed > .card-collapse-header p {
+  /* !important: several card bodies set display inline (e.g. flex rows). */
+  display: none !important;
+}
+.card-collapsed .card-collapse-header :is(h2, h3),
+.card-collapsed :is(h2, h3).card-collapse-header {
+  margin-bottom: 0;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

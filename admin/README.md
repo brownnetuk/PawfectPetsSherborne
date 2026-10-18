@@ -408,7 +408,10 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   covers note/call/email/task entries, not just notes proper — entries are created from a customer's
   own "Notes" tab (`ActivityTab`/`ActivityItem` in `CustomerDetailPage.tsx`) so each is always tied
   to that customer; this page just lists them all in one place.
-- **Settings** — tabbed (`/settings`): **Business Info** (shown first, and the default tab) holds
+- **Settings** — tabbed (`/settings`). Every titled card on every tab is collapsible and starts
+  collapsed; clicking its header (or Enter/Space on it) toggles it, and an expanded card stays open
+  while the page is open. This is applied page-wide by `utils/useCollapsibleCards.ts` rather than per
+  card, and skips cards in modals, nested cards, and untitled table cards (a title is an h2 or h3). **Business Info** (shown first, and the default tab) holds
   the business's own name, address, town, postcode, telephone, email, and website, plus a logo — the
   letterhead details invoices and email templates draw from. All fields are plain strings saved
   as-is (no "leave blank to keep unchanged" special case, unlike Email's secret below), so clearing
