@@ -1,7 +1,7 @@
 // Expense receipts are stored as base64 data URIs (images or PDFs) with a
 // separate receiptName, which is always Date-Payee-Amount.ext so downloaded
 // receipts line up with the expense they belong to, e.g.
-// 2026-10-08-Amazon-9.99.pdf.
+// 08-10-2026-Amazon-9.99.pdf.
 
 const MIME_EXTENSIONS: Record<string, string> = {
   'application/pdf': 'pdf',
@@ -46,10 +46,16 @@ function safePart(value: string): string {
     .replace(/^[-.]+|[-.]+$/g, '');
 }
 
-/** Date-Payee-Amount.ext, e.g. 2026-10-08-Amazon-9.99.pdf. */
+// dd-mm-yyyy from a YYYY-MM-DD (or full ISO) date string.
+function ukDate(date: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(date);
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : safePart(date.slice(0, 10));
+}
+
+/** Date-Payee-Amount.ext, e.g. 08-10-2026-Amazon-9.99.pdf. */
 export function receiptFileName(date: string, payee: string | undefined, amount: number, ext: string): string {
   const parts = [
-    safePart(date.slice(0, 10)) || 'undated',
+    ukDate(date) || 'undated',
     safePart(payee ?? '') || 'No-payee',
     Number.isFinite(amount) ? amount.toFixed(2) : '0.00',
   ];
@@ -57,16 +63,14 @@ export function receiptFileName(date: string, payee: string | undefined, amount:
 }
 
 /**
- * The name an expense's receipt is shown and downloaded as. Receipts saved
- * before renaming existed (or from the staff app) have no stored name, so
- * one is built the same way from the expense.
+ * The name an expense's receipt is shown and downloaded as. Always rebuilt
+ * from the expense so older stored names (no name at all, or the earlier
+ * yyyy-mm-dd format) come out the same; the stored name only supplies the
+ * extension.
  */
 export function expenseReceiptName(expense: { date: string; payee?: string; amount: number; receipt?: string; receiptName?: string }): string {
   if (!expense.receipt) return '';
-  return (
-    expense.receiptName ||
-    receiptFileName(expense.date, expense.payee, expense.amount, receiptExtension(undefined, expense.receipt))
-  );
+  return receiptFileName(expense.date, expense.payee, expense.amount, receiptExtension(expense.receiptName, expense.receipt));
 }
 
 /** Turns a data URI into a Blob, so PDFs can be shown in an iframe or downloaded. */

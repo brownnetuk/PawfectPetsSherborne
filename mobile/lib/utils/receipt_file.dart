@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:intl/intl.dart';
 
 // Expense receipts are base64 data URIs (images or PDFs) with a receiptName
-// of Date-Payee-Amount.ext, e.g. 2026-10-08-Amazon-9.99.pdf -- the same
+// of Date-Payee-Amount.ext, e.g. 08-10-2026-Amazon-9.99.pdf -- the same
 // scheme as the admin app's utils/receiptFile.ts.
 
 const _mimeExtensions = {
@@ -36,11 +36,11 @@ String _safePart(String value) => value
     .replaceAll(RegExp(r'[^A-Za-z0-9._]+'), '-')
     .replaceAll(RegExp(r'^[-.]+|[-.]+$'), '');
 
-/// Date-Payee-Amount.ext, e.g. 2026-10-08-Amazon-9.99.pdf.
+/// Date-Payee-Amount.ext, e.g. 08-10-2026-Amazon-9.99.pdf.
 String receiptFileName(DateTime date, String? payee, double amount, String ext) {
   final payeePart = _safePart(payee ?? '');
   final parts = [
-    DateFormat('yyyy-MM-dd').format(date),
+    DateFormat('dd-MM-yyyy').format(date),
     payeePart.isEmpty ? 'No-payee' : payeePart,
     amount.isFinite ? amount.toStringAsFixed(2) : '0.00',
   ];

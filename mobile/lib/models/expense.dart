@@ -8,7 +8,7 @@ class Expense {
   final String? accountId;
   final String? accountName;
   final String? receipt; // base64 data URI (image or PDF), if a receipt is attached
-  // Date-Payee-Amount.ext, e.g. 2026-10-08-Amazon-9.99.pdf; missing on older receipts.
+  // Date-Payee-Amount.ext, e.g. 08-10-2026-Amazon-9.99.pdf; missing on older receipts.
   final String? receiptName;
   // Free-text reference such as an invoice or order number from the payee.
   final String? reference;

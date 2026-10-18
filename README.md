@@ -4900,7 +4900,7 @@ Dates are shown as DD/MM/YYYY. `InvoiceHtmlView` and `QuoteHtmlView` render it.
 | `DocumentFormModal` | Invoice and quote form (see above). |
 | `EditAnimalModal` | Full pet edit form (`updateAnimal`), 492 lines. |
 | `EditCustomerModal` | Client details, emergency contact (with "same as client") and emergency vet fields (`updateCustomer`). |
-| `ExpenseModal` | New or edit expense: Date\*, Category\*, Payee (with an inline "Add new payee" button that calls `createVendor`), Payment Method, Description, Amount\*, Account, Receipt (JPG/PNG/PDF up to 4MB, renamed `Date-Payee-Amount.ext` on save, e.g. `2026-10-08-Amazon-9.99.pdf`). Pre-selects the default account and method on new expenses. |
+| `ExpenseModal` | New or edit expense: Date\*, Category\*, Payee (with an inline "Add new payee" button that calls `createVendor`), Payment Method, Description, Amount\*, Account, Receipt (JPG/PNG/PDF up to 4MB, renamed `Date-Payee-Amount.ext` on save, e.g. `08-10-2026-Amazon-9.99.pdf`). Pre-selects the default account and method on new expenses. |
 | `ExpensesByCategoryChart` | Horizontal SVG bar chart, 700 units wide, bars in `--error` red, with `<title>` tooltips. |
 | `FormAssignmentModal` | "Use <form> for…": assigns a form to any of the 6 workflow slots (pre-check-in, check-in, check-out × Boarding / Day Care) via `updateBoardingWorkflowSettings`. Also exports `slotsUsingForm`. |
 | `FormBuilder` | See above. |

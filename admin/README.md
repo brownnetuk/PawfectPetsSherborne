@@ -375,7 +375,7 @@ static site with an SPA rewrite so client-side routes (e.g. `/customers/:id`) re
   source and "Name (Bank/Savings)" labelling as Payments' picker — debits that account's balance if
   chosen), and an optional **Receipt** upload: a JPG/PNG image or a PDF (same single-file → base64
   pattern as a pet's photo, capped at 4MB client-side). On save the receipt is named
-  `Date-Payee-Amount.ext` (e.g. `2026-10-08-Amazon-9.99.pdf`, unsafe characters become `-`, the
+  `Date-Payee-Amount.ext` (e.g. `08-10-2026-Amazon-9.99.pdf`, unsafe characters become `-`, the
   original extension is kept) via `utils/receiptFile.ts`, and that name is used when it's downloaded
   from the form or the view modal, which shows PDFs inline. Deleting one restores its amount to the account balance, same
   compensating pattern as deleting a Payment.
