@@ -220,9 +220,9 @@ function PaymentsCard() {
         <table>
           <thead>
             <tr>
-              <th>Payment ID</th>
               <th>Date</th>
               <th>Invoice</th>
+              <th>Payment ID</th>
               <th>Amount</th>
               <th>Charges</th>
               <th>Payment Method</th>
@@ -243,15 +243,15 @@ function PaymentsCard() {
                 const o = row.income;
                 return (
                   <tr key={`oi-${o._id}`}>
-                    <td>
-                      <span className="badge badge-active">Other income</span>
-                    </td>
                     <td>{new Date(o.date).toLocaleDateString('en-GB')}</td>
                     <td>
                       {o.receivedFrom}
                       {o.description && (
                         <div style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>{o.description}</div>
                       )}
+                    </td>
+                    <td>
+                      <span className="badge badge-active">Other income</span>
                     </td>
                     <td>£{o.amount.toFixed(2)}</td>
                     <td>—</td>
@@ -270,9 +270,9 @@ function PaymentsCard() {
               const p = row.payment;
               return (
                 <tr key={p._id}>
-                  <td>{p.paymentId}</td>
                   <td>{new Date(p.date).toLocaleDateString('en-GB')}</td>
                   <td>{invoiceLabel(p.invoice)}</td>
+                  <td>{p.paymentId}</td>
                   <td>£{p.amount.toFixed(2)}</td>
                   <td>{p.charges ? `£${p.charges.toFixed(2)}` : '—'}</td>
                   <td>{p.paymentMethod || '—'}</td>
@@ -487,8 +487,8 @@ function ExpensesCard() {
           <thead>
             <tr>
               <th>Date</th>
-              <th>Category</th>
               <th>Payee</th>
+              <th>Category</th>
               <th>Paid From</th>
               <th>Description</th>
               <th>Amount</th>
@@ -507,8 +507,8 @@ function ExpensesCard() {
             {visibleExpenses.map((e) => (
               <tr key={e._id} onClick={() => setViewing(e)}>
                 <td>{new Date(e.date).toLocaleDateString('en-GB')}</td>
-                <td>{e.category}</td>
                 <td>{e.payee || '—'}</td>
+                <td>{e.category}</td>
                 <td>{expenseAccountLabel(e.account)}</td>
                 <td>{e.description || '—'}</td>
                 <td>£{e.amount.toFixed(2)}</td>
