@@ -612,7 +612,7 @@ export default function BookingsPage() {
 
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         <div className="card" style={{ padding: 0, flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', borderBottom: '1px solid var(--border)' }}>
             {WEEKDAY_LABELS.map((label) => (
               <div
                 key={label}
@@ -634,7 +634,7 @@ export default function BookingsPage() {
               key={wi}
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(7, 1fr)',
+                gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
                 borderBottom: wi === weeks.length - 1 ? 'none' : '1px solid var(--border)',
               }}
             >
@@ -650,6 +650,8 @@ export default function BookingsPage() {
                     title={leave ? `Annual Leave: ${leave.name}` : undefined}
                     style={{
                       position: 'relative',
+                      minWidth: 0,
+                      overflow: 'hidden',
                       minHeight: viewMode === 'week' ? 140 : 100,
                       padding: 8,
                       cursor: 'pointer',
