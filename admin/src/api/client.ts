@@ -793,7 +793,8 @@ export interface ExpenseInput {
   reference?: string;
   description?: string;
   amount: number;
-  account?: string;
+  // null clears it on an update.
+  account?: string | null;
   receipt?: string;
   receiptName?: string;
 }
