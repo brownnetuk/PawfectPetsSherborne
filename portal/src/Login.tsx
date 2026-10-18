@@ -76,10 +76,10 @@ export default function Login({ onSignedIn }: { onSignedIn: (token: string) => v
     });
 
   return (
-    <div className="card narrow">
+    <div className="login-steps">
       {step === 'email' && (
         <form onSubmit={submitEmail}>
-          <h2>Sign in</h2>
+          <h2 className="step-title">Sign in</h2>
           <p className="subtitle">
             Enter the email address you registered with us and we will email you a sign-in code.
           </p>
@@ -95,7 +95,7 @@ export default function Login({ onSignedIn }: { onSignedIn: (token: string) => v
               autoFocus
             />
           </div>
-          {error && <p className="error">{error}</p>}
+          {error && <div className="error-banner">{error}</div>}
           <button className="btn btn-primary full" disabled={busy || !email.trim()}>
             {busy ? 'Sending…' : 'Email me a code'}
           </button>
@@ -104,7 +104,7 @@ export default function Login({ onSignedIn }: { onSignedIn: (token: string) => v
 
       {step === 'code' && (
         <form onSubmit={submitCode}>
-          <h2>Check your email</h2>
+          <h2 className="step-title">Check your email</h2>
           <p className="subtitle">
             If <strong>{email.trim()}</strong> is registered with us, we have sent it a 6-digit code.
             It expires in 10 minutes.
@@ -125,8 +125,8 @@ export default function Login({ onSignedIn }: { onSignedIn: (token: string) => v
               autoFocus
             />
           </div>
-          {error && <p className="error">{error}</p>}
-          {notice && <p className="notice">{notice}</p>}
+          {error && <div className="error-banner">{error}</div>}
+          {notice && <div className="success-banner">{notice}</div>}
           <button className="btn btn-primary full" disabled={busy || code.length !== 6}>
             {busy ? 'Checking…' : 'Continue'}
           </button>
@@ -143,7 +143,7 @@ export default function Login({ onSignedIn }: { onSignedIn: (token: string) => v
 
       {step === 'phone' && (
         <form onSubmit={submitDigits}>
-          <h2>One more check</h2>
+          <h2 className="step-title">One more check</h2>
           <p className="subtitle">
             Enter the last 3 digits of the mobile number on your account.
           </p>
@@ -163,7 +163,7 @@ export default function Login({ onSignedIn }: { onSignedIn: (token: string) => v
               autoFocus
             />
           </div>
-          {error && <p className="error">{error}</p>}
+          {error && <div className="error-banner">{error}</div>}
           <button className="btn btn-primary full" disabled={busy || digits.length !== 3}>
             {busy ? 'Checking…' : 'Sign in'}
           </button>

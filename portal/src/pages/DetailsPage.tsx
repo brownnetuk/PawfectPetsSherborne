@@ -144,12 +144,11 @@ export default function DetailsPage() {
   }
 
   if (!profile || !contact) {
-    return error ? <p className="error">{error}</p> : <p className="muted">Loading…</p>;
+    return error ? <div className="error-banner">{error}</div> : <p className="empty-state">Loading…</p>;
   }
 
   return (
     <form onSubmit={save}>
-      <h2>My Details</h2>
       <p className="subtitle">
         Keep these up to date so we can reach you. Your email address is how you sign in, so to change
         it please get in touch with us.
@@ -171,7 +170,7 @@ export default function DetailsPage() {
         You'll need the last 3 digits of your mobile number to sign in.
       </p>
 
-      <h3>Emergency contact</h3>
+      <h3 className="section-title">Emergency contact</h3>
       <label className="checkbox-row">
         <input
           type="checkbox"
@@ -194,7 +193,7 @@ export default function DetailsPage() {
         />
       )}
 
-      <h3>Vet</h3>
+      <h3 className="section-title">Vet</h3>
       <Fields
         fields={hasVet ? VET_FIELDS : VET_FIELDS.map((f) => ({ ...f, required: false }))}
         values={vet}
@@ -204,8 +203,8 @@ export default function DetailsPage() {
         }}
       />
 
-      {error && <p className="error">{error}</p>}
-      {saved && <p className="notice">Your details have been saved.</p>}
+      {error && <div className="error-banner">{error}</div>}
+      {saved && <div className="success-banner">Your details have been saved.</div>}
       <div className="actions end">
         <button className="btn btn-primary" disabled={saving}>
           {saving ? 'Saving…' : 'Save changes'}

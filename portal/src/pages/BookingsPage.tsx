@@ -50,16 +50,15 @@ export default function BookingsPage() {
 
   return (
     <section>
-      <h2>Bookings</h2>
-      {error && <p className="error">{error}</p>}
-      {!bookings && !error && <p className="muted">Loading…</p>}
+      {error && <div className="error-banner">{error}</div>}
+      {!bookings && !error && <p className="empty-state">Loading…</p>}
       {bookings && (
         <>
-          <h3>Upcoming</h3>
-          {upcoming.length ? list(upcoming) : <p className="muted">Nothing booked yet.</p>}
+          <h3 className="section-title">Upcoming</h3>
+          {upcoming.length ? list(upcoming) : <p className="empty-state">Nothing booked yet.</p>}
           {past.length > 0 && (
             <>
-              <h3>Recent</h3>
+              <h3 className="section-title">Recent</h3>
               {list(past)}
             </>
           )}

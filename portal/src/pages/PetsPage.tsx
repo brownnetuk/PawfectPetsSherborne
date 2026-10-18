@@ -15,10 +15,9 @@ export default function PetsPage() {
 
   return (
     <section>
-      <h2>My Pets</h2>
-      {error && <p className="error">{error}</p>}
-      {!pets && !error && <p className="muted">Loading…</p>}
-      {pets && pets.length === 0 && <p className="muted">We don't have any pets on file for you yet.</p>}
+      {error && <div className="error-banner">{error}</div>}
+      {!pets && !error && <p className="empty-state">Loading…</p>}
+      {pets && pets.length === 0 && <p className="empty-state">We don't have any pets on file for you yet.</p>}
       {pets && pets.length > 0 && (
         <ul className="doc-list">
           {pets.map((p) => (

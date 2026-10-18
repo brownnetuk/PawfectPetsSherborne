@@ -82,11 +82,10 @@ export default function DocumentsPage({ kind }: { kind: 'invoices' | 'quotes' })
 
   return (
     <section>
-      <h2>{kind === 'invoices' ? 'Invoices' : 'Quotes'}</h2>
-      {error && <p className="error">{error}</p>}
-      {!rows && !error && <p className="muted">Loading…</p>}
+      {error && <div className="error-banner">{error}</div>}
+      {!rows && !error && <p className="empty-state">Loading…</p>}
       {rows && rows.length === 0 && (
-        <p className="muted">You don't have any {kind} yet.</p>
+        <p className="empty-state">You don't have any {kind} yet.</p>
       )}
       {rows && rows.length > 0 && (
         <ul className="doc-list">
@@ -95,7 +94,7 @@ export default function DocumentsPage({ kind }: { kind: 'invoices' | 'quotes' })
               <div className="doc-main">
                 <div className="doc-title">
                   {label} {row.number}
-                  <span className={`status status-${row.status}`}>
+                  <span className={`badge badge-${row.status}`}>
                     {STATUS_LABEL[row.status] ?? 'Awaiting reply'}
                   </span>
                 </div>
