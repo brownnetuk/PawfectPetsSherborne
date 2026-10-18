@@ -9,7 +9,7 @@ import { describeAnimalChanges } from './audit-diff.util';
 import { CreateAnimalDto } from './dto/create-animal.dto';
 import { PublicUpdateAnimalDto } from './dto/public-update-animal.dto';
 import { UpdateAnimalDto } from './dto/update-animal.dto';
-import { Animal, Species } from './schemas/animal.schema';
+import { Animal, LeadMode, Species } from './schemas/animal.schema';
 
 // Nested-populate shape for a `linkedAnimal` reference -- just enough for the
 // admin UI to show "Linked to <customer name>" without a second round trip.
@@ -172,6 +172,49 @@ export class AnimalsService {
     );
   }
 
+  // The Mongo update for a customer's own edit (portal or intake review):
+  //  - a submitted off-lead consent is a fresh agreement (or a revocation
+  //    back to on-lead), so it's stamped now and replaces the old one whole --
+  //    switching to on-lead drops the previous signature;
+  //  - changing species clears the answers that no longer apply to it, the
+  //    same ones validateSpeciesFields() refuses for that species.
+  private customerUpdate(
+    dto: PublicUpdateAnimalDto,
+    previousSpecies: Species,
+  ): Record<string, unknown> {
+    const update: Record<string, unknown> = { ...dto };
+    if (dto.offLeadConsent) {
+      const now = new Date();
+      update.offLeadConsent = {
+        mode: dto.offLeadConsent.mode,
+        ...(dto.offLeadConsent.mode === LeadMode.OFF_LEAD
+          ? { signature: dto.offLeadConsent.signature }
+          : {}),
+        acknowledgedAt: now,
+        date: now,
+      };
+    }
+    if (dto.species && dto.species !== previousSpecies) {
+      const unset: string[] = [];
+      if (dto.species !== Species.DOG) {
+        unset.push('offLeadConsent', 'chasesLivestock', 'chasesLivestockDetails');
+      }
+      if (dto.species === Species.CAT) {
+        unset.push(
+          'aggressionToOtherAnimals',
+          'aggressionToOtherAnimalsDetails',
+          'travelsWellInCar',
+          'travelsWellInCarDetails',
+        );
+      }
+      const toUnset = unset.filter((key) => !(key in dto));
+      if (toUnset.length) {
+        update.$unset = Object.fromEntries(toUnset.map((key) => [key, '']));
+      }
+    }
+    return update;
+  }
+
   // Backs the public, customer-scoped update route: the intake form's "review my
   // existing pets" flow, not staff editing (that goes through the plain update()
   // above). Ownership is checked against the animal's own `customer` field rather
@@ -187,9 +230,14 @@ export class AnimalsService {
     if (!existing || existing.customer.toString() !== customerId) {
       throw new NotFoundException(`Animal ${id} not found`);
     }
-    this.validateOffLeadConsent(dto, false);
-    this.validateSpeciesFields(dto);
-    const animal = await this.animalModel.findByIdAndUpdate(id, dto, { new: true }).exec();
+    // Checked against the species the pet will have after this edit, so a
+    // dog-only answer can't be saved onto a cat just because the request
+    // didn't resend `species`.
+    const species = dto.species ?? existing.species;
+    this.validateOffLeadConsent({ ...dto, species }, false);
+    this.validateSpeciesFields({ ...dto, species });
+    const update = this.customerUpdate(dto, existing.species);
+    const animal = await this.animalModel.findByIdAndUpdate(id, update, { new: true }).exec();
     if (!animal) {
       throw new NotFoundException(`Animal ${id} not found`);
     }
@@ -208,7 +256,7 @@ export class AnimalsService {
       actor,
     );
     if (animal.linkedAnimal) {
-      await this.propagateToLinkedAnimal(animal, dto, actor);
+      await this.propagateToLinkedAnimal(animal, update, actor);
     }
     return animal;
   }

@@ -6,8 +6,8 @@ The browser version of the customer portal, served at
 - update their contact details, emergency contact and vet
 - see their invoices and quotes and download each as a PDF (read-only: no
   accepting quotes or paying from here)
-- update their pets' details (name, breed, health, medication, behaviour);
-  species, photos and the signed off-lead consent stay with staff
+- update their pets' details: type, name, breed, health, medication,
+  behaviour, up to 2 photos, and sign or withdraw a dog's off-lead consent
 - see their bookings
 
 It talks to the same `/portal/*` API as the customer iPhone app

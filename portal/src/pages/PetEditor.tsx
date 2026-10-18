@@ -1,6 +1,9 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { updateAnimal } from '../api';
-import type { AnimalRecord, MedicationEntry, PetFields, TriState } from '../types';
+import { formatDate } from '../format';
+import type { AnimalRecord, MedicationEntry, OffLeadConsent, PetFields, Species, TriState } from '../types';
+import PhotoPicker from './PhotoPicker';
+import SignaturePad from './SignaturePad';
 
 const YES_NO = [
   { value: 'yes', label: 'Yes' },
@@ -36,11 +39,14 @@ const blankMedication = (): MedicationEntry => ({
 
 // Builds a PATCH body the backend's CreateAnimalDto rules accept: each
 // yes/no is sent with its details (only when they apply), dates only when
-// filled in, and the cat/dog-only questions only for those species.
-function toPayload(f: PetFields, species: AnimalRecord['species']): Partial<PetFields> {
-  const isDog = species === 'dog';
-  const isCat = species === 'cat';
+// filled in, and the cat/dog-only questions only for those species. Photos
+// and the off-lead consent are only sent when they changed -- photos are
+// large, and a resent consent counts as newly signed.
+function toPayload(f: PetFields, original: AnimalRecord): Partial<PetFields> {
+  const isDog = f.species === 'dog';
+  const isCat = f.species === 'cat';
   const p: Partial<PetFields> = {
+    species: f.species,
     name: f.name.trim(),
     breed: f.breed.trim(),
     sex: f.sex,
@@ -81,8 +87,26 @@ function toPayload(f: PetFields, species: AnimalRecord['species']): Partial<PetF
     p.chasesLivestock = f.chasesLivestock;
     if (f.chasesLivestock === 'yes') p.chasesLivestockDetails = f.chasesLivestockDetails;
   }
+  if (JSON.stringify(f.photos ?? []) !== JSON.stringify(original.photos ?? [])) {
+    p.photos = f.photos ?? [];
+  }
+  const consentChanged =
+    f.offLeadConsent?.mode !== original.offLeadConsent?.mode ||
+    f.offLeadConsent?.signature !== original.offLeadConsent?.signature;
+  if (isDog && f.offLeadConsent && consentChanged) {
+    p.offLeadConsent =
+      f.offLeadConsent.mode === 'off_lead'
+        ? { mode: 'off_lead', signature: f.offLeadConsent.signature }
+        : { mode: 'on_lead' };
+  }
   return p;
 }
+
+const SPECIES: { value: Species; label: string }[] = [
+  { value: 'dog', label: 'Dog' },
+  { value: 'cat', label: 'Cat' },
+  { value: 'other', label: 'Other' },
+];
 
 function Text({
   id,
@@ -159,10 +183,12 @@ const yn = (b?: boolean) => (b === undefined ? undefined : b ? 'yes' : 'no');
 
 export default function PetEditor({
   pet,
+  offLeadConsentText,
   onSaved,
   onCancel,
 }: {
   pet: AnimalRecord;
+  offLeadConsentText: string;
   onSaved: (pet: AnimalRecord) => void;
   onCancel: () => void;
 }) {
@@ -176,8 +202,16 @@ export default function PetEditor({
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const isDog = pet.species === 'dog';
-  const isCat = pet.species === 'cat';
+  // Whether the customer is drawing a fresh signature rather than keeping the
+  // one already on file.
+  const [resigning, setResigning] = useState(!pet.offLeadConsent?.signature);
+  const isDog = f.species === 'dog';
+  const isCat = f.species === 'cat';
+  const consent = f.offLeadConsent;
+  const setConsent = (c: OffLeadConsent | undefined) => {
+    setError('');
+    set('offLeadConsent', c);
+  };
 
   const set = <K extends keyof PetFields>(key: K, value: PetFields[K]) => setF((prev) => ({ ...prev, [key]: value }));
   const meds = f.medication.medications ?? [];
@@ -186,10 +220,18 @@ export default function PetEditor({
 
   async function save(e: FormEvent) {
     e.preventDefault();
+    if (isDog && !consent) {
+      setError("Please choose whether we can let your dog off the lead.");
+      return;
+    }
+    if (isDog && consent?.mode === 'off_lead' && !consent.signature) {
+      setError('Please sign the off-lead consent, or choose On lead.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
-      onSaved(await updateAnimal(pet._id, toPayload(f, pet.species)));
+      onSaved(await updateAnimal(pet._id, toPayload(f, pet)));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save these details.');
       setSaving(false);
@@ -215,6 +257,7 @@ export default function PetEditor({
       {section(
         'About',
         <div className="grid">
+          <Choice label="Type" value={f.species} options={SPECIES} onChange={(v) => set('species', v as Species)} />
           <Text id="name" label="Name" value={f.name} onChange={(v) => set('name', v)} required />
           <Text
             id="breed"
@@ -240,6 +283,8 @@ export default function PetEditor({
           <Text id="chip" label="Microchip number" value={f.microchipNumber} onChange={(v) => set('microchipNumber', v)} />
         </div>,
       )}
+
+      {section('Photos', <PhotoPicker value={f.photos ?? []} onChange={(photos) => set('photos', photos)} />)}
 
       {section(
         'Health',
@@ -423,6 +468,61 @@ export default function PetEditor({
           )}
         </>,
       )}
+
+      {isDog &&
+        section(
+          'Off-lead consent',
+          <>
+            <Choice
+              label={`Can we let ${f.name || 'your dog'} off the lead?`}
+              value={consent?.mode}
+              options={[
+                { value: 'on_lead', label: 'On lead only' },
+                { value: 'off_lead', label: 'Off lead' },
+              ]}
+              onChange={(v) =>
+                setConsent(
+                  v === 'off_lead'
+                    ? { mode: 'off_lead', signature: resigning ? undefined : pet.offLeadConsent?.signature }
+                    : { mode: 'on_lead' },
+                )
+              }
+            />
+            {pet.offLeadConsent?.mode === 'off_lead' && consent?.mode === 'on_lead' && (
+              <p className="muted small">Saving this withdraws your off-lead consent.</p>
+            )}
+            {consent?.mode === 'off_lead' && (
+              <>
+                {offLeadConsentText && (
+                  <div className="consent-text">{offLeadConsentText.replaceAll('{{petName}}', f.name || 'my dog')}</div>
+                )}
+                {!resigning && consent.signature ? (
+                  <div className="signed-box">
+                    <img src={consent.signature} alt="Your signature" />
+                    <span className="muted small">
+                      Signed{pet.offLeadConsent?.acknowledgedAt ? ` ${formatDate(pet.offLeadConsent.acknowledgedAt)}` : ''}
+                    </span>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => {
+                        setResigning(true);
+                        setConsent({ mode: 'off_lead' });
+                      }}
+                    >
+                      Sign again
+                    </button>
+                  </div>
+                ) : (
+                  <SignaturePad
+                    value={consent.signature}
+                    onChange={(signature) => setConsent({ mode: 'off_lead', signature })}
+                  />
+                )}
+              </>
+            )}
+          </>,
+        )}
 
       {error && <div className="error-banner">{error}</div>}
       <div className="actions end">

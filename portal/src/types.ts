@@ -39,6 +39,7 @@ export interface Profile {
   postcode?: string;
   emergencyContact: EmergencyContact | null;
   emergencyVet: EmergencyVet | null;
+  offLeadConsentText?: string;
 }
 
 export type ProfileUpdate = Partial<
@@ -84,9 +85,17 @@ export interface MedicationEntry {
   additionalInfo?: string;
 }
 
-// The customer-editable part of an Animal (backend CreateAnimalDto). Species,
-// photos and the signed off-lead consent stay with staff.
+export type Species = 'dog' | 'cat' | 'other';
+
+export interface OffLeadConsent {
+  mode: 'on_lead' | 'off_lead';
+  signature?: string;
+  acknowledgedAt?: string;
+}
+
+// The customer-editable part of an Animal (backend CreateAnimalDto).
 export interface PetFields {
+  species: Species;
   name: string;
   breed: string;
   sex: 'male' | 'female';
@@ -111,11 +120,12 @@ export interface PetFields {
   chasesLivestockDetails?: string;
   allergies: { status: TriState; details?: string };
   medication: { onMedication: boolean; medications?: MedicationEntry[] };
+  photos?: string[];
+  offLeadConsent?: OffLeadConsent;
 }
 
 export interface AnimalRecord extends PetFields {
   _id: string;
-  species: 'dog' | 'cat' | 'other';
 }
 
 export interface BookingRecord {

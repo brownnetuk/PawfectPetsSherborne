@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchAnimals } from '../api';
+import { fetchAnimals, fetchProfile } from '../api';
 import { formatDate } from '../format';
 import type { AnimalRecord } from '../types';
 import PetEditor from './PetEditor';
@@ -11,15 +11,21 @@ export default function PetsPage() {
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<AnimalRecord | null>(null);
   const [savedName, setSavedName] = useState('');
+  const [consentText, setConsentText] = useState('');
 
   useEffect(() => {
     fetchAnimals().then(setPets).catch((err: Error) => setError(err.message));
+    // The business's off-lead wording, shown above the signature pad.
+    fetchProfile()
+      .then((p) => setConsentText(p.offLeadConsentText ?? ''))
+      .catch(() => {});
   }, []);
 
   if (editing) {
     return (
       <PetEditor
         pet={editing}
+        offLeadConsentText={consentText}
         onCancel={() => setEditing(null)}
         onSaved={(updated) => {
           setPets((list) => (list ?? []).map((p) => (p._id === updated._id ? updated : p)));
@@ -41,7 +47,8 @@ export default function PetsPage() {
         <ul className="doc-list">
           {pets.map((p) => (
             <li key={p._id} className="doc-row">
-              <div className="doc-main">
+              {p.photos?.[0] && <img src={p.photos[0]} alt="" className="pet-thumb" />}
+              <div className="doc-main grow">
                 <div className="doc-title">{p.name}</div>
                 <div className="muted small">
                   {[cap(p.species), p.breed, cap(p.sex)].filter(Boolean).join(' · ')}
