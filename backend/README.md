@@ -420,8 +420,9 @@ categories was wanted.)
 
 `Expense` itself: `date`, `category`, optional `payee`, `description`, `amount`, an optional
 `account` ref (debited via `adjustBalance` on create/update/delete, credited back on update's old
-value/delete), and an optional `receipt` (base64 data URI, same storage approach as
-`Animal.photos`/`BusinessInfo.logoImage`). `ExpensesService.update()` fetches the document
+value/delete), and an optional `receipt` (base64 data URI of an image or a PDF, same storage approach as
+`Animal.photos`/`BusinessInfo.logoImage`) with its `receiptName` (`Date-Payee-Amount.ext`, set by the
+admin app on save). `ExpensesService.update()` fetches the document
 `before` the update (same pattern `CustomersService.update()`/`AnimalsService.update()` use for
 their own diffs) so it can revert the old amount from whichever account it was debited against and
 reapply the new one — one code path correctly handles an unchanged account, a changed account, and

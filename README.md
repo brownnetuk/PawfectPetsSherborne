@@ -4898,7 +4898,7 @@ Dates are shown as DD/MM/YYYY. `InvoiceHtmlView` and `QuoteHtmlView` render it.
 | `DocumentFormModal` | Invoice and quote form (see above). |
 | `EditAnimalModal` | Full pet edit form (`updateAnimal`), 492 lines. |
 | `EditCustomerModal` | Client details, emergency contact (with "same as client") and emergency vet fields (`updateCustomer`). |
-| `ExpenseModal` | New or edit expense: Date\*, Category\*, Payee (with an inline "Add new payee" button that calls `createVendor`), Payment Method, Description, Amount\*, Account, Receipt (up to 4MB). Pre-selects the default account and method on new expenses. |
+| `ExpenseModal` | New or edit expense: Date\*, Category\*, Payee (with an inline "Add new payee" button that calls `createVendor`), Payment Method, Description, Amount\*, Account, Receipt (JPG/PNG/PDF up to 4MB, renamed `Date-Payee-Amount.ext` on save, e.g. `2026-10-08-Amazon-9.99.pdf`). Pre-selects the default account and method on new expenses. |
 | `ExpensesByCategoryChart` | Horizontal SVG bar chart, 700 units wide, bars in `--error` red, with `<title>` tooltips. |
 | `FormAssignmentModal` | "Use <form> for…": assigns a form to any of the 6 workflow slots (pre-check-in, check-in, check-out × Boarding / Day Care) via `updateBoardingWorkflowSettings`. Also exports `slotsUsingForm`. |
 | `FormBuilder` | See above. |
@@ -4948,7 +4948,7 @@ Dates are shown as DD/MM/YYYY. `InvoiceHtmlView` and `QuoteHtmlView` render it.
 | `ViewAnimalModal` | Read-only pet profile. Loads the off-lead wording via `getBusinessInfo`, with a fallback. |
 | `ViewBankAccountModal` | One account's monthly statement (`getBankAccountTransactions(id, month, year)`): Date · Description · Amount · Balance. Has a month/year picker and a gear button that opens `SetOpeningBalanceModal`. |
 | `ViewCustomerModal` | Condensed client details with an "Open" button that goes to `/customers/:id`. |
-| `ViewExpenseModal` | Read-only expense with a receipt link and Edit. |
+| `ViewExpenseModal` | Read-only expense with the receipt (image, or PDF inline), its Date-Payee-Amount name with a Download link, and Edit. |
 | `ViewFormSubmissionModal` | Renders a submission as a PDF (`buildFormSubmissionPdf`) in an iframe. |
 | `icons.tsx` | Inline SVG icons: nav icons (Customers, Enquiries, Bookings, Boarding, Invoices, Financial, Reports, Activity, Settings, Training, Logout) and UI glyphs (Trash, Pencil, Plus, PlusCircle, ChevronDown, Video/Reading/Pdf content, …). |
 

@@ -1,6 +1,8 @@
+import { useEffect, useMemo } from 'react';
 import Modal from './Modal';
 import type { Expense } from '../types';
 import { bankAccountTypeLabel } from '../utils/bankAccountType';
+import { dataUriToBlob, downloadReceipt, isPdfReceipt, receiptExtension, receiptFileName } from '../utils/receiptFile';
 
 interface Props {
   expense: Expense;
@@ -15,7 +17,27 @@ function accountLabel(account: Expense['account']): string {
   return typeof account === 'string' ? account : `${account.name} (${bankAccountTypeLabel(account.type)})`;
 }
 
+// Browsers won't render a data: PDF in an iframe reliably, so it's shown via
+// a local object URL instead (same approach as TrainingPdfViewer).
+function PdfReceipt({ dataUri }: { dataUri: string }) {
+  const url = useMemo(() => URL.createObjectURL(dataUriToBlob(dataUri)), [dataUri]);
+  useEffect(() => () => URL.revokeObjectURL(url), [url]);
+  return (
+    <iframe
+      src={url}
+      title="Receipt"
+      style={{ width: '100%', height: 480, border: '1px solid var(--border)', borderRadius: 8 }}
+    />
+  );
+}
+
 export default function ViewExpenseModal({ expense, onClose, onEdit, onRefund }: Props) {
+  // Receipts saved before renaming existed (or from the staff app) have no
+  // stored name, so one is built the same way from the expense.
+  const receiptName = expense.receipt
+    ? expense.receiptName ||
+      receiptFileName(expense.date, expense.payee, expense.amount, receiptExtension(undefined, expense.receipt))
+    : '';
   return (
     <Modal title={expense.description || expense.category} onClose={onClose}>
       <dl className="kv-grid">
@@ -38,7 +60,17 @@ export default function ViewExpenseModal({ expense, onClose, onEdit, onRefund }:
       </dl>
 
       <div className="section-title">Receipt</div>
-      {expense.receipt ? (
+      {expense.receipt && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+          <span style={{ fontSize: '0.85rem', wordBreak: 'break-all' }}>{receiptName}</span>
+          <button type="button" className="btn-link" onClick={() => downloadReceipt(expense.receipt!, receiptName)}>
+            Download
+          </button>
+        </div>
+      )}
+      {expense.receipt && isPdfReceipt(expense.receipt) ? (
+        <PdfReceipt dataUri={expense.receipt} />
+      ) : expense.receipt ? (
         <img
           src={expense.receipt}
           alt="Receipt"

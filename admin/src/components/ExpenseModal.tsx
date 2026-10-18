@@ -4,6 +4,13 @@ import DateInput from './DateInput';
 import Modal from './Modal';
 import type { BankAccount, Expense, ExpenseCategoryOption, PaymentMethod, VendorOption } from '../types';
 import { bankAccountTypeLabel } from '../utils/bankAccountType';
+import {
+  downloadReceipt,
+  isAcceptedReceiptFile,
+  isPdfReceipt,
+  receiptExtension,
+  receiptFileName,
+} from '../utils/receiptFile';
 
 interface Props {
   expense: Expense | null;
@@ -54,6 +61,10 @@ export default function ExpenseModal({ expense, cloneFrom, onClose, onSaved }: P
   const [amount, setAmount] = useState(source ? String(source.amount) : '');
   const [account, setAccount] = useState(source ? accountId(source.account) : '');
   const [receipt, setReceipt] = useState(expense?.receipt ?? '');
+  // Extension to keep when the receipt is renamed to Date-Payee-Amount on save.
+  const [receiptExt, setReceiptExt] = useState(() =>
+    expense?.receipt ? receiptExtension(expense.receiptName, expense.receipt) : '',
+  );
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -136,8 +147,8 @@ export default function ExpenseModal({ expense, cloneFrom, onClose, onSaved }: P
     e.target.value = '';
     if (!file) return;
     setReceiptError(null);
-    if (!file.type.startsWith('image/')) {
-      setReceiptError('Please choose an image file.');
+    if (!isAcceptedReceiptFile(file)) {
+      setReceiptError('Please choose an image (JPG or PNG) or a PDF.');
       return;
     }
     if (file.size > MAX_RECEIPT_BYTES) {
@@ -145,7 +156,16 @@ export default function ExpenseModal({ expense, cloneFrom, onClose, onSaved }: P
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => setReceipt(reader.result as string);
+    reader.onload = () => {
+      let dataUri = reader.result as string;
+      // Some browsers report a blank type for PDFs, which reads as
+      // application/octet-stream -- relabel it so it displays as a PDF.
+      if (/\.pdf$/i.test(file.name) && !isPdfReceipt(dataUri)) {
+        dataUri = dataUri.replace(/^data:[^;,]*/, 'data:application/pdf');
+      }
+      setReceipt(dataUri);
+      setReceiptExt(receiptExtension(file.name, dataUri));
+    };
     reader.onerror = () => setReceiptError('Failed to read that file.');
     reader.readAsDataURL(file);
   }
@@ -165,7 +185,11 @@ export default function ExpenseModal({ expense, cloneFrom, onClose, onSaved }: P
         description: description || undefined,
         amount: Number(amount),
         account: account || undefined,
-        receipt: receipt || undefined,
+        // Sent blank on an edit so Remove actually clears the stored receipt.
+        receipt: expense ? receipt : receipt || undefined,
+        // Recomputed on every save so it follows any change to the date,
+        // payee or amount.
+        receiptName: receipt ? receiptFileName(date, payee, Number(amount), receiptExt) : expense ? '' : undefined,
       };
       if (expense) {
         await api.updateExpense(expense._id, input);
@@ -385,17 +409,50 @@ export default function ExpenseModal({ expense, cloneFrom, onClose, onSaved }: P
           <label>Receipt</label>
           {receipt ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <img
-                src={receipt}
-                alt="Receipt"
-                style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
-              />
-              <button type="button" className="btn-link" onClick={() => setReceipt('')}>
-                Remove
-              </button>
+              {isPdfReceipt(receipt) ? (
+                <div
+                  style={{
+                    width: 80,
+                    height: 80,
+                    borderRadius: 8,
+                    border: '1px solid var(--border)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 700,
+                    color: 'var(--muted)',
+                    flexShrink: 0,
+                  }}
+                >
+                  PDF
+                </div>
+              ) : (
+                <img
+                  src={receipt}
+                  alt="Receipt"
+                  style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
+                />
+              )}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.85rem', wordBreak: 'break-all' }} title="Saved with this name">
+                  {receiptFileName(date, payee, Number(amount), receiptExt)}
+                </div>
+                <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+                  <button
+                    type="button"
+                    className="btn-link"
+                    onClick={() => downloadReceipt(receipt, receiptFileName(date, payee, Number(amount), receiptExt))}
+                  >
+                    Download
+                  </button>
+                  <button type="button" className="btn-link" onClick={() => setReceipt('')}>
+                    Remove
+                  </button>
+                </div>
+              </div>
             </div>
           ) : (
-            <input type="file" accept="image/*" onChange={handleReceiptChange} />
+            <input type="file" accept="image/jpeg,image/png,image/*,application/pdf,.pdf" onChange={handleReceiptChange} />
           )}
           {receiptError && (
             <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--error)', marginTop: 4 }}>
