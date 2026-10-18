@@ -39,7 +39,7 @@ export function money(n: number): string {
 }
 
 function fileBase(e: BankStatementExport): string {
-  return `Statement - ${e.account.name} - ${e.periodLabel}`.replace(/[/\\:]/g, '-');
+  return `Transaction Statement - ${e.account.name} - ${e.periodLabel}`.replace(/[/\\:]/g, '-');
 }
 
 // --- CSV ----------------------------------------------------------------------
@@ -170,7 +170,7 @@ export async function downloadBankStatementPdf(e: BankStatementExport) {
   await w.init();
   const doc = w.doc;
   w.drawHeader({
-    title: 'Bank statement',
+    title: 'Transaction Statement',
     subtitle: e.account.name,
     badge: { label: 'Period', value: e.periodLabel },
   });
