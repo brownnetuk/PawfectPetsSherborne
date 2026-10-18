@@ -56,6 +56,19 @@ export function receiptFileName(date: string, payee: string | undefined, amount:
   return `${parts.join('-')}.${safePart(ext).toLowerCase() || 'bin'}`;
 }
 
+/**
+ * The name an expense's receipt is shown and downloaded as. Receipts saved
+ * before renaming existed (or from the staff app) have no stored name, so
+ * one is built the same way from the expense.
+ */
+export function expenseReceiptName(expense: { date: string; payee?: string; amount: number; receipt?: string; receiptName?: string }): string {
+  if (!expense.receipt) return '';
+  return (
+    expense.receiptName ||
+    receiptFileName(expense.date, expense.payee, expense.amount, receiptExtension(undefined, expense.receipt))
+  );
+}
+
 /** Turns a data URI into a Blob, so PDFs can be shown in an iframe or downloaded. */
 export function dataUriToBlob(dataUri: string): Blob {
   const [, base64 = ''] = dataUri.split(',');

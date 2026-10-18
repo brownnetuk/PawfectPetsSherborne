@@ -376,6 +376,8 @@ export interface VetPractice {
 
 export interface Expense {
   _id: string;
+  // e.g. EXP00001 -- assigned by the backend on creation.
+  expenseId?: string;
   date: string;
   category: string;
   payee?: string;

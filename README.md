@@ -991,7 +991,7 @@ Enums:
 | `creditNoteNumberTemplate` / `creditNoteNextNumber` | String / Number | `'CN-{year}-{seq}'` / `1` |
 | `bookingRefTemplate` / `bookingRefNextNumber` | String / Number | `'BK-{year}-{seq}'` / `1` |
 | `bookingTerms`, `bookingInformation` | String (HTML) | `''` |
-| `riskAssessmentNextNumber`, `policyNextNumber` | Number | `1` (not in the `getBusinessInfo()` projection) |
+| `riskAssessmentNextNumber`, `policyNextNumber`, `expenseNextNumber` | Number | `1` (not in the `getBusinessInfo()` projection) |
 | `invoicePdfTemplate` | [Mixed] | `[]` |
 | `trustedIps` | [String] | `[]` (empty = unrestricted) |
 | `qrCodeUrl` | String | `''` |
@@ -1651,6 +1651,7 @@ Money received without an invoice (refunds, interest). Credits `account` like a 
 | GET | `/expenses?from=&to=` | JWT | List, sorted by `date` desc. `from` is `$gte` and `to` is `$lte` (inclusive), unlike other range routes. |
 | GET | `/expenses/:id` | JWT | One expense. |
 | PATCH | `/expenses/:id` | JWT | Update. Re-credits the old account, then debits the new one. |
+| POST | `/expenses/:id/send-email` | JWT | Email the stored receipt as an attachment to `{to, subject, message?}` (`sendDirectEmail`). 400 if the expense has no receipt. |
 | DELETE | `/expenses/:id` | JWT + `financial.manage` | Delete and re-credit the account. |
 
 #### `ExpenseCategoriesController` — `backend/src/expense-categories/expense-categories.controller.ts`
@@ -2347,6 +2348,7 @@ Each payment is allocated to exactly **one** invoice. There is no splitting acro
 - Create, update and delete keep the linked account's balance in step: create debits, update re-credits the old account and debits the new one, delete re-credits.
 - `category`, `payee` and `paymentMethod` are free strings. They are not validated against the `ExpenseCategory`, `Vendor` or `PaymentMethod` lists.
 - `receipt` is a base64 string stored on the document and returned in `GET /expenses` list responses.
+- `expenseId` is `EXP{seq}` (5-digit zero-padded) from `BusinessInfo.expenseNextNumber`, set in `create()`. On startup `onModuleInit` numbers any expenses without one, oldest first.
 - The automatic "Payment Charges" category is a hard-coded string. It does not have to exist in `ExpenseCategory`.
 
 #### 20. Reports
@@ -3953,7 +3955,7 @@ TypeScript (`tsconfig.app.json`): target/lib ES2023 + DOM, `moduleResolution: bu
 | `/customers/:id` | `CustomerDetailPage` | Signed in. Server side: `customers.manage` for deletes, `customers.viewSecurity` to reveal the alarm/keysafe code. | Customer record with 8 tabs |
 | `/bookings` | `BookingsPage` (sidebar label **Calendar**) | Signed in. Server side: `bookings.manage` (delete). | Month/week calendar of day bookings (walks, visits, day care, boarding) and appointments, a day panel, and monthly invoice generation |
 | `/invoices` | `InvoicesPage` (sidebar label **Invoices & Quotes**) | Signed in. Server side: `invoicing.manage` (delete). | Invoices and Quotes tabs: list, HTML preview, PDF download, send, payments, deposits. Accepts `?view=<invoiceId>`. |
-| `/financial` | `FinancialPage` | Signed in. Server side: `financial.manage` (delete). | Snapshot dashboard, Payments, Expenses, Credit Notes, Bank Transfers |
+| `/financial` | `FinancialPage` | Signed in. Server side: `financial.manage` (delete). | Snapshot dashboard, Payments, Expenses, Credit Notes, Bank Transfers, Bank Accounts, Uploads (expense receipts: view and email) |
 | `/communications` | `CommunicationsPage` | Signed in | Two-way customer chat, push messages, bulk email |
 | `/reports` | `ReportsPage` | Signed in | P/L (income vs expenses) and Expenses by Category, each for the last 6 or 12 months |
 | `/staff-training` | `StaffTrainingPage` (sidebar "Training Admin") | The nav link is shown only when `isBreakGlass`, the staff member has no role, or the role includes `training.manage`. **The route itself is not gated.** Server side: `training.manage`, which also gates *viewing* the module list. | Training modules and the compliance audit |

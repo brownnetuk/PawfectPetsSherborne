@@ -168,6 +168,11 @@ export class BusinessInfo extends Document {
   @Prop({ default: 1 })
   policyNextNumber?: number;
 
+  // Expense IDs are 'EXP{seq}', {seq} zero-padded to 5 digits
+  // (ExpensesService.create()) -- same reasoning as riskAssessmentNextNumber.
+  @Prop({ default: 1 })
+  expenseNextNumber?: number;
+
   // Freeform layout for the invoice/quote PDF ("View" action, admin/src/pdf/invoicePdf.ts) --
   // an array of staff-positioned blocks (text/image/line/rect/qrcode/itemTable), edited via
   // the drag-and-drop designer at Settings > Invoices. Stored as opaque JSON (Mixed) since it's

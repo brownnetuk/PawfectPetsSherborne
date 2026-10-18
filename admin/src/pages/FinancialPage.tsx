@@ -12,9 +12,10 @@ import { CopyIcon, InvoicesIcon, MailIcon, PencilIcon, TrashIcon } from '../comp
 import { buildReceiptPdf } from '../pdf/receiptPdf';
 import type { BankTransfer, CreditNote, Expense, OtherIncome, Payment } from '../types';
 import BankAccountsTab from './BankAccountsTab';
+import ExpenseUploadsTab from './ExpenseUploadsTab';
 import FinancialSnapshotTab from './FinancialSnapshotTab';
 
-type Tab = 'snapshot' | 'payments' | 'expenses' | 'creditNotes' | 'bankTransfers' | 'bankAccounts';
+type Tab = 'snapshot' | 'payments' | 'expenses' | 'creditNotes' | 'bankTransfers' | 'bankAccounts' | 'uploads';
 
 const TAB_LABELS: Record<Tab, string> = {
   snapshot: 'Snapshot',
@@ -23,6 +24,7 @@ const TAB_LABELS: Record<Tab, string> = {
   creditNotes: 'Credit Notes',
   bankTransfers: 'Bank Transfers',
   bankAccounts: 'Bank Accounts',
+  uploads: 'Uploads',
 };
 
 export default function FinancialPage() {
@@ -35,7 +37,7 @@ export default function FinancialPage() {
       </div>
 
       <div className="tabs">
-        {(['snapshot', 'payments', 'expenses', 'creditNotes', 'bankTransfers', 'bankAccounts'] as Tab[]).map((t) => (
+        {(['snapshot', 'payments', 'expenses', 'creditNotes', 'bankTransfers', 'bankAccounts', 'uploads'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -48,6 +50,7 @@ export default function FinancialPage() {
       {tab === 'creditNotes' && <CreditNotesCard />}
       {tab === 'bankTransfers' && <BankTransfersCard />}
       {tab === 'bankAccounts' && <BankAccountsTab />}
+      {tab === 'uploads' && <ExpenseUploadsTab />}
     </div>
   );
 }
@@ -438,6 +441,7 @@ function ExpensesCard() {
       inDateRange(e.date, filters.from, filters.to) &&
       matchesSearch(filters.search, [
         new Date(e.date).toLocaleDateString('en-GB'),
+        e.expenseId,
         e.category,
         e.payee,
         expenseAccountLabel(e.account),

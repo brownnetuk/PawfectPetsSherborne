@@ -4,6 +4,12 @@ import { BankAccount } from '../../bank-accounts/schemas/bank-account.schema';
 
 @Schema({ timestamps: true })
 export class Expense extends Document {
+  // 'EXP00001', assigned once on creation from BusinessInfo.expenseNextNumber
+  // (see ExpensesService.create()); expenses recorded before IDs existed are
+  // numbered oldest-first on startup (ExpensesService.onModuleInit()).
+  @Prop()
+  expenseId?: string;
+
   @Prop({ required: true })
   date: Date;
 
