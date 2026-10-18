@@ -122,6 +122,35 @@ export class AuditLogService {
       .exec();
   }
 
+  // Settings > Forms "Delete PDFs for deleted customers" -- registration
+  // snapshots whose customer no longer exists (deleting a customer leaves
+  // its Activity entries behind), which nothing in the app can show any
+  // more. Looked up against the customers collection directly rather than
+  // injecting CustomersService, to keep this a leaf module (see
+  // AuditLogModule). Returns how many were deleted.
+  async deleteOrphanedRegistrationSnapshots(): Promise<{ deleted: number }> {
+    const orphans = await this.auditLogModel
+      .aggregate<{ _id: Types.ObjectId }>([
+        { $match: { type: AuditEventType.REGISTRATION_EMAIL_SENT } },
+        {
+          $lookup: {
+            from: 'customers',
+            localField: 'customer',
+            foreignField: '_id',
+            as: 'owner',
+          },
+        },
+        { $match: { owner: { $size: 0 } } },
+        { $project: { _id: 1 } },
+      ])
+      .exec();
+    if (orphans.length === 0) return { deleted: 0 };
+    const result = await this.auditLogModel
+      .deleteMany({ _id: { $in: orphans.map((o) => o._id) } })
+      .exec();
+    return { deleted: result.deletedCount };
+  }
+
   // Swaps a registration snapshot's PDF for one the admin app just rebuilt
   // in the current style, keeping the originally stored PDF in
   // originalAttachmentData the first time round (see the schema's comment).

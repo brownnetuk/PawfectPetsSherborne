@@ -18,7 +18,11 @@ export default function RegistrationPdfsCard() {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [failures, setFailures] = useState<string[]>([]);
+  const [skipped, setSkipped] = useState(0);
   const [finished, setFinished] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteResult, setDeleteResult] = useState<string | null>(null);
 
   function refresh() {
     api
@@ -37,20 +41,35 @@ export default function RegistrationPdfsCard() {
     setRunning(true);
     setFinished(false);
     setFailures([]);
+    setSkipped(0);
     setProgress({ done: 0, total: snapshots.length });
 
     const businessInfo = await api.getBusinessInfo().catch(() => null);
+    // Snapshots outlive their customer -- deleting a customer leaves its
+    // Activity entries behind -- so those are skipped (and left untouched)
+    // rather than reported as failures.
+    const customerIds = await api
+      .listCustomers()
+      .then((list) => new Set(list.map((c) => c._id)))
+      .catch(() => null);
     const byCustomer = new Map<string, RegistrationSnapshot[]>();
     for (const s of snapshots) {
       byCustomer.set(s.customer, [...(byCustomer.get(s.customer) ?? []), s]);
     }
 
     let done = 0;
+    let orphaned = 0;
     const failed: string[] = [];
     // One customer at a time -- each PDF is built in the browser and is a
     // few hundred KB, so running them all at once would just stall the tab.
     for (const [customerId, entries] of byCustomer) {
       let customerName = customerId;
+      if (customerIds && !customerIds.has(customerId)) {
+        orphaned += entries.length;
+        done += entries.length;
+        setProgress({ done, total: snapshots.length });
+        continue;
+      }
       try {
         const customer = await api.getCustomer(customerId);
         customerName = customer.name;
@@ -80,9 +99,28 @@ export default function RegistrationPdfsCard() {
     }
 
     setFailures(failed);
+    setSkipped(orphaned);
     setRunning(false);
     setFinished(true);
     refresh();
+  }
+
+  // Leftover snapshots from customers that have since been deleted -- the
+  // ones regenerateAll above skips. Permanent, hence its own confirm.
+  async function deleteOrphans() {
+    setConfirmingDelete(false);
+    setDeleting(true);
+    setDeleteResult(null);
+    try {
+      const { deleted } = await api.deleteOrphanedRegistrationSnapshots();
+      setDeleteResult(`Deleted ${deleted} PDF${deleted === 1 ? '' : 's'} belonging to deleted customers.`);
+      setSkipped(0);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete PDFs');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -95,14 +133,24 @@ export default function RegistrationPdfsCard() {
             using each customer's details as they stand today. The original PDFs are kept so this can be undone.
           </p>
         </div>
-        <button
-          className="btn btn-primary btn-sm"
-          disabled={running || !snapshots || snapshots.length === 0}
-          onClick={() => setConfirming(true)}
-        >
-          {running ? 'Regenerating…' : 'Regenerate all'}
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={running || deleting}
+            onClick={() => setConfirmingDelete(true)}
+          >
+            {deleting ? 'Deleting…' : 'Delete PDFs for deleted customers'}
+          </button>
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={running || deleting || !snapshots || snapshots.length === 0}
+            onClick={() => setConfirming(true)}
+          >
+            {running ? 'Regenerating…' : 'Regenerate all'}
+          </button>
+        </div>
       </div>
+      {deleteResult && <p style={{ fontSize: '0.9rem' }}>{deleteResult}</p>}
       {error && <div className="error-banner">{error}</div>}
       {snapshots === null ? (
         <div className="empty-state">Loading…</div>
@@ -116,6 +164,7 @@ export default function RegistrationPdfsCard() {
       {progress && (running || finished) && (
         <p style={{ fontSize: '0.9rem' }}>
           {running ? 'Working…' : 'Finished.'} {progress.done} of {progress.total} done
+          {skipped > 0 && `, ${skipped} skipped because the customer has been deleted`}
           {failures.length > 0 && `, ${failures.length} customer${failures.length === 1 ? '' : 's'} failed`}.
         </p>
       )}
@@ -125,6 +174,23 @@ export default function RegistrationPdfsCard() {
             <div key={f}>{f}</div>
           ))}
         </div>
+      )}
+
+      {confirmingDelete && (
+        <Modal title="Delete PDFs for deleted customers?" onClose={() => setConfirmingDelete(false)}>
+          <p>
+            This permanently deletes every stored registration form PDF whose customer has been deleted. PDFs for
+            current customers aren't touched. This can't be undone.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setConfirmingDelete(false)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={deleteOrphans}>
+              Delete
+            </button>
+          </div>
+        </Modal>
       )}
 
       {confirming && snapshots && (

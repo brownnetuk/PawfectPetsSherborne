@@ -1005,6 +1005,9 @@ export interface RegistrationSnapshot {
 export function listRegistrationSnapshots(): Promise<RegistrationSnapshot[]> {
   return request('/audit-log/registration-snapshots');
 }
+export function deleteOrphanedRegistrationSnapshots(): Promise<{ deleted: number }> {
+  return request('/audit-log/registration-snapshots/orphaned', { method: 'DELETE' });
+}
 export function replaceSnapshotAttachment(entryId: string, attachmentData: string, attachmentName: string): Promise<void> {
   return request(`/audit-log/${entryId}/attachment`, {
     method: 'PATCH',
