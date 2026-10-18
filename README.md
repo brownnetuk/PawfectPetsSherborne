@@ -36,7 +36,7 @@ five applications that all talk to one NestJS + MongoDB API.
 | [`admin/`](admin/) | Staff (desktop browser) | The back-office dashboard for running the business | React 19, TypeScript, Vite, react-router-dom 7, dnd-kit, jsPDF + html2canvas | `http://localhost:5174` |
 | [`frontend/`](frontend/) | Customers (no login) | Public intake/registration site, plus public form, pre-boarding, invoice and quote links | React 19, TypeScript, Vite, jsPDF | `http://localhost:5173` |
 | [`mobile/`](mobile/) | Staff (in the field) | Staff companion app: calendar, customers, pets, invoices, payments (SumUp card reader), CRM notes, push reminders | Flutter (iOS primary; Android/web builds exist), provider, http, flutter_secure_storage, local_auth, mobile_scanner, sumup | n/a |
-| [`portal/`](portal/) | Customers (logged in, browser) | Web customer portal: update their details, view and download invoices and quotes, see pets and bookings. Sign-in is an emailed 6-digit code then the last 3 digits of their mobile | React 19, TypeScript, Vite | `http://localhost:5175` |
+| [`portal/`](portal/) | Customers (logged in, browser) | Web customer portal: update their details and their pets' details, view and download invoices and quotes, see bookings. Sign-in is an emailed 6-digit code then the last 3 digits of their mobile | React 19, TypeScript, Vite | `http://localhost:5175` |
 | [`mobile-portal/`](mobile-portal/) | Customers (logged in) | Customer app: quotes, invoices, pets, bookings, forms, messages with staff | Flutter (iOS), provider, http, flutter_secure_storage, local_auth, signature | n/a |
 
 ## System architecture

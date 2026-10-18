@@ -2,6 +2,7 @@ import type {
   AnimalRecord,
   BookingRecord,
   InvoiceRecord,
+  PetFields,
   Profile,
   ProfileUpdate,
   QuoteRecord,
@@ -98,6 +99,9 @@ export const updateProfile = (dto: ProfileUpdate) =>
 export const fetchInvoices = () => request<InvoiceRecord[]>('/portal/invoices');
 export const fetchQuotes = () => request<QuoteRecord[]>('/portal/quotes');
 export const fetchAnimals = () => request<AnimalRecord[]>('/portal/animals');
+export const updateAnimal = (id: string, dto: Partial<PetFields>) =>
+  request<AnimalRecord>(`/portal/animals/${id}`, { method: 'PATCH', body: JSON.stringify(dto) });
+
 export const fetchBookings = () => request<BookingRecord[]>('/portal/bookings');
 
 // Fetches the PDF with the bearer token (a plain link can't send it) and

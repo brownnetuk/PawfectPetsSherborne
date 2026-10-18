@@ -72,14 +72,50 @@ export interface QuoteRecord {
   validUntil: string;
 }
 
-export interface AnimalRecord {
-  _id: string;
+export type TriState = 'yes' | 'no' | 'unsure';
+
+export interface MedicationEntry {
   name: string;
-  species?: string;
-  breed?: string;
-  sex?: string;
+  illnessTreating?: string;
+  dosage?: string;
+  frequency?: string;
+  vetPrescribed: boolean;
+  administeredByPawfectPets: boolean;
+  additionalInfo?: string;
+}
+
+// The customer-editable part of an Animal (backend CreateAnimalDto). Species,
+// photos and the signed off-lead consent stay with staff.
+export interface PetFields {
+  name: string;
+  breed: string;
+  sex: 'male' | 'female';
+  age: number;
   dateOfBirth?: string;
-  age?: number;
+  vaccinated: boolean;
+  vaccineExpiryDate?: string;
+  colourMarkings?: string;
+  microchipNumber?: string;
+  insured?: boolean;
+  insurer?: string;
+  neuteredStatus?: 'neutered' | 'spayed' | 'no';
+  lastSeasonEndDate?: string;
+  temperamentNotes?: string;
+  aggressionToPeople: boolean;
+  aggressionToPeopleDetails?: string;
+  aggressionToOtherAnimals?: boolean;
+  aggressionToOtherAnimalsDetails?: string;
+  travelsWellInCar?: TriState;
+  travelsWellInCarDetails?: string;
+  chasesLivestock?: TriState;
+  chasesLivestockDetails?: string;
+  allergies: { status: TriState; details?: string };
+  medication: { onMedication: boolean; medications?: MedicationEntry[] };
+}
+
+export interface AnimalRecord extends PetFields {
+  _id: string;
+  species: 'dog' | 'cat' | 'other';
 }
 
 export interface BookingRecord {

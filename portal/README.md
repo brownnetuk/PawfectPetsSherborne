@@ -6,7 +6,9 @@ The browser version of the customer portal, served at
 - update their contact details, emergency contact and vet
 - see their invoices and quotes and download each as a PDF (read-only: no
   accepting quotes or paying from here)
-- see their pets and bookings
+- update their pets' details (name, breed, health, medication, behaviour);
+  species, photos and the signed off-lead consent stay with staff
+- see their bookings
 
 It talks to the same `/portal/*` API as the customer iPhone app
 (`mobile-portal/`), so the same **Customer Portal** switch on a customer's
