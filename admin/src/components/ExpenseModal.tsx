@@ -7,29 +7,52 @@ import { bankAccountTypeLabel } from '../utils/bankAccountType';
 
 interface Props {
   expense: Expense | null;
+  // When set (and `expense` isn't), the form opens as a new expense prefilled
+  // from this one, dated today and without its receipt.
+  cloneFrom?: Expense | null;
   onClose: () => void;
   onSaved: () => void;
 }
 
 const MAX_RECEIPT_BYTES = 4 * 1024 * 1024;
 
+// The small round "+" beside the Payee and Category labels.
+const addButtonStyle: React.CSSProperties = {
+  width: 20,
+  height: 20,
+  borderRadius: '50%',
+  border: '1px solid var(--border)',
+  background: '#fff',
+  color: 'var(--brand-green)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 14,
+  lineHeight: 1,
+  cursor: 'pointer',
+  padding: 0,
+  fontWeight: 700,
+};
+
 function accountId(account: Expense['account']): string {
   if (!account) return '';
   return typeof account === 'string' ? account : account._id;
 }
 
-export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
+export default function ExpenseModal({ expense, cloneFrom, onClose, onSaved }: Props) {
+  const source = expense ?? cloneFrom ?? null;
   const [accounts, setAccounts] = useState<BankAccount[] | null>(null);
   const [categories, setCategories] = useState<ExpenseCategoryOption[] | null>(null);
   const [vendors, setVendors] = useState<VendorOption[] | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[] | null>(null);
   const [date, setDate] = useState(expense ? expense.date.slice(0, 10) : new Date().toISOString().slice(0, 10));
-  const [category, setCategory] = useState(expense?.category ?? '');
-  const [payee, setPayee] = useState(expense?.payee ?? '');
-  const [paymentMethod, setPaymentMethod] = useState(expense?.paymentMethod ?? '');
-  const [description, setDescription] = useState(expense?.description ?? '');
-  const [amount, setAmount] = useState(expense ? String(expense.amount) : '');
-  const [account, setAccount] = useState(expense ? accountId(expense.account) : '');
+  const [category, setCategory] = useState(source?.category ?? '');
+  const [payee, setPayee] = useState(source?.payee ?? '');
+  const [paymentMethod, setPaymentMethod] = useState(source?.paymentMethod ?? '');
+  const [reference, setReference] = useState(source?.reference ?? '');
+  const [description, setDescription] = useState(source?.description ?? '');
+  const [amount, setAmount] = useState(source ? String(source.amount) : '');
+  const [account, setAccount] = useState(source ? accountId(source.account) : '');
   const [receipt, setReceipt] = useState(expense?.receipt ?? '');
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,14 +61,18 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
   const [newPayeeName, setNewPayeeName] = useState('');
   const [addPayeeBusy, setAddPayeeBusy] = useState(false);
   const [addPayeeError, setAddPayeeError] = useState<string | null>(null);
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [addCategoryBusy, setAddCategoryBusy] = useState(false);
+  const [addCategoryError, setAddCategoryError] = useState<string | null>(null);
 
   useEffect(() => {
     api.listBankAccounts().then((list) => {
       setAccounts(list);
-      // Only pre-select on a brand-new expense -- an existing one keeps
-      // whatever it was recorded against, same reasoning as the payment
+      // Only pre-select on a brand-new expense -- an existing or cloned one
+      // keeps whatever it was recorded against, same reasoning as the payment
       // method default below.
-      if (!expense) {
+      if (!source) {
         const defaultAccount = list.find((a) => a.isDefault);
         if (defaultAccount) setAccount((cur) => cur || defaultAccount._id);
       }
@@ -60,7 +87,7 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
       // Only pre-select on a brand-new expense -- an existing one keeps
       // whatever it was recorded with, same as DocumentFormModal's default
       // invoice term only applying when there's no existing document.
-      if (!expense) {
+      if (!source) {
         const defaultMethod = list.find((m) => m.isDefault);
         if (defaultMethod) setPaymentMethod((cur) => cur || defaultMethod.name);
       }
@@ -83,6 +110,24 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
       setAddPayeeError(err instanceof Error ? err.message : 'Failed to add this payee');
     } finally {
       setAddPayeeBusy(false);
+    }
+  }
+
+  async function handleAddCategory() {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    setAddCategoryBusy(true);
+    setAddCategoryError(null);
+    try {
+      const created = await api.createExpenseCategory({ name });
+      setCategories((prev) => [...(prev ?? []), created].sort((a, b) => a.name.localeCompare(b.name)));
+      setCategory(created.name);
+      setNewCategoryName('');
+      setShowAddCategory(false);
+    } catch (err) {
+      setAddCategoryError(err instanceof Error ? err.message : 'Failed to add this category');
+    } finally {
+      setAddCategoryBusy(false);
     }
   }
 
@@ -115,6 +160,8 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
         category,
         payee: payee || undefined,
         paymentMethod: paymentMethod || undefined,
+        // Sent even when blank so clearing it on an edit actually clears it.
+        reference: reference.trim(),
         description: description || undefined,
         amount: Number(amount),
         account: account || undefined,
@@ -134,7 +181,7 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
   }
 
   return (
-    <Modal title={expense ? 'Edit expense' : 'New expense'} onClose={onClose}>
+    <Modal title={expense ? 'Edit expense' : cloneFrom ? 'Clone expense' : 'New expense'} onClose={onClose}>
       {error && <div className="error-banner">{error}</div>}
       <form onSubmit={handleSubmit}>
         <div className="field-row">
@@ -143,23 +190,74 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
             <DateInput value={date} onChange={setDate} required autoFocus />
           </div>
           <div className="field">
-            <label>Category *</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} required>
-              {!categories || categories.length === 0 ? (
-                <option value="">No categories set up</option>
-              ) : (
-                categories.map((c) => (
-                  <option key={c._id} value={c.name}>
-                    {c.name}
-                  </option>
-                ))
-              )}
-              {/* Keeps an existing expense's stored category selectable even if it's since
-                  been renamed or removed from Settings > Finance. */}
-              {category && !categories?.some((c) => c.name === category) && (
-                <option value={category}>{category}</option>
-              )}
-            </select>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Category *</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddCategory((v) => !v);
+                  setAddCategoryError(null);
+                }}
+                title="Add new category"
+                aria-label="Add new category"
+                style={addButtonStyle}
+              >
+                +
+              </button>
+            </label>
+            {showAddCategory ? (
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="New category name"
+                  autoFocus
+                  style={{ flexGrow: 1 }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleAddCategory}
+                  disabled={addCategoryBusy || !newCategoryName.trim()}
+                >
+                  {addCategoryBusy ? 'Adding…' : 'Add'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    setShowAddCategory(false);
+                    setNewCategoryName('');
+                    setAddCategoryError(null);
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <select value={category} onChange={(e) => setCategory(e.target.value)} required>
+                {!categories || categories.length === 0 ? (
+                  <option value="">No categories set up</option>
+                ) : (
+                  categories.map((c) => (
+                    <option key={c._id} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))
+                )}
+                {/* Keeps an existing expense's stored category selectable even if it's since
+                    been renamed or removed from Settings > Finance. */}
+                {category && !categories?.some((c) => c.name === category) && (
+                  <option value={category}>{category}</option>
+                )}
+              </select>
+            )}
+            {addCategoryError && (
+              <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--error)', marginTop: 4 }}>
+                {addCategoryError}
+              </div>
+            )}
           </div>
         </div>
         <div className="field-row">
@@ -174,22 +272,7 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
                 }}
                 title="Add new payee"
                 aria-label="Add new payee"
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: '50%',
-                  border: '1px solid var(--border)',
-                  background: '#fff',
-                  color: 'var(--brand-green)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 14,
-                  lineHeight: 1,
-                  cursor: 'pointer',
-                  padding: 0,
-                  fontWeight: 700,
-                }}
+                style={addButtonStyle}
               >
                 +
               </button>
@@ -259,6 +342,15 @@ export default function ExpenseModal({ expense, onClose, onSaved }: Props) {
               )}
             </select>
           </div>
+        </div>
+        <div className="field">
+          <label>Reference</label>
+          <input
+            type="text"
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+            placeholder="e.g. invoice or order number"
+          />
         </div>
         <div className="field">
           <label>Description</label>

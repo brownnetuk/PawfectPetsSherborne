@@ -23,6 +23,10 @@ export class Expense extends Document {
   @Prop()
   paymentMethod?: string;
 
+  // Free-text reference such as an invoice or order number from the payee.
+  @Prop()
+  reference?: string;
+
   @Prop()
   description?: string;
 
