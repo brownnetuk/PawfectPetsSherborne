@@ -482,6 +482,9 @@ function InvoicesTab() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, maxWidth: 900, margin: '0 auto 16px' }}>
                 <h3 style={{ margin: 0 }}>Invoice {viewing.invoiceNumber}</h3>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button className="btn btn-secondary btn-sm" onClick={closePdf}>
+                    Cancel
+                  </button>
                   <ActionsMenu items={invoiceActions(viewing)} />
                   {pdfUrl ? (
                     <a href={pdfUrl} download={`${viewing.invoiceNumber}.pdf`} className="btn btn-secondary btn-sm">
@@ -492,9 +495,6 @@ function InvoicesTab() {
                       {pdfLoading ? 'Preparing…' : 'Download'}
                     </button>
                   )}
-                  <button className="btn btn-secondary btn-sm" onClick={closePdf}>
-                    Close
-                  </button>
                 </div>
               </div>
               <div style={{ maxWidth: 900, margin: '0 auto 12px' }}>
@@ -861,6 +861,9 @@ function QuotesTab() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, maxWidth: 900, margin: '0 auto 16px' }}>
                 <h3 style={{ margin: 0 }}>Quote {viewing.quoteNumber}</h3>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button className="btn btn-secondary btn-sm" onClick={closePdf}>
+                    Cancel
+                  </button>
                   <ActionsMenu items={quoteActions(viewing)} />
                   {pdfUrl ? (
                     <a href={pdfUrl} download={`${viewing.quoteNumber}.pdf`} className="btn btn-secondary btn-sm">
@@ -871,9 +874,6 @@ function QuotesTab() {
                       {pdfLoading ? 'Preparing…' : 'Download'}
                     </button>
                   )}
-                  <button className="btn btn-secondary btn-sm" onClick={closePdf}>
-                    Close
-                  </button>
                 </div>
               </div>
               {pdfError && <div className="error-banner" style={{ maxWidth: 900, margin: '0 auto 16px' }}>{pdfError}</div>}
