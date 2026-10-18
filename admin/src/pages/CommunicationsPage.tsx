@@ -32,7 +32,9 @@ export default function CommunicationsPage() {
 
   return (
     <div>
-      <h1>Communications</h1>
+      <div className="page-header">
+        <h1>Communications</h1>
+      </div>
       <div className="tabs">
         <button className={tab === 'conversations' ? 'active' : ''} onClick={() => setTab('conversations')}>
           Conversations
