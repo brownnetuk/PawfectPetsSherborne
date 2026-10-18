@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as api from '../api/client';
 import DateInput from './DateInput';
 import Modal from './Modal';
@@ -66,6 +66,7 @@ export default function ExpenseModal({ expense, cloneFrom, onClose, onSaved }: P
     expense?.receipt ? receiptExtension(expense.receiptName, expense.receipt) : '',
   );
   const [receiptError, setReceiptError] = useState<string | null>(null);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showAddPayee, setShowAddPayee] = useState(false);
@@ -178,13 +179,15 @@ export default function ExpenseModal({ expense, cloneFrom, onClose, onSaved }: P
       const input = {
         date,
         category,
-        payee: payee || undefined,
-        paymentMethod: paymentMethod || undefined,
-        // Sent even when blank so clearing it on an edit actually clears it.
+        // On an edit, cleared fields are sent blank (null for the account,
+        // which must otherwise be an id) so clearing them actually clears
+        // them -- left out, the update just keeps the old value.
+        payee: expense ? payee : payee || undefined,
+        paymentMethod: expense ? paymentMethod : paymentMethod || undefined,
         reference: reference.trim(),
-        description: description || undefined,
+        description: expense ? description.trim() : description.trim() || undefined,
         amount: Number(amount),
-        account: account || undefined,
+        account: expense ? account || null : account || undefined,
         // Sent blank on an edit so Remove actually clears the stored receipt.
         receipt: expense ? receipt : receipt || undefined,
         // Recomputed on every save so it follows any change to the date,
@@ -452,7 +455,21 @@ export default function ExpenseModal({ expense, cloneFrom, onClose, onSaved }: P
               </div>
             </div>
           ) : (
-            <input type="file" accept="image/jpeg,image/png,image/*,application/pdf,.pdf" onChange={handleReceiptChange} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {/* The native file input is hidden behind a branded button --
+                  its own grey "Choose File" control doesn't match the app. */}
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => receiptInputRef.current?.click()}>
+                Upload receipt
+              </button>
+              <input
+                ref={receiptInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/*,application/pdf,.pdf"
+                onChange={handleReceiptChange}
+                style={{ display: 'none' }}
+              />
+              <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>JPG, PNG or PDF, up to 4MB</span>
+            </div>
           )}
           {receiptError && (
             <div className="field-hint" style={{ fontSize: '0.8rem', color: 'var(--error)', marginTop: 4 }}>
