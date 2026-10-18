@@ -44,6 +44,7 @@ import type {
   LineItem,
   Message,
   MyTrainingListEntry,
+  OtherIncome,
   Payment,
   PaymentMethod,
   PreBoardingFormRecord,
@@ -750,6 +751,24 @@ export function sendPaymentReceipt(id: string, attachmentData: string, attachmen
     method: 'POST',
     body: JSON.stringify({ attachmentData, attachmentName }),
   });
+}
+
+// --- other income ---
+export function listOtherIncome(): Promise<OtherIncome[]> {
+  return request('/other-income');
+}
+export interface OtherIncomeInput {
+  date: string;
+  receivedFrom: string;
+  description?: string;
+  amount: number;
+  account: string;
+}
+export function createOtherIncome(input: OtherIncomeInput): Promise<OtherIncome> {
+  return request('/other-income', { method: 'POST', body: JSON.stringify(input) });
+}
+export function deleteOtherIncome(id: string): Promise<void> {
+  return request(`/other-income/${id}`, { method: 'DELETE' });
 }
 
 // --- expenses ---

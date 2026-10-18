@@ -13,6 +13,7 @@ const MONTHS = [
 
 const TYPE_LABELS: Record<BankTransaction['type'], string> = {
   payment: 'Payment',
+  other_income: 'Other Income',
   expense: 'Expense',
   credit_note: 'Credit Note',
   bank_transfer: 'Transfer',

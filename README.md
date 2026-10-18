@@ -1617,7 +1617,7 @@ There is no PATCH route for credit notes.
 | GET | `/bank-accounts/:id/transactions?month=&year=` | JWT | Monthly running-balance statement. Defaults to the current month and year. |
 | PATCH | `/bank-accounts/:id` | JWT | Update details or default. **Not** gated. |
 | PATCH | `/bank-accounts/:id/opening-balance` | JWT | Reconciliation: sets the anchor `{date, balance}` and recomputes `currentBalance`. **Not** gated. |
-| DELETE | `/bank-accounts/:id` | JWT + `financial.manage` | Delete. 409 if payments, expenses or credit notes reference it. |
+| DELETE | `/bank-accounts/:id` | JWT + `financial.manage` | Delete. 409 if payments, other income, expenses or credit notes reference it. |
 
 #### `BankTransfersController` — `backend/src/bank-transfers/bank-transfers.controller.ts`
 
@@ -1627,6 +1627,17 @@ There is no PATCH route for credit notes.
 | GET | `/bank-transfers` | JWT | List, sorted by `date` desc. |
 | PATCH | `/bank-transfers/:id` | JWT + `financial.manage` | Reverse, then re-apply. |
 | DELETE | `/bank-transfers/:id` | JWT + `financial.manage` | Delete and reverse. |
+
+#### `OtherIncomeController` — `backend/src/other-income/other-income.controller.ts`
+
+Money received without an invoice (refunds, interest). Credits `account` like a payment; included in bank statements (`type: 'other_income'`), opening-balance reconciliation and the income side of `/reports`.
+
+| Method | Path | Auth/permission | Purpose |
+|---|---|---|---|
+| POST | `/other-income` | JWT | Create `{date, receivedFrom, description?, amount, account}`. Credits the account. |
+| GET | `/other-income` | JWT | List, sorted by `date` desc, `account` populated. |
+| PATCH | `/other-income/:id` | JWT + `financial.manage` | Reverse, then re-apply. |
+| DELETE | `/other-income/:id` | JWT + `financial.manage` | Delete and reverse. |
 
 #### `ExpensesController` — `backend/src/expenses/expenses.controller.ts`
 
@@ -1851,6 +1862,10 @@ This model is still used by the mobile app (`listBookings`/`updateBookingStatus`
 #### `BankTransfer` — `backend/src/bank-transfers/schemas/bank-transfer.schema.ts`
 
 `date` (Date, required), `reference` (string), `fromAccount` and `toAccount` (ObjectId → `BankAccount`, required), `amount` (number, required, min 0).
+
+#### `OtherIncome` — `backend/src/other-income/schemas/other-income.schema.ts`
+
+`date` (Date, required), `receivedFrom` (string, required), `description` (string), `amount` (number, required, min 0), `account` (ObjectId → `BankAccount`, required).
 
 #### `Expense` — `backend/src/expenses/schemas/expense.schema.ts`
 
@@ -4644,7 +4659,7 @@ Every page uses the same pattern: local `useState`, a `useEffect` fetch through 
 #### `FinancialPage.tsx` (`/financial`) and `FinancialSnapshotTab.tsx`
 
 - **Tabs:** **Snapshot · Payments · Expenses · Credit Notes · Bank Transfers**.
-- **Payments** (`listPayments`). Columns: Payment ID · Date · Invoice · Amount · Charges · Payment Method · Account. **Add payment** opens `AddPaymentModal`. Row actions:
+- **Payments** (`listPayments` + `listOtherIncome`, merged newest first). Columns: Payment ID · Date · Invoice · Amount · Charges · Payment Method · Account. **Other Income** opens `OtherIncomeModal` (Date, Received from, Description, Amount, Account → `createOtherIncome`); those rows show an "Other income" badge and Received from / Description in the Invoice column, with only Delete (`deleteOtherIncome`). **Add payment** opens `AddPaymentModal`. Payment row actions:
   - "Send payment received email" (`sendPaymentReceivedEmail`).
   - "Send receipt": calls `getInvoice`, builds `buildReceiptPdf(payment, invoice)`, then `sendPaymentReceipt(id, dataUri, "Receipt <paymentId>.pdf")`.
   - Delete (`deletePayment`).

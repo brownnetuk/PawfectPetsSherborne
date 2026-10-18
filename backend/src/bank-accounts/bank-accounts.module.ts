@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { BankTransfer, BankTransferSchema } from '../bank-transfers/schemas/bank-transfer.schema';
 import { CreditNote, CreditNoteSchema } from '../credit-notes/schemas/credit-note.schema';
 import { Expense, ExpenseSchema } from '../expenses/schemas/expense.schema';
+import { OtherIncome, OtherIncomeSchema } from '../other-income/schemas/other-income.schema';
 import { Payment, PaymentSchema } from '../payments/schemas/payment.schema';
 import { BankAccountsController } from './bank-accounts.controller';
 import { BankAccountsService } from './bank-accounts.service';
@@ -13,15 +14,16 @@ import { BankAccount, BankAccountSchema } from './schemas/bank-account.schema';
     MongooseModule.forFeature([
       { name: BankAccount.name, schema: BankAccountSchema },
       // Read-only here -- BankAccountsService.getTransactions() reads these
-      // four directly to build a per-account statement, the same
+      // directly to build a per-account statement, the same
       // declare-your-own-forFeature-instead-of-importing-the-module approach
       // ReportsModule uses, which also avoids a real circular module
-      // dependency (Payments/Expenses/CreditNotes/BankTransfers all import
+      // dependency (Payments/Expenses/CreditNotes/BankTransfers/OtherIncome all import
       // BankAccountsModule the other way, for adjustBalance()).
       { name: Payment.name, schema: PaymentSchema },
       { name: Expense.name, schema: ExpenseSchema },
       { name: CreditNote.name, schema: CreditNoteSchema },
       { name: BankTransfer.name, schema: BankTransferSchema },
+      { name: OtherIncome.name, schema: OtherIncomeSchema },
     ]),
   ],
   controllers: [BankAccountsController],
