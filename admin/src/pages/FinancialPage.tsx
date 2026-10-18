@@ -6,7 +6,7 @@ import CreditNoteModal from '../components/CreditNoteModal';
 import ExpenseModal from '../components/ExpenseModal';
 import Modal from '../components/Modal';
 import ViewExpenseModal from '../components/ViewExpenseModal';
-import { InvoicesIcon, MailIcon, PencilIcon, TrashIcon } from '../components/icons';
+import { CopyIcon, InvoicesIcon, MailIcon, PencilIcon, TrashIcon } from '../components/icons';
 import { buildReceiptPdf } from '../pdf/receiptPdf';
 import type { BankTransfer, CreditNote, Expense, Payment } from '../types';
 import FinancialSnapshotTab from './FinancialSnapshotTab';
@@ -266,6 +266,7 @@ function ExpensesCard() {
   const [showNew, setShowNew] = useState(false);
   const [viewing, setViewing] = useState<Expense | null>(null);
   const [editing, setEditing] = useState<Expense | null>(null);
+  const [cloning, setCloning] = useState<Expense | null>(null);
   const [deleting, setDeleting] = useState<Expense | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -346,6 +347,9 @@ function ExpensesCard() {
                     <button className="icon-btn" title="Edit" onClick={() => setEditing(e)}>
                       <PencilIcon />
                     </button>
+                    <button className="icon-btn" title="Clone" onClick={() => setCloning(e)}>
+                      <CopyIcon />
+                    </button>
                     <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(e)}>
                       <TrashIcon />
                     </button>
@@ -368,16 +372,19 @@ function ExpensesCard() {
         />
       )}
 
-      {(showNew || editing) && (
+      {(showNew || editing || cloning) && (
         <ExpenseModal
           expense={editing}
+          cloneFrom={cloning}
           onClose={() => {
             setShowNew(false);
             setEditing(null);
+            setCloning(null);
           }}
           onSaved={() => {
             setShowNew(false);
             setEditing(null);
+            setCloning(null);
             refresh();
           }}
         />

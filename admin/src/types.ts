@@ -362,6 +362,7 @@ export interface Expense {
   category: string;
   payee?: string;
   paymentMethod?: string;
+  reference?: string;
   description?: string;
   amount: number;
   account?: { _id: string; name: string; type: BankAccountType } | string;

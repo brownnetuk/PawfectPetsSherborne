@@ -1860,6 +1860,7 @@ This model is still used by the mobile app (`listBookings`/`updateBookingStatus`
 | `category` | string | required; name copied from `ExpenseCategory` |
 | `payee` | string | name copied from `Vendor` |
 | `paymentMethod` | string | name copied |
+| `reference` | string | optional free text, e.g. the payee's invoice number |
 | `description` | string | |
 | `amount` | number | required, min 0 |
 | `account` | ObjectId → `BankAccount` | optional |

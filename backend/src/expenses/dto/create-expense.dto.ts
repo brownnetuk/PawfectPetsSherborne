@@ -27,6 +27,10 @@ export class CreateExpenseDto {
 
   @IsOptional()
   @IsString()
+  reference?: string;
+
+  @IsOptional()
+  @IsString()
   description?: string;
 
   @Type(() => Number)
