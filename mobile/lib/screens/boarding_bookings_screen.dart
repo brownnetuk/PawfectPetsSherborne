@@ -246,9 +246,12 @@ class BoardingStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Mirrors the admin's STATUS_PILL_COLORS: muted for not-yet-sent, blue
+    // for invoice sent, yellow for awaiting-action, filled blue for the
+    // done/complete stages.
     final (background, foreground) = switch (status) {
-      'Confirmed' => (const Color(0xFFEEF1F3), brandInk),
-      'Invoice Raised' => (brandBlueTint, brandBlueDark),
+      'Confirmed' || 'Invoice Raised - Draft' => (const Color(0xFFEEF1F3), brandInk),
+      'Invoice Raised' || 'Invoice Raised - Sent' => (brandBlueTint, brandBlueDark),
       'Deposit Requested' || 'In Progress' => (brandYellowTint, brandInk),
       _ => (brandBlue, Colors.white),
     };

@@ -823,6 +823,7 @@ class Repository {
     String? payee,
     String? accountId,
     String? receipt,
+    String? reference,
   }) async =>
       Expense.fromJson(await _client.post('/expenses', {
         'date': date.toIso8601String(),
@@ -832,6 +833,7 @@ class Repository {
         if (payee != null && payee.isNotEmpty) 'payee': payee,
         if (accountId != null) 'account': accountId,
         if (receipt != null && receipt.isNotEmpty) 'receipt': receipt,
+        if (reference != null && reference.isNotEmpty) 'reference': reference,
       }));
 
   /// The list endpoint strips attachment images -- this returns them in full.

@@ -46,6 +46,23 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     }
   }
 
+  /// Creates a new expense prefilled from this one (dated today, no receipt)
+  /// -- the staff-app twin of the admin's clone action.
+  Future<void> _duplicate() async {
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: ExpenseFormSheet(cloneFrom: _expense),
+      ),
+    );
+    if (saved == true && mounted) {
+      _changed = true;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Expense duplicated.')));
+    }
+  }
+
   Future<void> _delete() async {
     final repo = context.read<Repository>();
     final ok = await showDialog<bool>(
@@ -125,6 +142,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
             _row(Icons.account_balance_outlined, 'Paid from', e.accountName ?? '—'),
             _row(Icons.storefront_outlined, 'Payee', (e.payee ?? '').isEmpty ? '—' : e.payee!),
             _row(Icons.category_outlined, 'Category', e.category.isEmpty ? '—' : e.category),
+            _row(Icons.tag_outlined, 'Reference', (e.reference ?? '').isEmpty ? '—' : e.reference!),
           ],
         ),
         bottomNavigationBar: SafeArea(
@@ -136,6 +154,14 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                   onPressed: _edit,
                   icon: const Icon(Icons.edit_outlined, size: 18),
                   label: const Text('Edit'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _duplicate,
+                  icon: const Icon(Icons.copy_outlined, size: 18),
+                  label: const Text('Copy'),
                 ),
               ),
               const SizedBox(width: 12),

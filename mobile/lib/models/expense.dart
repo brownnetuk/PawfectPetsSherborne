@@ -8,6 +8,8 @@ class Expense {
   final String? accountId;
   final String? accountName;
   final String? receipt; // base64 data URI, if a receipt is attached
+  // Free-text reference such as an invoice or order number from the payee.
+  final String? reference;
 
   Expense({
     required this.id,
@@ -19,6 +21,7 @@ class Expense {
     this.accountId,
     this.accountName,
     this.receipt,
+    this.reference,
   });
 
   bool get hasReceipt => receipt != null && receipt!.isNotEmpty;
@@ -37,6 +40,7 @@ class Expense {
           : (account is String ? account : null),
       accountName: account is Map<String, dynamic> ? account['name'] as String? : null,
       receipt: json['receipt'] as String?,
+      reference: json['reference'] as String?,
     );
   }
 }

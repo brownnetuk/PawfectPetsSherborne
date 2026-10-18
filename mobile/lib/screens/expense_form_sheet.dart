@@ -24,9 +24,13 @@ Uint8List _compressReceipt(Uint8List input) {
 
 /// Bottom sheet for creating or editing an expense. Pops `true` on save.
 /// When [expense] is set it edits that expense (PATCH); else it creates one.
+/// [cloneFrom] (with [expense] unset) opens as a new expense prefilled from
+/// that one, dated today and without its receipt -- same as the admin's
+/// clone action.
 class ExpenseFormSheet extends StatefulWidget {
   final Expense? expense;
-  const ExpenseFormSheet({super.key, this.expense});
+  final Expense? cloneFrom;
+  const ExpenseFormSheet({super.key, this.expense, this.cloneFrom});
 
   bool get isEditing => expense != null;
 
@@ -37,6 +41,7 @@ class ExpenseFormSheet extends StatefulWidget {
 class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
   final _descriptionController = TextEditingController();
   final _amountController = TextEditingController();
+  final _referenceController = TextEditingController();
   DateTime _date = DateTime.now();
   ExpenseCategory? _category;
   Vendor? _payee;
@@ -49,10 +54,16 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
   @override
   void initState() {
     super.initState();
+    // A clone prefills everything from the source except the date (today)
+    // and the receipt.
+    final source = widget.expense ?? widget.cloneFrom;
+    if (source != null) {
+      _descriptionController.text = source.description;
+      _amountController.text = source.amount.toStringAsFixed(2);
+      _referenceController.text = source.reference ?? '';
+    }
     final e = widget.expense;
     if (e != null) {
-      _descriptionController.text = e.description;
-      _amountController.text = e.amount.toStringAsFixed(2);
       _date = e.date;
       _receipt = e.receipt;
     }
@@ -63,28 +74,29 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
       final accounts = await repo.listBankAccounts();
       return (categories, vendors, accounts);
     }();
-    // Pre-select the dropdowns for edit mode once the lookups have loaded; a
-    // new expense starts on the account marked default in the admin.
+    // Pre-select the dropdowns for edit/clone mode once the lookups have
+    // loaded; a fresh expense starts on the account marked default in the
+    // admin.
     _lookups.then((data) {
       if (!mounted) return;
       final (categories, vendors, accounts) = data;
       setState(() {
-        if (e == null) {
+        if (source == null) {
           for (final a in accounts) {
             if (a.isDefault) _account = a;
           }
           return;
         }
         for (final c in categories) {
-          if (c.name == e.category) _category = c;
+          if (c.name == source.category) _category = c;
         }
-        if (e.payee != null) {
+        if (source.payee != null) {
           for (final v in vendors) {
-            if (v.name == e.payee) _payee = v;
+            if (v.name == source.payee) _payee = v;
           }
         }
         for (final a in accounts) {
-          if (a.id == e.accountId || a.name == e.accountName) _account = a;
+          if (a.id == source.accountId || a.name == source.accountName) _account = a;
         }
       });
     }).catchError((_) {});
@@ -94,6 +106,7 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
   void dispose() {
     _descriptionController.dispose();
     _amountController.dispose();
+    _referenceController.dispose();
     super.dispose();
   }
 
@@ -217,6 +230,7 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
           if (_payee != null) 'payee': _payee!.name,
           if (_account != null) 'account': _account!.id,
           'receipt': _receipt ?? '',
+          'reference': _referenceController.text.trim(),
         });
       } else {
         await repo.createExpense(
@@ -227,6 +241,7 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
           payee: _payee?.name,
           accountId: _account?.id,
           receipt: _receipt,
+          reference: _referenceController.text.trim(),
         );
       }
       if (mounted) Navigator.of(context).pop(true);
@@ -380,6 +395,14 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
                       onPressed: () => _addLookup(isCategory: false),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _referenceController,
+                  decoration: const InputDecoration(
+                    labelText: 'Reference',
+                    hintText: 'Optional — invoice or order number',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(

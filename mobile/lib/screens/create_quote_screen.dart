@@ -58,6 +58,9 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
   late Future<_FormData> _dataFuture;
   List<InvoiceTerm> _terms = [];
   InvoiceTerm? _selectedTerm;
+  // Stashed from the loaded form data for the travel-line sync.
+  Customer? _customer;
+  List<Product> _products = [];
 
   // "Visits" toggle: auto-populate line items from the Visits mapping.
   bool _showVisits = false;
@@ -139,6 +142,8 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
     _dataFuture.then((data) async {
       if (!mounted) return;
       _terms = data.terms;
+      _customer = data.customer;
+      _products = data.products;
       if (widget.isEditing) {
         final q = await repo.getQuote(widget.quote!.id);
         if (!mounted) return;
@@ -211,6 +216,45 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
   double get _total => _items.fold(0, (sum, item) => sum + item.lineTotal);
 
   void _addItem() => setState(() => _items.add(_LineItemEntry()));
+
+  /// Keeps a travel-chargeable customer's travel line matching the total
+  /// quantity of the other catalogue products on the form (1 x Visit -> 1 x
+  /// Travel), adding or removing the line as needed -- the staff-app port of
+  /// admin/src/utils/travelLines.ts. Runs on every line change, so manual
+  /// edits to the travel quantity snap back, same as the admin.
+  void _syncTravelLine() {
+    final customer = _customer;
+    if (customer == null || !customer.travelChargeable) return;
+    final travelId = customer.travelProductId;
+    if (travelId == null || travelId.isEmpty) return;
+    Product? found;
+    for (final p in _products) {
+      if (p.id == travelId) found = p;
+    }
+    if (found == null) return;
+    final travel = found;
+    var quantity = 0.0;
+    for (final item in _items) {
+      final product = item.product;
+      // Synthetic products (id '') were deleted from the catalogue -- like
+      // the admin's name-match, they don't count towards travel.
+      if (product == null || product.id.isEmpty || product.id == travel.id) continue;
+      quantity += double.tryParse(item.quantity.text.trim()) ?? 0;
+    }
+    final index = _items.indexWhere((i) => i.product?.id == travel.id);
+    if (quantity <= 0) {
+      if (index >= 0) _items.removeAt(index).dispose();
+      return;
+    }
+    if (index >= 0) {
+      final current = double.tryParse(_items[index].quantity.text.trim()) ?? 0;
+      if (current != quantity) _items[index].quantity.text = _trimNum(quantity);
+    } else {
+      _items.add(_LineItemEntry()
+        ..product = travel
+        ..quantity.text = _trimNum(quantity));
+    }
+  }
 
   Future<void> _pickVisitDate({required bool isStart}) async {
     final initial = (isStart ? _visitStart : _visitEnd) ?? DateTime.now();
@@ -736,7 +780,12 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
         ],
       ),
     );
-    if (ok == true) setState(() => _items.removeAt(index).dispose());
+    if (ok == true) {
+      setState(() {
+        _items.removeAt(index).dispose();
+        _syncTravelLine();
+      });
+    }
   }
 
   void _applyTermValidUntil(InvoiceTerm t) {
@@ -962,7 +1011,7 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
                 key: ObjectKey(entry.value),
                 entry: entry.value,
                 products: products,
-                onChanged: () => setState(() {}),
+                onChanged: () => setState(_syncTravelLine),
                 onRemove: _items.length > 1 ? () => _confirmRemoveItem(entry.key) : null,
               ),
             ),
