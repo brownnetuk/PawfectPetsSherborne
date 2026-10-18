@@ -364,7 +364,12 @@ export function signatureBlock(dataUrl: string, label: string): Block {
       doc.setLineWidth(0.75);
       doc.roundedRect(INNER_X, top, w, h, 6, 6, 'FD');
       try {
-        doc.addImage(dataUrl, 'PNG', INNER_X + 4, top + 2, w - 8, h - 4);
+        // 'FAST' (flate) compression matters here: jsPDF otherwise stores a
+        // transparent PNG's pixels uncompressed, and a signature drawn on a
+        // high-res phone screen came out at ~4MB per signature that way --
+        // enough for a customer with a few signatures to push the PDF past
+        // the API's 8MB request limit.
+        doc.addImage(dataUrl, 'PNG', INNER_X + 4, top + 2, w - 8, h - 4, undefined, 'FAST');
       } catch {
         // Malformed/legacy signature data -- skip the image rather than fail the whole PDF.
       }
@@ -457,7 +462,7 @@ export class BrandPdfWriter {
     doc.circle(badgeCx, cy, badgeR, 'F');
     if (this.logo) {
       try {
-        doc.addImage(this.logo, 'PNG', badgeCx - 22, cy - 22, 44, 44);
+        doc.addImage(this.logo, 'PNG', badgeCx - 22, cy - 22, 44, 44, undefined, 'FAST');
       } catch {
         // ignore malformed logo data
       }

@@ -18,6 +18,7 @@ export default function RegistrationPdfsCard() {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [failures, setFailures] = useState<string[]>([]);
+  const [skipped, setSkipped] = useState(0);
   const [finished, setFinished] = useState(false);
 
   function refresh() {
@@ -37,20 +38,35 @@ export default function RegistrationPdfsCard() {
     setRunning(true);
     setFinished(false);
     setFailures([]);
+    setSkipped(0);
     setProgress({ done: 0, total: snapshots.length });
 
     const businessInfo = await api.getBusinessInfo().catch(() => null);
+    // Snapshots outlive their customer -- deleting a customer leaves its
+    // Activity entries behind -- so those are skipped (and left untouched)
+    // rather than reported as failures.
+    const customerIds = await api
+      .listCustomers()
+      .then((list) => new Set(list.map((c) => c._id)))
+      .catch(() => null);
     const byCustomer = new Map<string, RegistrationSnapshot[]>();
     for (const s of snapshots) {
       byCustomer.set(s.customer, [...(byCustomer.get(s.customer) ?? []), s]);
     }
 
     let done = 0;
+    let orphaned = 0;
     const failed: string[] = [];
     // One customer at a time -- each PDF is built in the browser and is a
     // few hundred KB, so running them all at once would just stall the tab.
     for (const [customerId, entries] of byCustomer) {
       let customerName = customerId;
+      if (customerIds && !customerIds.has(customerId)) {
+        orphaned += entries.length;
+        done += entries.length;
+        setProgress({ done, total: snapshots.length });
+        continue;
+      }
       try {
         const customer = await api.getCustomer(customerId);
         customerName = customer.name;
@@ -80,6 +96,7 @@ export default function RegistrationPdfsCard() {
     }
 
     setFailures(failed);
+    setSkipped(orphaned);
     setRunning(false);
     setFinished(true);
     refresh();
@@ -116,6 +133,7 @@ export default function RegistrationPdfsCard() {
       {progress && (running || finished) && (
         <p style={{ fontSize: '0.9rem' }}>
           {running ? 'Working…' : 'Finished.'} {progress.done} of {progress.total} done
+          {skipped > 0 && `, ${skipped} skipped because the customer has been deleted`}
           {failures.length > 0 && `, ${failures.length} customer${failures.length === 1 ? '' : 's'} failed`}.
         </p>
       )}
