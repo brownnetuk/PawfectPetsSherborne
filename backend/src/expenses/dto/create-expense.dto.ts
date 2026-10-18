@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
 } from 'class-validator';
 
@@ -45,4 +46,9 @@ export class CreateExpenseDto {
   @IsOptional()
   @IsString()
   receipt?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  receiptName?: string;
 }

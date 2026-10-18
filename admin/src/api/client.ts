@@ -795,6 +795,7 @@ export interface ExpenseInput {
   amount: number;
   account?: string;
   receipt?: string;
+  receiptName?: string;
 }
 export function createExpense(input: ExpenseInput): Promise<Expense> {
   return request('/expenses', { method: 'POST', body: JSON.stringify(input) });

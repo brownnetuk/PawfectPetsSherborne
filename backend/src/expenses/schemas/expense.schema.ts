@@ -42,6 +42,12 @@ export class Expense extends Document {
   // Base64 data URI, same storage approach as Animal.photos/BusinessInfo.logoImage.
   @Prop()
   receipt?: string;
+
+  // Download name for the receipt, Date-Payee-Amount.ext (e.g.
+  // 2026-10-08-Amazon-9.99.pdf), set by the admin app on save. Receipts can
+  // be images or PDFs; the data URI's MIME type says which.
+  @Prop()
+  receiptName?: string;
 }
 
 export const ExpenseSchema = SchemaFactory.createForClass(Expense);

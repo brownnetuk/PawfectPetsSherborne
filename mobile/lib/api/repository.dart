@@ -823,6 +823,7 @@ class Repository {
     String? payee,
     String? accountId,
     String? receipt,
+    String? receiptName,
     String? reference,
   }) async =>
       Expense.fromJson(await _client.post('/expenses', {
@@ -833,6 +834,7 @@ class Repository {
         if (payee != null && payee.isNotEmpty) 'payee': payee,
         if (accountId != null) 'account': accountId,
         if (receipt != null && receipt.isNotEmpty) 'receipt': receipt,
+        if (receiptName != null && receiptName.isNotEmpty) 'receiptName': receiptName,
         if (reference != null && reference.isNotEmpty) 'reference': reference,
       }));
 

@@ -4898,7 +4898,7 @@ Dates are shown as DD/MM/YYYY. `InvoiceHtmlView` and `QuoteHtmlView` render it.
 | `DocumentFormModal` | Invoice and quote form (see above). |
 | `EditAnimalModal` | Full pet edit form (`updateAnimal`), 492 lines. |
 | `EditCustomerModal` | Client details, emergency contact (with "same as client") and emergency vet fields (`updateCustomer`). |
-| `ExpenseModal` | New or edit expense: Date\*, Category\*, Payee (with an inline "Add new payee" button that calls `createVendor`), Payment Method, Description, Amount\*, Account, Receipt (up to 4MB). Pre-selects the default account and method on new expenses. |
+| `ExpenseModal` | New or edit expense: Date\*, Category\*, Payee (with an inline "Add new payee" button that calls `createVendor`), Payment Method, Description, Amount\*, Account, Receipt (JPG/PNG/PDF up to 4MB, renamed `Date-Payee-Amount.ext` on save, e.g. `2026-10-08-Amazon-9.99.pdf`). Pre-selects the default account and method on new expenses. |
 | `ExpensesByCategoryChart` | Horizontal SVG bar chart, 700 units wide, bars in `--error` red, with `<title>` tooltips. |
 | `FormAssignmentModal` | "Use <form> for…": assigns a form to any of the 6 workflow slots (pre-check-in, check-in, check-out × Boarding / Day Care) via `updateBoardingWorkflowSettings`. Also exports `slotsUsingForm`. |
 | `FormBuilder` | See above. |
@@ -4948,7 +4948,7 @@ Dates are shown as DD/MM/YYYY. `InvoiceHtmlView` and `QuoteHtmlView` render it.
 | `ViewAnimalModal` | Read-only pet profile. Loads the off-lead wording via `getBusinessInfo`, with a fallback. |
 | `ViewBankAccountModal` | One account's monthly statement (`getBankAccountTransactions(id, month, year)`): Date · Description · Amount · Balance. Has a month/year picker and a gear button that opens `SetOpeningBalanceModal`. |
 | `ViewCustomerModal` | Condensed client details with an "Open" button that goes to `/customers/:id`. |
-| `ViewExpenseModal` | Read-only expense with a receipt link and Edit. |
+| `ViewExpenseModal` | Read-only expense with the receipt (image, or PDF inline), its Date-Payee-Amount name with a Download link, and Edit. |
 | `ViewFormSubmissionModal` | Renders a submission as a PDF (`buildFormSubmissionPdf`) in an iframe. |
 | `icons.tsx` | Inline SVG icons: nav icons (Customers, Enquiries, Bookings, Boarding, Invoices, Financial, Reports, Activity, Settings, Training, Logout) and UI glyphs (Trash, Pencil, Plus, PlusCircle, ChevronDown, Video/Reading/Pdf content, …). |
 
@@ -6258,7 +6258,7 @@ The session cache, cleared by `refreshReferenceData()` (called on pull-to-refres
 | `crm_activity.dart` | **CrmActivity**: `id, customer (CustomerRef), type, subject, description?, createdBy, createdAt, attachments? (null in list responses), attachmentCount` |
 | `customer.dart` | `customerStatuses = [pending, active, inactive, update_info]`. **EmergencyContact**: `sameAsClient, name?, address?, phoneNumber?, email?`. **EmergencyVet**: `practiceName, address, telephone, email?, alternativeVetAuthorised`. **Security**: `keysProvided, furtherInformation?`. **Customer**: `id, name, email, address?, phoneNumber?, status, emergencyContact?, emergencyVet?, security?, defaultProductId?, travelChargeable, travelProductId?, regularDays[], portalActive, raw (original JSON for the edit form)`. **CustomerRef**: `id, name, email, address?, phoneNumber?` |
 | `day_booking.dart` | **DayBooking**: `id, animalId, animalName (joined e.g. "Harry, Archie & Benji"), additionalAnimalIds[], species, customerId, customerName, date, productId, productName, productPrice, quantity, invoiceId?, visitTime? (AM\|PM), boardingStay, stayId?, placeholder, dropOffTime?, pickUpTime?`, getter `lineTotal` (0 for a placeholder). **AnimalRef**: `id, name, species, customerId` |
-| `expense.dart` | **Expense**: `id, date, category, payee?, description, amount, accountId?, accountName?, receipt? (data URI)`, `hasReceipt`. **ExpenseCategory**: `id, name`. **Vendor**: `id, name`. **BankAccountRef**: `id, name, isDefault`. **PaymentMethod**: `id, name, isDefault` |
+| `expense.dart` | **Expense**: `id, date, category, payee?, description, amount, accountId?, accountName?, receipt? (data URI, image or PDF), receiptName?`, `hasReceipt`. **ExpenseCategory**: `id, name`. **Vendor**: `id, name`. **BankAccountRef**: `id, name, isDefault`. **PaymentMethod**: `id, name, isDefault` |
 | `finance_report.dart` | **IncomeExpenseMonth**: `month ('YYYY-MM'), income, expenses, net`. **ExpenseCategoryTotal**: `category, total` |
 | `form_submission.dart` | **FormSubmission**: `id, formName, formDescription?, fields (raw snapshot maps), status ('pending'\|'completed'), recipientEmail, recipientName?, answers (by field id; groups are lists of maps; signature/file are data URLs), submittedAt?, createdAt?`, `completed` |
 | `form_summary.dart` | **FormSummary**: `id, name, description?, customerVisible` |
@@ -6428,7 +6428,7 @@ flowchart TD
 | `payment_form_sheet.dart` | Add or edit: Invoice (read-only when editing), Date, Amount, Charges, Payment Method, Account | `GET /invoices`, `/bank-accounts`, `/payment-methods`; `POST /payments` or `PATCH /payments/:id` |
 | `expenses_screen.dart` | Search plus Category and Vendor filters; FAB **Create Expense** | `GET /expenses`, `/expense-categories`, `/vendors` |
 | `expense_form_sheet.dart` | Date, Category, Vendor, Description, Amount, "Paid from" account, **Receipt** (Scan / Camera / Library; downscaled to ≤1600 px JPEG q70 in `compute`) | `GET /expense-categories`, `/vendors`, `/bank-accounts`; `POST /expenses` or `PATCH /expenses/:id` |
-| `expense_detail_screen.dart` | Expense fields plus attachment; `_AttachmentViewer` full-screen with delete-attachment; Edit / Delete | `GET /expenses/:id`; `PATCH /expenses/:id {receipt}`; `DELETE /expenses/:id` |
+| `expense_detail_screen.dart` | Expense fields plus attachment; `_AttachmentViewer` full-screen (images pinch-zoom, PDFs via `ZoomablePdf` with Share under the Date-Payee-Amount name) with delete-attachment; Edit / Delete | `GET /expenses/:id`; `PATCH /expenses/:id {receipt}`; `DELETE /expenses/:id` |
 | `bank_transfers_screen.dart` | **Accounts** (balance; tap → `BankAccountTransactionsScreen`) and **Transfers** (tap → Edit / Delete). `BankAccountTransactionsScreen` shows one month: opening balance, then rows with a running balance | `GET /bank-accounts`, `/bank-transfers`, `DELETE /bank-transfers/:id`, `GET /bank-accounts/:id/transactions?month=&year=` |
 | `bank_transfer_form_sheet.dart` | Date, Reference, Source Account, Destination Account, Amount | `GET /bank-accounts`; `POST /bank-transfers` or `PATCH /bank-transfers/:id` |
 | `price_list_screen.dart` | Products with `displayInPriceList`, A–Z / Z–A toggle; mail icon → dialog (Name, Email) | `GET /products`; `GET /settings/business` + `/settings/business/logo`; builds the PDF client-side (`buildPriceListPdf`) → `POST /products/price-list/email` (base64 attachment) |
