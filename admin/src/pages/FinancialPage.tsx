@@ -5,10 +5,11 @@ import BankTransferModal from '../components/BankTransferModal';
 import CreditNoteModal from '../components/CreditNoteModal';
 import ExpenseModal from '../components/ExpenseModal';
 import Modal from '../components/Modal';
+import OtherIncomeModal from '../components/OtherIncomeModal';
 import ViewExpenseModal from '../components/ViewExpenseModal';
 import { CopyIcon, InvoicesIcon, MailIcon, PencilIcon, TrashIcon } from '../components/icons';
 import { buildReceiptPdf } from '../pdf/receiptPdf';
-import type { BankTransfer, CreditNote, Expense, Payment } from '../types';
+import type { BankTransfer, CreditNote, Expense, OtherIncome, Payment } from '../types';
 import FinancialSnapshotTab from './FinancialSnapshotTab';
 
 type Tab = 'snapshot' | 'payments' | 'expenses' | 'creditNotes' | 'bankTransfers';
@@ -57,10 +58,19 @@ function accountLabel(account: Payment['account']): string {
   return typeof account === 'string' ? account : account.name;
 }
 
+// One row of the Payments table: either an invoice payment or an Other Income
+// entry (refund, interest...), merged and sorted newest first.
+type PaymentRow =
+  | { kind: 'payment'; date: string; createdAt: string; payment: Payment }
+  | { kind: 'otherIncome'; date: string; createdAt: string; income: OtherIncome };
+
 function PaymentsCard() {
   const [payments, setPayments] = useState<Payment[] | null>(null);
+  const [otherIncome, setOtherIncome] = useState<OtherIncome[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [showOtherIncome, setShowOtherIncome] = useState(false);
+  const [deletingIncome, setDeletingIncome] = useState<OtherIncome | null>(null);
   const [deleting, setDeleting] = useState<Payment | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -76,8 +86,35 @@ function PaymentsCard() {
       .listPayments()
       .then(setPayments)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load payments'));
+    api
+      .listOtherIncome()
+      .then(setOtherIncome)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load other income'));
   }
   useEffect(refresh, []);
+
+  const rows: PaymentRow[] | null =
+    payments && otherIncome
+      ? [
+          ...payments.map((p): PaymentRow => ({ kind: 'payment', date: p.date, createdAt: p.createdAt, payment: p })),
+          ...otherIncome.map((o): PaymentRow => ({ kind: 'otherIncome', date: o.date, createdAt: o.createdAt, income: o })),
+        ].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
+      : null;
+
+  async function handleDeleteIncome() {
+    if (!deletingIncome) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.deleteOtherIncome(deletingIncome._id);
+      setDeletingIncome(null);
+      refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete this income');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
 
   async function handleDelete() {
     if (!deleting) return;
@@ -135,16 +172,21 @@ function PaymentsCard() {
           <h2>Payments</h2>
           <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
             Recorded from an invoice's Actions menu, or added directly against any invoice with a balance
-            outstanding.
+            outstanding. Use Other Income for money received without an invoice, such as refunds or interest.
           </p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
-          Add payment
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => setShowOtherIncome(true)}>
+            Other Income
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+            Add payment
+          </button>
+        </div>
       </div>
       {error && <div className="error-banner">{error}</div>}
-      {!payments || payments.length === 0 ? (
-        <div className="empty-state">{payments === null ? 'Loading…' : 'No payments recorded yet.'}</div>
+      {!rows || rows.length === 0 ? (
+        <div className="empty-state">{rows === null ? 'Loading…' : 'No payments recorded yet.'}</div>
       ) : (
         <table>
           <thead>
@@ -160,30 +202,61 @@ function PaymentsCard() {
             </tr>
           </thead>
           <tbody>
-            {payments.map((p) => (
-              <tr key={p._id}>
-                <td>{p.paymentId}</td>
-                <td>{new Date(p.date).toLocaleDateString('en-GB')}</td>
-                <td>{invoiceLabel(p.invoice)}</td>
-                <td>£{p.amount.toFixed(2)}</td>
-                <td>{p.charges ? `£${p.charges.toFixed(2)}` : '—'}</td>
-                <td>{p.paymentMethod || '—'}</td>
-                <td>{accountLabel(p.account)}</td>
-                <td>
-                  <div style={{ display: 'flex', gap: 2 }}>
-                    <button className="icon-btn" title="Send receipt" onClick={() => setSendingReceipt(p)}>
-                      <InvoicesIcon />
-                    </button>
-                    <button className="icon-btn" title="Send payment received email" onClick={() => setSendingEmail(p)}>
-                      <MailIcon />
-                    </button>
-                    <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(p)}>
-                      <TrashIcon />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {rows.map((row) => {
+              if (row.kind === 'otherIncome') {
+                const o = row.income;
+                return (
+                  <tr key={`oi-${o._id}`}>
+                    <td>
+                      <span className="badge badge-active">Other income</span>
+                    </td>
+                    <td>{new Date(o.date).toLocaleDateString('en-GB')}</td>
+                    <td>
+                      {o.receivedFrom}
+                      {o.description && (
+                        <div style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>{o.description}</div>
+                      )}
+                    </td>
+                    <td>£{o.amount.toFixed(2)}</td>
+                    <td>—</td>
+                    <td>—</td>
+                    <td>{accountLabel(o.account)}</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 2 }}>
+                        <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeletingIncome(o)}>
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }
+              const p = row.payment;
+              return (
+                <tr key={p._id}>
+                  <td>{p.paymentId}</td>
+                  <td>{new Date(p.date).toLocaleDateString('en-GB')}</td>
+                  <td>{invoiceLabel(p.invoice)}</td>
+                  <td>£{p.amount.toFixed(2)}</td>
+                  <td>{p.charges ? `£${p.charges.toFixed(2)}` : '—'}</td>
+                  <td>{p.paymentMethod || '—'}</td>
+                  <td>{accountLabel(p.account)}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 2 }}>
+                      <button className="icon-btn" title="Send receipt" onClick={() => setSendingReceipt(p)}>
+                        <InvoicesIcon />
+                      </button>
+                      <button className="icon-btn" title="Send payment received email" onClick={() => setSendingEmail(p)}>
+                        <MailIcon />
+                      </button>
+                      <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeleting(p)}>
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
@@ -196,6 +269,35 @@ function PaymentsCard() {
             refresh();
           }}
         />
+      )}
+
+      {showOtherIncome && (
+        <OtherIncomeModal
+          onClose={() => setShowOtherIncome(false)}
+          onSaved={() => {
+            setShowOtherIncome(false);
+            refresh();
+          }}
+        />
+      )}
+
+      {deletingIncome && (
+        <Modal title="Delete other income?" onClose={() => setDeletingIncome(null)}>
+          {deleteError && <div className="error-banner">{deleteError}</div>}
+          <p>
+            This permanently removes the £{deletingIncome.amount.toFixed(2)} received from{' '}
+            <strong>{deletingIncome.receivedFrom}</strong> and takes it back off {accountLabel(deletingIncome.account)}'s
+            balance.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setDeletingIncome(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={handleDeleteIncome} disabled={deleteBusy}>
+              {deleteBusy ? 'Deleting…' : 'Delete'}
+            </button>
+          </div>
+        </Modal>
       )}
 
       {deleting && (

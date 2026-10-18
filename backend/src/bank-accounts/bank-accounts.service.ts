@@ -9,6 +9,7 @@ import { BankTransfer } from '../bank-transfers/schemas/bank-transfer.schema';
 import { describeBlockers } from '../common/delete-guard.util';
 import { CreditNote } from '../credit-notes/schemas/credit-note.schema';
 import { Expense } from '../expenses/schemas/expense.schema';
+import { OtherIncome } from '../other-income/schemas/other-income.schema';
 import { Payment } from '../payments/schemas/payment.schema';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { SetOpeningBalanceDto } from './dto/set-opening-balance.dto';
@@ -19,7 +20,7 @@ export interface BankTransaction {
   description: string;
   amount: number;
   balance: number;
-  type: 'payment' | 'expense' | 'credit_note' | 'bank_transfer';
+  type: 'payment' | 'other_income' | 'expense' | 'credit_note' | 'bank_transfer';
 }
 
 @Injectable()
@@ -33,6 +34,8 @@ export class BankAccountsService {
     private readonly creditNoteModel: Model<CreditNote>,
     @InjectModel(BankTransfer.name)
     private readonly bankTransferModel: Model<BankTransfer>,
+    @InjectModel(OtherIncome.name)
+    private readonly otherIncomeModel: Model<OtherIncome>,
   ) {}
 
   async create(dto: CreateBankAccountDto): Promise<BankAccount> {
@@ -68,13 +71,15 @@ export class BankAccountsService {
   }
 
   async remove(id: string): Promise<void> {
-    const [paymentCount, expenseCount, creditNoteCount] = await Promise.all([
+    const [paymentCount, otherIncomeCount, expenseCount, creditNoteCount] = await Promise.all([
       this.paymentModel.countDocuments({ account: id }).exec(),
+      this.otherIncomeModel.countDocuments({ account: id }).exec(),
       this.expenseModel.countDocuments({ account: id }).exec(),
       this.creditNoteModel.countDocuments({ account: id }).exec(),
     ]);
     const blockers = describeBlockers({
       payment: paymentCount,
+      'other income entry': otherIncomeCount,
       expense: expenseCount,
       'credit note': creditNoteCount,
     });
@@ -173,8 +178,9 @@ export class BankAccountsService {
   ): Promise<BankAccount> {
     const openingBalanceDate = new Date(dto.date);
     const accountObjectId = new Types.ObjectId(id);
-    const [paymentsSince, expensesSince, creditNotesSince, transfersSince] = await Promise.all([
+    const [paymentsSince, otherIncomeSince, expensesSince, creditNotesSince, transfersSince] = await Promise.all([
       this.sumBetween(this.paymentModel, accountObjectId, openingBalanceDate),
+      this.sumBetween(this.otherIncomeModel, accountObjectId, openingBalanceDate),
       this.sumBetween(this.expenseModel, accountObjectId, openingBalanceDate),
       this.sumBetween(
         this.creditNoteModel,
@@ -184,7 +190,7 @@ export class BankAccountsService {
       this.sumTransfersBetween(accountObjectId, openingBalanceDate),
     ]);
     const currentBalance =
-      dto.balance + paymentsSince - expensesSince - creditNotesSince + transfersSince;
+      dto.balance + paymentsSince + otherIncomeSince - expensesSince - creditNotesSince + transfersSince;
     const account = await this.bankAccountModel
       .findByIdAndUpdate(
         id,
@@ -200,8 +206,9 @@ export class BankAccountsService {
 
   /**
    * The account's own statement for one calendar month: every Payment,
-   * Expense, CreditNote, and BankTransfer recorded against it, merged into a
-   * single signed, running-balance ledger -- Payment credits (+), Expense
+   * OtherIncome, Expense, CreditNote, and BankTransfer recorded against it,
+   * merged into a single signed, running-balance ledger -- Payment and
+   * OtherIncome credit (+), Expense
    * and CreditNote debits (-), same sign convention `adjustBalance` already
    * uses for each of them; a BankTransfer credits (+) when this account is
    * the destination and debits (-) when it's the source. The period's own
@@ -226,10 +233,12 @@ export class BankAccountsService {
 
     const [
       payments,
+      otherIncome,
       expenses,
       creditNotes,
       transfers,
       paymentsBefore,
+      otherIncomeBefore,
       expensesBefore,
       creditNotesBefore,
       transfersBefore,
@@ -240,6 +249,12 @@ export class BankAccountsService {
           date: { $gte: periodStart, $lt: periodEnd },
         })
         .populate('invoice', 'invoiceNumber')
+        .exec(),
+      this.otherIncomeModel
+        .find({
+          account: accountId,
+          date: { $gte: periodStart, $lt: periodEnd },
+        })
         .exec(),
       this.expenseModel
         .find({
@@ -268,6 +283,12 @@ export class BankAccountsService {
         periodStart,
       ),
       this.sumBetween(
+        this.otherIncomeModel,
+        accountObjectId,
+        anchorDate,
+        periodStart,
+      ),
+      this.sumBetween(
         this.expenseModel,
         accountObjectId,
         anchorDate,
@@ -283,7 +304,7 @@ export class BankAccountsService {
     ]);
 
     const openingBalance =
-      anchorBalance + paymentsBefore - expensesBefore - creditNotesBefore + transfersBefore;
+      anchorBalance + paymentsBefore + otherIncomeBefore - expensesBefore - creditNotesBefore + transfersBefore;
 
     type UnbalancedTransaction = Omit<BankTransaction, 'balance'>;
     const unbalanced: UnbalancedTransaction[] = [
@@ -297,6 +318,12 @@ export class BankAccountsService {
           type: 'payment',
         };
       }),
+      ...otherIncome.map((o): UnbalancedTransaction => ({
+        date: o.date,
+        description: `Other income — ${o.receivedFrom}${o.description ? ` — ${o.description}` : ''}`,
+        amount: o.amount,
+        type: 'other_income',
+      })),
       ...expenses.map((e): UnbalancedTransaction => ({
         date: e.date,
         description: e.description || e.category,

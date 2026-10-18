@@ -278,7 +278,7 @@ export interface BankTransaction {
   description: string;
   amount: number;
   balance: number;
-  type: 'payment' | 'expense' | 'credit_note' | 'bank_transfer';
+  type: 'payment' | 'other_income' | 'expense' | 'credit_note' | 'bank_transfer';
 }
 
 export interface BankAccountStatement {
@@ -298,6 +298,18 @@ export interface Payment {
   amount: number;
   charges?: number;
   paymentMethod?: string;
+  account: { _id: string; name: string; type: BankAccountType } | string | null;
+  createdAt: string;
+}
+
+// Money received that isn't against an invoice (refunds, interest...). Shown
+// alongside Payments and credits its account's balance like one.
+export interface OtherIncome {
+  _id: string;
+  date: string;
+  receivedFrom: string;
+  description?: string;
+  amount: number;
   account: { _id: string; name: string; type: BankAccountType } | string | null;
   createdAt: string;
 }
