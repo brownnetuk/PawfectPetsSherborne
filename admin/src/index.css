@@ -1166,7 +1166,11 @@ table input:focus {
   position: relative;
   display: inline-block;
 }
+/* The menu is a white card, so put back the default ink/muted colours that a
+   blue page header re-points to white (otherwise its items vanish). */
 .actions-menu-list {
+  --ink: #1d2a33;
+  --muted: #5f6f7a;
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
