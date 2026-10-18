@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -51,6 +52,12 @@ export class AuditLogController {
   @Get('registration-snapshots')
   registrationSnapshots() {
     return this.auditLogService.findRegistrationSnapshots();
+  }
+
+  @RequirePermission('settings.manage')
+  @Delete('registration-snapshots/orphaned')
+  deleteOrphanedRegistrationSnapshots() {
+    return this.auditLogService.deleteOrphanedRegistrationSnapshots();
   }
 
   @RequirePermission('settings.manage')

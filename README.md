@@ -818,6 +818,7 @@ Auth column legend:
 | GET | `/audit-log/:id/pixel.gif` | public | Tracking pixel. `markOpened(id)` (first open only) creates an `email_read` entry titled with `readTitle`. Always serves the GIF with `no-store`. |
 | GET | `/audit-log/income?customer=&months=` | staff | Per-month net of `payment_received − payment_removed` amounts for the last `months` (default 6) |
 | GET | `/audit-log/registration-snapshots` | `settings.manage` | Every `registration_email_sent` entry with a stored PDF: `customer`, `title`, `createdAt`, `attachmentName`, `regeneratedAt` only (no PDF data). Used by Settings > Forms "Regenerate registration PDFs". |
+| DELETE | `/audit-log/registration-snapshots/orphaned` | `settings.manage` | Deletes `registration_email_sent` entries whose customer no longer exists; returns `{ deleted }`. |
 | PATCH | `/audit-log/:id/attachment` | `settings.manage` | `{ attachmentData, attachmentName }` replaces a registration snapshot's PDF, stamps `regeneratedAt` and, the first time only, keeps the previous PDF in `originalAttachmentData`/`originalAttachmentName`. 404 for any other entry type. |
 
 ---
