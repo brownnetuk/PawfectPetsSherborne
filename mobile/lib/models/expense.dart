@@ -7,7 +7,9 @@ class Expense {
   final double amount;
   final String? accountId;
   final String? accountName;
-  final String? receipt; // base64 data URI, if a receipt is attached
+  final String? receipt; // base64 data URI (image or PDF), if a receipt is attached
+  // Date-Payee-Amount.ext, e.g. 2026-10-08-Amazon-9.99.pdf; missing on older receipts.
+  final String? receiptName;
   // Free-text reference such as an invoice or order number from the payee.
   final String? reference;
 
@@ -21,6 +23,7 @@ class Expense {
     this.accountId,
     this.accountName,
     this.receipt,
+    this.receiptName,
     this.reference,
   });
 
@@ -40,6 +43,7 @@ class Expense {
           : (account is String ? account : null),
       accountName: account is Map<String, dynamic> ? account['name'] as String? : null,
       receipt: json['receipt'] as String?,
+      receiptName: json['receiptName'] as String?,
       reference: json['reference'] as String?,
     );
   }

@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/expense.dart';
+import '../utils/receipt_file.dart';
 
 /// Downscales a receipt image to at most 1600px wide and re-encodes it as
 /// JPEG (quality 70), keeping the base64 payload small. Runs in a background
@@ -47,6 +48,9 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
   Vendor? _payee;
   BankAccountRef? _account;
   String? _receipt;
+  // The stored name, kept only for its extension; cleared when a new receipt
+  // is picked (those are always JPEGs).
+  String? _receiptName;
   bool _submitting = false;
   String? _error;
   late Future<(List<ExpenseCategory>, List<Vendor>, List<BankAccountRef>)> _lookups;
@@ -66,6 +70,7 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
     if (e != null) {
       _date = e.date;
       _receipt = e.receipt;
+      _receiptName = e.receiptName;
     }
     final repo = context.read<Repository>();
     _lookups = () async {
@@ -121,7 +126,10 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
   }
 
   void _setReceiptFromBytes(List<int> bytes) {
-    setState(() => _receipt = 'data:image/jpeg;base64,${base64Encode(bytes)}');
+    setState(() {
+      _receipt = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      _receiptName = null;
+    });
   }
 
   Future<void> _scanReceipt() async {
@@ -219,6 +227,12 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
       _submitting = true;
       _error = null;
     });
+    // Recomputed on every save, same as the admin app, so it follows any
+    // change to the date, payee or amount.
+    final receipt = _receipt;
+    final receiptName = receipt == null || receipt.isEmpty
+        ? ''
+        : receiptFileName(_date, _payee?.name, amount, receiptExtension(_receiptName, receipt));
     try {
       final repo = context.read<Repository>();
       if (widget.isEditing) {
@@ -230,6 +244,7 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
           if (_payee != null) 'payee': _payee!.name,
           if (_account != null) 'account': _account!.id,
           'receipt': _receipt ?? '',
+          'receiptName': receiptName,
           'reference': _referenceController.text.trim(),
         });
       } else {
@@ -241,6 +256,7 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
           payee: _payee?.name,
           accountId: _account?.id,
           receipt: _receipt,
+          receiptName: receiptName,
           reference: _referenceController.text.trim(),
         );
       }
@@ -433,16 +449,33 @@ class _ExpenseFormSheetState extends State<ExpenseFormSheet> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.memory(
-                          base64Decode(_receipt!.split(',').last),
-                          width: 72,
-                          height: 72,
-                          fit: BoxFit.cover,
-                        ),
+                        child: isPdfReceipt(_receipt!)
+                            ? Container(
+                                width: 72,
+                                height: 72,
+                                color: Colors.grey.shade200,
+                                alignment: Alignment.center,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.picture_as_pdf_outlined, color: Colors.red.shade400),
+                                    const Text('PDF', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              )
+                            : Image.memory(
+                                receiptBytes(_receipt!),
+                                width: 72,
+                                height: 72,
+                                fit: BoxFit.cover,
+                              ),
                       ),
                       const SizedBox(width: 8),
                       TextButton.icon(
-                        onPressed: () => setState(() => _receipt = null),
+                        onPressed: () => setState(() {
+                          _receipt = null;
+                          _receiptName = null;
+                        }),
                         icon: const Icon(Icons.close, size: 18),
                         label: const Text('Remove'),
                         style: TextButton.styleFrom(foregroundColor: Colors.red.shade400),

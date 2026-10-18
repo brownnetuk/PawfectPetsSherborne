@@ -1,10 +1,13 @@
-import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/expense.dart';
+import '../utils/receipt_file.dart';
+import '../widgets/zoomable_pdf.dart';
 import 'expense_form_sheet.dart';
 
 /// Read-only view of a single expense with its attachment, plus Edit / Delete.
@@ -191,7 +194,8 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
           ),
           child: Column(
             children: [
-              Icon(Icons.description_outlined, color: Theme.of(context).colorScheme.primary),
+              Icon(isPdfReceipt(_expense.receipt!) ? Icons.picture_as_pdf_outlined : Icons.description_outlined,
+                  color: Theme.of(context).colorScheme.primary),
               const SizedBox(height: 6),
               Text('1 attachment',
                   textAlign: TextAlign.center,
@@ -222,7 +226,8 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
       );
 }
 
-/// Full-screen receipt viewer: pinch-zoom the image, or delete the attachment.
+/// Full-screen receipt viewer: pinch-zoom the image or PDF, share it under its
+/// Date-Payee-Amount name, or delete the attachment.
 /// Pops `true` if the attachment was deleted.
 class _AttachmentViewer extends StatefulWidget {
   final Expense expense;
@@ -255,7 +260,7 @@ class _AttachmentViewerState extends State<_AttachmentViewer> {
     if (ok != true) return;
     setState(() => _deleting = true);
     try {
-      await repo.updateExpense(widget.expense.id, {'receipt': ''});
+      await repo.updateExpense(widget.expense.id, {'receipt': '', 'receiptName': ''});
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -266,19 +271,44 @@ class _AttachmentViewerState extends State<_AttachmentViewer> {
     }
   }
 
+  late final String _receipt = widget.expense.receipt!;
+  late final Uint8List _bytes = receiptBytes(_receipt);
+  late final bool _isPdf = isPdfReceipt(_receipt);
+  // Receipts saved before naming existed get one built the same way.
+  late final String _fileName = widget.expense.receiptName?.isNotEmpty == true
+      ? widget.expense.receiptName!
+      : receiptFileName(widget.expense.date, widget.expense.payee, widget.expense.amount,
+          receiptExtension(null, _receipt));
+
+  Future<void> _share() async {
+    try {
+      await Printing.sharePdf(bytes: _bytes, filename: _fileName);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to share this receipt')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final bytes = base64Decode(widget.expense.receipt!.split(',').last);
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(title: const Text('Attachment')),
-      body: Center(
-        child: InteractiveViewer(
-          minScale: 1,
-          maxScale: 6,
-          child: Image.memory(bytes, fit: BoxFit.contain),
-        ),
+      appBar: AppBar(
+        title: const Text('Attachment'),
+        actions: [
+          if (_isPdf) IconButton(onPressed: _share, icon: const Icon(Icons.ios_share), tooltip: 'Share'),
+        ],
       ),
+      body: _isPdf
+          ? ZoomablePdf(load: () async => _bytes)
+          : Center(
+              child: InteractiveViewer(
+                minScale: 1,
+                maxScale: 6,
+                child: Image.memory(_bytes, fit: BoxFit.contain),
+              ),
+            ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(16, 8, 16, 10),
         child: SizedBox(
