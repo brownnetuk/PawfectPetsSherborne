@@ -1,18 +1,24 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
+import ActionsMenu from '../components/ActionsMenu';
 import DateRangeFilterBar, { currentMonthFilters, matchesSearch } from '../components/DateRangeFilterBar';
 import SetOpeningBalanceModal from '../components/SetOpeningBalanceModal';
 import { SettingsIcon, SortIcon } from '../components/icons';
 import type { BankAccount, BankAccountStatement, BankTransaction } from '../types';
 import { bankAccountTypeLabel } from '../utils/bankAccountType';
+import {
+  downloadBankStatementCsv,
+  downloadBankStatementPdf,
+  money,
+  type BankStatementExport,
+} from '../pdf/bankStatementPdf';
 
 // Financial > Bank Accounts: a tile per account, and clicking one opens that
 // account's statement (opening balance, every payment, other income, expense,
 // credit note and transfer, with a running balance), like a bank's own.
 
-function money(n: number): string {
-  const sign = n < 0 ? '-' : '';
-  return `${sign}£${Math.abs(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function dayLabel(day: string): string {
+  return day ? new Date(`${day}T00:00:00`).toLocaleDateString('en-GB') : '';
 }
 
 export default function BankAccountsTab() {
@@ -93,6 +99,7 @@ function AccountStatement({
   const [error, setError] = useState<string | null>(null);
   const [newestFirst, setNewestFirst] = useState(true);
   const [settingBalance, setSettingBalance] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   function refresh() {
     setStatement(null);
@@ -121,9 +128,39 @@ function AccountStatement({
   );
   if (newestFirst) visible.reverse();
 
+  async function handleExport(format: 'pdf' | 'csv') {
+    if (!statement) return;
+    const from = dayLabel(filters.from);
+    const to = dayLabel(filters.to);
+    const data: BankStatementExport = {
+      account,
+      periodLabel: from || to ? `${from || 'Start'} – ${to || 'Today'}` : 'All dates',
+      openingBalance: statement.openingBalance,
+      closingBalance: statement.closingBalance,
+      moneyIn,
+      moneyOut,
+      transactions: visible,
+      newestFirst,
+      openingDate: from,
+    };
+    if (format === 'csv') {
+      downloadBankStatementCsv(data);
+      return;
+    }
+    setExporting(true);
+    setError(null);
+    try {
+      await downloadBankStatementPdf(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to build the PDF');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const openingRow = statement && (
     <tr className="statement-opening">
-      <td>{filters.from ? new Date(`${filters.from}T00:00:00`).toLocaleDateString('en-GB') : '—'}</td>
+      <td>{dayLabel(filters.from) || '—'}</td>
       <td></td>
       <td>
         <div className="statement-label">Opening balance</div>
@@ -159,6 +196,13 @@ function AccountStatement({
               {money(account.currentBalance ?? 0)}
             </div>
           </div>
+          <ActionsMenu
+            label={exporting ? 'Exporting…' : 'Export'}
+            items={[
+              { label: 'PDF', onClick: () => void handleExport('pdf'), disabled: !statement || exporting },
+              { label: 'CSV', onClick: () => void handleExport('csv'), disabled: !statement || exporting },
+            ]}
+          />
           <button type="button" className="icon-btn" title="Set opening balance" onClick={() => setSettingBalance(true)}>
             <SettingsIcon />
           </button>
