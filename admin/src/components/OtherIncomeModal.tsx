@@ -5,20 +5,30 @@ import Modal from './Modal';
 import type { BankAccount } from '../types';
 import { bankAccountTypeLabel } from '../utils/bankAccountType';
 
+export interface OtherIncomeDraft {
+  receivedFrom?: string;
+  description?: string;
+  amount?: number;
+  account?: string;
+}
+
 interface Props {
+  // Starting values, e.g. a refund generated from an expense. All editable.
+  initial?: OtherIncomeDraft;
+  title?: string;
   onClose: () => void;
   onSaved: () => void;
 }
 
 // Money received that isn't against an invoice -- refunds, bank interest and
 // the like. Credits the chosen account's balance, see OtherIncomeService.
-export default function OtherIncomeModal({ onClose, onSaved }: Props) {
+export default function OtherIncomeModal({ initial, title = 'Other Income', onClose, onSaved }: Props) {
   const [accounts, setAccounts] = useState<BankAccount[] | null>(null);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [receivedFrom, setReceivedFrom] = useState('');
-  const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState('');
-  const [account, setAccount] = useState('');
+  const [receivedFrom, setReceivedFrom] = useState(initial?.receivedFrom ?? '');
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [amount, setAmount] = useState(initial?.amount != null ? initial.amount.toFixed(2) : '');
+  const [account, setAccount] = useState(initial?.account ?? '');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -26,7 +36,8 @@ export default function OtherIncomeModal({ onClose, onSaved }: Props) {
     api.listBankAccounts().then((list) => {
       setAccounts(list);
       const preferred = list.find((a) => a.isDefault) ?? list[0];
-      if (preferred) setAccount((cur) => cur || preferred._id);
+      // Fall back to the default if the prefilled account no longer exists.
+      if (preferred) setAccount((cur) => (cur && list.some((a) => a._id === cur) ? cur : preferred._id));
     });
   }, []);
 
@@ -51,7 +62,7 @@ export default function OtherIncomeModal({ onClose, onSaved }: Props) {
   }
 
   return (
-    <Modal title="Other Income" onClose={onClose}>
+    <Modal title={title} onClose={onClose}>
       {error && <div className="error-banner">{error}</div>}
       <form onSubmit={handleSubmit}>
         <div className="field">

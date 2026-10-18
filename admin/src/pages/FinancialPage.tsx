@@ -6,7 +6,7 @@ import CreditNoteModal from '../components/CreditNoteModal';
 import DateRangeFilterBar, { currentMonthFilters, inDateRange, matchesSearch } from '../components/DateRangeFilterBar';
 import ExpenseModal from '../components/ExpenseModal';
 import Modal from '../components/Modal';
-import OtherIncomeModal from '../components/OtherIncomeModal';
+import OtherIncomeModal, { type OtherIncomeDraft } from '../components/OtherIncomeModal';
 import ViewExpenseModal from '../components/ViewExpenseModal';
 import { CopyIcon, InvoicesIcon, MailIcon, PencilIcon, TrashIcon } from '../components/icons';
 import { buildReceiptPdf } from '../pdf/receiptPdf';
@@ -398,6 +398,17 @@ function expenseAccountLabel(account: Expense['account']): string {
   return typeof account === 'string' ? account : account.name;
 }
 
+// A refund comes back as Other Income, prefilled from the expense it reverses.
+function refundDraft(e: Expense): OtherIncomeDraft {
+  const what = e.description || e.category;
+  return {
+    receivedFrom: e.payee || '',
+    description: `Refund: ${what}${e.reference ? ` (${e.reference})` : ''}`,
+    amount: e.amount,
+    account: typeof e.account === 'string' ? e.account : e.account?._id,
+  };
+}
+
 function ExpensesCard() {
   const [expenses, setExpenses] = useState<Expense[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -405,6 +416,7 @@ function ExpensesCard() {
   const [viewing, setViewing] = useState<Expense | null>(null);
   const [editing, setEditing] = useState<Expense | null>(null);
   const [cloning, setCloning] = useState<Expense | null>(null);
+  const [refunding, setRefunding] = useState<Expense | null>(null);
   const [deleting, setDeleting] = useState<Expense | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -536,6 +548,19 @@ function ExpensesCard() {
             setEditing(viewing);
             setViewing(null);
           }}
+          onRefund={() => {
+            setRefunding(viewing);
+            setViewing(null);
+          }}
+        />
+      )}
+
+      {refunding && (
+        <OtherIncomeModal
+          title="Refund"
+          initial={refundDraft(refunding)}
+          onClose={() => setRefunding(null)}
+          onSaved={() => setRefunding(null)}
         />
       )}
 

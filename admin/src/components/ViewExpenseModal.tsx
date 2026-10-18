@@ -6,6 +6,7 @@ interface Props {
   expense: Expense;
   onClose: () => void;
   onEdit: () => void;
+  onRefund: () => void;
 }
 
 function accountLabel(account: Expense['account']): string {
@@ -13,7 +14,7 @@ function accountLabel(account: Expense['account']): string {
   return typeof account === 'string' ? account : `${account.name} (${bankAccountTypeLabel(account.type)})`;
 }
 
-export default function ViewExpenseModal({ expense, onClose, onEdit }: Props) {
+export default function ViewExpenseModal({ expense, onClose, onEdit, onRefund }: Props) {
   return (
     <Modal title={expense.description || expense.category} onClose={onClose}>
       <dl className="kv-grid">
@@ -56,6 +57,9 @@ export default function ViewExpenseModal({ expense, onClose, onEdit }: Props) {
       <div className="modal-actions">
         <button type="button" className="btn btn-secondary" onClick={onClose}>
           Close
+        </button>
+        <button type="button" className="btn btn-secondary" onClick={onRefund}>
+          Refund
         </button>
         <button type="button" className="btn btn-primary" onClick={onEdit}>
           Edit
