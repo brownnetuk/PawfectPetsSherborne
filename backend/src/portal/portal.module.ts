@@ -19,6 +19,11 @@ import { SettingsModule } from '../settings/settings.module';
 import { PortalController } from './portal.controller';
 import { PortalAdminController } from './portal-admin.controller';
 import { PortalService } from './portal.service';
+import { PortalWebLoginService } from './portal-web-login.service';
+import {
+  EmailTemplate,
+  EmailTemplateSchema,
+} from '../settings/schemas/email-template.schema';
 import { PortalJwtStrategy } from './portal-jwt.strategy';
 
 // The customer-facing portal: its own auth realm (PortalJwtStrategy signs/
@@ -41,6 +46,8 @@ import { PortalJwtStrategy } from './portal-jwt.strategy';
     SettingsModule,
     MongooseModule.forFeature([
       { name: DayBooking.name, schema: DayBookingSchema },
+      // Only so PortalWebLoginService can seed its sign-in email template.
+      { name: EmailTemplate.name, schema: EmailTemplateSchema },
     ]),
     PassportModule,
     // Registered empty — tokens are signed per-call with the derived portal
@@ -48,6 +55,6 @@ import { PortalJwtStrategy } from './portal-jwt.strategy';
     JwtModule.register({}),
   ],
   controllers: [PortalController, PortalAdminController],
-  providers: [PortalService, PortalJwtStrategy],
+  providers: [PortalService, PortalWebLoginService, PortalJwtStrategy],
 })
 export class PortalModule {}

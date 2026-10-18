@@ -174,6 +174,29 @@ class PortalCredentials {
 
   @Prop()
   resetCodeExpiresAt?: Date;
+
+  // Web portal sign-in (PortalWebLoginService), step 1: the emailed 6-digit
+  // code (hashed), its short expiry, and how many wrong guesses it has had.
+  @Prop()
+  webCodeHash?: string;
+
+  @Prop()
+  webCodeExpiresAt?: Date;
+
+  @Prop()
+  webCodeAttempts?: number;
+
+  // Step 2: the one-time step token handed out once the code checks out
+  // (sha256, not bcrypt -- it's 32 random bytes, not guessable), its expiry,
+  // and wrong phone-digit guesses against it.
+  @Prop()
+  webStepHash?: string;
+
+  @Prop()
+  webStepExpiresAt?: Date;
+
+  @Prop()
+  webStepAttempts?: number;
 }
 const PortalCredentialsSchema = SchemaFactory.createForClass(PortalCredentials);
 

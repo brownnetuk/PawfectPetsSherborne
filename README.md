@@ -36,6 +36,7 @@ five applications that all talk to one NestJS + MongoDB API.
 | [`admin/`](admin/) | Staff (desktop browser) | The back-office dashboard for running the business | React 19, TypeScript, Vite, react-router-dom 7, dnd-kit, jsPDF + html2canvas | `http://localhost:5174` |
 | [`frontend/`](frontend/) | Customers (no login) | Public intake/registration site, plus public form, pre-boarding, invoice and quote links | React 19, TypeScript, Vite, jsPDF | `http://localhost:5173` |
 | [`mobile/`](mobile/) | Staff (in the field) | Staff companion app: calendar, customers, pets, invoices, payments (SumUp card reader), CRM notes, push reminders | Flutter (iOS primary; Android/web builds exist), provider, http, flutter_secure_storage, local_auth, mobile_scanner, sumup | n/a |
+| [`portal/`](portal/) | Customers (logged in, browser) | Web customer portal: update their details, view and download invoices and quotes, see pets and bookings. Sign-in is an emailed 6-digit code then the last 3 digits of their mobile | React 19, TypeScript, Vite | `http://localhost:5175` |
 | [`mobile-portal/`](mobile-portal/) | Customers (logged in) | Customer app: quotes, invoices, pets, bookings, forms, messages with staff | Flutter (iOS), provider, http, flutter_secure_storage, local_auth, signature | n/a |
 
 ## System architecture
@@ -223,6 +224,7 @@ Trust dashboard to an in-network Docker service.
 | API | `PUBLIC_API_URL` (e.g. `https://api.pawfectpetssherborne.co.uk`) | `http://backend:3000` | Also baked into admin/frontend as `VITE_API_URL`; default `API_BASE_URL` in both Flutter apps; used to build email tracking-pixel URLs |
 | Staff dashboard | — (in `ALLOWED_ORIGINS`) | `http://admin:80` | e.g. `https://admin.pawfectpetssherborne.co.uk` |
 | Public intake site | `PUBLIC_INTAKE_URL` (e.g. `https://intake.pawfectpetssherborne.co.uk`) | `http://frontend:80` | Base for `{{invoice_link}}`, `{{quote_link}}`, form and registration links in emails; baked into admin as `VITE_INTAKE_URL` |
+| Customer portal (web) | — (in `ALLOWED_ORIGINS`) | `http://portal:80` | `https://portal.pawfectpetssherborne.co.uk`; see [`portal/`](portal/README.md) |
 | Portainer webhook | — | `https://<host>:9443` (HTTPS service type) | `portainer.pawfectpetssherborne.co.uk`, used for GitOps redeploy on push |
 
 Health check: `GET /health` on the backend (used by Docker `HEALTHCHECK` and the retired Render blueprint).
@@ -238,6 +240,7 @@ cd backend && npm install && npm run start:dev          # http://localhost:3000
 # then, in separate terminals:
 cd frontend && npm install && npm run dev               # http://localhost:5173
 cd admin && npm install && npm run dev                  # http://localhost:5174
+cd portal && npm install && npm run dev                 # http://localhost:5175 (customer portal)
 
 # Flutter apps (need the Flutter SDK)
 cd mobile && flutter pub get && flutter run --dart-define=API_BASE_URL=http://localhost:3000
@@ -394,7 +397,7 @@ Startup order in `src/main.ts`:
 | Throttling | `ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 300 }] })` (300 requests per 60 s per tracker, the default throttler name `default`) |
 | Mongo | `MongooseModule.forRootAsync`, `uri = MONGODB_URI` with fallback `mongodb://localhost:27017/pawfectpets` |
 | Global encryption | `EncryptionModule` (`@Global`) |
-| Global guards (`APP_GUARD`, in this order) | 1. `JwtAuthGuard` → 2. `PermissionsGuard` → 3. `ThrottlerGuard` |
+| Global guards (`APP_GUARD`, in this order) | 1. `JwtAuthGuard` → 2. `PermissionsGuard` → 3. `ClientIpThrottlerGuard` (`ThrottlerGuard` keyed on `CF-Connecting-IP`, see `common/client-ip-throttler.guard.ts`) |
 | Controllers | `AppController` (`GET /health`) |
 | Imports | Every feature module (≈45). `StaffModule` is imported directly so `PermissionsGuard` can inject the `Staff` model. |
 
@@ -407,6 +410,9 @@ Per-route throttle overrides (`@Throttle({ default: { limit, ttl: 60_000 } })`):
 | `POST /portal/request-reset` | 5 |
 | `POST /portal/verify-code` | 10 |
 | `POST /portal/login` | 10 |
+| `POST /portal/web/request-code` | 5 |
+| `POST /portal/web/verify-code` | 10 |
+| `POST /portal/web/verify-phone` | 10 |
 | `POST /customers/:id/send-registration-copy` | 5 |
 | Everything else (incl. `POST /portal/set-password`) | 300 (global) |
 
@@ -719,6 +725,10 @@ Auth column legend:
 | POST | `/portal/verify-code` | public (10/min) | Check `{ email, code }`. 200 or 401. |
 | POST | `/portal/set-password` | public (global 300/min) | Consume the code, set the password, return `{ token }` |
 | POST | `/portal/login` | public (10/min) | Email and password → `{ token }` |
+| POST | `/portal/web/request-code` | public (5/min) | Web portal sign-in step 1: email a 6-digit code (10-minute expiry, own slot so it never touches the app's codes). Always `{ ok: true }`. |
+| POST | `/portal/web/verify-code` | public (10/min) | Step 2: `{ email, code }` → `{ stepToken }`. 5 wrong codes discards the code. 400 if no mobile number is on file. |
+| POST | `/portal/web/verify-phone` | public (10/min) | Step 3: `{ email, stepToken, digits }` (last 3 digits of `phoneNumber`) → `{ token }` (portal JWT, 12h). 3 wrong tries discards the step. |
+| GET | `/portal/quotes/:id/pdf` | customer | Ownership check, then inline PDF (`quote-<id>.pdf`) |
 | GET | `/portal/me` | customer | Curated profile: contact details, emergency contact and vet, `security { keysProvided, furtherInformation, hasAlarmInstructions }`, the agreement (including `signatureImage`), current `terms { html, version, documentDate }` and `offLeadConsentText` |
 | PATCH | `/portal/me` | customer | Update `UpdateMeDto` (contact fields, `emergencyContact`, `emergencyVet` without authorisation, `security`; **email can't be changed**) through `CustomersService.update(actor 'Customer (portal)')`. Then dispatches the staff notification `customerUpdated`. |
 | GET | `/portal/invoices` | customer | `InvoicesService.findAll(customerId)` (all statuses) |

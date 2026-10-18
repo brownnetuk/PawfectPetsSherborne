@@ -9,3 +9,7 @@ export function portalJwtSecret(jwtSecret: string): string {
 }
 
 export const PORTAL_TOKEN_TTL = '90d';
+
+// Web portal sessions are browser-held, so they're kept much shorter than the
+// app's 90 days -- the customer just signs in again with a fresh code.
+export const PORTAL_WEB_TOKEN_TTL = '12h';

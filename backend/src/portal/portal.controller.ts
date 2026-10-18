@@ -24,7 +24,9 @@ import {
   SetPasswordDto,
   UpdateMeDto,
   VerifyCodeDto,
+  WebVerifyPhoneDto,
 } from './dto/portal-auth.dto';
+import { PortalWebLoginService } from './portal-web-login.service';
 import { PortalCreateAnimalDto } from './dto/portal-animal.dto';
 import { PublicUpdateAnimalDto } from '../animals/dto/public-update-animal.dto';
 import { SendMessageDto } from '../messages/dto/send-message.dto';
@@ -35,7 +37,10 @@ import { SendMessageDto } from '../messages/dto/send-message.dto';
 @Public()
 @Controller('portal')
 export class PortalController {
-  constructor(private readonly portal: PortalService) {}
+  constructor(
+    private readonly portal: PortalService,
+    private readonly webLogin: PortalWebLoginService,
+  ) {}
 
   // Much stricter than the app-wide default (app.module.ts) -- these are
   // exactly the endpoints a script could hammer to spam a customer's inbox
@@ -79,6 +84,32 @@ export class PortalController {
     return this.portal.login(dto.email, dto.password);
   }
 
+  // --- web portal sign-in (portal/ app): email code, then the last 3 digits
+  // of the customer's mobile. Same per-IP limits as the app's code routes,
+  // plus per-account attempt caps inside PortalWebLoginService.
+
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('web/request-code')
+  @HttpCode(200)
+  async webRequestCode(@Body() dto: RequestCodeDto) {
+    await this.webLogin.requestCode(dto.email);
+    return { ok: true };
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('web/verify-code')
+  @HttpCode(200)
+  async webVerifyCode(@Body() dto: VerifyCodeDto) {
+    return this.webLogin.verifyCode(dto.email, dto.code);
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('web/verify-phone')
+  @HttpCode(200)
+  async webVerifyPhone(@Body() dto: WebVerifyPhoneDto) {
+    return this.webLogin.verifyPhone(dto.email, dto.stepToken, dto.digits);
+  }
+
   @UseGuards(PortalJwtGuard)
   @Get('me')
   async me(@CurrentCustomer() customer: CurrentCustomerData) {
@@ -111,6 +142,21 @@ export class PortalController {
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `inline; filename="invoice-${id}.pdf"`,
+    });
+    res.send(pdf);
+  }
+
+  @UseGuards(PortalJwtGuard)
+  @Get('quotes/:id/pdf')
+  async quotePdf(
+    @CurrentCustomer() customer: CurrentCustomerData,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const pdf = await this.portal.quotePdf(customer.customerId, id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="quote-${id}.pdf"`,
     });
     res.send(pdf);
   }

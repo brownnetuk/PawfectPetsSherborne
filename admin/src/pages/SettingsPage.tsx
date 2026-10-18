@@ -2233,6 +2233,11 @@ export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: 
     description: 'Sent to a customer when staff switch on their Customer Portal access (Customer Defaults > Customer Portal).',
   },
   {
+    value: 'portal_web_login_code',
+    label: 'Customer Portal Sign-in Code',
+    description: 'Sent when a customer signs in to the web customer portal — a 6-digit code (valid for 10 minutes), after which they confirm the last 3 digits of their mobile number.',
+  },
+  {
     value: 'post_registration',
     label: 'Post Registration Email',
     description:
@@ -2557,6 +2562,11 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
   ],
   portal_enabled: [
     { key: 'customer_name', hint: "the customer's name" },
+    ...BUSINESS_PLACEHOLDERS,
+  ],
+  portal_web_login_code: [
+    { key: 'customer_name', hint: "the customer's name" },
+    { key: 'code', hint: 'the 6-digit sign-in code (valid for 10 minutes)' },
     ...BUSINESS_PLACEHOLDERS,
   ],
   post_registration: [
