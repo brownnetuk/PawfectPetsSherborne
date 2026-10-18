@@ -806,6 +806,10 @@ export function updateExpense(id: string, input: ExpenseInput): Promise<Expense>
 export function deleteExpense(id: string): Promise<void> {
   return request(`/expenses/${id}`, { method: 'DELETE' });
 }
+// Emails the expense's stored receipt as an attachment.
+export function sendExpenseEmail(id: string, input: { to: string; subject: string; message: string }): Promise<void> {
+  return request(`/expenses/${id}/send-email`, { method: 'POST', body: JSON.stringify(input) });
+}
 
 // --- expense categories ---
 export function listExpenseCategories(): Promise<ExpenseCategoryOption[]> {

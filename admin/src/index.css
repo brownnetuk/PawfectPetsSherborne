@@ -828,6 +828,17 @@ table input:focus {
   font-weight: 500;
 }
 
+.success-banner {
+  background: var(--info-light);
+  border: 1px solid var(--border);
+  color: var(--info);
+  padding: 11px 15px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  font-size: 0.87rem;
+  font-weight: 500;
+}
+
 /* --- modal --- */
 .modal-backdrop {
   position: fixed;

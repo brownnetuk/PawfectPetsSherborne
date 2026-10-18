@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { CreateExpenseDto } from './dto/create-expense.dto';
+import { SendExpenseEmailDto } from './dto/send-expense-email.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpensesService } from './expenses.service';
 
@@ -26,6 +27,11 @@ export class ExpensesController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateExpenseDto) {
     return this.expensesService.update(id, dto);
+  }
+
+  @Post(':id/send-email')
+  sendEmail(@Param('id') id: string, @Body() dto: SendExpenseEmailDto) {
+    return this.expensesService.sendReceiptEmail(id, dto);
   }
 
   @RequirePermission('financial.manage')

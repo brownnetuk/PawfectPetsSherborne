@@ -540,11 +540,14 @@ export class SettingsService {
       // -- Graph's fileAttachment wants just the base64 payload, not the
       // "data:application/pdf;base64," prefix in front of it.
       const contentBytes = attachment.data.replace(/^data:.*;base64,/, '');
+      // Usually a PDF, but an expense receipt can also be a JPG/PNG -- the
+      // data URI's own MIME type says which.
+      const mimeType = /^data:([^;,]+)/.exec(attachment.data)?.[1] || 'application/pdf';
       message.attachments = [
         {
           '@odata.type': '#microsoft.graph.fileAttachment',
           name: attachment.name,
-          contentType: 'application/pdf',
+          contentType: mimeType,
           contentBytes,
         },
       ];

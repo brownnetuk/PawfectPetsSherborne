@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import Modal from './Modal';
 import type { Expense } from '../types';
 import { bankAccountTypeLabel } from '../utils/bankAccountType';
-import { dataUriToBlob, downloadReceipt, isPdfReceipt, receiptExtension, receiptFileName } from '../utils/receiptFile';
+import { dataUriToBlob, downloadReceipt, expenseReceiptName, isPdfReceipt } from '../utils/receiptFile';
 
 interface Props {
   expense: Expense;
@@ -10,6 +10,7 @@ interface Props {
   // Left out where the modal is read-only (e.g. a report's drill-down).
   onEdit?: () => void;
   onRefund?: () => void;
+  onEmail?: () => void;
 }
 
 function accountLabel(account: Expense['account']): string {
@@ -31,16 +32,13 @@ function PdfReceipt({ dataUri }: { dataUri: string }) {
   );
 }
 
-export default function ViewExpenseModal({ expense, onClose, onEdit, onRefund }: Props) {
-  // Receipts saved before renaming existed (or from the staff app) have no
-  // stored name, so one is built the same way from the expense.
-  const receiptName = expense.receipt
-    ? expense.receiptName ||
-      receiptFileName(expense.date, expense.payee, expense.amount, receiptExtension(undefined, expense.receipt))
-    : '';
+export default function ViewExpenseModal({ expense, onClose, onEdit, onRefund, onEmail }: Props) {
+  const receiptName = expenseReceiptName(expense);
   return (
     <Modal title={expense.description || expense.category} onClose={onClose}>
       <dl className="kv-grid">
+        <dt>Expense ID</dt>
+        <dd>{expense.expenseId || '—'}</dd>
         <dt>Date</dt>
         <dd>{new Date(expense.date).toLocaleDateString('en-GB')}</dd>
         <dt>Category</dt>
@@ -91,6 +89,11 @@ export default function ViewExpenseModal({ expense, onClose, onEdit, onRefund }:
         <button type="button" className="btn btn-secondary" onClick={onClose}>
           Close
         </button>
+        {onEmail && expense.receipt && (
+          <button type="button" className="btn btn-secondary" onClick={onEmail}>
+            Email
+          </button>
+        )}
         {onRefund && (
           <button type="button" className="btn btn-secondary" onClick={onRefund}>
             Refund
