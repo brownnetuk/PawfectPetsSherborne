@@ -85,6 +85,21 @@ export class AuditLogEntry extends Document {
   @Prop()
   attachmentName?: string;
 
+  // Set by AuditLogService.replaceRegistrationAttachment when Settings >
+  // Forms "Regenerate registration PDFs" rebuilds attachmentData in the
+  // current PDF style -- the PDF as originally stored is kept here (only the
+  // first time, so re-running never loses it) so a regeneration can always
+  // be undone. select:false keeps it out of the Activity tab's listing,
+  // which would otherwise ship every PDF twice.
+  @Prop({ select: false })
+  originalAttachmentData?: string;
+
+  @Prop({ select: false })
+  originalAttachmentName?: string;
+
+  @Prop()
+  regeneratedAt?: Date;
+
   // Tracking-pixel open state -- set the first time GET /audit-log/:id/pixel.gif
   // is hit for this entry (see AuditLogService.markOpened). Only entries
   // created with a `readTitle` (below) actually get a pixel embedded in their

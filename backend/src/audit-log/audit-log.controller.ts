@@ -1,16 +1,20 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Param,
+  Patch,
   Query,
   Res,
   StreamableFile,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { Public } from '../auth/public.decorator';
+import { RequirePermission } from '../auth/require-permission.decorator';
 import { transparentGifBuffer } from '../common/tracking-pixel.util';
 import { AuditLogService } from './audit-log.service';
+import { ReplaceAttachmentDto } from './dto/replace-attachment.dto';
 
 @Controller('audit-log')
 export class AuditLogController {
@@ -39,6 +43,27 @@ export class AuditLogController {
       'Cache-Control': 'no-store, no-cache, must-revalidate',
     });
     return new StreamableFile(transparentGifBuffer());
+  }
+
+  // Settings > Forms "Regenerate registration PDFs" -- see
+  // AuditLogService.findRegistrationSnapshots/replaceRegistrationAttachment.
+  @RequirePermission('settings.manage')
+  @Get('registration-snapshots')
+  registrationSnapshots() {
+    return this.auditLogService.findRegistrationSnapshots();
+  }
+
+  @RequirePermission('settings.manage')
+  @Patch(':id/attachment')
+  replaceAttachment(
+    @Param('id') id: string,
+    @Body() dto: ReplaceAttachmentDto,
+  ) {
+    return this.auditLogService.replaceRegistrationAttachment(
+      id,
+      dto.attachmentData,
+      dto.attachmentName,
+    );
   }
 
   @Get('income')
