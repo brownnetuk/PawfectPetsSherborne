@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import * as api from '../api/client';
+import logoUrl from '../assets/logo.png';
 import {
   DEFAULT_INVOICE_TEMPLATE,
   PAGE_HEIGHT,
   PAGE_WIDTH,
+  PDF_BRAND,
   PDF_PLACEHOLDERS,
+  TABLE_COLUMNS,
+  brandColour,
   buildInvoicePdf,
   elementTypeLabel,
+  isPreRestyleTemplate,
 } from '../pdf/invoicePdf';
 import type { BusinessInfo, Invoice, PdfElementType, PdfTemplateElement, PdfVisibility } from '../types';
 
@@ -71,6 +76,9 @@ export default function PdfTemplateDesigner() {
   const [saved, setSaved] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  // Set when the saved template predates the restyle and the editor has
+  // swapped in the branded default -- Undo brings the old one back.
+  const [upgradedFromOld, setUpgradedFromOld] = useState(false);
 
   const historyRef = useRef<{ past: PdfTemplateElement[][]; future: PdfTemplateElement[][] }>({ past: [], future: [] });
   const dragSnapshotRef = useRef<PdfTemplateElement[] | null>(null);
@@ -89,7 +97,14 @@ export default function PdfTemplateDesigner() {
       .getBusinessInfo()
       .then((info) => {
         setBusinessInfo(info);
-        setElements(info.invoicePdfTemplate?.length ? info.invoicePdfTemplate : DEFAULT_INVOICE_TEMPLATE);
+        const saved = info.invoicePdfTemplate ?? [];
+        if (saved.length && isPreRestyleTemplate(saved)) {
+          historyRef.current.past.push(saved);
+          setElements(DEFAULT_INVOICE_TEMPLATE);
+          setUpgradedFromOld(true);
+        } else {
+          setElements(saved.length ? saved : DEFAULT_INVOICE_TEMPLATE);
+        }
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load the PDF template'));
   }, []);
@@ -179,6 +194,7 @@ export default function PdfTemplateDesigner() {
     try {
       await api.updateBusinessInfo({ invoicePdfTemplate: elements });
       setSaved(true);
+      setUpgradedFromOld(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save the PDF template');
     } finally {
@@ -362,6 +378,12 @@ export default function PdfTemplateDesigner() {
       </div>
 
       {error && <div className="error-banner">{error}</div>}
+      {upgradedFromOld && (
+        <div className="success-banner" style={{ marginTop: 4 }}>
+          Your saved template still used the old layout, so the new branded layout is shown here instead. Save
+          Template to use it on every invoice and quote, or Undo to go back to the old one.
+        </div>
+      )}
       {saved && <div style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600, marginTop: 4 }}>Saved.</div>}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '12px 0' }}>
@@ -474,7 +496,7 @@ function ElementPreview({ el }: { el: PdfTemplateElement }) {
             fontWeight: el.fontWeight === 'bold' ? 700 : 400,
             fontStyle: el.fontWeight === 'italic' ? 'italic' : undefined,
             fontFamily: el.font === 'display' ? "'Archivo Black', 'Arial Black', sans-serif" : "'DM Sans', Helvetica, sans-serif",
-            color: el.color,
+            color: brandColour(el.color),
             textAlign: el.align,
             whiteSpace: 'pre-wrap',
             overflow: 'hidden',
@@ -487,32 +509,19 @@ function ElementPreview({ el }: { el: PdfTemplateElement }) {
         </div>
       );
     case 'image':
-      return (
-        <div
-          style={{
-            width: '100%',
-            height: '100%',
-            border: '1px dashed var(--border)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 9,
-            color: 'var(--muted)',
-          }}
-        >
-          Logo
-        </div>
-      );
+      return <img src={logoUrl} alt="Logo" draggable={false} style={{ width: '100%', height: '100%', display: 'block' }} />;
     case 'line':
-      return <div style={{ width: '100%', borderTop: `${Math.max(el.lineWidth, 1)}px solid ${el.strokeColor}` }} />;
+      return (
+        <div style={{ width: '100%', borderTop: `${Math.max(el.lineWidth, 1)}px solid ${brandColour(el.strokeColor)}` }} />
+      );
     case 'rect':
       return (
         <div
           style={{
             width: '100%',
             height: '100%',
-            background: el.fillColor,
-            border: el.strokeColor ? `1px solid ${el.strokeColor}` : undefined,
+            background: el.fillColor ? brandColour(el.fillColor) : undefined,
+            border: el.strokeColor ? `1px solid ${brandColour(el.strokeColor)}` : undefined,
             borderRadius: el.radius ? el.radius * SCALE : undefined,
           }}
         />
@@ -528,7 +537,8 @@ function ElementPreview({ el }: { el: PdfTemplateElement }) {
             alignItems: 'center',
             justifyContent: 'center',
             fontSize: 8,
-            color: 'var(--muted)',
+            color: PDF_BRAND.muted,
+            background: PDF_BRAND.cream,
             textAlign: 'center',
           }}
         >
@@ -536,12 +546,40 @@ function ElementPreview({ el }: { el: PdfTemplateElement }) {
         </div>
       );
     case 'itemTable':
+      // Mirrors drawItemTable: a rounded blue header bar with cream capitals,
+      // then ruled rows -- the real rows come from the invoice/quote.
       return (
-        <div style={{ width: '100%', height: '100%', border: '1px dashed var(--border)' }}>
-          <div style={{ background: '#232c26', color: 'white', fontSize: 9, padding: '3px 6px' }}>
-            # | Item &amp; Description | Qty | Unit Price | Line Total
+        <div style={{ width: '100%', height: '100%', border: '1px dashed var(--border)', fontFamily: "'DM Sans', Helvetica, sans-serif" }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              height: 24 * SCALE,
+              background: PDF_BRAND.blue,
+              color: PDF_BRAND.cream,
+              borderRadius: 7 * SCALE,
+              fontSize: 7.5 * SCALE,
+              fontWeight: 700,
+              letterSpacing: 0.6,
+            }}
+          >
+            {TABLE_COLUMNS.map((col) => (
+              <div key={col.key} style={{ width: `${col.ratio * 100}%`, textAlign: col.align, padding: `0 ${8 * SCALE}px` }}>
+                {col.label.toUpperCase()}
+              </div>
+            ))}
           </div>
-          <div style={{ fontSize: 8, color: 'var(--muted)', padding: 6 }}>Item rows (from the invoice/quote)</div>
+          <div
+            style={{
+              fontSize: 8.5 * SCALE,
+              color: PDF_BRAND.muted,
+              padding: `${6 * SCALE}px ${8 * SCALE}px`,
+              borderBottom: `1px solid ${PDF_BRAND.border}`,
+              margin: `0 ${4 * SCALE}px`,
+            }}
+          >
+            Item rows (from the invoice/quote)
+          </div>
         </div>
       );
   }

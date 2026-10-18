@@ -29,6 +29,8 @@ const CREAM = '#fbf7ee';
 const INK = '#1d2a33';
 const MUTED = '#5f6f7a';
 const BORDER = '#d9e6ef';
+/** The palette above, for the Settings template editor's on-screen canvas. */
+export const PDF_BRAND = { blue: BLUE, cream: CREAM, ink: INK, muted: MUTED, border: BORDER };
 const DISPLAY = 'ArchivoBlack';
 const BODY = 'DMSans';
 
@@ -54,9 +56,13 @@ function setPdfFont(doc: jsPDF, family: 'display' | 'body', style: 'normal' | 'b
   }
 }
 
+/** A template colour as it actually prints -- old-palette colours come out as their brand equivalents. */
+export function brandColour(hex: string): string {
+  return LEGACY_COLOURS[hex.toLowerCase()] ?? hex;
+}
+
 function hexToRgb(hex: string): [number, number, number] {
-  const mapped = LEGACY_COLOURS[hex.toLowerCase()] ?? hex;
-  const clean = mapped.replace('#', '');
+  const clean = brandColour(hex).replace('#', '');
   const n = parseInt(clean.length === 3 ? clean.replace(/(.)/g, '$1$1') : clean, 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
@@ -271,7 +277,7 @@ function isVisible(el: PdfTemplateElement, isPaid: boolean, kind: 'invoice' | 'q
   return el.visibleWhen === 'paid' ? isPaid : !isPaid;
 }
 
-const TABLE_COLUMNS = [
+export const TABLE_COLUMNS = [
   { key: 'no', label: '#', ratio: 0.06, align: 'left' as const },
   { key: 'desc', label: 'Item & Description', ratio: 0.46, align: 'left' as const },
   { key: 'qty', label: 'Qty', ratio: 0.12, align: 'right' as const },
@@ -498,6 +504,24 @@ export const DEFAULT_INVOICE_TEMPLATE: PdfTemplateElement[] = [
   { id: 'contact-details', type: 'text', x: 56, y: 597.5, width: 483, height: 12, content: '{{businessTelephone}}  ·  {{businessEmail}}', fontSize: 8.5, fontWeight: 'normal', color: '#ffffff', align: 'right' },
 ];
 
+/**
+ * True for a template saved before the restyle: it has none of the new
+ * layout's header band and still uses the old green palette. Those print with
+ * the brand colours but keep the old layout, so the Settings editor offers the
+ * restyled default in their place.
+ */
+export function isPreRestyleTemplate(template: PdfTemplateElement[]): boolean {
+  if (template.some((el) => el.id === 'header-band')) return false;
+  return template.some((el) => {
+    const colours = [
+      el.type === 'text' ? el.color : undefined,
+      el.type === 'line' ? el.strokeColor : undefined,
+      el.type === 'rect' ? el.fillColor : undefined,
+      el.type === 'rect' ? el.strokeColor : undefined,
+    ];
+    return colours.some((c) => !!c && c.toLowerCase() in LEGACY_COLOURS);
+  });
+}
 
 function rangesOverlap(a1: number, a2: number, b1: number, b2: number): boolean {
   return a1 < b2 && b1 < a2;
