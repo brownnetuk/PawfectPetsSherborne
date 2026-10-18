@@ -11,6 +11,7 @@ import {
   EmailTemplate,
   EmailTrigger,
 } from '../settings/schemas/email-template.schema';
+import { NotificationService } from '../notifications/notification.service';
 import { SettingsService } from '../settings/settings.service';
 import { CreatePreBoardingFormDto } from './dto/create-pre-boarding-form.dto';
 import { UpdatePreBoardingSettingsDto } from './dto/update-pre-boarding-settings.dto';
@@ -156,6 +157,7 @@ export class PreBoardingService implements OnModuleInit {
     @InjectModel(EmailTemplate.name)
     private readonly emailTemplateModel: Model<EmailTemplate>,
     private readonly settingsService: SettingsService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   // Seeds the pre_boarding email template once, so "Send email" works out
@@ -397,6 +399,10 @@ export class PreBoardingService implements OnModuleInit {
     form.status = PreBoardingFormStatus.COMPLETED;
     form.submittedAt = new Date();
     await form.save();
+    await this.notificationService.notifyFormSubmitted(
+      'Pre-boarding form',
+      [form.firstName, form.surname].filter(Boolean).join(' '),
+    );
     return { ok: true };
   }
 }

@@ -9,6 +9,18 @@ export class NotificationSettings extends Document {
   @Prop({ default: true })
   customerActivated: boolean;
 
+  // A customer edited their own details from the customer app.
+  @Prop({ default: true })
+  customerUpdated: boolean;
+
+  // A customer added a new pet, or edited one, from the customer app.
+  @Prop({ default: true })
+  customerPetUpdated: boolean;
+
+  // A customer submitted a form sent to them (form link or pre-boarding form).
+  @Prop({ default: true })
+  formSubmitted: boolean;
+
   // Appointment reminder, sent this many minutes before it starts.
   @Prop({ default: true })
   appointmentReminders: boolean;

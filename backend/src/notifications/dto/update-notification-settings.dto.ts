@@ -8,6 +8,18 @@ export class UpdateNotificationSettingsDto {
 
   @IsOptional()
   @IsBoolean()
+  customerUpdated?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  customerPetUpdated?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  formSubmitted?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   appointmentReminders?: boolean;
 
   @IsOptional()

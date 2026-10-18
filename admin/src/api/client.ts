@@ -1217,6 +1217,9 @@ export function clearNotifications(): Promise<{ ok: boolean }> {
 
 export interface NotificationSettings {
   customerActivated: boolean;
+  customerUpdated: boolean;
+  customerPetUpdated: boolean;
+  formSubmitted: boolean;
   appointmentReminders: boolean;
   appointmentLeadMinutes: number;
   dailyDigest: boolean;
