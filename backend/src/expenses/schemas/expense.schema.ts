@@ -50,7 +50,7 @@ export class Expense extends Document {
   receipt?: string;
 
   // Download name for the receipt, Date-Payee-Amount.ext (e.g.
-  // 2026-10-08-Amazon-9.99.pdf), set by the admin app on save. Receipts can
+  // 08-10-2026-Amazon-9.99.pdf), set by the admin app on save. Receipts can
   // be images or PDFs; the data URI's MIME type says which.
   @Prop()
   receiptName?: string;

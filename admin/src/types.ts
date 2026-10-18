@@ -387,7 +387,7 @@ export interface Expense {
   amount: number;
   account?: { _id: string; name: string; type: BankAccountType } | string;
   receipt?: string;
-  // Date-Payee-Amount.ext, e.g. 2026-10-08-Amazon-9.99.pdf. Missing on
+  // Date-Payee-Amount.ext, e.g. 08-10-2026-Amazon-9.99.pdf. Missing on
   // receipts attached before renaming existed, or from the mobile app.
   receiptName?: string;
   createdAt: string;

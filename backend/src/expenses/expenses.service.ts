@@ -138,15 +138,16 @@ export class ExpensesService implements OnModuleInit {
       throw new BadRequestException('This expense has no uploaded receipt to send.');
     }
     const html = (dto.message ?? '').split(/\r?\n/).map(escapeHtml).join('<br/>');
-    const name = expense.receiptName || fallbackReceiptName(expense);
+    const name = receiptFileName(expense);
     await this.settingsService.sendDirectEmail(dto.to, dto.subject, `<p>${html}</p>`, { data: expense.receipt, name });
   }
 }
 
-// Receipts saved before renaming existed have no stored receiptName, so one
-// is built the same Date-Payee-Amount.ext way the admin app does
-// (admin/src/utils/receiptFile.ts), e.g. 2026-10-08-Amazon-9.99.jpg.
-function fallbackReceiptName(expense: Expense): string {
+// Built the same Date-Payee-Amount.ext way the admin app does
+// (admin/src/utils/receiptFile.ts), e.g. 08-10-2026-Amazon-9.99.jpg. Always
+// rebuilt so older stored names (none, or the earlier yyyy-mm-dd format) come
+// out the same; the stored receiptName only supplies the extension.
+function receiptFileName(expense: Expense): string {
   const safePart = (value: string) =>
     value
       .normalize('NFKD')
@@ -154,7 +155,10 @@ function fallbackReceiptName(expense: Expense): string {
       .replace(/[^A-Za-z0-9._]+/g, '-')
       .replace(/^[-.]+|[-.]+$/g, '');
   const mime = /^data:([^;,]+)/.exec(expense.receipt ?? '')?.[1]?.toLowerCase() ?? '';
-  const ext = mime === 'application/pdf' ? 'pdf' : mime === 'image/png' ? 'png' : 'jpg';
-  const date = expense.date ? new Date(expense.date).toISOString().slice(0, 10) : 'undated';
+  const storedExt = /\.([A-Za-z0-9]{1,5})$/.exec(expense.receiptName ?? '')?.[1]?.toLowerCase();
+  const ext = storedExt ?? (mime === 'application/pdf' ? 'pdf' : mime === 'image/png' ? 'png' : 'jpg');
+  const date = expense.date
+    ? new Date(expense.date).toISOString().slice(0, 10).split('-').reverse().join('-')
+    : 'undated';
   return `${date}-${safePart(expense.payee ?? '') || 'No-payee'}-${expense.amount.toFixed(2)}.${ext}`;
 }

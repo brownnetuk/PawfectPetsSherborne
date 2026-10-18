@@ -274,11 +274,10 @@ class _AttachmentViewerState extends State<_AttachmentViewer> {
   late final String _receipt = widget.expense.receipt!;
   late final Uint8List _bytes = receiptBytes(_receipt);
   late final bool _isPdf = isPdfReceipt(_receipt);
-  // Receipts saved before naming existed get one built the same way.
-  late final String _fileName = widget.expense.receiptName?.isNotEmpty == true
-      ? widget.expense.receiptName!
-      : receiptFileName(widget.expense.date, widget.expense.payee, widget.expense.amount,
-          receiptExtension(null, _receipt));
+  // Always rebuilt so older stored names (none, or the earlier yyyy-mm-dd
+  // format) come out the same; the stored name only supplies the extension.
+  late final String _fileName = receiptFileName(widget.expense.date, widget.expense.payee, widget.expense.amount,
+      receiptExtension(widget.expense.receiptName, _receipt));
 
   Future<void> _share() async {
     try {
