@@ -2,6 +2,9 @@
 /// backend NotificationSettings singleton.
 class NotificationSettings {
   final bool customerActivated;
+  final bool customerUpdated;
+  final bool customerPetUpdated;
+  final bool formSubmitted;
   final bool appointmentReminders;
   final int appointmentLeadMinutes;
   final bool dailyDigest;
@@ -11,6 +14,9 @@ class NotificationSettings {
 
   NotificationSettings({
     required this.customerActivated,
+    required this.customerUpdated,
+    required this.customerPetUpdated,
+    required this.formSubmitted,
     required this.appointmentReminders,
     required this.appointmentLeadMinutes,
     required this.dailyDigest,
@@ -21,6 +27,9 @@ class NotificationSettings {
 
   factory NotificationSettings.fromJson(Map<String, dynamic> json) => NotificationSettings(
         customerActivated: json['customerActivated'] as bool? ?? true,
+        customerUpdated: json['customerUpdated'] as bool? ?? true,
+        customerPetUpdated: json['customerPetUpdated'] as bool? ?? true,
+        formSubmitted: json['formSubmitted'] as bool? ?? true,
         appointmentReminders: json['appointmentReminders'] as bool? ?? true,
         appointmentLeadMinutes: (json['appointmentLeadMinutes'] as num?)?.toInt() ?? 60,
         dailyDigest: json['dailyDigest'] as bool? ?? false,
@@ -31,6 +40,9 @@ class NotificationSettings {
 
   NotificationSettings copyWith({
     bool? customerActivated,
+    bool? customerUpdated,
+    bool? customerPetUpdated,
+    bool? formSubmitted,
     bool? appointmentReminders,
     int? appointmentLeadMinutes,
     bool? dailyDigest,
@@ -40,6 +52,9 @@ class NotificationSettings {
   }) =>
       NotificationSettings(
         customerActivated: customerActivated ?? this.customerActivated,
+        customerUpdated: customerUpdated ?? this.customerUpdated,
+        customerPetUpdated: customerPetUpdated ?? this.customerPetUpdated,
+        formSubmitted: formSubmitted ?? this.formSubmitted,
         appointmentReminders: appointmentReminders ?? this.appointmentReminders,
         appointmentLeadMinutes: appointmentLeadMinutes ?? this.appointmentLeadMinutes,
         dailyDigest: dailyDigest ?? this.dailyDigest,
@@ -50,6 +65,9 @@ class NotificationSettings {
 
   Map<String, dynamic> toJson() => {
         'customerActivated': customerActivated,
+        'customerUpdated': customerUpdated,
+        'customerPetUpdated': customerPetUpdated,
+        'formSubmitted': formSubmitted,
         'appointmentReminders': appointmentReminders,
         'appointmentLeadMinutes': appointmentLeadMinutes,
         'dailyDigest': dailyDigest,

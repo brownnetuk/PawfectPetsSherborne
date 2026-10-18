@@ -4,6 +4,7 @@ import {
   EmailTemplate,
   EmailTemplateSchema,
 } from '../settings/schemas/email-template.schema';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { SettingsModule } from '../settings/settings.module';
 import { PreBoardingController } from './pre-boarding.controller';
 import { PreBoardingService } from './pre-boarding.service';
@@ -24,6 +25,7 @@ import {
       { name: EmailTemplate.name, schema: EmailTemplateSchema },
     ]),
     SettingsModule,
+    NotificationsModule,
   ],
   controllers: [PreBoardingController],
   providers: [PreBoardingService],

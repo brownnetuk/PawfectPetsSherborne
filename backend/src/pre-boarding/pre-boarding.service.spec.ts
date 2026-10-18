@@ -94,6 +94,7 @@ describe('PreBoardingService', () => {
       moduleRef.get(getModelToken(PreBoardingForm.name)),
       emailTemplateModel,
       { sendTemplatedEmail } as never,
+      { notifyFormSubmitted: jest.fn() } as never,
     );
     await service.onModuleInit();
     await service.updateSettings({ maxScore: 5, questions });

@@ -126,6 +126,26 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                 value: s.customerActivated,
                 onChanged: (v) => _save(s.copyWith(customerActivated: v)),
               ),
+              SwitchListTile(
+                title: const Text('Customer updating forms'),
+                subtitle: const Text('When a customer updates their details in the customer app'),
+                value: s.customerUpdated,
+                onChanged: (v) => _save(s.copyWith(customerUpdated: v)),
+              ),
+              SwitchListTile(
+                title: const Text('Customer adding/updating a pet'),
+                subtitle: const Text('When a customer adds a new pet or edits one in the customer app'),
+                value: s.customerPetUpdated,
+                onChanged: (v) => _save(s.copyWith(customerPetUpdated: v)),
+              ),
+              const Divider(height: 1),
+              _sectionHeader('Forms'),
+              SwitchListTile(
+                title: const Text('Form submitted'),
+                subtitle: const Text('When a customer submits a form sent to them, including pre-boarding forms'),
+                value: s.formSubmitted,
+                onChanged: (v) => _save(s.copyWith(formSubmitted: v)),
+              ),
               const Divider(height: 1),
               _sectionHeader('Bookings'),
               SwitchListTile(

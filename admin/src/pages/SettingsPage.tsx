@@ -5219,6 +5219,11 @@ function NotificationsSettingsTab() {
 
       <div className="section-title">Customers</div>
       {toggle('Customer activated', 'When a customer moves from Pending to Active', 'customerActivated')}
+      {toggle('Customer updating forms', 'When a customer updates their details in the customer app', 'customerUpdated')}
+      {toggle('Customer adding/updating a pet', 'When a customer adds a new pet or edits one in the customer app', 'customerPetUpdated')}
+
+      <div className="section-title">Forms</div>
+      {toggle('Form submitted', 'When a customer submits a form sent to them, including pre-boarding forms', 'formSubmitted')}
 
       <div className="section-title">Bookings</div>
       {toggle(

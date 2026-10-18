@@ -394,11 +394,7 @@ export class PortalService {
       'Customer (portal)',
     );
     const updated = await this.getProfile(customerId);
-    await this.notifications.dispatch(
-      'Customer updated their details',
-      `${updated.name ?? 'A customer'} edited their details in the portal.`,
-      'customerUpdated',
-    );
+    await this.notifications.notifyCustomerUpdated(updated.name);
     return updated;
   }
 
@@ -480,16 +476,33 @@ export class PortalService {
 
   // Creates a pet owned by the authenticated customer (the customer id is
   // forced here, never taken from the request body).
-  createAnimal(customerId: string, dto: PortalCreateAnimalDto) {
-    return this.animals.create(
+  async createAnimal(customerId: string, dto: PortalCreateAnimalDto) {
+    const animal = await this.animals.create(
       { ...dto, customer: customerId },
       'Customer (portal)',
     );
+    await this.notifications.notifyCustomerPet(
+      await this.customerName(customerId),
+      animal.name,
+      'added',
+    );
+    return animal;
   }
 
   // Ownership is enforced inside updateForCustomer (matches the animal's own
   // customer field), so a customer can only edit their own pets.
-  updateAnimal(customerId: string, id: string, dto: PublicUpdateAnimalDto) {
-    return this.animals.updateForCustomer(id, customerId, dto, 'Customer (portal)');
+  async updateAnimal(customerId: string, id: string, dto: PublicUpdateAnimalDto) {
+    const animal = await this.animals.updateForCustomer(id, customerId, dto, 'Customer (portal)');
+    await this.notifications.notifyCustomerPet(
+      await this.customerName(customerId),
+      animal.name,
+      'updated',
+    );
+    return animal;
+  }
+
+  private async customerName(customerId: string): Promise<string | undefined> {
+    const c = await this.customerModel.findById(customerId).select('name').lean().exec();
+    return c?.name;
   }
 }

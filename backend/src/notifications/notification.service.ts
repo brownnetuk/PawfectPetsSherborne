@@ -54,6 +54,42 @@ export class NotificationService {
     await this.dispatch('Customer activated', `${name} is now Active`, 'customerActivated');
   }
 
+  async notifyCustomerUpdated(name?: string): Promise<void> {
+    const s = await this.settings.get();
+    if (!s.customerUpdated) return;
+    await this.dispatch(
+      'Customer updated their details',
+      `${name || 'A customer'} edited their details in the portal.`,
+      'customerUpdated',
+    );
+  }
+
+  async notifyCustomerPet(
+    customerName: string | undefined,
+    petName: string | undefined,
+    event: 'added' | 'updated',
+  ): Promise<void> {
+    const s = await this.settings.get();
+    if (!s.customerPetUpdated) return;
+    const who = customerName || 'A customer';
+    const pet = petName || 'a pet';
+    await this.dispatch(
+      event === 'added' ? 'Pet added' : 'Pet updated',
+      event === 'added' ? `${who} added ${pet} in the portal.` : `${who} updated ${pet} in the portal.`,
+      event === 'added' ? 'petAdded' : 'petUpdated',
+    );
+  }
+
+  async notifyFormSubmitted(formName: string, customerName?: string): Promise<void> {
+    const s = await this.settings.get();
+    if (!s.formSubmitted) return;
+    await this.dispatch(
+      'Form submitted',
+      `${customerName || 'A customer'} submitted "${formName}".`,
+      'formSubmitted',
+    );
+  }
+
   async notifyInvoicesOverdue(count: number): Promise<void> {
     if (count <= 0) return;
     const s = await this.settings.get();

@@ -21,6 +21,7 @@ import { UpdateCustomerDto } from '../customers/dto/update-customer.dto';
 import { FormField } from '../forms/form-field.types';
 import { buildCustomerPlaceholders, interpolatePlaceholders } from '../forms/form-placeholders.util';
 import { FormsService } from '../forms/forms.service';
+import { NotificationService } from '../notifications/notification.service';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
 import { CreateFormSubmissionDto } from './dto/create-form-submission.dto';
@@ -167,6 +168,7 @@ export class FormSubmissionsService {
     private readonly animalsService: AnimalsService,
     private readonly auditLogService: AuditLogService,
     private readonly settingsService: SettingsService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async create(dto: CreateFormSubmissionDto): Promise<FormSubmission> {
@@ -496,6 +498,14 @@ export class FormSubmissionsService {
       undefined,
       actor,
     );
+
+    // Only the customer's own submission (no staff token) notifies staff --
+    // a form staff fill in themselves from the admin app isn't news to them.
+    if (actor === 'Customer') {
+      const customerName =
+        (customerInstance as { name?: string }).name || submission.recipientName;
+      await this.notificationService.notifyFormSubmitted(submission.formName, customerName);
+    }
 
     return submission;
   }
