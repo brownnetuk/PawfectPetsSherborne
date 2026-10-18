@@ -506,9 +506,9 @@ export const DEFAULT_INVOICE_TEMPLATE: PdfTemplateElement[] = [
 
 /**
  * True for a template saved before the restyle: it has none of the new
- * layout's header band and still uses the old green palette. Those print with
- * the brand colours but keep the old layout, so the Settings editor offers the
- * restyled default in their place.
+ * layout's header band and still uses the old green palette. Those are
+ * superseded by the branded default, so every invoice and quote comes out in
+ * the restyled look (and the Settings editor opens the default in their place).
  */
 export function isPreRestyleTemplate(template: PdfTemplateElement[]): boolean {
   if (template.some((el) => el.id === 'header-band')) return false;
@@ -677,9 +677,9 @@ export async function buildInvoicePdf(
   const doc = appendTo ?? new jsPDF({ unit: 'pt', format: 'a4' });
   if (appendTo) doc.addPage('a4', 'portrait');
   await registerBrandFonts(doc);
-  const rawTemplate = businessInfo.invoicePdfTemplate?.length
-    ? (businessInfo.invoicePdfTemplate as unknown as PdfTemplateElement[])
-    : DEFAULT_INVOICE_TEMPLATE;
+  const saved = (businessInfo.invoicePdfTemplate ?? []) as unknown as PdfTemplateElement[];
+  const rawTemplate =
+    saved.length && !isPreRestyleTemplate(saved) ? saved : DEFAULT_INVOICE_TEMPLATE;
   const template = injectVisitSchedule(prepareForKind(rawTemplate, kind), record);
   const vars = buildPdfVars(record, kind, businessInfo);
   const isPaid = kind === 'invoice' && record.status === 'paid';

@@ -77,7 +77,7 @@ export default function PdfTemplateDesigner() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   // Set when the saved template predates the restyle and the editor has
-  // swapped in the branded default -- Undo brings the old one back.
+  // swapped in the branded default (which the PDFs use in its place).
   const [upgradedFromOld, setUpgradedFromOld] = useState(false);
 
   const historyRef = useRef<{ past: PdfTemplateElement[][]; future: PdfTemplateElement[][] }>({ past: [], future: [] });
@@ -99,7 +99,6 @@ export default function PdfTemplateDesigner() {
         setBusinessInfo(info);
         const saved = info.invoicePdfTemplate ?? [];
         if (saved.length && isPreRestyleTemplate(saved)) {
-          historyRef.current.past.push(saved);
           setElements(DEFAULT_INVOICE_TEMPLATE);
           setUpgradedFromOld(true);
         } else {
@@ -380,8 +379,8 @@ export default function PdfTemplateDesigner() {
       {error && <div className="error-banner">{error}</div>}
       {upgradedFromOld && (
         <div className="success-banner" style={{ marginTop: 4 }}>
-          Your saved template still used the old layout, so the new branded layout is shown here instead. Save
-          Template to use it on every invoice and quote, or Undo to go back to the old one.
+          Your saved template used the old layout, so invoices and quotes now use the new branded layout shown
+          here. Save Template to keep it as your template.
         </div>
       )}
       {saved && <div style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600, marginTop: 4 }}>Saved.</div>}
