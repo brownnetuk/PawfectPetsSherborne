@@ -696,6 +696,12 @@ export function getBankAccountTransactions(
 ): Promise<BankAccountStatement> {
   return request(`/bank-accounts/${id}/transactions?month=${month}&year=${year}`);
 }
+// Statement for any date range, 'YYYY-MM-DD' with both ends inclusive; leave
+// both empty for the account's whole history.
+export function getBankAccountStatement(id: string, from: string, to: string): Promise<BankAccountStatement> {
+  const params = new URLSearchParams(from || to ? { from, to } : { all: '1' });
+  return request(`/bank-accounts/${id}/transactions?${params}`);
+}
 
 // --- bank transfers ---
 export function listBankTransfers(): Promise<BankTransfer[]> {
