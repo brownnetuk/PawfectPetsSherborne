@@ -1,10 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
+import { Animal, Species } from '../animals/schemas/animal.schema';
 import { Appointment } from '../appointments/schemas/appointment.schema';
 import { DayBooking } from '../day-bookings/schemas/day-booking.schema';
 import { PushService } from '../push/push.service';
+import { VisitMapping } from '../settings/schemas/visit-mapping.schema';
 import { CustomerNotificationsService } from '../customer-notifications/customer-notifications.service';
 import { NotificationSettingsService } from './notification-settings.service';
 import { NotificationItem } from './schemas/notification-item.schema';
@@ -22,6 +24,7 @@ export class NotificationService {
     @InjectModel(DayBooking.name) private readonly dayBookingModel: Model<DayBooking>,
     @InjectModel(Appointment.name) private readonly appointmentModel: Model<Appointment>,
     @InjectModel(NotificationItem.name) private readonly itemModel: Model<NotificationItem>,
+    @InjectModel(VisitMapping.name) private readonly visitMappingModel: Model<VisitMapping>,
   ) {}
 
   // Records the notification in the admin feed and pushes it to phones. Every
@@ -161,6 +164,83 @@ export class NotificationService {
     );
   }
 
+  // Splits today's DayBookings into visits, day care and boarding using the
+  // VisitMapping product slots (Product has no stored category), and names
+  // each group's pets by species, e.g. "1 visit (3 cats)". A two-visit
+  // product counts as 2 visits. Rows on any other product (travel, extras)
+  // aren't a booking of their own and are skipped.
+  private digestBookingParts(dayBookings: DayBooking[], mapping: VisitMapping | null): string[] {
+    const ids = (...products: (Types.ObjectId | undefined)[]) =>
+      new Set(products.filter((p): p is Types.ObjectId => !!p).map(String));
+    const oneVisit = ids(
+      mapping?.oneVisitWeekdayProduct,
+      mapping?.oneVisitWeekendProduct,
+      mapping?.oneVisitBankHolidayProduct,
+    );
+    const twoVisit = ids(
+      mapping?.twoVisitWeekdayProduct,
+      mapping?.twoVisitWeekendProduct,
+      mapping?.twoVisitBankHolidayProduct,
+    );
+    const dayCare = ids(
+      mapping?.dayCareHalfDayProduct,
+      mapping?.dayCareFullDayProduct,
+      mapping?.dayCareSecondDogHalfDayProduct,
+      mapping?.dayCareSecondDogFullDayProduct,
+    );
+    const boarding = ids(
+      mapping?.boardingPerDayProduct,
+      mapping?.boardingSecondDogPerDayProduct,
+      mapping?.boardingHalfDayProduct,
+      mapping?.boardingSecondDogHalfDayProduct,
+    );
+
+    let visits = 0;
+    const pets = {
+      visit: new Map<string, string>(),
+      dayCare: new Map<string, string>(),
+      boarding: new Map<string, string>(),
+    };
+    for (const b of dayBookings) {
+      const product = String(b.product);
+      let group: keyof typeof pets;
+      if (oneVisit.has(product) || twoVisit.has(product)) {
+        group = 'visit';
+        visits += twoVisit.has(product) ? 2 : 1;
+      } else if (dayCare.has(product)) group = 'dayCare';
+      else if (boarding.has(product)) group = 'boarding';
+      else continue;
+      for (const a of [b.animal, ...(b.additionalAnimals ?? [])] as unknown as (Animal | null)[]) {
+        if (a) pets[group].set(String(a._id), a.species);
+      }
+    }
+
+    const parts: string[] = [];
+    if (visits > 0) parts.push(`${visits} visit${visits === 1 ? '' : 's'} (${this.speciesSummary(pets.visit)})`);
+    if (pets.dayCare.size > 0) parts.push(`day care for ${this.speciesSummary(pets.dayCare)}`);
+    if (pets.boarding.size > 0) parts.push(`boarding for ${this.speciesSummary(pets.boarding)}`);
+    if (parts.length === 0) parts.push('no bookings');
+    return parts;
+  }
+
+  // "3 cats", "2 dogs and 1 cat" -- species other than dog/cat count as pets.
+  private speciesSummary(pets: Map<string, string>): string {
+    const counts = new Map<string, number>();
+    for (const species of pets.values()) {
+      const noun = species === Species.DOG || species === Species.CAT ? species : 'pet';
+      counts.set(noun, (counts.get(noun) ?? 0) + 1);
+    }
+    return this.joinList(
+      ['dog', 'cat', 'pet']
+        .filter((noun) => counts.has(noun))
+        .map((noun) => `${counts.get(noun)} ${noun}${counts.get(noun) === 1 ? '' : 's'}`),
+    );
+  }
+
+  private joinList(items: string[]): string {
+    return items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+  }
+
   private pad(n: number): string {
     return n.toString().padStart(2, '0');
   }
@@ -184,18 +264,17 @@ export class NotificationService {
 
     const dayBookings = await this.dayBookingModel
       .find({ date: { $gte: dayStart, $lt: dayEnd } })
+      .populate('animal', 'species')
+      .populate('additionalAnimals', 'species')
       .exec();
-    const dogCount = new Set(
-      dayBookings.flatMap((b) => [b.animal, ...(b.additionalAnimals ?? [])].map((a) => a.toString())),
-    ).size;
+    const mapping = await this.visitMappingModel.findOne().exec();
     const appointments = await this.appointmentModel
       .countDocuments({ date: { $gte: dayStart, $lt: dayEnd } })
       .exec();
 
-    const parts: string[] = [];
-    parts.push(`${dogCount} dog booking${dogCount === 1 ? '' : 's'}`);
+    const parts = this.digestBookingParts(dayBookings, mapping);
     parts.push(`${appointments} appointment${appointments === 1 ? '' : 's'}`);
-    await this.dispatch("Today's schedule", `${parts.join(' and ')} today.`, 'dailyDigest');
+    await this.dispatch("Today's schedule", `${this.joinList(parts)} today.`, 'dailyDigest');
     await this.settings.markDigestSent(todayKey);
     this.logger.log(`Daily digest sent for ${todayKey}`);
   }
