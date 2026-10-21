@@ -10,6 +10,7 @@ import '../models/animal.dart';
 import '../models/customer.dart';
 import '../models/form_submission.dart';
 import '../state/auth_provider.dart';
+import '../utils/pet_name_placeholder.dart';
 import '../widgets/signature_pad.dart';
 import 'customer_forms_screen.dart';
 
@@ -768,9 +769,10 @@ class _FormFillScreenState extends State<FormFillScreen> {
             .whereType<Map>()
             .map((e) => e.cast<String, dynamic>())
             .toList();
-        for (final rep in repetitions) {
-          final pet = (petFieldId != null ? rep[petFieldId]?.toString() : null) ?? '';
-          for (final gf in groupFields.where(isFeeding)) {
+        for (var i = 0; i < repetitions.length; i++) {
+          final rep = repetitions[i];
+          final pet = repetitionLabel(f, i) ?? (petFieldId != null ? rep[petFieldId]?.toString() : null) ?? '';
+          for (final gf in withPetName(groupFields, pet).where(isFeeding)) {
             byPet.putIfAbsent(pet, () => []).add((
               gf['label'] as String? ?? '',
               _formatRefAnswer(gf['type'] as String? ?? 'text', rep[gf['id']]),
@@ -1041,7 +1043,8 @@ class _FormFillScreenState extends State<FormFillScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: Text('$label ${i + 1}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                          child: Text(repetitionLabel(field, i) ?? '$label ${i + 1}',
+                              style: const TextStyle(fontWeight: FontWeight.w600)),
                         ),
                         if (repetitions.length > minRepeats)
                           IconButton(
@@ -1054,7 +1057,9 @@ class _FormFillScreenState extends State<FormFillScreen> {
                       ],
                     ),
                     if (_checkInBlock(groupFields, repetitions[i], i) case final Widget block) block,
-                    ...groupFields.where((gf) => _isFieldVisible(gf, repetitions[i])).map(
+                    ...withPetName(groupFields, repetitionLabel(field, i))
+                        .where((gf) => _isFieldVisible(gf, repetitions[i]))
+                        .map(
                           (gf) => _buildField(
                             gf,
                             repetitions[i],

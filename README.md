@@ -4972,7 +4972,7 @@ Dates are shown as DD/MM/YYYY. `InvoiceHtmlView` and `QuoteHtmlView` render it.
 | `FieldRenderer.tsx` | Renders one `FormField` for the given type: display, today, datetime, text, textarea, number, date, time, toggle, choice, multichoice, file (`PhotoUpload`), medications (`MedicationEntriesField`) or signature (`SignaturePad`). Labels go through `RichLabel`. It reimplements the frontend's renderer using admin's `.field` CSS classes. |
 | `RepeatableGroup.tsx` | Renders the repetitions of a group, with add and remove. Ported from the frontend. |
 | `ReadOnlyAnswers.tsx` | Read-only answer list, used to show the check-in answers above a check-out form. Formats medications with `formatMedications`. |
-| `formDefaults.ts` | `defaultAnswersFor(fields)`, `isFieldVisible(field, scopeAnswers)` (all/any conditions), and `withPetName(fields, name)`, which substitutes `{{petName}}` for each repetition. A straight copy of the frontend file. |
+| `formDefaults.ts` | `defaultAnswersFor(fields)`, `isFieldVisible(field, scopeAnswers)` (all/any conditions), and `withPetName(fields, name)`, which substitutes `{{petName}}` for each repetition ("your dog" when there's no name). A straight copy of the frontend file. |
 
 ### PDF documents (`src/pdf`, generated client-side)
 
@@ -5507,7 +5507,7 @@ The pets are submitted **one after another**, and the calls are not wrapped in a
 **Repeatable groups**:
 - Single-page forms render them inline with `RepeatableGroup.tsx`, including "+ Add another {label}" and "Remove" within the `minRepeats`/`maxRepeats` limits.
 - `repetitionLabels` (per-pet names) hides the generic heading.
-- `withPetName` swaps `{{petName}}` in child labels.
+- `withPetName` swaps `{{petName}}` in child labels, or "your dog" when the repetition has no pet name. The backend also labels an unresolved top-level `{{petName}}` (a multi-pet or lead send) as "your dog".
 
 **Pagination**:
 - A form becomes a wizard only if a top-level `display` field has `startsNewPage`.
@@ -6042,7 +6042,7 @@ The save calls `POST /portal/animals` or `PATCH /portal/animals/:id`, then pops 
 | `lib/models/` | 25 plain Dart model files with `fromJson` factories |
 | `lib/screens/` | 48 screen and bottom-sheet files |
 | `lib/services/` | `push_service.dart` (APNs bridge) and `sumup_service.dart` (card reader) |
-| `lib/utils/` | `price_list_pdf.dart`, `product_availability.dart`, `visit_plan.dart` |
+| `lib/utils/` | `pet_name_placeholder.dart`, `price_list_pdf.dart`, `product_availability.dart`, `visit_plan.dart` |
 | `lib/widgets/` | `hold_to_delete_dialog.dart`, `signature_pad.dart`, `status_badge.dart`, `zoomable_pdf.dart` |
 | `test/` | 5 widget-test files |
 | `android/`, `ios/`, `web/` | Platform runners |
@@ -6394,7 +6394,7 @@ flowchart TD
 | `customer_defaults_screen.dart` | Default product, "Travel is chargeable" plus travel product, regular-day chips, **App access enabled** toggle (confirm "Enable app access?"), **Send password reset email** | `GET /products`; `PATCH /customers/:id`; `PATCH /customers/:id/portal`; `POST /customers/:id/portal/reset` |
 | `customer_activity_screen.dart` | Read-only audit timeline | `GET /audit-log?customer=` |
 | `customer_notes_screen.dart` | CRM notes list; `_NoteViewSheet` (opens immediately, then lazy-loads attachments); `_NoteSheet` add/edit with Type (Note/Call/Email/Task), Subject, Description, and Attachments from **Scan** (document scanner), **Camera** or **Library**. Images are downscaled to ≤1200 px JPEG q60 in `compute`. Delete confirm. | `GET /crm/activities?customer=`, `GET /crm/activities/:id`, `POST` / `PATCH` / `DELETE /crm/activities[/:id]`; `createdBy` = `AuthProvider.staff.name` |
-| `customer_forms_screen.dart` | Every form submission (pending or completed chip). **`FormResponseScreen`** (also used elsewhere) renders answers in the authored order from the field snapshot: display text, repeatable groups, signature and photo images, Yes/No toggles, dates formatted. | `GET /form-submissions?customer=` |
+| `customer_forms_screen.dart` | Every form submission (pending or completed chip). **`FormResponseScreen`** (also used elsewhere) renders answers in the authored order from the field snapshot: display text, repeatable groups (headed by each pet's name, with `{{petName}}` filled in), signature and photo images, Yes/No toggles, dates formatted. | `GET /form-submissions?customer=` |
 | `animal_detail_screen.dart` | Photos (tap → `_PhotoGalleryScreen`), vaccination card (→ `_SingleImageScreen`, pinch-zoom). Sections: **Basics**, **Health**, **Medication**, **Temperament & handling** (aggression, livestock, car travel, walk mode / off-lead consent). Overflow menu: Edit / Delete. | `DELETE /animals/:id` |
 | `edit_animal_screen.dart` | Name, species (Dog/Cat/Other), breed, sex, age, vaccinated plus expiry (required if vaccinated), colour/markings, microchip, insured plus insurer, neutered status, temperament notes, **Pet photos (up to 2)**, **Vaccination card**. Images are taken with `ImagePicker(imageQuality: 70, maxWidth: 1600)` and stored as `data:image/jpeg;base64,…`. | `PATCH /animals/:id` (partial; intake-only fields untouched) |
 | `select_customer_screen.dart` | Searchable customer picker that returns `SelectCustomerResult`. With `allowManual` it offers **Manual customer** (name + email, "not saved as a customer"). | `GET /customers`, `GET /animals` |
