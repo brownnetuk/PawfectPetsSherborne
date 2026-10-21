@@ -22,7 +22,8 @@ class _CustomerGroup {
 
 /// Generates one invoice per customer covering every not-yet-invoiced Walk and
 /// Visit booked in the anchor month, mirroring the admin Generate Invoices
-/// modal. Pops `true` when invoices were created.
+/// modal. Every customer starts ticked; untick any to leave them for a later
+/// run. Pops `true` when invoices were created.
 class GenerateInvoicesSheet extends StatefulWidget {
   final DateTime anchorMonth;
   const GenerateInvoicesSheet({super.key, required this.anchorMonth});
@@ -44,6 +45,13 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
   String? _result;
   List<_CustomerGroup> _groups = [];
   String? _expandedId;
+
+  /// Customers whose invoice will be created -- all of them by default.
+  final Set<String> _selectedIds = {};
+
+  List<_CustomerGroup> get _selected => _groups.where((g) => _selectedIds.contains(g.customerId)).toList();
+
+  double get _selectedTotal => _selected.fold<double>(0, (s, g) => s + g.total);
 
   @override
   void initState() {
@@ -92,6 +100,9 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
       groups.sort((a, b) => a.customerName.toLowerCase().compareTo(b.customerName.toLowerCase()));
       setState(() {
         _groups = groups;
+        _selectedIds
+          ..clear()
+          ..addAll(groups.map((g) => g.customerId));
         _loading = false;
       });
     } catch (e) {
@@ -117,7 +128,7 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
       final issueDate = DateTime.now();
 
       var count = 0;
-      for (final group in _groups) {
+      for (final group in _selected) {
         final invoice = await repo.createInvoice(
           customerId: group.customerId,
           lineItems: group.lineItems,
@@ -185,13 +196,40 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
                     style: TextStyle(color: Colors.grey.shade600)),
               )
             else ...[
-              Text('One invoice per customer, covering every not-yet-invoiced Walk and Visit booked in $_monthLabel.',
+              Text('One invoice per customer, covering every not-yet-invoiced Walk and Visit booked in $_monthLabel. '
+                  'Untick anyone to leave them for a later run.',
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
-              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _busy
+                      ? null
+                      : () => setState(() {
+                            if (_selectedIds.length == _groups.length) {
+                              _selectedIds.clear();
+                            } else {
+                              _selectedIds.addAll(_groups.map((g) => g.customerId));
+                            }
+                          }),
+                  child: Text(_selectedIds.length == _groups.length ? 'Select none' : 'Select all'),
+                ),
+              ),
               for (final g in _groups) _groupTile(g),
               const SizedBox(height: 8),
-              Text('${_groups.length} invoice${_groups.length == 1 ? '' : 's'} will be created.',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+              // Running total of what's ticked, so staff can see the month's
+              // billing at a glance before confirming.
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${_selected.length} of ${_groups.length} invoice${_groups.length == 1 ? '' : 's'} will be created.',
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                    ),
+                  ),
+                  Text('Total ', style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
+                  Text(_money.format(_selectedTotal), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                ],
+              ),
             ],
             const SizedBox(height: 16),
             Row(
@@ -204,8 +242,10 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
                 if (_result == null && !_loading && _groups.isNotEmpty) ...[
                   const SizedBox(width: 8),
                   ElevatedButton(
-                    onPressed: _busy ? null : _confirm,
-                    child: Text(_busy ? 'Creating…' : 'Confirm & Create'),
+                    onPressed: _busy || _selected.isEmpty ? null : _confirm,
+                    child: Text(_busy
+                        ? 'Creating…'
+                        : 'Confirm & Create${_selected.length == _groups.length ? '' : ' (${_selected.length})'}'),
                   ),
                 ],
               ],
@@ -218,20 +258,44 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
 
   Widget _groupTile(_CustomerGroup g) {
     final expanded = _expandedId == g.customerId;
+    final selected = _selectedIds.contains(g.customerId);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: selected ? Colors.grey.shade300 : Colors.grey.shade200),
         borderRadius: BorderRadius.circular(8),
+        color: selected ? null : Colors.grey.shade50,
       ),
       child: Column(
         children: [
+          // Tick to include this customer; tap the row/chevron to see the lines.
           ListTile(
             onTap: () => setState(() => _expandedId = expanded ? null : g.customerId),
-            leading: Icon(expanded ? Icons.expand_less : Icons.expand_more, color: Colors.grey.shade600),
-            title: Text(g.customerName, style: const TextStyle(fontWeight: FontWeight.w700)),
+            contentPadding: const EdgeInsets.only(left: 4, right: 12),
+            leading: Checkbox(
+              value: selected,
+              onChanged: _busy
+                  ? null
+                  : (v) => setState(() {
+                        if (v == true) {
+                          _selectedIds.add(g.customerId);
+                        } else {
+                          _selectedIds.remove(g.customerId);
+                        }
+                      }),
+            ),
+            title: Text(g.customerName,
+                style: TextStyle(fontWeight: FontWeight.w700, color: selected ? null : Colors.grey.shade600)),
             subtitle: Text('${g.lineItems.length} line item${g.lineItems.length == 1 ? '' : 's'}'),
-            trailing: Text(_money.format(g.total), style: const TextStyle(fontWeight: FontWeight.w700)),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_money.format(g.total),
+                    style: TextStyle(fontWeight: FontWeight.w700, color: selected ? null : Colors.grey.shade600)),
+                const SizedBox(width: 4),
+                Icon(expanded ? Icons.expand_less : Icons.expand_more, color: Colors.grey.shade600),
+              ],
+            ),
           ),
           if (expanded)
             Padding(
