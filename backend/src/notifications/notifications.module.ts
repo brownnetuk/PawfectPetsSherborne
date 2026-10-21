@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Appointment, AppointmentSchema } from '../appointments/schemas/appointment.schema';
 import { DayBooking, DayBookingSchema } from '../day-bookings/schemas/day-booking.schema';
+import { VisitMapping, VisitMappingSchema } from '../settings/schemas/visit-mapping.schema';
 import { PushModule } from '../push/push.module';
 import { CustomerNotificationsModule } from '../customer-notifications/customer-notifications.module';
 import { NotificationFeedController } from './notification-feed.controller';
@@ -20,6 +21,7 @@ import { NotificationSettings, NotificationSettingsSchema } from './schemas/noti
       { name: NotificationItem.name, schema: NotificationItemSchema },
       { name: DayBooking.name, schema: DayBookingSchema },
       { name: Appointment.name, schema: AppointmentSchema },
+      { name: VisitMapping.name, schema: VisitMappingSchema },
     ]),
   ],
   controllers: [NotificationSettingsController, NotificationFeedController],

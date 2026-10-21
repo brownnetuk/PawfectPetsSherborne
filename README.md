@@ -1162,7 +1162,7 @@ Only one in-scope service has an `@Cron`.
 
 | Job | File | Schedule | What it does |
 |---|---|---|---|
-| `NotificationService.dailyDigest` | `src/notifications/notification.service.ts` | `CronExpression.EVERY_5_MINUTES` | 1. Return early if `!settings.dailyDigest` or APNs isn't configured.<br>2. Build `todayKey` from **server-local** time and skip if it equals `lastDigestSentOn`.<br>3. Skip if the current local `HH:mm` is earlier than `dailyDigestTime` (default `07:30`).<br>4. Count distinct animals (`animal` + `additionalAnimals`) across today's `DayBooking`s and count today's `Appointment`s.<br>5. `dispatch("Today's schedule", "<n> dog booking(s) and <m> appointment(s) today.", 'dailyDigest')`, then `markDigestSent(todayKey)`. |
+| `NotificationService.dailyDigest` | `src/notifications/notification.service.ts` | `CronExpression.EVERY_5_MINUTES` | 1. Return early if `!settings.dailyDigest` or APNs isn't configured.<br>2. Build `todayKey` from **server-local** time and skip if it equals `lastDigestSentOn`.<br>3. Skip if the current local `HH:mm` is earlier than `dailyDigestTime` (default `07:30`).<br>4. Group today's `DayBooking`s by `VisitMapping` product slot: visits (a two-visit product counts as 2), day care and boarding. Rows on any other product (travel, extras) are skipped. Name each group's distinct pets (`animal` + `additionalAnimals`) by species. Count today's `Appointment`s.<br>5. `dispatch("Today's schedule", "1 visit (3 cats), boarding for 2 dogs and 0 appointments today.", 'dailyDigest')` (or "no bookings and …" when there are none), then `markDigestSent(todayKey)`. |
 
 Crons outside this scope that dispatch through `NotificationService`:
 
