@@ -88,7 +88,7 @@ function resolveFieldsForRecipient(
     // represent "which pet", so it can pre-populate one repetition per pet
     // already known from context (e.g. the booking this form was opened
     // from) instead of starting empty.
-    copy.label = interpolatePlaceholders(field.label, placeholders);
+    copy.label = interpolatePlaceholders(field.label, labelPlaceholders(placeholders));
     if (
       (field.type === 'text' || field.type === 'textarea' || field.type === 'number' || field.type === 'date') &&
       field.defaultValue
@@ -105,6 +105,20 @@ function resolveFieldsForRecipient(
     }
     return copy as unknown as Omit<FormField, 'mapping' | 'optionsSource'>;
   });
+}
+
+// What an unresolved {{petName}} reads as in a LABEL -- a form sent for
+// several pets at once, or to a lead with no customer record yet, has no
+// single pet to name, and "Where is  used to sleeping?" (or the raw token)
+// reads worse than "Where is your dog used to sleeping?". Labels only:
+// defaultValue keeps the '' so a "Name of pet" answer isn't pre-filled with
+// it. Left alone when petName has been dropped on purpose (groupPlaceholders
+// below), so per-pet pages still get their own name client-side.
+const PET_NAME_FALLBACK = 'your dog';
+
+function labelPlaceholders(placeholders: Record<string, string>): Record<string, string> {
+  if (!('petName' in placeholders) || placeholders.petName) return placeholders;
+  return { ...placeholders, petName: PET_NAME_FALLBACK };
 }
 
 // A group with one fixed pet per repetition (repetitionLabels -- the
@@ -282,7 +296,9 @@ export class FormSubmissionsService {
   private async placeholdersFor(
     submission: FormSubmission,
   ): Promise<{ placeholders: Record<string, string>; petNames: string[] }> {
-    let placeholders: Record<string, string> = {};
+    // petName is always present (if blank) so labelPlaceholders() can give it
+    // its fallback even when there's no customer to build the rest from.
+    let placeholders: Record<string, string> = { petName: '' };
     let petNames: string[] = [];
     if (submission.customer) {
       const customerId = submission.customer.toString();
@@ -316,7 +332,7 @@ export class FormSubmissionsService {
     const { placeholders } = await this.placeholdersFor(submission);
     const resolveLabels = (fields: FormField[], vars: Record<string, string>): FormField[] =>
       fields.map((field) => {
-        const copy = { ...field, label: interpolatePlaceholders(field.label, vars) } as FormField;
+        const copy = { ...field, label: interpolatePlaceholders(field.label, labelPlaceholders(vars)) } as FormField;
         if (copy.type === 'group') copy.fields = resolveLabels(copy.fields, groupPlaceholders(copy, vars));
         return copy;
       });

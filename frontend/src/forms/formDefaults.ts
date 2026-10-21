@@ -49,9 +49,12 @@ export function isFieldVisible(field: FormField, scopeAnswers: Record<string, un
 
 // The pre-check-in form's per-pet pages keep {{petName}} as literal text
 // (see backend's groupPlaceholders) so each page can show its OWN pet's
-// name -- `name` is that repetition's repetitionLabels entry. A no-op for
-// any other group.
+// name -- `name` is that repetition's repetitionLabels entry. Falls back to
+// PET_NAME_FALLBACK when there's no name for the page (an older submission
+// or a group without fixed labels), so the raw placeholder never shows.
+export const PET_NAME_FALLBACK = 'your dog';
+
 export function withPetName<T extends { label: string }>(fields: T[], name: string | undefined): T[] {
-  if (!name) return fields;
-  return fields.map((f) => (f.label.includes('{{petName}}') ? { ...f, label: f.label.split('{{petName}}').join(name) } : f));
+  const resolved = name?.trim() || PET_NAME_FALLBACK;
+  return fields.map((f) => (f.label.includes('{{petName}}') ? { ...f, label: f.label.split('{{petName}}').join(resolved) } : f));
 }

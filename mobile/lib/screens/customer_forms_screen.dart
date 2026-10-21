@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/form_submission.dart';
+import '../utils/pet_name_placeholder.dart';
 
 /// Every form sent to this customer, newest first -- pending links still
 /// awaiting a reply and completed submissions. Tapping a row opens the
@@ -189,11 +190,12 @@ class FormResponseScreen extends StatelessWidget {
               .map((e) => e.cast<String, dynamic>())
               .toList();
           for (var i = 0; i < repetitions.length; i++) {
+            final petName = repetitionLabel(field, i);
             widgets.add(Padding(
               padding: const EdgeInsets.only(top: 8, bottom: 2),
-              child: Text('$label ${i + 1}', style: const TextStyle(fontWeight: FontWeight.w600)),
+              child: Text(petName ?? '$label ${i + 1}', style: const TextStyle(fontWeight: FontWeight.w600)),
             ));
-            widgets.addAll(_fieldWidgets(context, groupFields, repetitions[i]));
+            widgets.addAll(_fieldWidgets(context, withPetName(groupFields, petName), repetitions[i]));
           }
         }
         continue;
