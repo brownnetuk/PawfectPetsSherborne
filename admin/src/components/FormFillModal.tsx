@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import * as api from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { buildFormSubmissionPdf } from '../pdf/formSubmissionPdf';
@@ -103,6 +103,7 @@ export default function FormFillModal({
   presetPetNames,
   saveEdit,
   pdfReference,
+  header,
   onClose,
   onSubmitted,
 }: {
@@ -128,6 +129,9 @@ export default function FormFillModal({
   saveEdit?: (answers: Record<string, unknown>) => Promise<void>;
   // Shown in the emailed PDF copy's header, e.g. the booking reference.
   pdfReference?: string;
+  // Shown above the form in every state -- e.g. the incident report's
+  // booking picker.
+  header?: ReactNode;
   onClose: () => void;
   onSubmitted: (submissionId: string) => void;
 }) {
@@ -276,6 +280,7 @@ export default function FormFillModal({
 
   return (
     <Modal title={title} onClose={onClose} wide>
+      {header}
       {loadState === 'loading' && <p>Loading…</p>}
       {loadState === 'error' && <div className="error-banner">Couldn't load this form.</div>}
       {loadState === 'already-completed' && <p>This form has already been completed.</p>}

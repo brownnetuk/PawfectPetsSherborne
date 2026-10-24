@@ -19,6 +19,33 @@ import { BoardingBooking } from './schemas/boarding-booking.schema';
 // deleted. Unlike check-in/check-out, reports stay editable once the
 // booking is complete -- an incident can come to light (or need the licence
 // holder's review sign-off) after the dog has gone home.
+// The booking a report belongs to, as each list row shows it -- so the
+// all-bookings list (Boarding & Day Care > Incident Reports) can say which
+// booking/customer each report is for, and the fill form's booking picker
+// can start on the right one.
+export interface IncidentReportBooking {
+  _id: string;
+  reference: string;
+  customerName?: string;
+  petNames: string[];
+}
+
+type PopulatedBooking = BoardingBooking & {
+  customer?: { _id?: Types.ObjectId; name?: string; email?: string } | null;
+  animals: ({ name?: string } | Types.ObjectId)[];
+};
+
+function bookingSummary(booking: PopulatedBooking): IncidentReportBooking {
+  return {
+    _id: String(booking._id),
+    reference: booking.reference,
+    customerName: booking.customer?.name,
+    petNames: booking.animals
+      .map((a) => (a && 'name' in a ? a.name : undefined))
+      .filter((n): n is string => !!n),
+  };
+}
+
 @Injectable()
 export class BookingIncidentReportsService {
   constructor(
@@ -41,14 +68,39 @@ export class BookingIncidentReportsService {
     return (booking.incidentReports ?? []).some((id) => id.toString() === submissionId);
   }
 
-  // Completed reports only, newest first -- a pending one is a form staff
-  // opened and haven't submitted (or abandoned), nothing to show yet.
-  async findForBooking(bookingId: string): Promise<FormSubmission[]> {
-    const booking = await this.findBooking(bookingId);
-    return this.formSubmissionModel
-      .find({ _id: { $in: booking.incidentReports ?? [] }, status: FormSubmissionStatus.COMPLETED })
+  // Completed reports only, newest first, each with its booking attached --
+  // a pending one is a form staff opened and haven't submitted (or
+  // abandoned), nothing to show yet.
+  private async reportsFor(bookings: PopulatedBooking[]) {
+    const bookingByReport = new Map<string, IncidentReportBooking>();
+    for (const booking of bookings) {
+      const summary = bookingSummary(booking);
+      for (const id of booking.incidentReports ?? []) bookingByReport.set(id.toString(), summary);
+    }
+    const reports = await this.formSubmissionModel
+      .find({ _id: { $in: [...bookingByReport.keys()] }, status: FormSubmissionStatus.COMPLETED })
       .sort({ submittedAt: -1 })
       .exec();
+    return reports.map((r) => ({ ...r.toObject(), booking: bookingByReport.get(String(r._id)) }));
+  }
+
+  private populated(filter: Record<string, unknown>) {
+    return this.boardingBookingModel
+      .find(filter)
+      .populate('customer', 'name email')
+      .populate('animals', 'name')
+      .exec() as unknown as Promise<PopulatedBooking[]>;
+  }
+
+  async findForBooking(bookingId: string) {
+    const bookings = await this.populated({ _id: bookingId });
+    if (bookings.length === 0) throw new NotFoundException(`Booking ${bookingId} not found`);
+    return this.reportsFor(bookings);
+  }
+
+  // Every booking's reports, for Boarding & Day Care > Incident Reports.
+  async findAll() {
+    return this.reportsFor(await this.populated({ 'incidentReports.0': { $exists: true } }));
   }
 
   // Starts a new (pending) report for staff to fill in, already linked to
@@ -114,6 +166,48 @@ export class BookingIncidentReportsService {
         AuditEventType.BOOKING_UPDATED,
         'Incident report updated',
         `${submission.formName} on ${booking.reference} updated`,
+        undefined,
+        staffName,
+      );
+    }
+    return submission;
+  }
+
+  // Staff picking a different booking reference on the report -- relinks
+  // it to that booking and re-points it at that booking's customer (who the
+  // emailed copy goes to, and whose forms it shows under).
+  async move(
+    bookingId: string,
+    submissionId: string,
+    targetBookingId: string,
+    staffName: string,
+  ): Promise<FormSubmission> {
+    const booking = await this.findBooking(bookingId);
+    if (!this.isLinked(booking, submissionId)) {
+      throw new NotFoundException(`Incident report ${submissionId} not found on this booking`);
+    }
+    const submission = await this.formSubmissionModel.findById(submissionId).exec();
+    if (!submission) throw new NotFoundException(`Incident report ${submissionId} not found`);
+    if (targetBookingId === bookingId) return submission;
+    const target = await this.boardingBookingModel.findById(targetBookingId).populate('customer', 'name email').exec();
+    if (!target) throw new NotFoundException(`Booking ${targetBookingId} not found`);
+    const customer = target.customer as unknown as { _id?: Types.ObjectId; name?: string; email?: string };
+    if (!customer?.email) {
+      throw new BadRequestException('That booking\'s customer has no email address on file.');
+    }
+    submission.customer = customer._id;
+    submission.recipientEmail = customer.email;
+    submission.recipientName = customer.name;
+    await submission.save();
+    const id = new Types.ObjectId(submissionId);
+    await this.boardingBookingModel.updateOne({ _id: booking._id }, { $pull: { incidentReports: id } }).exec();
+    await this.boardingBookingModel.updateOne({ _id: target._id }, { $addToSet: { incidentReports: id } }).exec();
+    if (customer._id && submission.status === FormSubmissionStatus.COMPLETED) {
+      await this.auditLogService.record(
+        customer._id,
+        AuditEventType.BOOKING_UPDATED,
+        'Incident report linked',
+        `${submission.formName} moved from ${booking.reference} to ${target.reference}`,
         undefined,
         staffName,
       );

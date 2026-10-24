@@ -1516,7 +1516,11 @@ Each incident report is an ordinary `FormSubmission` of Settings > Boarding's `i
 | GET | `/boarding-bookings/:bookingId/incident-reports` | JWT | Completed reports for the booking, newest `submittedAt` first. |
 | POST | `/boarding-bookings/:bookingId/incident-reports` | JWT | Starts a pending submission (customer set, no animals) and adds it to `incidentReports`. 400 if no form is configured or the customer has no email. |
 | PATCH | `/boarding-bookings/:bookingId/incident-reports/:id` | JWT | Body `{answers}` replaces a submitted report's answers (no Customer/Animal mapping) and writes a "Incident report updated" audit entry. |
+| PATCH | `/boarding-bookings/:bookingId/incident-reports/:id/booking` | JWT | Body `{booking}` moves the report to another booking and re-points its `customer`/recipient at that booking's customer ("Booking reference" picker). Audit-logged once submitted. |
 | DELETE | `/boarding-bookings/:bookingId/incident-reports/:id` | JWT | Unlinks and deletes the submission (also used to discard a cancelled new report). |
+| GET | `/incident-reports` | JWT | Every booking's completed reports (Boarding & Day Care > Incident Reports). |
+
+Both GETs attach `booking: {_id, reference, customerName, petNames}` to each report.
 
 #### `DayBookingsController` — `backend/src/day-bookings/day-bookings.controller.ts`
 
@@ -4281,7 +4285,9 @@ Generated from `client.ts`, then checked by hand. "Used by" lists the files that
 | `listBookingIncidentReports` | GET | `/boarding-bookings/:bookingId/incident-reports` | IncidentReportsCard |
 | `createBookingIncidentReport` | POST | `/boarding-bookings/:bookingId/incident-reports` | IncidentReportsCard |
 | `updateBookingIncidentReport` | PATCH | `/boarding-bookings/:bookingId/incident-reports/:id` | IncidentReportsCard |
+| `moveBookingIncidentReport` | PATCH | `/boarding-bookings/:bookingId/incident-reports/:id/booking` | IncidentReportsCard |
 | `deleteBookingIncidentReport` | DELETE | `/boarding-bookings/:bookingId/incident-reports/:id` | IncidentReportsCard |
+| `listIncidentReports` | GET | `/incident-reports` | IncidentReportsCard (Incident Reports tab) |
 
 ##### Invoice terms
 
@@ -4969,7 +4975,7 @@ Dates are shown as DD/MM/YYYY. `InvoiceHtmlView` and `QuoteHtmlView` render it.
 | `NewBoardingBookingModal` | Creates a reference-numbered Boarding or Day Care booking directly (`createBoardingBooking`); the backend raises the invoice straight away. |
 | `NewBookingModal` | See above. |
 | `NotificationBell` | A bell with a red dot when there are unread items. Opening it lists the feed (`listNotifications`), marks everything read (`markNotificationsRead`) and offers Clear (`clearNotifications`). Polls every 60s. |
-| `IncidentReportsCard` | A booking's incident reports (Settings > Boarding's incident report form). Rows show the incident type badges, date/time, dogs and reporter. New reports open `FormFillModal` with the booking's dogs pre-ticked (cancelling discards the pending submission); edit reuses `FormFillModal` with `saveEdit`. |
+| `IncidentReportsCard` | A booking's incident reports (Settings > Boarding's incident report form), or with no `bookingId` every booking's (the Incident Reports tab, rows also showing booking reference and customer). Rows show the incident type badges, date/time, dogs and reporter. The fill form has a required "Booking reference" picker above it: on a new report it restarts the form against the chosen booking (its dogs pre-ticked; cancelling discards the pending submission), on an existing one it moves the report there. Edit reuses `FormFillModal` with `saveEdit`. |
 | `ObservationsCard` | Booking care notes. Category is one of Toilet, Play, Medication, Feed, Groom or General (each with its own colour). Each note has a date/time, a description and up to 5 compressed photos (with an `xl` photo viewer), plus "Observed by". CRUD via `*BookingObservation`. |
 | `PdfTemplateDesigner` | See above. |
 | `PhotoUpload` | A photo grid input, ported from the frontend intake app (used inside `FieldRenderer`). |

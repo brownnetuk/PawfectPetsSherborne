@@ -38,6 +38,7 @@ import type {
   FormRecord,
   FormSubmissionPublic,
   FormSubmissionRecord,
+  IncidentReportRecord,
   IncomeExpenseMonth,
   IncomeMonth,
   Invoice,
@@ -633,8 +634,12 @@ export function deleteBookingObservation(bookingId: string, id: string): Promise
 }
 
 // --- booking incident reports (Incident Report form submissions on a boarding/day care booking) ---
-export function listBookingIncidentReports(bookingId: string): Promise<FormSubmissionRecord[]> {
+export function listBookingIncidentReports(bookingId: string): Promise<IncidentReportRecord[]> {
   return request(`/boarding-bookings/${bookingId}/incident-reports`);
+}
+// Every booking's reports -- Boarding & Day Care > Incident Reports.
+export function listIncidentReports(): Promise<IncidentReportRecord[]> {
+  return request('/incident-reports');
 }
 // Starts a new, pending report from Settings > Boarding's incident report
 // form -- fill it in with FormFillModal, or deleteBookingIncidentReport() to
@@ -650,6 +655,13 @@ export function updateBookingIncidentReport(
   return request(`/boarding-bookings/${bookingId}/incident-reports/${id}`, {
     method: 'PATCH',
     body: JSON.stringify({ answers }),
+  });
+}
+// Links the report to a different booking (and that booking's customer).
+export function moveBookingIncidentReport(bookingId: string, id: string, targetBookingId: string): Promise<FormSubmissionRecord> {
+  return request(`/boarding-bookings/${bookingId}/incident-reports/${id}/booking`, {
+    method: 'PATCH',
+    body: JSON.stringify({ booking: targetBookingId }),
   });
 }
 export function deleteBookingIncidentReport(bookingId: string, id: string): Promise<void> {

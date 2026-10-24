@@ -171,12 +171,21 @@ interface StayEditHandlers {
   onDelete: (stayId: string) => void;
 }
 
-type Tab = 'dashboard' | 'preBoarding' | 'bookings' | 'occupancy' | 'riskAssessments' | 'policies' | 'checklists';
+type Tab =
+  | 'dashboard'
+  | 'preBoarding'
+  | 'bookings'
+  | 'occupancy'
+  | 'incidents'
+  | 'riskAssessments'
+  | 'policies'
+  | 'checklists';
 const TAB_LABELS: Record<Tab, string> = {
   dashboard: 'Dashboard',
   preBoarding: 'Pre-Boarding',
   bookings: 'Bookings',
   occupancy: 'Occupancy',
+  incidents: 'Incident Reports',
   riskAssessments: 'Risk Assessments',
   policies: 'Policies',
   checklists: 'Checklists',
@@ -282,7 +291,7 @@ export default function BoardingDayCarePage() {
         <h1>Boarding &amp; Day Care</h1>
       </div>
       <div className="tabs">
-        {(['dashboard', 'preBoarding', 'bookings', 'occupancy', 'riskAssessments', 'policies', 'checklists'] as Tab[]).map((t) => (
+        {(['dashboard', 'preBoarding', 'bookings', 'occupancy', 'incidents', 'riskAssessments', 'policies', 'checklists'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -306,6 +315,7 @@ export default function BoardingDayCarePage() {
           }}
         />
       )}
+      {tab === 'incidents' && <IncidentReportsCard onOpenBooking={(id) => handleNavigateToBooking(id)} />}
       {tab === 'riskAssessments' && <RiskAssessmentsTab />}
       {tab === 'policies' && <PoliciesTab />}
       {tab === 'checklists' && <ChecklistsTab />}
@@ -2054,11 +2064,7 @@ function BookingDetail({
 
           <ObservationsCard bookingId={booking._id} readOnly={readOnly} />
 
-          <IncidentReportsCard
-            bookingId={booking._id}
-            reference={booking.reference}
-            petNames={boardingPetNames(booking.animals)}
-          />
+          <IncidentReportsCard bookingId={booking._id} />
         </div>
       </div>
 

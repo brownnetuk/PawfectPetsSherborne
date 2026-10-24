@@ -21,7 +21,7 @@ import {
 import { SettingsModule } from '../settings/settings.module';
 import { BoardingBookingsController } from './boarding-bookings.controller';
 import { BoardingBookingsService } from './boarding-bookings.service';
-import { BookingIncidentReportsController } from './booking-incident-reports.controller';
+import { BookingIncidentReportsController, IncidentReportsController } from './booking-incident-reports.controller';
 import { BookingIncidentReportsService } from './booking-incident-reports.service';
 import { BookingObservationsController } from './booking-observations.controller';
 import { BookingObservationsService } from './booking-observations.service';
@@ -76,7 +76,7 @@ import {
     SettingsModule,
     AuditLogModule,
   ],
-  controllers: [BoardingBookingsController, BookingObservationsController, BookingIncidentReportsController],
+  controllers: [BoardingBookingsController, BookingObservationsController, BookingIncidentReportsController, IncidentReportsController],
   providers: [BoardingBookingsService, BookingObservationsService, BookingIncidentReportsService],
   exports: [BoardingBookingsService],
 })
