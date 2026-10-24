@@ -275,15 +275,50 @@ export class FormSubmissionsService {
     }
   }
 
-  findAll(customerId?: string): Promise<FormSubmission[]> {
+  // For one customer, each submission also carries `booking` ({ _id,
+  // reference }) when it's one of that customer's boarding bookings'
+  // pre-check-in/check-in/check-out/incident report forms -- the customer
+  // page's Forms tab groups by it. The link lives on BoardingBooking, not
+  // here, so it's looked up rather than stored.
+  async findAll(
+    customerId?: string,
+  ): Promise<(FormSubmission | Record<string, unknown>)[]> {
     const filter = customerId ? { customer: customerId } : {};
-    return this.formSubmissionModel
+    const submissions = await this.formSubmissionModel
       .find(filter)
       .sort({ createdAt: -1 })
       .populate('customer', 'name email')
       .populate('animal', 'name')
       .populate('animals', 'name')
       .exec();
+    if (!customerId) return submissions;
+
+    const bookings = await this.boardingBookingModel
+      .find({ customer: customerId })
+      .select(
+        'reference preCheckInSubmission checkInSubmission checkOutSubmission incidentReports',
+      )
+      .lean()
+      .exec();
+    const bookingBySubmission = new Map<
+      string,
+      { _id: string; reference: string }
+    >();
+    for (const b of bookings) {
+      const ref = { _id: String(b._id), reference: b.reference };
+      for (const id of [
+        b.preCheckInSubmission,
+        b.checkInSubmission,
+        b.checkOutSubmission,
+        ...(b.incidentReports ?? []),
+      ]) {
+        if (id) bookingBySubmission.set(String(id), ref);
+      }
+    }
+    return submissions.map((s) => {
+      const booking = bookingBySubmission.get(String(s._id));
+      return { ...s.toObject(), booking };
+    });
   }
 
   async findOne(id: string): Promise<FormSubmission> {
