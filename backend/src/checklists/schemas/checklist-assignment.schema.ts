@@ -62,6 +62,13 @@ export class ChecklistAssignment extends Document {
 
   @Prop()
   signedAt?: Date;
+
+  // When the "due in an hour and not finished" staff reminder went out (see
+  // ChecklistsService.sendDueReminders) -- set once so the 5-minutely cron
+  // never repeats it. Also set, without a push, when the checklist was
+  // already finished by then, so finished days aren't re-scanned.
+  @Prop()
+  reminderSentAt?: Date;
 }
 
 export const ChecklistAssignmentSchema = SchemaFactory.createForClass(ChecklistAssignment);

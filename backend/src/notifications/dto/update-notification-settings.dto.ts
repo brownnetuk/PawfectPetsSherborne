@@ -43,4 +43,8 @@ export class UpdateNotificationSettingsDto {
   @IsOptional()
   @IsBoolean()
   invoicesRead?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  checklistReminders?: boolean;
 }

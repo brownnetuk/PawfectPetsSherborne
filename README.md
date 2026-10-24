@@ -975,6 +975,7 @@ Enums:
 | `dailyDigestTime` | String `HH:mm` | `'07:30'` |
 | `invoicesOverdue` | Boolean | `true` |
 | `invoicesRead` | Boolean | `true` |
+| `checklistReminders` | Boolean | `true` |
 | `lastDigestSentOn` | String `YYYY-MM-DD` | (unset) |
 
 #### `CustomerNotification` (`src/customer-notifications/schemas/customer-notification.schema.ts`)
@@ -1171,6 +1172,7 @@ Crons outside this scope that dispatch through `NotificationService`:
 |---|---|---|
 | `AppointmentsService.sendDueReminders` | every 5 min | `appointment` (uses `appointmentReminders` and `appointmentLeadMinutes`) |
 | `InvoicesService.markOverdue` | hourly, and also on every `findAll` | `invoicesOverdue` (staff) and `invoiceOverdue` (customer) |
+| `ChecklistsService.sendDueReminders` | every 5 min | `checklistDue` (uses `checklistReminders`; today's assignments only, once each, an hour before `completeByTime` while items are unticked) |
 | `PoliciesService.notifyDueReviews` | hourly | `policyReviewDue` |
 | `RiskAssessmentsService.notifyDueReviews` | hourly | `riskAssessmentReviewDue` |
 | Training modules service cron | hourly | `trainingReviewDue` |
@@ -1230,6 +1232,7 @@ Staff notification types (the `NotificationItem.type` values plus the push `data
 |---|---|---|---|
 | `customerActivated` | "Customer activated" (`<name> is now Active`) | `CustomersService.updateStatus` (pending→active) | `customerActivated` |
 | `invoicesOverdue` | "Invoice overdue" | `InvoicesService.markOverdue` | `invoicesOverdue` |
+| `checklistDue` | "Checklist due soon" (`"<name>" is due by HH:mm and still has N items to tick off.`) | `ChecklistsService.sendDueReminders` cron | `checklistReminders` |
 | `invoiceRead` | "Invoice read" (`<number> was opened`) | `InvoicesService` pixel `markOpened` | `invoicesRead` |
 | `dailyDigest` | "Today's schedule" | `NotificationService.dailyDigest` cron | `dailyDigest` |
 | `appointment` | "Appointment in <lead>" | `AppointmentsService.sendDueReminders` | `appointmentReminders` |
@@ -2448,6 +2451,7 @@ Dates in emails use `formatUkDate` (`dd/mm/yyyy`, `backend/src/common/invoice-em
 | `InvoicesService.update` → sent → paid/overdue/cancelled | Customer | "Invoice paid" / "Invoice overdue" / "Invoice cancelled" | `invoicePaid` / `invoiceOverdue` / `invoiceCancelled` | the previous status must be `sent` |
 | `InvoicesService.applyPayment` reaches total | Customer | "Invoice paid" / "Invoice <no> is now marked as paid. Thank you!" | `invoicePaid` | only when the status actually changes |
 | `markOverdue` | Customer (each) + Staff (one) | "Invoice overdue"; staff body "An invoice is now overdue" / "N invoices are now overdue" | `invoiceOverdue` / `invoicesOverdue` | staff: `NotificationSettings.invoicesOverdue` |
+| `ChecklistsService.sendDueReminders` | Staff | "Checklist due soon" / `"<name>" is due by HH:mm and still has N items to tick off.` | `checklistDue` | `NotificationSettings.checklistReminders`; today's assignment, `completeByTime` set, not yet `reminderSentAt`, now ≥ due − 1h, unticked items remain |
 | `InvoicesService.markOpened` | Staff | "Invoice read" / "<no> was opened" | `invoiceRead` | `NotificationSettings.invoicesRead` |
 | `AppointmentsService.sendDueReminders` | Staff | "Appointment in <lead>" / "<customer> at HH:mm — <reason>" | `appointment` | `pushService.configured`, `appointmentReminders` |
 
@@ -2460,6 +2464,7 @@ Quote opens (`markOpened`) only write a `QUOTE_READ` audit entry. They send no p
 | Job | File | Schedule | What it does |
 |---|---|---|---|
 | `InvoicesService.markOverdue` | `backend/src/invoices/invoices.service.ts:120` | `EVERY_HOUR` (also run on every `GET /invoices`) | sent + a full day past due (`overdueCutoff()`) → overdue; staff and customer pushes. |
+| `ChecklistsService.sendDueReminders` | `backend/src/checklists/checklists.service.ts` | `EVERY_5_MINUTES` | Today's `ChecklistAssignment`s with a `completeByTime` and no `reminderSentAt`; when `now >= due − 1h` (`checklistReminderDue()`, due = assigned day + HH:mm in server local time) pushes "Checklist due soon" to staff if any item is unticked, then sets `reminderSentAt` (also set, without a push, when already finished). Gated by `checklistReminders`. |
 | `BoardingBookingsService.sendDuePreCheckIns` | `backend/src/boarding-bookings/boarding-bookings.service.ts:716` | `EVERY_HOUR` | Finds bookings with an invoice, no `preCheckInSentAt`, no `checkInAt`, and `startDate <= today + preCheckInDaysBefore` (string compare of `YYYY-MM-DD`). Calls `sendPreCheckIn` for each; errors are logged per booking. Archived bookings are not excluded. |
 | `AppointmentsService.sendDueReminders` | `backend/src/appointments/appointments.service.ts:48` | `EVERY_5_MINUTES` | Skips when APNs is not configured or reminders are off. `lead = appointmentLeadMinutes \|\| 60`. Loads **every** appointment without `reminderSentAt` and keeps those where `now < date+time <= now+lead`. Dispatches a staff push and stamps `reminderSentAt`. |
 
@@ -3062,6 +3067,7 @@ All schemas use `@Schema({ timestamps: true })` (adding `createdAt` and `updated
 | `signatureImage` | string? (base64 PNG) | | |
 | `signedBy` | string? | | Taken from the JWT |
 | `signedAt` | Date? | | |
+| `reminderSentAt` | Date? | | Set once by `sendDueReminders` so the "due soon" staff push never repeats |
 
 #### `RiskAssessment` (`risk-assessments/schemas/risk-assessment.schema.ts`)
 
@@ -3853,9 +3859,9 @@ All crons are in-process (`ScheduleModule.forRoot()`) and have **no distributed 
 
 **Checklists**
 
-24. **Overdue alerts and an audit trail for checklists.**
-    - Problem: `ChecklistTemplate.completeByTime` is display only (`checklists/schemas/checklist-template.schema.ts`).
-    - Fix: add a cron that notifies staff when an assignment for today is incomplete after `completeByTime`. Record `completedAt[]` timestamps alongside `completedBy[]`. Stop manual assignment duplicating a day's checklist; `ChecklistsService.assign` has no exists-check, unlike `autoAssignForDate`.
+24. **An audit trail for checklists.**
+    - `completeByTime` now drives the "Checklist due soon" staff reminder (`ChecklistsService.sendDueReminders`, an hour before, once per assignment), but nothing records *when* each item was ticked.
+    - Fix: record `completedAt[]` timestamps alongside `completedBy[]`. Stop manual assignment duplicating a day's checklist; `ChecklistsService.assign` has no exists-check, unlike `autoAssignForDate`.
 
 **Risk assessments, policies, training**
 
@@ -6282,7 +6288,7 @@ The session cache, cleared by `refreshReferenceData()` (called on pull-to-refres
 | `form_summary.dart` | **FormSummary**: `id, name, description?, customerVisible` |
 | `invoice.dart` | `invoiceStatuses = [draft, sent, paid, overdue, cancelled]`. **InvoiceTerm**: `id, text, plusDays?, endOfMonth, isDefault`. **InvoiceLineItem**: `description, quantity, unitPrice, discountPercent`, `lineTotal`, `toJson()`. **Invoice**: `id, customer, invoiceNumber, lineItems, subtotal, total, amountPaid, status, subject?, paymentTerms?, issueDate, dueDate`, `balanceDue`, `isPartiallyPaid` (sent and 0 < paid < total) |
 | `message.dart` | **Message**: `id, sender ('staff'\|'customer'), senderName?, body, createdAt`, `fromStaff`. **Conversation**: `customerId, name, email, lastBody, lastAt, lastSender, unread` |
-| `notification_settings.dart` | **NotificationSettings**: `customerActivated, appointmentReminders, appointmentLeadMinutes, dailyDigest, dailyDigestTime ('HH:mm'), invoicesOverdue, invoicesRead` |
+| `notification_settings.dart` | **NotificationSettings**: `customerActivated, appointmentReminders, appointmentLeadMinutes, dailyDigest, dailyDigestTime ('HH:mm'), invoicesOverdue, invoicesRead, checklistReminders` |
 | `payment.dart` | **Payment**: `id, paymentId, invoiceId?, invoiceNumber?, date, amount, charges, paymentMethod?, accountId?, accountName?` |
 | `product.dart` | **Product**: `id, productCode, name, description?, price, availability? ('weekday'\|'weekend'\|'bank_holiday'), displayInPriceList` |
 | `quote.dart` | `quoteStatuses = [draft, sent, accepted, declined, expired]`. **Quote**: `id, customer?, manualCustomerName?, manualCustomerEmail?, quoteNumber, lineItems, subtotal, total, status, subject?, paymentTerms?, issueDate, validUntil`, `customerName` |

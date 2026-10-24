@@ -190,6 +190,14 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                 value: s.invoicesRead,
                 onChanged: (v) => _save(s.copyWith(invoicesRead: v)),
               ),
+              const Divider(height: 1),
+              _sectionHeader('Checklists'),
+              SwitchListTile(
+                title: const Text('Checklist due soon'),
+                subtitle: const Text('An hour before a day\'s checklist complete-by time, if items are still unticked'),
+                value: s.checklistReminders,
+                onChanged: (v) => _save(s.copyWith(checklistReminders: v)),
+              ),
               const SizedBox(height: 24),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),

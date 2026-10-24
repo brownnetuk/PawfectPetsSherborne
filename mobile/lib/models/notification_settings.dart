@@ -11,6 +11,8 @@ class NotificationSettings {
   final String dailyDigestTime; // 'HH:mm'
   final bool invoicesOverdue;
   final bool invoicesRead;
+  // An hour before a day's checklist complete-by time, if items are unticked.
+  final bool checklistReminders;
 
   NotificationSettings({
     required this.customerActivated,
@@ -23,6 +25,7 @@ class NotificationSettings {
     required this.dailyDigestTime,
     required this.invoicesOverdue,
     required this.invoicesRead,
+    this.checklistReminders = true,
   });
 
   factory NotificationSettings.fromJson(Map<String, dynamic> json) => NotificationSettings(
@@ -36,6 +39,7 @@ class NotificationSettings {
         dailyDigestTime: json['dailyDigestTime'] as String? ?? '07:30',
         invoicesOverdue: json['invoicesOverdue'] as bool? ?? true,
         invoicesRead: json['invoicesRead'] as bool? ?? true,
+        checklistReminders: json['checklistReminders'] as bool? ?? true,
       );
 
   NotificationSettings copyWith({
@@ -49,6 +53,7 @@ class NotificationSettings {
     String? dailyDigestTime,
     bool? invoicesOverdue,
     bool? invoicesRead,
+    bool? checklistReminders,
   }) =>
       NotificationSettings(
         customerActivated: customerActivated ?? this.customerActivated,
@@ -61,6 +66,7 @@ class NotificationSettings {
         dailyDigestTime: dailyDigestTime ?? this.dailyDigestTime,
         invoicesOverdue: invoicesOverdue ?? this.invoicesOverdue,
         invoicesRead: invoicesRead ?? this.invoicesRead,
+        checklistReminders: checklistReminders ?? this.checklistReminders,
       );
 
   Map<String, dynamic> toJson() => {
@@ -74,5 +80,6 @@ class NotificationSettings {
         'dailyDigestTime': dailyDigestTime,
         'invoicesOverdue': invoicesOverdue,
         'invoicesRead': invoicesRead,
+        'checklistReminders': checklistReminders,
       };
 }

@@ -1231,6 +1231,7 @@ export interface NotificationSettings {
   dailyDigestTime: string;
   invoicesOverdue: boolean;
   invoicesRead: boolean;
+  checklistReminders: boolean;
 }
 export function getNotificationSettings(): Promise<NotificationSettings> {
   return request('/settings/notifications');
