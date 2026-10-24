@@ -185,7 +185,7 @@ function PreviewField({
   onChange: (value: unknown) => void;
 }) {
   if (field.type === 'display') {
-    return field.startsNewPage ? (
+    return field.startsNewPage || field.startsSection ? (
       <div style={{ marginTop: 28, paddingTop: 20, borderTop: '2px solid var(--border)' }}>
         <h3 style={{ margin: 0 }}>
           <RichLabel text={field.label} />

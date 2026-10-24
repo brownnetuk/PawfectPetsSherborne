@@ -1504,6 +1504,17 @@ This section covers the NestJS modules under `backend/src/` that handle scheduli
 | PATCH | `/boarding-bookings/:bookingId/observations/:id` | JWT | Replace `observedAt`, `category`, `description` and `photos`. `observedBy` is left unchanged. |
 | DELETE | `/boarding-bookings/:bookingId/observations/:id` | JWT | Delete a note, scoped to the booking. **Not** permission-gated. |
 
+#### `BookingIncidentReportsController` — `backend/src/boarding-bookings/booking-incident-reports.controller.ts`
+
+Each incident report is an ordinary `FormSubmission` of Settings > Boarding's `incidentReportForm`, listed on `BoardingBooking.incidentReports`. Filling one in uses the normal `/form-submissions/:id/public` and `/submit` endpoints. Reports stay editable after the booking is complete, and are kept (on the customer's forms) if the booking is deleted.
+
+| Method | Path | Auth/permission | Purpose |
+|---|---|---|---|
+| GET | `/boarding-bookings/:bookingId/incident-reports` | JWT | Completed reports for the booking, newest `submittedAt` first. |
+| POST | `/boarding-bookings/:bookingId/incident-reports` | JWT | Starts a pending submission (customer set, no animals) and adds it to `incidentReports`. 400 if no form is configured or the customer has no email. |
+| PATCH | `/boarding-bookings/:bookingId/incident-reports/:id` | JWT | Body `{answers}` replaces a submitted report's answers (no Customer/Animal mapping) and writes a "Incident report updated" audit entry. |
+| DELETE | `/boarding-bookings/:bookingId/incident-reports/:id` | JWT | Unlinks and deletes the submission (also used to discard a cancelled new report). |
+
 #### `DayBookingsController` — `backend/src/day-bookings/day-bookings.controller.ts`
 
 | Method | Path | Auth/permission | Purpose |
@@ -3495,7 +3506,7 @@ flowchart LR
 | `toggle` | – | Boolean. Visibility conditions compare against `'true'`/`'false'`. |
 | `signature` | – | Data URI string |
 | `today`, `datetime` | – | Filled automatically by the client when the form opens. Not editable. |
-| `display` | `startsNewPage?`, `content?: 'terms'\|'declaration'` | Read-only text in `label`, which supports `**bold**`/`__underline__`. `content` shows the live text from `/settings/terms` or `/settings/declaration`. `startsNewPage` creates a PDF page break and a wizard page. |
+| `display` | `startsNewPage?`, `startsSection?`, `content?: 'terms'\|'declaration'` | Read-only text in `label`, which supports `**bold**`/`__underline__`. `content` shows the live text from `/settings/terms` or `/settings/declaration`. `startsNewPage` creates a PDF page break and a wizard page. `startsSection` opens a new PDF section card (no page break) and shows the same heading style on the fill form. |
 | `medications` | – | Array of medication entries, trimmed by `toMedicationEntries()` to `name`, `vetPrescribed`, `administeredByPawfectPets`, `illnessTreating`, `dosage`, `frequency`, `additionalInfo`. Unnamed entries are dropped. |
 | `file` | `maxFiles?` | Array |
 | `choice`, `multichoice` | `options[]`, `optionLabels?`, `optionsSource?: 'static'\|'customerPets'` | With `customerPets`, `options` is replaced at read time by the recipient's pet names. |
@@ -3535,6 +3546,15 @@ flowchart LR
   - a mapped **Pet** group (`createsAnimal: false`, patches existing animals). Fields: type, name, breed, sex, age, DOB, vaccinated/expiry, photos, colour, microchip, insured/insurer, neutered, last season, temperament, the aggression/travel/livestock questions with details, allergies, on-medication + `medications`, on/off lead with consent signature;
   - a second, unmapped group **"Boarding Specific Questions"**: feeds per day, amount, feeding notes, left alone (+ details), sleeping, toileting, crate trained, crate consent (typed name + signature), date;
   - a "Drop-off" page with a drop-off time.
+- **"Incident Report"** (`default-incident-report-form.ts`, staff-only: `customerVisible: false`). Built from the paper Incident Report Form, one `startsSection` heading per paper section:
+  - incident details: date (required), time, location, "Reported by" (`{{staffMemberSignedIn}}`), type of incident multichoice (Bite / scratch, Escape / attempted escape, Illness, Injury, Death, Fire / emergency, Property damage, Near miss, Other) + "If other";
+  - who was involved: dog(s) (`customerPets` multichoice, the booking's dogs pre-ticked), other dogs, people, witnesses;
+  - what happened (required) + photos;
+  - injuries or harm: three Yes/No choices, each with an "If yes" box shown only on Yes;
+  - immediate action; follow-up actions (owner informed, vet contacted, local authority, RIDDOR, risk assessment reviewed + "If yes"), each Yes/No/N/A;
+  - root cause; preventive actions, action owner, target date;
+  - sign-off: staff name/signature/date and licence holder name/signature/date (optional, so it can be added later by editing).
+  - The first boot that inserts it also points `BoardingWorkflowSettings.incidentReportForm` at it when unset (`seedIncidentReportForm()`).
 
 **Boot-time migrations:**
 
@@ -4248,6 +4268,15 @@ Generated from `client.ts`, then checked by hand. "Used by" lists the files that
 | `updateBookingObservation` | PATCH | `/boarding-bookings/:bookingId/observations/:id` | ObservationsCard |
 | `deleteBookingObservation` | DELETE | `/boarding-bookings/:bookingId/observations/:id` | ObservationsCard |
 
+##### Booking incident reports
+
+| Function | Method | Endpoint | Used by |
+|---|---|---|---|
+| `listBookingIncidentReports` | GET | `/boarding-bookings/:bookingId/incident-reports` | IncidentReportsCard |
+| `createBookingIncidentReport` | POST | `/boarding-bookings/:bookingId/incident-reports` | IncidentReportsCard |
+| `updateBookingIncidentReport` | PATCH | `/boarding-bookings/:bookingId/incident-reports/:id` | IncidentReportsCard |
+| `deleteBookingIncidentReport` | DELETE | `/boarding-bookings/:bookingId/incident-reports/:id` | IncidentReportsCard |
+
 ##### Invoice terms
 
 | Function | Method | Endpoint | Used by |
@@ -4639,6 +4668,7 @@ Every page uses the same pattern: local `useState`, a `useEffect` fetch through 
         - Check-out: the same flow, with the check-in submission shown read-only above it, finishing with `recordBoardingBookingCheckOut`.
         - Completed forms open `ViewFormSubmissionModal`.
       - **Observations.** `ObservationsCard`.
+      - **Incident reports.** `IncidentReportsCard`, after Observations: add, view (branded PDF with the booking reference), edit, email to the customer, delete. Not affected by the read-only rule.
       - **Read-only rule.** Once a booking is checked out and paid, everything except Delete is read-only.
   - **Occupancy.** A week or month grid from `listDayBookings` and `listAnnualLeave`.
     - Each day shows a named box per dog per section, with a red border at capacity.
@@ -4933,6 +4963,7 @@ Dates are shown as DD/MM/YYYY. `InvoiceHtmlView` and `QuoteHtmlView` render it.
 | `NewBoardingBookingModal` | Creates a reference-numbered Boarding or Day Care booking directly (`createBoardingBooking`); the backend raises the invoice straight away. |
 | `NewBookingModal` | See above. |
 | `NotificationBell` | A bell with a red dot when there are unread items. Opening it lists the feed (`listNotifications`), marks everything read (`markNotificationsRead`) and offers Clear (`clearNotifications`). Polls every 60s. |
+| `IncidentReportsCard` | A booking's incident reports (Settings > Boarding's incident report form). Rows show the incident type badges, date/time, dogs and reporter. New reports open `FormFillModal` with the booking's dogs pre-ticked (cancelling discards the pending submission); edit reuses `FormFillModal` with `saveEdit`. |
 | `ObservationsCard` | Booking care notes. Category is one of Toilet, Play, Medication, Feed, Groom or General (each with its own colour). Each note has a date/time, a description and up to 5 compressed photos (with an `xl` photo viewer), plus "Observed by". CRUD via `*BookingObservation`. |
 | `PdfTemplateDesigner` | See above. |
 | `PhotoUpload` | A photo grid input, ported from the frontend intake app (used inside `FieldRenderer`). |
