@@ -590,6 +590,36 @@ function resolveLayout(
       zones.push({ x1: el.x, x2: el.x + el.width, shift: shift + (natural - el.height) });
     }
   }
+  // A card (rect) behind text that grew -- e.g. the "Quote to" card around a
+  // long address plus email -- grows with it, as do the other cards in its
+  // row (same top and height) so the pair stays level.
+  const growth = new Map<string, number>();
+  for (const rect of elements) {
+    if (rect.type !== 'rect') continue;
+    let grownBy = 0;
+    for (const el of elements) {
+      if (el.type !== 'text') continue;
+      const inside =
+        el.x >= rect.x &&
+        el.x + el.width <= rect.x + rect.width &&
+        el.y >= rect.y &&
+        el.y + el.height <= rect.y + rect.height;
+      if (inside) grownBy = Math.max(grownBy, naturalHeight.get(el.id)! - el.height);
+    }
+    if (grownBy > 0) growth.set(rect.id, grownBy);
+  }
+  for (const [id, grownBy] of [...growth]) {
+    const card = elements.find((el) => el.id === id)!;
+    for (const el of elements) {
+      if (el.type === 'rect' && el.y === card.y && el.height === card.height) {
+        growth.set(el.id, Math.max(growth.get(el.id) ?? 0, grownBy));
+      }
+    }
+  }
+  for (const [id, grownBy] of growth) {
+    const card = elements.find((el) => el.id === id)!;
+    naturalHeight.set(id, card.height + grownBy);
+  }
   return { y, naturalHeight };
 }
 
@@ -704,11 +734,16 @@ export async function buildInvoicePdf(
   const bottomLimit = PAGE_HEIGHT - BOTTOM_MARGIN;
   const tableEl = visibleElements.find((el): el is PdfItemTableElement => el.type === 'itemTable');
   const layout = resolveLayout(doc, visibleElements, record.lineItems, vars);
-  const resolved = visibleElements.map((el) => ({
-    el,
-    y: layout.y.get(el.id)!,
-    naturalHeight: layout.naturalHeight.get(el.id)!,
-  }));
+  // Cards are drawn at their resolved height, so one grown to fit its text
+  // still encloses it.
+  const resolved = visibleElements.map((el) => {
+    const naturalHeight = layout.naturalHeight.get(el.id)!;
+    return {
+      el: el.type === 'rect' ? { ...el, height: naturalHeight } : el,
+      y: layout.y.get(el.id)!,
+      naturalHeight,
+    };
+  });
   const fits = (r: (typeof resolved)[number]) => r.y + r.naturalHeight <= bottomLimit;
 
   for (const r of resolved) {
