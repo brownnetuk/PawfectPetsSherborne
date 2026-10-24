@@ -3060,6 +3060,7 @@ function BoardingSettingsTab() {
       <CheckInFormCard />
       <CheckOutFormCard />
       <IncidentReportFormCard />
+      <CustomerRiskAssessmentFormCard />
       <ChecklistsCard />
     </div>
   );
@@ -3519,6 +3520,62 @@ function IncidentReportFormCard() {
         <form onSubmit={handleSubmit}>
           <div className="field-row">
             <FormPicker forms={forms} value={form} onChange={setForm} label="Boarding & Day Care form" />
+          </div>
+          <div className="modal-actions" style={{ justifyContent: 'flex-start', gap: 12 }}>
+            <button className="btn btn-primary" type="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            {saved && <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>}
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function CustomerRiskAssessmentFormCard() {
+  const { settings, forms, error: loadError, refresh } = useBoardingWorkflowSettings();
+  const [form, setForm] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!settings) return;
+    setForm(settings.customerRiskAssessmentForm ?? '');
+  }, [settings]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      await api.updateBoardingWorkflowSettings({ customerRiskAssessmentForm: form || null });
+      setSaved(true);
+      refresh();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save customer risk assessment settings');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Customer risk assessment form</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        What staff fill in for a customer's dog(s) from Risk Assessments &gt; Customer Risk Assessments, or the
+        customer's Forms tab. Starts as the "New Dog Intake Risk Assessment" form, built from the paper RA6 form --
+        edit its questions in Settings &gt; Forms.
+      </p>
+      {(loadError || saveError) && <div className="error-banner">{loadError ?? saveError}</div>}
+      {!settings ? (
+        <div className="empty-state">Loading…</div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div className="field-row">
+            <FormPicker forms={forms} value={form} onChange={setForm} label="Risk assessment form" />
           </div>
           <div className="modal-actions" style={{ justifyContent: 'flex-start', gap: 12 }}>
             <button className="btn btn-primary" type="submit" disabled={saving}>

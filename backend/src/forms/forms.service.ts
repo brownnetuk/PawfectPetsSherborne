@@ -8,6 +8,7 @@ import {
   DEFAULT_CHECKIN_FORM,
   DEFAULT_CHECKOUT_FORM,
 } from './default-boarding-checkin-checkout-forms';
+import { DEFAULT_CUSTOMER_RISK_ASSESSMENT_FORM } from './default-customer-risk-assessment-form';
 import { DEFAULT_INCIDENT_REPORT_FORM } from './default-incident-report-form';
 import { FormField } from './form-field.types';
 import {
@@ -54,7 +55,8 @@ export class FormsService implements OnModuleInit {
         .findOneAndUpdate({ name: seed.name }, { $setOnInsert: seed }, { upsert: true })
         .exec();
     }
-    await this.seedIncidentReportForm();
+    await this.seedPickedForm(DEFAULT_INCIDENT_REPORT_FORM, 'incidentReportForm');
+    await this.seedPickedForm(DEFAULT_CUSTOMER_RISK_ASSESSMENT_FORM, 'customerRiskAssessmentForm');
     await this.addMissingCheckOutDetailsFields();
     await this.upgradePreCheckInForms();
   }
@@ -139,26 +141,26 @@ export class FormsService implements OnModuleInit {
     }
   }
 
-  // Seeds the "Incident Report" form the same way as the others above, and
-  // -- only on the boot that actually inserts it -- points Settings >
-  // Boarding's "Incident report form" picker at it when nothing's chosen
-  // yet, so the booking page's Incident Reports card works out of the box.
-  // A picker staff later clear (or a form they delete) is never re-filled.
-  private async seedIncidentReportForm(): Promise<void> {
+  // Seeds a staff-filled form (the "Incident Report", the "New Dog Intake
+  // Risk Assessment") the same way as the others above, and -- only on the
+  // boot that actually inserts it -- points its Settings > Boarding picker
+  // at it when nothing's chosen yet, so the card that uses it works out of
+  // the box. A picker staff later clear (or a form they delete) is never
+  // re-filled.
+  private async seedPickedForm(
+    seed: { name: string },
+    setting: 'incidentReportForm' | 'customerRiskAssessmentForm',
+  ): Promise<void> {
     const result = await this.formModel
-      .findOneAndUpdate(
-        { name: DEFAULT_INCIDENT_REPORT_FORM.name },
-        { $setOnInsert: DEFAULT_INCIDENT_REPORT_FORM },
-        { upsert: true, new: true, includeResultMetadata: true },
-      )
+      .findOneAndUpdate({ name: seed.name }, { $setOnInsert: seed }, { upsert: true, new: true, includeResultMetadata: true })
       .exec();
     if (result.lastErrorObject?.updatedExisting || !result.value) return;
     const settings = await this.boardingWorkflowSettingsModel.findOne().exec();
     if (!settings) {
-      await this.boardingWorkflowSettingsModel.create({ incidentReportForm: result.value._id });
-    } else if (!settings.incidentReportForm) {
+      await this.boardingWorkflowSettingsModel.create({ [setting]: result.value._id });
+    } else if (!settings[setting]) {
       await this.boardingWorkflowSettingsModel
-        .updateOne({ _id: settings._id }, { $set: { incidentReportForm: result.value._id } })
+        .updateOne({ _id: settings._id }, { $set: { [setting]: result.value._id } })
         .exec();
     }
   }

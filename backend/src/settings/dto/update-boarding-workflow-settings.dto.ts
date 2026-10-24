@@ -47,4 +47,8 @@ export class UpdateBoardingWorkflowSettingsDto {
   @IsOptional()
   @IsMongoId()
   incidentReportForm?: string;
+
+  @IsOptional()
+  @IsMongoId()
+  customerRiskAssessmentForm?: string;
 }

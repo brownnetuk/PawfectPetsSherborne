@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { buildRiskAssessmentPdf } from '../pdf/riskAssessmentPdf';
 import ActionsMenu from './ActionsMenu';
 import Badge from './Badge';
+import CustomerRiskAssessmentsCard from './CustomerRiskAssessmentsCard';
 import ImportRiskAssessmentModal from './ImportRiskAssessmentModal';
 import Modal from './Modal';
 import RiskAssessmentDetailModal, { ReviewRiskAssessmentModal } from './RiskAssessmentDetailModal';
@@ -34,6 +36,7 @@ export default function RiskAssessmentsTab() {
   const [emailing, setEmailing] = useState<RiskAssessment | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const navigate = useNavigate();
 
   function refresh() {
     api
@@ -139,6 +142,8 @@ export default function RiskAssessmentsTab() {
           </table>
         )}
       </div>
+
+      <CustomerRiskAssessmentsCard onOpenCustomer={(id) => navigate(`/customers/${id}`)} />
 
       {showForm && (
         <RiskAssessmentFormModal

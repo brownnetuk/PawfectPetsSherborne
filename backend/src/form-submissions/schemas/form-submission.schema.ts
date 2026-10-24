@@ -76,6 +76,12 @@ export class FormSubmission extends Document {
 
   @Prop()
   submittedAt?: Date;
+
+  // Set on a customer risk assessment (Risk Assessments > Customer Risk
+  // Assessments -- see CustomerRiskAssessmentsService), so they can be
+  // listed apart from every other form the customer has filled in.
+  @Prop({ index: true })
+  customerRiskAssessment?: boolean;
 }
 
 export const FormSubmissionSchema =
