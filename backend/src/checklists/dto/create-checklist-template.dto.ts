@@ -20,4 +20,8 @@ export class CreateChecklistTemplateDto {
   @IsOptional()
   @IsBoolean()
   autoAssign?: boolean;
+
+  @IsOptional()
+  @IsIn(['AM', 'PM', 'allDay'])
+  session?: 'AM' | 'PM' | 'allDay';
 }

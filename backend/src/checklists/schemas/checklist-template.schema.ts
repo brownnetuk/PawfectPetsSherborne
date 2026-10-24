@@ -3,6 +3,13 @@ import { Document } from 'mongoose';
 
 export type ChecklistCategory = 'boarding' | 'dayCare';
 
+// Which part of the day a checklist covers -- decides which days an
+// auto-assign checklist lands on, from whether a dog is actually in for that
+// half of the day (see checklistSessionsFor in DayBookingsService). 'allDay'
+// is any day a dog is in at all, which is how every template behaved before
+// this field existed.
+export type ChecklistSession = 'AM' | 'PM' | 'allDay';
+
 // A reusable, named list of tasks (e.g. "Morning Boarding Round" -> "Feed",
 // "Fresh water", "Let out for a toilet break") -- staff assign a copy of one
 // to a specific day (see ChecklistAssignment) rather than filling this one
@@ -32,6 +39,10 @@ export class ChecklistTemplate extends Document {
   // template on any day that gets a booking matching `category`.
   @Prop({ default: false })
   autoAssign: boolean;
+
+  // Defaulted for the same reason as `category` above.
+  @Prop({ type: String, enum: ['AM', 'PM', 'allDay'], default: 'allDay' })
+  session: ChecklistSession;
 }
 
 export const ChecklistTemplateSchema = SchemaFactory.createForClass(ChecklistTemplate);

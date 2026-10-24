@@ -18,6 +18,7 @@ import type {
   BusinessInfo,
   ChecklistAssignment,
   ChecklistCategory,
+  ChecklistSession,
   ChecklistTemplate,
   Conversation,
   CreditNote,
@@ -1273,6 +1274,7 @@ export interface ChecklistTemplateInput {
   completeByTime?: string;
   items: string[];
   autoAssign?: boolean;
+  session?: ChecklistSession;
 }
 export function createChecklistTemplate(input: ChecklistTemplateInput): Promise<ChecklistTemplate> {
   return request('/checklist-templates', { method: 'POST', body: JSON.stringify(input) });

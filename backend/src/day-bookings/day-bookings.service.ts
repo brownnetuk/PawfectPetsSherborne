@@ -63,6 +63,21 @@ function toDayStart(date: string | Date): Date {
   return d;
 }
 
+// Which halves of its day a single DayBooking row has the dog in, for
+// auto-assigning AM/PM checklists. An actual time wins over the AM/PM
+// period when both are set; noon counts as the afternoon for an arrival and
+// the morning for a departure (in at 12:00 = PM only, out at 12:00 = AM
+// only). A side with neither set (a boarding stay's middle days, or the
+// arrival side of its pick-up day) counts as in.
+export function checklistSessionsFor(
+  booking: Pick<DayBooking, 'dropOffPeriod' | 'dropOffTime' | 'collectionPeriod' | 'collectionTime' | 'pickUpTime'>,
+): { am: boolean; pm: boolean } {
+  const outTime = booking.pickUpTime || booking.collectionTime;
+  const am = booking.dropOffTime ? booking.dropOffTime < '12:00' : booking.dropOffPeriod !== 'PM';
+  const pm = outTime ? outTime > '12:00' : booking.collectionPeriod !== 'AM';
+  return { am, pm };
+}
+
 @Injectable()
 export class DayBookingsService {
   constructor(
@@ -95,6 +110,23 @@ export class DayBookingsService {
     if (boarding.some((p) => p && String(p) === productId)) return 'boarding';
     if (dayCare.some((p) => p && String(p) === productId)) return 'dayCare';
     return null;
+  }
+
+  // Adds whichever auto-assign checklists this booking's day now needs (see
+  // ChecklistsService.autoAssignForDate). Every row of a boarding stay counts
+  // as boarding, whatever product it carries. Best-effort -- a checklist
+  // auto-assign hiccup should never block the booking itself.
+  private async autoAssignChecklists(booking: DayBooking): Promise<void> {
+    try {
+      // `product` may already be populated (update() populates before this).
+      const product = booking.product as unknown as { _id?: unknown } | undefined;
+      const productId = String(product?._id ?? product);
+      const category = booking.boardingStay ? 'boarding' : await this.classifyBooking(productId);
+      if (!category) return;
+      await this.checklists.autoAssignForDate(booking.date, category, checklistSessionsFor(booking));
+    } catch (err) {
+      console.error('Checklist auto-assign failed for day booking (will just be missing, not retried):', err);
+    }
   }
 
   // Turns a boarding stay's start/end datetimes + dog count into the exact set
@@ -202,6 +234,7 @@ export class DayBookingsService {
         stayId,
         invoice: invoiceId,
       }).save();
+      await this.autoAssignChecklists(created);
       bookings.push(await created.populate('product', 'name price'));
     }
     return { stayId, bookings };
@@ -262,6 +295,7 @@ export class DayBookingsService {
           stayId,
           invoice: line.placeholder ? undefined : invoiceId,
         }).save();
+        await this.autoAssignChecklists(created);
         bookings.push(await created.populate('product', 'name price'));
       }
     }
@@ -291,14 +325,7 @@ export class DayBookingsService {
       stayId: dto.stayId ?? undefined,
     }).save();
 
-    // Best-effort -- a checklist auto-assign hiccup should never block the
-    // booking itself from being created.
-    try {
-      const category = await this.classifyBooking(String(created.product));
-      if (category) await this.checklists.autoAssignForDate(created.date, category);
-    } catch (err) {
-      console.error('Checklist auto-assign failed for new day booking (will just be missing, not retried):', err);
-    }
+    await this.autoAssignChecklists(created);
 
     return created.populate([
       { path: 'animal', select: 'name species' },
@@ -353,6 +380,9 @@ export class DayBookingsService {
     if (!dayBooking) {
       throw new NotFoundException(`Day booking ${id} not found`);
     }
+    // A moved date or changed drop-off/collection time can mean a day (or
+    // half of one) that now needs its checklist.
+    await this.autoAssignChecklists(dayBooking);
     return dayBooking;
   }
 
