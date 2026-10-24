@@ -16,6 +16,7 @@ import {
   sectionHeading,
 } from './htmlToPdf';
 import type { RiskAssessment, RiskItem } from '../types';
+import { formatUkDate } from '../utils/ukDate';
 
 const REVIEW_FREQUENCY_LABELS: Record<string, string> = {
   weekly: 'Weekly',
@@ -77,9 +78,9 @@ export async function buildRiskAssessmentPdf(assessment: RiskAssessment): Promis
 
   const metaRows: [string, string][] = [
     ['RA ID', assessment.raId],
-    ['Assessment Date', new Date(assessment.assessmentDate).toLocaleDateString('en-GB')],
+    ['Assessment Date', formatUkDate(assessment.assessmentDate)],
     ['Review Frequency', reviewFrequencyLabel(assessment.reviewFrequency)],
-    ['Next Review Date', assessment.nextReviewDate ? new Date(assessment.nextReviewDate).toLocaleDateString('en-GB') : '—'],
+    ['Next Review Date', formatUkDate(assessment.nextReviewDate)],
     ['Status', assessment.status.charAt(0).toUpperCase() + assessment.status.slice(1)],
     ['Regulation Reference', assessment.regulationReference || '—'],
     ['Scope', assessment.scope || '—'],

@@ -9,6 +9,7 @@ import ImportRiskAssessmentModal from './ImportRiskAssessmentModal';
 import Modal from './Modal';
 import RiskAssessmentDetailModal, { ReviewRiskAssessmentModal } from './RiskAssessmentDetailModal';
 import type { RiskAssessment } from '../types';
+import { formatUkDate } from '../utils/ukDate';
 
 export const REVIEW_FREQUENCY_OPTIONS: { value: string; label: string }[] = [
   { value: 'weekly', label: 'Weekly' },
@@ -120,7 +121,7 @@ export default function RiskAssessmentsTab() {
                   <td>{ra.name}</td>
                   <td style={{ color: 'var(--muted)' }}>{ra.regulationReference || '—'}</td>
                   <td>{reviewFrequencyLabel(ra.reviewFrequency)}</td>
-                  <td>{ra.nextReviewDate ?? '—'}</td>
+                  <td>{formatUkDate(ra.nextReviewDate)}</td>
                   <td>
                     <Badge value={ra.status} />
                   </td>
@@ -328,7 +329,7 @@ export function RiskAssessmentFormModal({
             <label>Assessment Date</label>
             <input
               type="text"
-              value={initial ? new Date(initial.assessmentDate).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')}
+              value={initial ? formatUkDate(initial.assessmentDate) : new Date().toLocaleDateString('en-GB')}
               disabled
             />
             <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>Set on creation</span>

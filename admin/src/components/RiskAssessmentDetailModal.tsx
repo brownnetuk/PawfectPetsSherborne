@@ -6,6 +6,7 @@ import Modal from './Modal';
 import { TrashIcon } from './icons';
 import { REVIEW_FREQUENCY_OPTIONS, reviewFrequencyLabel, RiskAssessmentFormModal } from './RiskAssessmentsTab';
 import type { RiskAssessment, RiskItem } from '../types';
+import { formatUkDate } from '../utils/ukDate';
 
 const LIKELIHOOD_LABELS = ['Rare', 'Unlikely', 'Possible', 'Likely', 'Almost Certain'];
 const SEVERITY_LABELS = ['Negligible', 'Minor', 'Moderate', 'Major', 'Catastrophic'];
@@ -227,11 +228,11 @@ export default function RiskAssessmentDetailModal({
           {(
             [
               ['RA ID', <strong key="v">{assessment.raId}</strong>],
-              ['Assessment Date', new Date(assessment.assessmentDate).toLocaleDateString('en-GB')],
+              ['Assessment Date', formatUkDate(assessment.assessmentDate)],
               ['Review Frequency', reviewFrequencyLabel(assessment.reviewFrequency)],
               [
                 'Next Review Date',
-                assessment.nextReviewDate ? new Date(assessment.nextReviewDate).toLocaleDateString('en-GB') : '—',
+                formatUkDate(assessment.nextReviewDate),
               ],
               ['Status', <Badge key="v" value={assessment.status} />],
               ['Regulation Reference', assessment.regulationReference || '—', 2],
@@ -592,7 +593,7 @@ export function ReviewRiskAssessmentModal({
         </div>
         <div>
           <div style={LABEL_CAPTION_STYLE}>Next Review Date</div>
-          {assessment.nextReviewDate ? new Date(assessment.nextReviewDate).toLocaleDateString('en-GB') : '—'}
+          {formatUkDate(assessment.nextReviewDate)}
         </div>
       </div>
 

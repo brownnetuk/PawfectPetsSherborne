@@ -29,6 +29,13 @@ const REVIEW_PERIOD_LABELS: Record<ReviewFrequency, string> = {
   annually: 'Annually',
 };
 
+// 'YYYY-MM-DD' -> 'DD/MM/YYYY' for the audit log and emails, matching how
+// the admin app shows these dates.
+function ukDate(ymd: string | undefined): string {
+  const m = ymd?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : (ymd ?? '');
+}
+
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -200,7 +207,7 @@ export class RiskAssessmentsService {
     if (assessment.status === 'live' && !wasLive && assessment.reviewFrequency) {
       assessment.nextReviewDate = addReviewInterval(assessment.reviewFrequency);
       assessment.reviewDueNotified = false;
-      changed.push(`Next review date set to ${assessment.nextReviewDate}`);
+      changed.push(`Next review date set to ${ukDate(assessment.nextReviewDate)}`);
     }
     if (changed.length > 0) {
       assessment.auditLog.push({
@@ -227,7 +234,7 @@ export class RiskAssessmentsService {
     assessment.reviewDueNotified = false;
     assessment.auditLog.push({
       action: 'Policy Reviewed',
-      changes: `Signed off by ${actor} -- next review date set to ${assessment.nextReviewDate}`,
+      changes: `Signed off by ${actor} -- next review date set to ${ukDate(assessment.nextReviewDate)}`,
       actor,
       at: new Date(),
     });
@@ -339,7 +346,7 @@ export class RiskAssessmentsService {
     const meta = [
       assessment.regulationReference,
       assessment.reviewFrequency ? REVIEW_PERIOD_LABELS[assessment.reviewFrequency] : undefined,
-      assessment.nextReviewDate ? `Next review ${assessment.nextReviewDate}` : undefined,
+      assessment.nextReviewDate ? `Next review ${ukDate(assessment.nextReviewDate)}` : undefined,
     ]
       .filter(Boolean)
       .map((s) => escapeHtml(s as string))
