@@ -2451,10 +2451,14 @@ function ChecklistsTab() {
   const [assigning, setAssigning] = useState(false);
   const [exportingDay, setExportingDay] = useState(false);
   const [exportingAll, setExportingAll] = useState(false);
+  // Bumped on every calendar refresh so the Completed Checklists list below
+  // picks up a checklist the moment its last item is ticked off.
+  const [completedVersion, setCompletedVersion] = useState(0);
 
   const weeks = useMemo(() => buildWeeks(viewMode, anchorDate), [viewMode, anchorDate]);
 
   function refresh() {
+    setCompletedVersion((v) => v + 1);
     const from = weeks[0][0];
     const to = weeks[weeks.length - 1][6];
     api
@@ -2540,8 +2544,15 @@ function ChecklistsTab() {
     }
   }
 
+  // "View" on a completed checklist -- jump the calendar to its day and open
+  // that day's panel, same as clicking the day itself.
+  function openDay(date: Date) {
+    setAnchorDate(date);
+    setSelectedDate(date);
+  }
+
   return (
-    <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div className="card" style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -2630,6 +2641,8 @@ function ChecklistsTab() {
         </div>
       </div>
 
+      <CompletedChecklistsCard version={completedVersion} onView={openDay} />
+
       {selectedDate && (
         <Modal
           title={selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -2677,6 +2690,183 @@ function ChecklistsTab() {
             ))
           )}
         </Modal>
+      )}
+    </div>
+  );
+}
+
+const COMPLETED_PAGE_SIZE = 10;
+
+// Page numbers to show: always first and last, plus a couple either side of
+// the current page, with null marking a "…" gap.
+function pageNumbers(current: number, totalPages: number): (number | null)[] {
+  const pages: (number | null)[] = [];
+  for (let p = 1; p <= totalPages; p++) {
+    if (p === 1 || p === totalPages || Math.abs(p - current) <= 2) {
+      pages.push(p);
+    } else if (pages[pages.length - 1] !== null) {
+      pages.push(null);
+    }
+  }
+  return pages;
+}
+
+// "Completed Checklists" under the Checklists calendar -- every checklist
+// with all its items ticked off, newest day first, 10 to a page.
+function CompletedChecklistsCard({ version, onView }: { version: number; onView: (date: Date) => void }) {
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState<ChecklistAssignment[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [exportingId, setExportingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listCompletedChecklistAssignments(page, COMPLETED_PAGE_SIZE)
+      .then((res) => {
+        if (cancelled) return;
+        // A checklist un-ticked elsewhere can empty the last page -- step back.
+        const lastPage = Math.max(1, Math.ceil(res.total / COMPLETED_PAGE_SIZE));
+        if (page > lastPage) {
+          setPage(lastPage);
+          return;
+        }
+        setRows(res.items);
+        setTotal(res.total);
+        setError(null);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load completed checklists');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, version]);
+
+  async function handleExport(a: ChecklistAssignment) {
+    setExportingId(a._id);
+    try {
+      const doc = await buildChecklistPdf(a);
+      doc.save(`${a.name} - ${dateKey(new Date(a.date))}.pdf`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate the PDF');
+    } finally {
+      setExportingId(null);
+    }
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / COMPLETED_PAGE_SIZE));
+
+  return (
+    <div className="card">
+      <h2>Completed Checklists</h2>
+      {error && <div className="error-banner">{error}</div>}
+      {!rows || rows.length === 0 ? (
+        <div className="empty-state">{rows === null ? 'Loading…' : 'No completed checklists yet.'}</div>
+      ) : (
+        <>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Checklist</th>
+                <th>Completed by</th>
+                <th>Signed by</th>
+                <th>Signed</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((a) => {
+                const completers = Array.from(new Set(a.completedBy.filter((n): n is string => !!n)));
+                return (
+                  <tr key={a._id}>
+                    <td>
+                      {new Date(a.date).toLocaleDateString('en-GB', {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </td>
+                    <td>{a.name}</td>
+                    <td>{completers.length ? completers.join(', ') : '—'}</td>
+                    <td>{a.signedBy || (a.signatureImage ? 'Signed' : 'Not signed yet')}</td>
+                    <td>
+                      {a.signedAt
+                        ? new Date(a.signedAt).toLocaleString('en-GB', {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—'}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', whiteSpace: 'nowrap' }}>
+                        <button type="button" className="btn-link" style={{ fontSize: '0.8rem' }} onClick={() => onView(new Date(a.date))}>
+                          View
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-link"
+                          style={{ fontSize: '0.8rem' }}
+                          onClick={() => handleExport(a)}
+                          disabled={exportingId === a._id}
+                        >
+                          {exportingId === a._id ? 'Exporting…' : 'Export PDF'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4, marginTop: 14, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setPage((p) => p - 1)}
+                disabled={page <= 1}
+                aria-label="Previous page"
+              >
+                ←
+              </button>
+              {pageNumbers(page, totalPages).map((p, i) =>
+                p === null ? (
+                  <span key={`gap-${i}`} style={{ padding: '0 4px', color: 'var(--muted)' }}>
+                    …
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    key={p}
+                    className={`btn btn-sm ${p === page ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => setPage(p)}
+                    aria-current={p === page ? 'page' : undefined}
+                  >
+                    {p}
+                  </button>
+                ),
+              )}
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={page >= totalPages}
+                aria-label="Next page"
+              >
+                →
+              </button>
+            </div>
+          )}
+          <div style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--muted)', marginTop: 8 }}>
+            Showing {(page - 1) * COMPLETED_PAGE_SIZE + 1}–{(page - 1) * COMPLETED_PAGE_SIZE + rows.length} of {total}
+          </div>
+        </>
       )}
     </div>
   );

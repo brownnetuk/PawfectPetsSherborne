@@ -51,6 +51,11 @@ export class ChecklistAssignmentsController {
     return this.checklists.findAssignmentsForRange(from, to);
   }
 
+  @Get('completed')
+  findCompleted(@Query('page') page?: string, @Query('limit') limit?: string) {
+    return this.checklists.findCompletedAssignments(Number(page) || 1, Number(limit) || 10);
+  }
+
   @Post()
   assign(@Body() dto: AssignChecklistDto) {
     return this.checklists.assign(dto);
