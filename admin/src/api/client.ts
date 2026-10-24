@@ -1327,6 +1327,12 @@ export function deleteChecklistTemplate(id: string): Promise<void> {
 export function listChecklistAssignments(from: string, to: string): Promise<ChecklistAssignment[]> {
   return request(`/checklist-assignments?from=${from}&to=${to}`);
 }
+export function listCompletedChecklistAssignments(
+  page: number,
+  limit = 10,
+): Promise<{ items: ChecklistAssignment[]; total: number; page: number; limit: number }> {
+  return request(`/checklist-assignments/completed?page=${page}&limit=${limit}`);
+}
 export function assignChecklist(input: { template: string; date: string }): Promise<ChecklistAssignment> {
   return request('/checklist-assignments', { method: 'POST', body: JSON.stringify(input) });
 }

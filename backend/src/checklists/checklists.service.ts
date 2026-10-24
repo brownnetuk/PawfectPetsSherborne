@@ -134,6 +134,35 @@ export class ChecklistsService {
       .exec();
   }
 
+  // Every fully ticked-off checklist (any day), newest day first, a page at a
+  // time -- the "Completed Checklists" list under the calendar.
+  async findCompletedAssignments(
+    page: number,
+    limit: number,
+  ): Promise<{ items: ChecklistAssignment[]; total: number; page: number; limit: number }> {
+    const safeLimit = Math.min(Math.max(Math.floor(limit) || 10, 1), 100);
+    const safePage = Math.max(Math.floor(page) || 1, 1);
+    const filter = {
+      $expr: {
+        $and: [
+          { $gt: [{ $size: { $ifNull: ['$items', []] } }, 0] },
+          { $eq: [{ $size: { $ifNull: ['$completed', []] } }, { $size: { $ifNull: ['$items', []] } }] },
+          { $not: [{ $in: [false, { $ifNull: ['$completed', []] }] }] },
+        ],
+      },
+    };
+    const [items, total] = await Promise.all([
+      this.assignmentModel
+        .find(filter)
+        .sort({ date: -1, signedAt: -1, updatedAt: -1, _id: -1 })
+        .skip((safePage - 1) * safeLimit)
+        .limit(safeLimit)
+        .exec(),
+      this.assignmentModel.countDocuments(filter).exec(),
+    ]);
+    return { items, total, page: safePage, limit: safeLimit };
+  }
+
   async assign(dto: AssignChecklistDto): Promise<ChecklistAssignment> {
     const template = await this.templateModel.findById(dto.template).exec();
     if (!template) {
