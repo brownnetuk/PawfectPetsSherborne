@@ -2544,13 +2544,6 @@ function ChecklistsTab() {
     }
   }
 
-  // "View" on a completed checklist -- jump the calendar to its day and open
-  // that day's panel, same as clicking the day itself.
-  function openDay(date: Date) {
-    setAnchorDate(date);
-    setSelectedDate(date);
-  }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div className="card" style={{ flex: 1, minWidth: 0 }}>
@@ -2641,7 +2634,7 @@ function ChecklistsTab() {
         </div>
       </div>
 
-      <CompletedChecklistsCard version={completedVersion} onView={openDay} />
+      <CompletedChecklistsCard version={completedVersion} />
 
       {selectedDate && (
         <Modal
@@ -2713,12 +2706,13 @@ function pageNumbers(current: number, totalPages: number): (number | null)[] {
 
 // "Completed Checklists" under the Checklists calendar -- every checklist
 // with all its items ticked off, newest day first, 10 to a page.
-function CompletedChecklistsCard({ version, onView }: { version: number; onView: (date: Date) => void }) {
+function CompletedChecklistsCard({ version }: { version: number }) {
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState<ChecklistAssignment[] | null>(null);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [exportingId, setExportingId] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<ChecklistAssignment | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -2805,7 +2799,7 @@ function CompletedChecklistsCard({ version, onView }: { version: number; onView:
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', whiteSpace: 'nowrap' }}>
-                        <button type="button" className="btn-link" style={{ fontSize: '0.8rem' }} onClick={() => onView(new Date(a.date))}>
+                        <button type="button" className="btn-link" style={{ fontSize: '0.8rem' }} onClick={() => setViewing(a)}>
                           View
                         </button>
                         <button
@@ -2868,7 +2862,59 @@ function CompletedChecklistsCard({ version, onView }: { version: number; onView:
           </div>
         </>
       )}
+
+      {viewing && <ChecklistPdfModal assignment={viewing} onClose={() => setViewing(null)} />}
     </div>
+  );
+}
+
+// "View" on a completed checklist -- the same PDF Export PDF downloads,
+// shown inline.
+function ChecklistPdfModal({ assignment, onClose }: { assignment: ChecklistAssignment; onClose: () => void }) {
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    buildChecklistPdf(assignment)
+      .then((doc) => {
+        if (cancelled) return;
+        // A blob URL, not datauristring -- see ViewFormSubmissionModal for
+        // why jsPDF's datauristring breaks Chrome's iframe PDF viewer.
+        objectUrl = URL.createObjectURL(doc.output('blob'));
+        setPdfUrl(objectUrl);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to generate the PDF');
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [assignment]);
+
+  const dateLabel = new Date(assignment.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
+  return (
+    <Modal title={`${assignment.name} — ${dateLabel}`} onClose={onClose} xl>
+      {error ? (
+        <div className="error-banner">{error}</div>
+      ) : pdfUrl ? (
+        <iframe
+          src={`${pdfUrl}#navpanes=0&view=FitH`}
+          title={`${assignment.name} PDF`}
+          style={{ width: '100%', height: '75vh', border: '1px solid var(--border)', borderRadius: 8, background: '#fff' }}
+        />
+      ) : (
+        <div className="empty-state">Preparing…</div>
+      )}
+      <div className="modal-actions">
+        <button className="btn btn-secondary" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </Modal>
   );
 }
 
