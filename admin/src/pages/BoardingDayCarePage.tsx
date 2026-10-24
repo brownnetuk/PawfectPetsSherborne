@@ -171,12 +171,23 @@ interface StayEditHandlers {
   onDelete: (stayId: string) => void;
 }
 
-type Tab = 'dashboard' | 'preBoarding' | 'bookings' | 'occupancy' | 'riskAssessments' | 'policies' | 'checklists';
+type Tab =
+  | 'dashboard'
+  | 'preBoarding'
+  | 'bookings'
+  | 'occupancy'
+  | 'checkInOut'
+  | 'incidents'
+  | 'riskAssessments'
+  | 'policies'
+  | 'checklists';
 const TAB_LABELS: Record<Tab, string> = {
   dashboard: 'Dashboard',
   preBoarding: 'Pre-Boarding',
   bookings: 'Bookings',
   occupancy: 'Occupancy',
+  checkInOut: 'Check In / Check Out',
+  incidents: 'Incident Reports',
   riskAssessments: 'Risk Assessments',
   policies: 'Policies',
   checklists: 'Checklists',
@@ -282,7 +293,7 @@ export default function BoardingDayCarePage() {
         <h1>Boarding &amp; Day Care</h1>
       </div>
       <div className="tabs">
-        {(['dashboard', 'preBoarding', 'bookings', 'occupancy', 'riskAssessments', 'policies', 'checklists'] as Tab[]).map((t) => (
+        {(['dashboard', 'preBoarding', 'bookings', 'occupancy', 'checkInOut', 'incidents', 'riskAssessments', 'policies', 'checklists'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -306,6 +317,8 @@ export default function BoardingDayCarePage() {
           }}
         />
       )}
+      {tab === 'checkInOut' && <CheckInOutTab refreshSignal={refreshSignal} onNavigateToBooking={handleNavigateToBooking} />}
+      {tab === 'incidents' && <IncidentReportsCard onOpenBooking={(id) => handleNavigateToBooking(id)} />}
       {tab === 'riskAssessments' && <RiskAssessmentsTab />}
       {tab === 'policies' && <PoliciesTab />}
       {tab === 'checklists' && <ChecklistsTab />}
@@ -2054,11 +2067,7 @@ function BookingDetail({
 
           <ObservationsCard bookingId={booking._id} readOnly={readOnly} />
 
-          <IncidentReportsCard
-            bookingId={booking._id}
-            reference={booking.reference}
-            petNames={boardingPetNames(booking.animals)}
-          />
+          <IncidentReportsCard bookingId={booking._id} />
         </div>
       </div>
 
@@ -2201,6 +2210,232 @@ function FormRow({
           {actionLabel ?? status}
         </span>
       </div>
+    </div>
+  );
+}
+
+type CheckInOutFilter = 'all' | 'awaitingCheckIn' | 'inNow' | 'checkedOut';
+type CheckInOutSortKey = 'reference' | 'customer' | 'dogs' | 'type' | 'dropOff' | 'checkedIn' | 'pickUp' | 'checkedOut';
+
+// "24 Oct 2026, 09:13" for a recorded check-in/out time.
+function formatStamp(iso: string): string {
+  return new Date(iso).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+}
+function scheduled(date: string, time?: string): string {
+  const day = new Date(date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  return time ? `${day}, ${time}` : day;
+}
+
+// Every Boarding & Day Care booking's check-in and check-out in one table --
+// all bookings, archived and long-finished ones included, read straight
+// from each booking's own checkInAt/checkInBy/checkOutAt/checkOutBy (so
+// bookings from before this tab existed show up with whatever was recorded
+// on them). A past drop-off/pick-up with nothing recorded shows "Not
+// recorded"; today's offers the Check In / Check Out button, which opens the
+// booking straight into that form, same as the Dashboard's.
+function CheckInOutTab({
+  refreshSignal,
+  onNavigateToBooking,
+}: {
+  refreshSignal: number;
+  onNavigateToBooking: (bookingId: string, autoStage?: 'checkIn' | 'checkOut') => void;
+}) {
+  const [items, setItems] = useState<BoardingBookingWithStatus[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<CheckInOutFilter>('all');
+  const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<CheckInOutSortKey>('dropOff');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [viewSubmission, setViewSubmission] = useState<FormSubmissionRecord | null>(null);
+
+  useEffect(() => {
+    api
+      .listBoardingBookings()
+      .then(setItems)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bookings'));
+  }, [refreshSignal]);
+
+  function toggleSort(key: CheckInOutSortKey) {
+    if (key === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
+  const sortProps = { activeKey: sortKey, dir: sortDir, onSort: toggleSort };
+
+  async function handleView(submissionId: string) {
+    try {
+      setViewSubmission(await api.getFormSubmission(submissionId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load that form');
+    }
+  }
+
+  function sortValue({ booking }: BoardingBookingWithStatus): string {
+    switch (sortKey) {
+      case 'reference':
+        return booking.reference;
+      case 'customer':
+        return boardingCustomerLabel(booking.customer);
+      case 'dogs':
+        return boardingAnimalNames(booking.animals);
+      case 'type':
+        return booking.type;
+      case 'dropOff':
+        return `${booking.startDate.slice(0, 10)} ${booking.dropOffTime ?? ''}`;
+      case 'checkedIn':
+        return booking.checkInAt ?? '';
+      case 'pickUp':
+        return `${booking.endDate.slice(0, 10)} ${booking.pickUpTime ?? ''}`;
+      case 'checkedOut':
+        return booking.checkOutAt ?? '';
+    }
+  }
+
+  const COUNTS_LABEL: Record<CheckInOutFilter, string> = {
+    all: 'All',
+    awaitingCheckIn: 'Awaiting check-in',
+    inNow: 'Checked in, not out',
+    checkedOut: 'Checked out',
+  };
+  const matches = (row: BoardingBookingWithStatus, f: CheckInOutFilter) => {
+    const { booking } = row;
+    if (f === 'awaitingCheckIn') return !booking.checkInAt && !booking.archived && daysUntil(new Date(booking.endDate)) >= 0;
+    if (f === 'inNow') return !!booking.checkInAt && !booking.checkOutAt;
+    if (f === 'checkedOut') return !!booking.checkOutAt;
+    return true;
+  };
+  const term = search.trim().toLowerCase();
+  const rows = (items ?? [])
+    .filter((row) => matches(row, filter))
+    .filter(
+      ({ booking }) =>
+        !term ||
+        [booking.reference, boardingCustomerLabel(booking.customer), boardingAnimalNames(booking.animals)]
+          .join(' ')
+          .toLowerCase()
+          .includes(term),
+    )
+    .sort((a, b) => sortValue(a).localeCompare(sortValue(b), undefined, { numeric: true }) * (sortDir === 'asc' ? 1 : -1));
+
+  // One check-in or check-out cell: when/who if recorded, else a button on
+  // the day (or after, while the stay's still open), else when it's due.
+  function stageCell(
+    row: BoardingBookingWithStatus,
+    stage: 'checkIn' | 'checkOut',
+  ): React.ReactNode {
+    const { booking } = row;
+    const at = stage === 'checkIn' ? booking.checkInAt : booking.checkOutAt;
+    const by = stage === 'checkIn' ? booking.checkInBy : booking.checkOutBy;
+    const submission = stage === 'checkIn' ? booking.checkInSubmission : booking.checkOutSubmission;
+    if (at) {
+      return (
+        <div>
+          <div style={{ fontWeight: 600 }}>{formatStamp(at)}</div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
+            {by ? `by ${by}` : ''}
+            {submission && (
+              <>
+                {by ? ' · ' : ''}
+                <button className="btn-link" style={{ fontSize: '0.78rem' }} onClick={() => handleView(submission)}>
+                  View form
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
+    const due = new Date(stage === 'checkIn' ? booking.startDate : booking.endDate);
+    const days = daysUntil(due);
+    const stayEnded = daysUntil(new Date(booking.endDate)) < 0;
+    const open = !booking.archived && row.status !== 'Booking Complete';
+    // Check-in runs from drop-off day until the stay's over; check-out from
+    // pick-up day onwards, once the dog's been checked in.
+    const actionable =
+      open && days <= 0 && (stage === 'checkIn' ? !stayEnded && !booking.checkOutAt : !!booking.checkInAt);
+    if (actionable) {
+      return (
+        <button className="btn btn-secondary btn-sm" onClick={() => onNavigateToBooking(booking._id, stage)}>
+          {stage === 'checkIn' ? 'Check In' : 'Check Out'}
+        </button>
+      );
+    }
+    if (days < 0) return <span style={{ color: 'var(--muted)' }}>Not recorded</span>;
+    return <span style={{ color: 'var(--muted)' }}>Due {due.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>;
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+        <div className="tabs" style={{ marginBottom: 0 }}>
+          {(Object.keys(COUNTS_LABEL) as CheckInOutFilter[]).map((f) => (
+            <button key={f} className={filter === f ? 'active' : ''} onClick={() => setFilter(f)}>
+              {COUNTS_LABEL[f]}
+              {items ? ` (${items.filter((row) => matches(row, f)).length})` : ''}
+            </button>
+          ))}
+        </div>
+        <div className="field" style={{ minWidth: 220, maxWidth: 320, flexGrow: 1, marginBottom: 0 }}>
+          <input
+            type="text"
+            placeholder="Search reference, customer or dog…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      <div className="card">
+        {!items ? (
+          <div className="empty-state">Loading…</div>
+        ) : rows.length === 0 ? (
+          <div className="empty-state">No bookings here.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <SortableTh label="Reference" sortKey="reference" {...sortProps} />
+                <SortableTh label="Customer" sortKey="customer" {...sortProps} />
+                <SortableTh label="Dog(s)" sortKey="dogs" {...sortProps} />
+                <SortableTh label="Type" sortKey="type" {...sortProps} />
+                <SortableTh label="Drop off" sortKey="dropOff" {...sortProps} />
+                <SortableTh label="Checked in" sortKey="checkedIn" {...sortProps} />
+                <SortableTh label="Pick up" sortKey="pickUp" {...sortProps} />
+                <SortableTh label="Checked out" sortKey="checkedOut" {...sortProps} />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const { booking } = row;
+                return (
+                  <tr key={booking._id}>
+                    <td>
+                      <button
+                        className="btn-link"
+                        style={{ fontWeight: 600 }}
+                        onClick={() => onNavigateToBooking(booking._id)}
+                      >
+                        {booking.reference}
+                      </button>
+                      {booking.archived && <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Archived</div>}
+                    </td>
+                    <td>{boardingCustomerLabel(booking.customer)}</td>
+                    <td>{boardingAnimalNames(booking.animals)}</td>
+                    <td>{booking.type === 'boarding' ? 'Boarding' : 'Day Care'}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{scheduled(booking.startDate, booking.dropOffTime)}</td>
+                    <td>{stageCell(row, 'checkIn')}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{scheduled(booking.endDate, booking.pickUpTime)}</td>
+                    <td>{stageCell(row, 'checkOut')}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {viewSubmission && <ViewFormSubmissionModal submission={viewSubmission} onClose={() => setViewSubmission(null)} />}
     </div>
   );
 }

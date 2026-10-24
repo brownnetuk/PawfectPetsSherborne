@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as api from '../api/client';
 import { buildFormSubmissionPdf } from '../pdf/formSubmissionPdf';
-import type { FormField, FormSubmissionRecord } from '../types';
+import type { FormField, FormSubmissionRecord, IncidentReportRecord } from '../types';
 import FormFillModal from './FormFillModal';
 import Modal from './Modal';
 import ViewFormSubmissionModal from './ViewFormSubmissionModal';
@@ -40,72 +40,233 @@ function summarise(report: FormSubmissionRecord) {
   return { when, types, dogs, reportedBy, description };
 }
 
-// Incident Report forms filled in against a Boarding & Day Care booking --
-// shown on its Booking Detail page, after Observations, as many as needed.
-// Each is a form submission of Settings > Boarding's "Incident report form"
-// (see backend BookingIncidentReportsService). Not affected by the
-// booking's read-only state: a report can need adding or reviewing after
-// the stay is finished.
+// One entry in the fill form's "Booking reference" picker.
+interface BookingOption {
+  id: string;
+  reference: string;
+  label: string;
+  petNames: string[];
+  archived: boolean;
+}
+
+async function loadBookingOptions(): Promise<BookingOption[]> {
+  const rows = await api.listBoardingBookings();
+  const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return [...rows]
+    .sort((a, b) => b.booking.startDate.localeCompare(a.booking.startDate))
+    .map(({ booking }) => {
+      const customer = typeof booking.customer === 'string' ? undefined : booking.customer.name;
+      const petNames = booking.animals.map((a) => (typeof a === 'string' ? null : a.name)).filter((n): n is string => !!n);
+      const dates =
+        booking.startDate === booking.endDate
+          ? shortDate(booking.startDate)
+          : `${shortDate(booking.startDate)} – ${shortDate(booking.endDate)}`;
+      return {
+        id: booking._id,
+        reference: booking.reference,
+        label: [booking.reference, customer, petNames.join(', '), dates].filter(Boolean).join(' · '),
+        petNames,
+        archived: !!booking.archived,
+      };
+    });
+}
+
+// The incident report fill form, with a "Booking reference" picker above it
+// that says which booking (and so which customer) the report is for. On a
+// new report, picking a different booking restarts the form against that
+// booking, so "Dog(s) involved" lists that customer's dogs; on an existing
+// one, it re-links the report there straight away.
+function IncidentReportFillModal({
+  initialBookingId,
+  editSubmissionId,
+  onClose,
+  onChanged,
+}: {
+  // Unset when started from the all-bookings list -- staff pick one first.
+  initialBookingId?: string;
+  // Set to edit a submitted report instead of starting a new one.
+  editSubmissionId?: string;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const editing = !!editSubmissionId;
+  const [options, setOptions] = useState<BookingOption[] | null>(null);
+  const [bookingId, setBookingId] = useState(initialBookingId ?? '');
+  const [submissionId, setSubmissionId] = useState<string | null>(editSubmissionId ?? null);
+  const [switching, setSwitching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Whether the new report has been submitted -- one closed without
+  // submitting is discarded rather than left pending.
+  const submitted = useRef(false);
+
+  useEffect(() => {
+    loadBookingOptions()
+      .then(setOptions)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bookings'));
+  }, []);
+
+  // A new report's pending submission is created once a booking is chosen.
+  useEffect(() => {
+    if (editing || !bookingId || submissionId) return;
+    let cancelled = false;
+    api
+      .createBookingIncidentReport(bookingId)
+      .then((s) => {
+        if (cancelled) api.deleteBookingIncidentReport(bookingId, s._id).catch(() => {});
+        else setSubmissionId(s._id);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to start an incident report'));
+    return () => {
+      cancelled = true;
+    };
+  }, [editing, bookingId, submissionId]);
+
+  function discardPending() {
+    if (!editing && !submitted.current && submissionId && bookingId) {
+      api.deleteBookingIncidentReport(bookingId, submissionId).catch(() => {});
+    }
+  }
+
+  async function handlePickBooking(next: string) {
+    if (!next || next === bookingId) return;
+    setError(null);
+    if (!editing) {
+      discardPending();
+      setSubmissionId(null);
+      setBookingId(next);
+      return;
+    }
+    setSwitching(true);
+    try {
+      await api.moveBookingIncidentReport(bookingId, submissionId!, next);
+      setBookingId(next);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to link the report to that booking');
+    } finally {
+      setSwitching(false);
+    }
+  }
+
+  function handleClose() {
+    discardPending();
+    onClose();
+  }
+
+  const selected = options?.find((o) => o.id === bookingId);
+  const title = editing ? 'Edit incident report' : 'Incident report';
+  const picker = (
+    <>
+      <div className="field">
+        <label>
+          Booking reference <span style={{ color: 'var(--error)' }}>*</span>
+        </label>
+        <select value={bookingId} onChange={(e) => handlePickBooking(e.target.value)} disabled={!options || switching}>
+          <option value="" disabled>
+            {options ? 'Choose a booking…' : 'Loading bookings…'}
+          </option>
+          {(options ?? [])
+            .filter((o) => !o.archived || o.id === bookingId)
+            .map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
+            ))}
+        </select>
+        <div className="hint">
+          {editing
+            ? 'Changing this links the report to that booking and its customer straight away -- save any other changes first.'
+            : "Links the report to the booking and its customer -- \"Dog(s) involved\" lists that customer's dogs."}
+        </div>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+    </>
+  );
+
+  if (!bookingId || !submissionId) {
+    return (
+      <Modal title={title} onClose={handleClose} wide>
+        {picker}
+        {bookingId && !error && <p>Loading…</p>}
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={handleClose}>
+            Cancel
+          </button>
+        </div>
+      </Modal>
+    );
+  }
+
+  return (
+    <FormFillModal
+      // Remounted per booking, so the form reloads with that customer's dogs.
+      key={`${submissionId}:${bookingId}`}
+      submissionId={submissionId}
+      title={title}
+      header={picker}
+      presetPetNames={selected?.petNames}
+      pdfReference={selected?.reference}
+      saveEdit={
+        editing
+          ? async (answers) => {
+              await api.updateBookingIncidentReport(bookingId, submissionId, answers);
+            }
+          : undefined
+      }
+      onClose={handleClose}
+      onSubmitted={() => {
+        submitted.current = true;
+        onChanged();
+      }}
+    />
+  );
+}
+
+// Incident Report forms filled in against Boarding & Day Care bookings --
+// on a booking's detail page (after Observations) when given `bookingId`,
+// otherwise every booking's reports (Boarding & Day Care > Incident
+// Reports). Each is a form submission of Settings > Boarding's "Incident
+// report form" (see backend BookingIncidentReportsService). Not affected by
+// the booking's read-only state: a report can need adding or reviewing
+// after the stay is finished.
 export default function IncidentReportsCard({
   bookingId,
-  reference,
-  petNames,
+  onOpenBooking,
 }: {
-  bookingId: string;
-  reference: string;
-  // The booking's dogs -- pre-ticked on a new report's "Dog(s) involved".
-  petNames: string[];
+  bookingId?: string;
+  // All-bookings list only: jump to a report's booking.
+  onOpenBooking?: (bookingId: string) => void;
 }) {
-  const [reports, setReports] = useState<FormSubmissionRecord[] | null>(null);
+  const [reports, setReports] = useState<IncidentReportRecord[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [starting, setStarting] = useState(false);
-  const [filling, setFilling] = useState<{ submissionId: string; editing: boolean } | null>(null);
-  const [viewing, setViewing] = useState<FormSubmissionRecord | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<FormSubmissionRecord | null>(null);
+  // 'new' = adding, otherwise the report being edited.
+  const [filling, setFilling] = useState<IncidentReportRecord | 'new' | null>(null);
+  const [viewing, setViewing] = useState<IncidentReportRecord | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<IncidentReportRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [emailing, setEmailing] = useState<string | null>(null);
   const [emailed, setEmailed] = useState<Set<string>>(new Set());
-  // Whether the report open in FormFillModal has been submitted -- a new
-  // one closed without submitting is discarded rather than left pending.
-  const submitted = useRef(false);
 
   function refresh() {
-    api
-      .listBookingIncidentReports(bookingId)
+    (bookingId ? api.listBookingIncidentReports(bookingId) : api.listIncidentReports())
       .then(setReports)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load incident reports'));
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(refresh, [bookingId]);
 
-  async function handleAdd() {
-    setStarting(true);
-    setError(null);
-    try {
-      const submission = await api.createBookingIncidentReport(bookingId);
-      submitted.current = false;
-      setFilling({ submissionId: submission._id, editing: false });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start an incident report');
-    } finally {
-      setStarting(false);
-    }
-  }
-
-  function handleFillClosed() {
-    if (filling && !filling.editing && !submitted.current) {
-      api.deleteBookingIncidentReport(bookingId, filling.submissionId).catch(() => {});
-    }
-    setFilling(null);
-  }
-
-  async function handleEmail(report: FormSubmissionRecord) {
+  async function handleEmail(report: IncidentReportRecord) {
     setEmailing(report._id);
     setError(null);
     try {
       const full = await api.getFormSubmission(report._id);
+      const reference = report.booking?.reference;
       const doc = await buildFormSubmissionPdf(full, { reference });
-      await api.sendFormSubmissionCopy(report._id, doc.output('datauristring'), `${full.formName} - ${reference}.pdf`);
+      await api.sendFormSubmissionCopy(
+        report._id,
+        doc.output('datauristring'),
+        `${[full.formName, reference].filter(Boolean).join(' - ')}.pdf`,
+      );
       setEmailed((prev) => new Set(prev).add(report._id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to email the incident report');
@@ -115,10 +276,10 @@ export default function IncidentReportsCard({
   }
 
   async function handleDelete() {
-    if (!confirmDelete) return;
+    if (!confirmDelete?.booking) return;
     setDeleting(true);
     try {
-      await api.deleteBookingIncidentReport(bookingId, confirmDelete._id);
+      await api.deleteBookingIncidentReport(confirmDelete.booking._id, confirmDelete._id);
       setConfirmDelete(null);
       refresh();
     } catch (err) {
@@ -134,8 +295,8 @@ export default function IncidentReportsCard({
         <div className="section-title" style={{ marginBottom: 0 }}>
           Incident reports{reports && reports.length > 0 ? ` (${reports.length})` : ''}
         </div>
-        <button className="btn btn-secondary" onClick={handleAdd} disabled={starting}>
-          {starting ? 'Starting…' : 'Add incident report'}
+        <button className="btn btn-secondary" onClick={() => setFilling('new')}>
+          Add incident report
         </button>
       </div>
       {error && <div className="error-banner">{error}</div>}
@@ -187,14 +348,7 @@ export default function IncidentReportsCard({
                       <MailIcon />
                     </button>
                   )}
-                  <button
-                    className="btn-link"
-                    title="Edit"
-                    onClick={() => {
-                      submitted.current = false;
-                      setFilling({ submissionId: report._id, editing: true });
-                    }}
-                  >
+                  <button className="btn-link" title="Edit" onClick={() => setFilling(report)}>
                     <PencilIcon />
                   </button>
                   <button className="btn-link" title="Delete" onClick={() => setConfirmDelete(report)}>
@@ -202,6 +356,21 @@ export default function IncidentReportsCard({
                   </button>
                 </div>
               </div>
+              {!bookingId && report.booking && (
+                <div style={{ fontSize: '0.82rem', marginTop: 4 }}>
+                  <button
+                    className="btn-link"
+                    title="Open booking"
+                    onClick={() => onOpenBooking?.(report.booking!._id)}
+                    disabled={!onOpenBooking}
+                  >
+                    {report.booking.reference}
+                  </button>
+                  {report.booking.customerName && (
+                    <span style={{ color: 'var(--muted)' }}> · {report.booking.customerName}</span>
+                  )}
+                </div>
+              )}
               {description && (
                 <div
                   style={{ fontSize: '0.88rem', marginTop: 6, whiteSpace: 'pre-wrap', cursor: 'pointer' }}
@@ -216,29 +385,26 @@ export default function IncidentReportsCard({
       )}
 
       {filling && (
-        <FormFillModal
-          submissionId={filling.submissionId}
-          title={filling.editing ? 'Edit incident report' : 'Incident report'}
-          presetPetNames={petNames}
-          pdfReference={reference}
-          saveEdit={
-            filling.editing
-              ? async (answers) => {
-                  await api.updateBookingIncidentReport(bookingId, filling.submissionId, answers);
-                }
-              : undefined
-          }
-          onClose={handleFillClosed}
-          onSubmitted={() => {
-            submitted.current = true;
+        <IncidentReportFillModal
+          initialBookingId={filling === 'new' ? bookingId : filling.booking?._id}
+          editSubmissionId={filling === 'new' ? undefined : filling._id}
+          onClose={() => {
+            setFilling(null);
             refresh();
           }}
+          onChanged={refresh}
         />
       )}
-      {viewing && <ViewFormSubmissionModal submission={viewing} reference={reference} onClose={() => setViewing(null)} />}
+      {viewing && (
+        <ViewFormSubmissionModal
+          submission={viewing}
+          reference={viewing.booking?.reference}
+          onClose={() => setViewing(null)}
+        />
+      )}
       {confirmDelete && (
         <Modal title="Delete this incident report?" onClose={() => setConfirmDelete(null)}>
-          <p>This permanently removes the report from this booking and the customer's forms.</p>
+          <p>This permanently removes the report from its booking and the customer's forms.</p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setConfirmDelete(null)}>
               Cancel

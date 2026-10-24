@@ -112,6 +112,42 @@ describe('BookingIncidentReportsService', () => {
     expect(submissionModel.findByIdAndDelete).not.toHaveBeenCalled();
   });
 
+  it('moves a report to another booking and its customer', async () => {
+    const targetId = new Types.ObjectId().toString();
+    const otherCustomer = { _id: new Types.ObjectId(), name: 'Tom Hill', email: 'tom@example.com' };
+    const target = { _id: targetId, reference: 'BK00011', incidentReports: [], customer: otherCustomer };
+    bookingModel.findById.mockImplementation((id: string) => {
+      const doc = id === targetId ? target : booking;
+      return { ...exec(doc), populate: jest.fn(() => exec(doc)) };
+    });
+    const submission = {
+      _id: linkedId,
+      formName: 'Incident Report',
+      status: FormSubmissionStatus.COMPLETED,
+      customer: customerId,
+      recipientEmail: 'sarah@example.com',
+      recipientName: 'Sarah Jones',
+      save: jest.fn(),
+    };
+    submissionModel.findById.mockReturnValue(exec(submission));
+    await service.move(bookingId, linkedId.toString(), targetId, 'James');
+    expect(submission).toMatchObject({
+      customer: otherCustomer._id,
+      recipientEmail: 'tom@example.com',
+      recipientName: 'Tom Hill',
+    });
+    expect(bookingModel.updateOne).toHaveBeenCalledWith({ _id: bookingId }, { $pull: { incidentReports: linkedId } });
+    expect(bookingModel.updateOne).toHaveBeenCalledWith({ _id: targetId }, { $addToSet: { incidentReports: linkedId } });
+    expect(auditLogService.record).toHaveBeenCalledWith(
+      otherCustomer._id,
+      expect.anything(),
+      'Incident report linked',
+      'Incident Report moved from BK00010 to BK00011',
+      undefined,
+      'James',
+    );
+  });
+
   it('unlinks and deletes a report', async () => {
     await service.remove(bookingId, linkedId.toString());
     expect(bookingModel.updateOne).toHaveBeenCalledWith({ _id: bookingId }, { $pull: { incidentReports: linkedId } });

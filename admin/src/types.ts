@@ -1051,6 +1051,16 @@ export interface FormSubmissionRecord {
   createdAt: string;
 }
 
+// An Incident Report form submission, with the boarding booking it's linked
+// to -- see backend's BookingIncidentReportsService.
+export interface IncidentReportBooking {
+  _id: string;
+  reference: string;
+  customerName?: string;
+  petNames: string[];
+}
+export type IncidentReportRecord = FormSubmissionRecord & { booking?: IncidentReportBooking };
+
 // The shape GET /form-submissions/:id/public returns -- {{token}} placeholders
 // already resolved, internal mapping/optionsSource stripped. Same as
 // frontend/src/types.ts's FormSubmissionPublic, used here by FormFillModal.
