@@ -38,6 +38,14 @@ import {
   PdfInvoice,
 } from './pdf/invoice-pdf.util';
 
+// The latest due date that now counts as overdue: a full day before `now`.
+// An invoice is on time throughout its due date and only goes overdue (and
+// notifies staff and the customer) from the following day -- see
+// markOverdue(). Exported for its unit test.
+export function overdueCutoff(now: Date = new Date()): Date {
+  return new Date(now.getTime() - 24 * 60 * 60 * 1000);
+}
+
 @Injectable()
 export class InvoicesService {
   constructor(
@@ -110,7 +118,10 @@ export class InvoicesService {
     return created;
   }
 
-  // Flips any invoice still sitting at "sent" past its due date to "overdue".
+  // Flips any invoice still sitting at "sent" to "overdue" once a full day has
+  // passed since its due date -- the due date itself still counts as on
+  // time, so an invoice due on the 20th shows (and notifies) as overdue from
+  // the 21st, not from midnight on the 20th.
   // Runs hourly via @Cron so invoices go overdue in the background even if
   // nobody opens the app that day (self-hosted now, so no free-tier sleep to
   // work around). Also still called at the top of findAll() below so the
@@ -119,7 +130,7 @@ export class InvoicesService {
   // enough to run on every list fetch too.
   @Cron(CronExpression.EVERY_HOUR)
   private async markOverdue(): Promise<void> {
-    const filter = { status: InvoiceStatus.SENT, dueDate: { $lt: new Date() } };
+    const filter = { status: InvoiceStatus.SENT, dueDate: { $lte: overdueCutoff() } };
     // Fetch the ones about to flip so we can push each owning customer (and
     // only notify staff when something actually goes overdue — this also runs
     // on every list fetch and usually finds nothing).

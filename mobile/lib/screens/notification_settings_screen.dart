@@ -180,7 +180,7 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
               _sectionHeader('Invoices'),
               SwitchListTile(
                 title: const Text('Invoice overdue'),
-                subtitle: const Text('When an invoice passes its due date'),
+                subtitle: const Text('The day after an unpaid invoice\'s due date'),
                 value: s.invoicesOverdue,
                 onChanged: (v) => _save(s.copyWith(invoicesOverdue: v)),
               ),

@@ -5366,7 +5366,7 @@ function NotificationsSettingsTab() {
       )}
 
       <div className="section-title">Invoices</div>
-      {toggle('Invoice overdue', 'When an invoice passes its due date', 'invoicesOverdue')}
+      {toggle('Invoice overdue', 'The day after an unpaid invoice\'s due date', 'invoicesOverdue')}
       {toggle('Invoice read', 'When a customer opens an invoice', 'invoicesRead')}
 
       {saving && <div style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>Saving…</div>}

@@ -2241,7 +2241,7 @@ Rows that a quote acceptance (Visits) or a boarding/day-care stay created alread
 stateDiagram-v2
     [*] --> draft : POST /invoices (always draft)
     draft --> sent : POST /:id/send, /:id/request-deposit, requestFullPayment, or PATCH status
-    sent --> overdue : markOverdue() cron hourly or GET /invoices (status=sent AND dueDate < now)
+    sent --> overdue : markOverdue() cron hourly or GET /invoices (status=sent AND dueDate <= now - 1 day)
     sent --> paid : applyPayment() amountPaid >= total or PATCH status=paid
     overdue --> paid : applyPayment() amountPaid >= total
     draft --> paid : applyPayment() (no status precondition)
@@ -2270,7 +2270,7 @@ What each step does to the data:
 `InvoicesService.markOverdue()` (`backend/src/invoices/invoices.service.ts:120-142`):
 
 - **Schedule:** `@Cron(CronExpression.EVERY_HOUR)`. It is **also** called at the start of every `GET /invoices`.
-- **Filter:** `{status: 'sent', dueDate: {$lt: now}}`. It selects `customer` and `invoiceNumber`, then sets `status: 'overdue'` with `updateMany`.
+- **Filter:** `{status: 'sent', dueDate: {$lte: overdueCutoff()}}`, where `overdueCutoff()` is now minus one day -- an invoice counts as on time throughout its due date and only shows (and notifies) as overdue from the following day. It selects `customer` and `invoiceNumber`, then sets `status: 'overdue'` with `updateMany`.
 - **Staff:** one `notifyInvoicesOverdue(count)` dispatch ("Invoice overdue" / "N invoices are now overdue"), gated by `NotificationSettings.invoicesOverdue`.
 - **Customers:** `notifyCustomerInvoiceStatus(customer, number, 'overdue')` for each flipped invoice.
 
@@ -2459,7 +2459,7 @@ Quote opens (`markOpened`) only write a `QUOTE_READ` audit entry. They send no p
 
 | Job | File | Schedule | What it does |
 |---|---|---|---|
-| `InvoicesService.markOverdue` | `backend/src/invoices/invoices.service.ts:120` | `EVERY_HOUR` (also run on every `GET /invoices`) | sent + past due → overdue; staff and customer pushes. |
+| `InvoicesService.markOverdue` | `backend/src/invoices/invoices.service.ts:120` | `EVERY_HOUR` (also run on every `GET /invoices`) | sent + a full day past due (`overdueCutoff()`) → overdue; staff and customer pushes. |
 | `BoardingBookingsService.sendDuePreCheckIns` | `backend/src/boarding-bookings/boarding-bookings.service.ts:716` | `EVERY_HOUR` | Finds bookings with an invoice, no `preCheckInSentAt`, no `checkInAt`, and `startDate <= today + preCheckInDaysBefore` (string compare of `YYYY-MM-DD`). Calls `sendPreCheckIn` for each; errors are logged per booking. Archived bookings are not excluded. |
 | `AppointmentsService.sendDueReminders` | `backend/src/appointments/appointments.service.ts:48` | `EVERY_5_MINUTES` | Skips when APNs is not configured or reminders are off. `lead = appointmentLeadMinutes \|\| 60`. Loads **every** appointment without `reminderSentAt` and keeps those where `now < date+time <= now+lead`. Dispatches a staff push and stamps `reminderSentAt`. |
 
