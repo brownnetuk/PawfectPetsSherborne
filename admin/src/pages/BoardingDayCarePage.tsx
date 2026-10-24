@@ -2440,6 +2440,12 @@ function ChecklistsTab() {
   );
 }
 
+// <input type="datetime-local"> wants local "YYYY-MM-DDTHH:mm", not an ISO string.
+function toLocalInputValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 // One assigned checklist's card in the day panel -- items with tick + who
 // ticked them, a notes area, and a sign-off signature at the bottom. Kept as
 // its own component (rather than inlined in ChecklistsTab) so the notes
@@ -2462,6 +2468,9 @@ function AssignmentCard({
   const [notesDirty, setNotesDirty] = useState(false);
   const [savingSignature, setSavingSignature] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  // null = not editing, otherwise the "YYYY-MM-DDTHH:mm" draft for the signed date/time.
+  const [signedAtDraft, setSignedAtDraft] = useState<string | null>(null);
+  const [savingSignedAt, setSavingSignedAt] = useState(false);
   const allDone = assignment.items.length > 0 && assignment.completed.every(Boolean);
   const doneCount = assignment.completed.filter(Boolean).length;
 
@@ -2498,6 +2507,20 @@ function AssignmentCard({
       onError(err instanceof Error ? err.message : 'Failed to save signature');
     } finally {
       setSavingSignature(false);
+    }
+  }
+
+  async function saveSignedAt() {
+    if (!signedAtDraft) return;
+    setSavingSignedAt(true);
+    try {
+      await api.updateChecklistAssignment(assignment._id, { signedAt: new Date(signedAtDraft).toISOString() });
+      setSignedAtDraft(null);
+      onChanged();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Failed to update the signed date/time');
+    } finally {
+      setSavingSignedAt(false);
     }
   }
 
@@ -2642,10 +2665,41 @@ function AssignmentCard({
             readOnly={!!assignment.signatureImage}
           />
           {savingSignature && <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4 }}>Saving…</div>}
-          {!savingSignature && assignment.signedBy && (
+          {!savingSignature && assignment.signedBy && signedAtDraft === null && (
             <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4 }}>
               Signed by {assignment.signedBy}
-              {assignment.signedAt ? ` on ${new Date(assignment.signedAt).toLocaleString('en-GB')}` : ''}
+              {assignment.signedAt ? ` on ${new Date(assignment.signedAt).toLocaleString('en-GB')}` : ''}{' '}
+              <button
+                type="button"
+                className="btn-link"
+                style={{ fontSize: '0.72rem' }}
+                title="Change the date and time this checklist was signed"
+                onClick={() => setSignedAtDraft(toLocalInputValue(assignment.signedAt ? new Date(assignment.signedAt) : new Date()))}
+              >
+                Change date/time
+              </button>
+            </div>
+          )}
+          {signedAtDraft !== null && (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginTop: 6 }}>
+              <input
+                type="datetime-local"
+                value={signedAtDraft}
+                onChange={(e) => setSignedAtDraft(e.target.value)}
+                style={{ fontSize: '0.82rem', width: 'auto' }}
+                autoFocus
+              />
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={saveSignedAt}
+                disabled={!signedAtDraft || savingSignedAt}
+              >
+                {savingSignedAt ? 'Saving…' : 'Save'}
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSignedAtDraft(null)}>
+                Cancel
+              </button>
             </div>
           )}
         </div>
