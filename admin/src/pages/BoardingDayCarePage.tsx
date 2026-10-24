@@ -1776,6 +1776,8 @@ function BookingDetail({
       animals: data.booking.animals.map((a) => (typeof a === 'string' ? a : a._id)),
       recipientEmail: typeof customer === 'string' ? '' : customer.email,
       recipientName: typeof customer === 'string' ? undefined : customer.name,
+      forBooking: id,
+      bookingStage: 'checkIn',
     });
     setFillFor({ stage: 'checkIn', submissionId: submission._id, presetPetNames: boardingPetNames(data.booking.animals) });
   }
@@ -1796,6 +1798,8 @@ function BookingDetail({
       animals: data.booking.animals.map((a) => (typeof a === 'string' ? a : a._id)),
       recipientEmail: typeof customer === 'string' ? '' : customer.email,
       recipientName: typeof customer === 'string' ? undefined : customer.name,
+      forBooking: id,
+      bookingStage: 'checkOut',
     });
     // Shown read-only above the check-out form, so staff can see what was
     // recorded at drop-off while filling in collection details.

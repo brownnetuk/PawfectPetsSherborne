@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { OmitType } from '@nestjs/mapped-types';
 import { InjectModel } from '@nestjs/mongoose';
@@ -174,7 +175,7 @@ function wrapFieldsForPets(fields: FormField[], petNames: string[]): FormField[]
 }
 
 @Injectable()
-export class FormSubmissionsService {
+export class FormSubmissionsService implements OnModuleInit {
   constructor(
     @InjectModel(FormSubmission.name)
     private readonly formSubmissionModel: Model<FormSubmission>,
@@ -191,8 +192,94 @@ export class FormSubmissionsService {
     private readonly boardingBookingModel: Model<BoardingBooking>,
   ) {}
 
+  onModuleInit() {
+    // Fire-and-forget -- boot must never wait on it.
+    void this.removeAbandonedCheckForms();
+  }
+
+  /**
+   * Deletes the blank check-in/check-out submissions left behind before
+   * forBooking existed: starting a booking's check-in/check-out created a new
+   * pending submission every time, and closing the form without submitting
+   * left it on the customer's Forms card (under General, as "Sent -- awaiting
+   * response") although it was never emailed. Matches pending submissions of
+   * the configured check-in/check-out forms that no booking links to and that
+   * carry no forBooking, skipping any staff emailed out through Send form
+   * (an "<form> form email sent" Activity entry within 10 minutes of it).
+   * Idempotent, so it simply finds nothing on later boots.
+   */
+  async removeAbandonedCheckForms(): Promise<void> {
+    try {
+      const workflow = await this.settingsService.getBoardingWorkflowSettings();
+      const formIds = [
+        workflow.checkInFormBoarding,
+        workflow.checkInFormDayCare,
+        workflow.checkOutFormBoarding,
+        workflow.checkOutFormDayCare,
+      ].filter((id): id is string => !!id);
+      if (formIds.length === 0) return;
+      const candidates = await this.formSubmissionModel
+        .find({
+          form: { $in: formIds },
+          status: FormSubmissionStatus.PENDING,
+          forBooking: { $exists: false },
+          customerRiskAssessment: { $ne: true },
+        })
+        .select('_id customer formName createdAt')
+        .lean<{ _id: unknown; customer?: unknown; formName: string; createdAt?: Date }[]>()
+        .exec();
+      if (candidates.length === 0) return;
+      const bookings = await this.boardingBookingModel
+        .find({})
+        .select('preCheckInSubmission checkInSubmission checkOutSubmission incidentReports')
+        .lean()
+        .exec();
+      const linked = new Set<string>();
+      for (const b of bookings) {
+        for (const id of [b.preCheckInSubmission, b.checkInSubmission, b.checkOutSubmission, ...(b.incidentReports ?? [])]) {
+          if (id) linked.add(String(id));
+        }
+      }
+      const toDelete: string[] = [];
+      for (const c of candidates) {
+        if (linked.has(String(c._id))) continue;
+        if (c.customer && c.createdAt) {
+          const emailed = await this.auditLogService.hasFormEmailSentBetween(
+            String(c.customer),
+            c.formName,
+            c.createdAt,
+            new Date(c.createdAt.getTime() + 10 * 60 * 1000),
+          );
+          if (emailed) continue;
+        }
+        toDelete.push(String(c._id));
+      }
+      if (toDelete.length === 0) return;
+      const result = await this.formSubmissionModel.deleteMany({ _id: { $in: toDelete } }).exec();
+      console.log(`Form submissions: removed ${result.deletedCount} unsubmitted check-in/check-out form(s).`);
+    } catch (err) {
+      console.error('Removing unsubmitted check-in/check-out forms failed (will retry next boot):', err);
+    }
+  }
+
   async create(dto: CreateFormSubmissionDto): Promise<FormSubmission> {
     const form = await this.formsService.findOne(dto.form);
+    const bookingStage = dto.forBooking ? dto.bookingStage : undefined;
+    if (dto.forBooking && bookingStage) {
+      // Starting a booking's check-in/check-out again after closing the form
+      // without submitting -- reuse that still-pending submission (nothing
+      // is saved on it until submit) instead of piling up another.
+      const existing = await this.formSubmissionModel
+        .findOne({
+          forBooking: dto.forBooking,
+          bookingStage,
+          form: form._id,
+          status: FormSubmissionStatus.PENDING,
+        })
+        .sort({ createdAt: -1 })
+        .exec();
+      if (existing) return existing;
+    }
     const animals = dto.animals ?? [];
     let formFieldsSnapshot = form.fields as unknown as FormField[];
     if (animals.length > 1) {
@@ -214,6 +301,8 @@ export class FormSubmissionsService {
       animals: animals.length > 1 ? animals : undefined,
       recipientEmail: dto.recipientEmail,
       recipientName: dto.recipientName,
+      forBooking: bookingStage ? dto.forBooking : undefined,
+      bookingStage,
     }).save();
   }
 
@@ -279,7 +368,8 @@ export class FormSubmissionsService {
   // reference }) when it's one of that customer's boarding bookings'
   // pre-check-in/check-in/check-out/incident report forms -- the customer
   // page's Forms tab groups by it. The link lives on BoardingBooking, not
-  // here, so it's looked up rather than stored.
+  // here, so it's looked up rather than stored (apart from forBooking, on a
+  // check-in/check-out that hasn't been recorded on the booking yet).
   async findAll(
     customerId?: string,
   ): Promise<(FormSubmission | Record<string, unknown>)[]> {
@@ -304,8 +394,10 @@ export class FormSubmissionsService {
       string,
       { _id: string; reference: string }
     >();
+    const bookingById = new Map<string, { _id: string; reference: string }>();
     for (const b of bookings) {
       const ref = { _id: String(b._id), reference: b.reference };
+      bookingById.set(ref._id, ref);
       for (const id of [
         b.preCheckInSubmission,
         b.checkInSubmission,
@@ -316,7 +408,11 @@ export class FormSubmissionsService {
       }
     }
     return submissions.map((s) => {
-      const booking = bookingBySubmission.get(String(s._id));
+      // A check-in/check-out still being filled in isn't on the booking yet,
+      // but carries forBooking from when it was started.
+      const booking =
+        bookingBySubmission.get(String(s._id)) ??
+        (s.forBooking ? bookingById.get(String(s.forBooking)) : undefined);
       return { ...s.toObject(), booking };
     });
   }

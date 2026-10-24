@@ -73,6 +73,23 @@ export class AuditLogService {
     return entry?.createdAt;
   }
 
+  // Whether a "<form> form email sent" entry (SettingsService.sendTriggeredEmail,
+  // what SendFormModal's send writes) was logged for this customer between
+  // `from` and `to` -- the email itself doesn't record which submission it
+  // linked to, so FormSubmissionsService's abandoned check-in clean-up goes by
+  // this to leave alone a form staff really did email out.
+  async hasFormEmailSentBetween(customerId: string, formName: string, from: Date, to: Date): Promise<boolean> {
+    if (!Types.ObjectId.isValid(customerId)) return false;
+    const entry = await this.auditLogModel
+      .exists({
+        customer: new Types.ObjectId(customerId),
+        title: `${formName} form email sent`,
+        createdAt: { $gte: from, $lte: to },
+      })
+      .exec();
+    return !!entry;
+  }
+
   /**
    * Called by GET /audit-log/:id/pixel.gif when a sent email's tracking
    * pixel loads. First-open only (guarded by the openedAt filter, same

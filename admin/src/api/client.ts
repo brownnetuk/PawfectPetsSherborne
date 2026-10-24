@@ -1201,6 +1201,11 @@ export interface CreateFormSubmissionInput {
   animals?: string[];
   recipientEmail: string;
   recipientName?: string;
+  // Opening a booking's check-in/check-out to fill in: the backend hands
+  // back that booking's still-pending one for this stage if there is one,
+  // instead of creating another.
+  forBooking?: string;
+  bookingStage?: 'checkIn' | 'checkOut';
 }
 export function createFormSubmission(input: CreateFormSubmissionInput): Promise<FormSubmissionRecord> {
   return request('/form-submissions', { method: 'POST', body: JSON.stringify(input) });

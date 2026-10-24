@@ -1054,6 +1054,9 @@ export interface FormSubmissionRecord {
   // boarding booking this is a pre-check-in/check-in/check-out/incident
   // report form for, if any. See backend's FormSubmissionsService.findAll().
   booking?: { _id: string; reference: string };
+  // Set on a check-in/check-out staff opened from a booking to fill in --
+  // still pending means it was started and not submitted (never emailed).
+  bookingStage?: 'checkIn' | 'checkOut';
 }
 
 // An Incident Report form submission, with the boarding booking it's linked

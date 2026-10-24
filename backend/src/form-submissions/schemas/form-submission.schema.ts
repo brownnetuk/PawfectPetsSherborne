@@ -82,6 +82,24 @@ export class FormSubmission extends Document {
   // listed apart from every other form the customer has filled in.
   @Prop({ index: true })
   customerRiskAssessment?: boolean;
+
+  // Set on the pending submission staff open to fill in a boarding booking's
+  // check-in/check-out (BoardingDayCarePage's startCheckIn/startCheckOut, the
+  // staff app's _startCheck) -- create() hands back this same submission
+  // when that booking's check-in/check-out is started again rather than
+  // making another one, so walking away from the form part-way doesn't leave
+  // a new "Sent -- awaiting response" row behind each time, and findAll()
+  // groups it under the booking before it's been recorded there. A string
+  // ref, since BoardingBooking's schema already imports this one.
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'BoardingBooking',
+    index: true,
+  })
+  forBooking?: Types.ObjectId;
+
+  @Prop({ type: String, enum: ['checkIn', 'checkOut'] })
+  bookingStage?: 'checkIn' | 'checkOut';
 }
 
 export const FormSubmissionSchema =

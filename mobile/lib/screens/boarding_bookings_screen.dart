@@ -457,8 +457,9 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
   }
 
   /// The admin's Fill-in flow: look up the configured form for this booking's
-  /// type, create a pending submission for this customer/pets, open it in the
-  /// in-app form filler, and on submit link it onto the booking (check-in or
+  /// type, create a pending submission for this customer/pets (or reuse the
+  /// one left from an earlier unfinished attempt), open it in the in-app form
+  /// filler, and on submit link it onto the booking (check-in or
   /// check-out). Pops the detail with `true` afterwards so the list refreshes
   /// with the new status.
   Future<void> _startCheck({required bool isCheckIn}) async {
@@ -481,6 +482,8 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
         recipientEmail: b.customerEmail,
         recipientName: b.customerName,
         animalIds: b.animalIds,
+        forBookingId: b.id,
+        bookingStage: isCheckIn ? 'checkIn' : 'checkOut',
       );
       if (!mounted) return;
       final submitted = await Navigator.of(context).push<bool>(
