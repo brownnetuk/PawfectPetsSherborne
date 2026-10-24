@@ -65,7 +65,7 @@ export default function AddAppointmentModal({
           <label>Customer</label>
           <select value={custId} onChange={(e) => setCustId(e.target.value)} required>
             <option value="">Select a customer…</option>
-            {customers.map((c) => (
+            {[...customers].sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
               <option key={c._id} value={c._id}>
                 {c.name}
               </option>

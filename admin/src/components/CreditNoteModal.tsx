@@ -74,7 +74,7 @@ export default function CreditNoteModal({ onClose, onSaved }: Props) {
             <option value="" disabled>
               Select a customer…
             </option>
-            {customers.map((c) => (
+            {[...customers].sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
               <option key={c._id} value={c._id}>
                 {c.name}
               </option>
