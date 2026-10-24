@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models/portal_models.dart';
 import '../../state/auth_provider.dart';
+import '../../theme.dart';
+import '../../widgets/brand.dart';
 
 /// Read-only: the business's terms & conditions with the customer's signature
 /// shown at the bottom.
@@ -22,21 +24,20 @@ class AgreementScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('Terms & Conditions', style: Theme.of(context).textTheme.titleLarge),
+          const BrandHeading('Terms & Conditions', padding: EdgeInsets.only(bottom: 8)),
           if (terms?.version != null || terms?.documentDate != null) ...[
-            const SizedBox(height: 4),
             Text(
               [
                 if (terms?.version != null && terms!.version!.isNotEmpty) 'Version ${terms.version}',
                 if (terms?.documentDate != null && terms!.documentDate!.isNotEmpty) terms.documentDate,
               ].join('  ·  '),
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              style: const TextStyle(color: brandMuted, fontSize: 12),
             ),
           ],
           const SizedBox(height: 12),
           if ((terms?.html ?? '').trim().isEmpty)
-            Text('The terms & conditions aren\'t available right now.',
-                style: TextStyle(color: Colors.grey.shade600))
+            const Text('The terms & conditions aren\'t available right now.',
+                style: TextStyle(color: brandMuted))
           else
             HtmlWidget(terms!.html),
           const Divider(height: 40),
@@ -57,31 +58,30 @@ class _SignatureBlock extends StatelessWidget {
     if (a == null || !a.isSigned) {
       return Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: const Color(0xFFFDF1E0), borderRadius: BorderRadius.circular(8)),
-        child: const Text('You haven\'t signed the agreement yet.'),
+        decoration: BoxDecoration(color: brandYellowTint, borderRadius: BorderRadius.circular(12)),
+        child: const Text('You haven\'t signed the agreement yet.', style: TextStyle(fontWeight: FontWeight.w600)),
       );
     }
     final sig = _decodeSignature(a.signatureImage);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Signed', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
+        const BrandSectionLabel('Signed', padding: EdgeInsets.only(bottom: 8)),
         if (sig != null)
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: brandRule),
+              borderRadius: BorderRadius.circular(12),
               color: Colors.white,
             ),
             child: Image.memory(sig, height: 90, fit: BoxFit.contain),
           ),
         const SizedBox(height: 8),
-        Text(a.signedName!, style: const TextStyle(fontWeight: FontWeight.w600)),
+        Text(a.signedName!, style: const TextStyle(fontWeight: FontWeight.w700)),
         if (a.signedAt != null)
           Text('Signed ${DateFormat('d MMM yyyy').format(a.signedAt!.toLocal())}',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+              style: const TextStyle(color: brandMuted, fontSize: 13)),
       ],
     );
   }

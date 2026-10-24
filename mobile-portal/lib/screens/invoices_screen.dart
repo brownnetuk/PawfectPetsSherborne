@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/portal_models.dart';
+import '../theme.dart';
+import '../widgets/brand.dart';
 import '../widgets/common.dart';
 
 class InvoicesScreen extends StatefulWidget {
@@ -66,7 +68,7 @@ class _InvoiceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         onTap: () => showModalBottomSheet(
           context: context,
           isScrollControlled: true,
@@ -80,9 +82,10 @@ class _InvoiceCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(invoice.invoiceNumber, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    const SizedBox(height: 2),
-                    Text(dateFmt.format(invoice.issueDate), style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                    // The document number as the PDF's yellow reference pill.
+                    Align(alignment: Alignment.centerLeft, child: RefPill(invoice.invoiceNumber)),
+                    const SizedBox(height: 6),
+                    Text(dateFmt.format(invoice.issueDate), style: const TextStyle(color: brandMuted, fontSize: 13)),
                     if (invoice.subject != null && invoice.subject!.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(invoice.subject!, style: const TextStyle(fontSize: 13)),
@@ -93,7 +96,8 @@ class _InvoiceCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(money.format(invoice.total), style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(money.format(invoice.total),
+                      style: const TextStyle(fontWeight: FontWeight.w700, color: brandBlue, fontSize: 16)),
                   const SizedBox(height: 4),
                   StatusChip(status: invoice.status),
                 ],
@@ -158,14 +162,15 @@ class _InvoiceSheetState extends State<_InvoiceSheet> {
           Row(
             children: [
               Expanded(
-                child: Text(inv.invoiceNumber, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                child: Text(inv.invoiceNumber,
+                    style: const TextStyle(fontFamily: displayFont, fontSize: 20, color: brandBlue)),
               ),
               StatusChip(status: inv.status),
             ],
           ),
           const SizedBox(height: 4),
           Text('Issued ${dateFmt.format(inv.issueDate)}  ·  Due ${dateFmt.format(inv.dueDate)}',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+              style: const TextStyle(color: brandMuted, fontSize: 13)),
           if (inv.subject != null && inv.subject!.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(inv.subject!),
@@ -213,7 +218,10 @@ class _InvoiceSheetState extends State<_InvoiceSheet> {
   }
 
   Widget _totalRow(String label, double value, {bool bold = false}) {
-    final style = TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal);
+    final style = TextStyle(
+      fontWeight: bold ? FontWeight.w700 : FontWeight.normal,
+      color: bold ? brandBlue : brandInk,
+    );
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(

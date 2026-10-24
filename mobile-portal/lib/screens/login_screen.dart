@@ -130,27 +130,42 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.pets, size: 56, color: brandGreen),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Pawfect Pets',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                  // Same masthead as the staff app's sign-in: logo, eyebrow,
+                  // and a display-font title with the yellow-underlined word.
+                  Image.asset('assets/images/logo.png', height: 72, alignment: Alignment.centerLeft),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'PAWFECT PETS · SHERBORNE',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 2, color: brandBlue),
                   ),
-                  Text(
-                    'Customer App',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey.shade600),
+                  const SizedBox(height: 4),
+                  const Text.rich(
+                    TextSpan(
+                      text: 'Customer ',
+                      children: [
+                        TextSpan(
+                          text: 'sign in',
+                          style: TextStyle(
+                            color: brandPink,
+                            decoration: TextDecoration.underline,
+                            decorationColor: brandYellow,
+                            decorationThickness: 3,
+                          ),
+                        ),
+                      ],
+                    ),
+                    style: TextStyle(fontFamily: displayFont, fontSize: 28, color: brandBlue),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
                   if (_error != null) ...[
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFDECEA),
-                        borderRadius: BorderRadius.circular(8),
+                        color: brandPinkTint,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: brandPink.withValues(alpha: 0.35)),
                       ),
-                      child: Text(_error!, style: const TextStyle(color: Color(0xFFC0392B))),
+                      child: Text(_error!, style: const TextStyle(color: brandPink, fontWeight: FontWeight.w600)),
                     ),
                     const SizedBox(height: 16),
                   ],
@@ -226,7 +241,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ] else ...[
           Text(
             'We\'ll email you a 6-digit code to set up your password.',
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            style: TextStyle(color: brandMuted, fontSize: 13),
           ),
           const SizedBox(height: 16),
           ElevatedButton(
@@ -246,7 +261,7 @@ class _LoginScreenState extends State<LoginScreen> {
           _resetFlow
               ? 'Enter the reset code we emailed to ${_email.text.trim()} and choose a new password.'
               : 'Enter the code we emailed to ${_email.text.trim()} and choose a password.',
-          style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+          style: TextStyle(color: brandMuted, fontSize: 13),
         ),
         const SizedBox(height: 16),
         TextField(
@@ -296,7 +311,7 @@ class _Toggle extends StatelessWidget {
         height: 26,
         padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
-          color: value ? brandGreen : Colors.grey.shade400,
+          color: value ? brandBlue : brandRule,
           borderRadius: BorderRadius.circular(999),
         ),
         child: AnimatedAlign(

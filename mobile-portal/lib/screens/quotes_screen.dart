@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/portal_models.dart';
+import '../theme.dart';
+import '../widgets/brand.dart';
 import '../widgets/common.dart';
 
 class QuotesScreen extends StatefulWidget {
@@ -68,7 +70,7 @@ class _QuoteCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         onTap: () async {
           final changed = await showModalBottomSheet<bool>(
             context: context,
@@ -85,10 +87,11 @@ class _QuoteCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(quote.quoteNumber, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    const SizedBox(height: 2),
+                    // The document number as the PDF's yellow reference pill.
+                    Align(alignment: Alignment.centerLeft, child: RefPill(quote.quoteNumber)),
+                    const SizedBox(height: 6),
                     Text('Valid until ${dateFmt.format(quote.validUntil)}',
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                        style: const TextStyle(color: brandMuted, fontSize: 13)),
                     if (quote.subject != null && quote.subject!.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(quote.subject!, style: const TextStyle(fontSize: 13)),
@@ -99,7 +102,8 @@ class _QuoteCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(money.format(quote.total), style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(money.format(quote.total),
+                      style: const TextStyle(fontWeight: FontWeight.w700, color: brandBlue, fontSize: 16)),
                   const SizedBox(height: 4),
                   StatusChip(status: quote.status),
                 ],
@@ -139,7 +143,7 @@ class _QuoteSheetState extends State<_QuoteSheet> {
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFC0392B)),
+            style: TextButton.styleFrom(foregroundColor: brandPink),
             child: const Text('Decline'),
           ),
         ],
@@ -178,13 +182,16 @@ class _QuoteSheetState extends State<_QuoteSheet> {
         children: [
           Row(
             children: [
-              Expanded(child: Text(q.quoteNumber, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
+              Expanded(
+                child: Text(q.quoteNumber,
+                    style: const TextStyle(fontFamily: displayFont, fontSize: 20, color: brandBlue)),
+              ),
               StatusChip(status: q.status),
             ],
           ),
           const SizedBox(height: 4),
           Text('Issued ${dateFmt.format(q.issueDate)}  ·  Valid until ${dateFmt.format(q.validUntil)}',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+              style: const TextStyle(color: brandMuted, fontSize: 13)),
           if (q.subject != null && q.subject!.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(q.subject!),
@@ -203,8 +210,8 @@ class _QuoteSheetState extends State<_QuoteSheet> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Total', style: TextStyle(fontWeight: FontWeight.bold)),
-              Text(money.format(q.total), style: const TextStyle(fontWeight: FontWeight.bold)),
+              const Text('Total', style: TextStyle(fontWeight: FontWeight.w700, color: brandBlue)),
+              Text(money.format(q.total), style: const TextStyle(fontWeight: FontWeight.w700, color: brandBlue)),
             ],
           ),
           const SizedBox(height: 24),
@@ -217,14 +224,14 @@ class _QuoteSheetState extends State<_QuoteSheet> {
             const SizedBox(height: 10),
             OutlinedButton.icon(
               onPressed: _busy ? null : _decline,
-              style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFFC0392B)),
+              style: OutlinedButton.styleFrom(foregroundColor: brandPink, side: const BorderSide(color: brandPink, width: 1.5)),
               icon: const Icon(Icons.cancel_outlined),
               label: const Text('Decline quote'),
             ),
           ] else
             Text(
               'This quote has been ${q.status}.',
-              style: TextStyle(color: Colors.grey.shade600),
+              style: const TextStyle(color: brandMuted),
             ),
         ],
       ),

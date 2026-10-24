@@ -64,7 +64,7 @@ class _AnimalsScreenState extends State<AnimalsScreen> {
               if (animals.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 40),
-                  child: Center(child: Text('No pets yet.', style: TextStyle(color: Colors.grey.shade600))),
+                  child: Center(child: Text('No pets yet.', style: TextStyle(color: brandMuted))),
                 ),
               ...animals.map((a) => _AnimalBubble(animal: a, icon: _iconFor(a.species), onTap: () => _openForm(animal: a))),
               const SizedBox(height: 8),
@@ -92,15 +92,11 @@ class _AnimalBubble extends StatelessWidget {
     final a = animal;
     final species = a.species.isEmpty ? '' : a.species[0].toUpperCase() + a.species.substring(1);
     final subtitle = [a.breed, species].where((s) => s.isNotEmpty).join(' · ');
-    return Container(
+    // The staff app's cream card, with the pet's name in the display font.
+    return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(14),
@@ -108,24 +104,24 @@ class _AnimalBubble extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 26,
-                backgroundColor: const Color(0xFFEAF5EE),
-                child: Icon(icon, color: brandGreenDark),
+                backgroundColor: brandBlueTint,
+                child: Icon(icon, color: brandBlue),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(a.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+                    Text(a.name, style: const TextStyle(fontFamily: displayFont, fontSize: 17, color: brandBlue)),
                     const SizedBox(height: 2),
-                    Text(subtitle, style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
+                    Text(subtitle, style: const TextStyle(color: brandInk, fontSize: 13)),
                     const SizedBox(height: 2),
                     Text('Age ${a.age}${a.sex.isNotEmpty ? ' · ${a.sex}' : ''}',
-                        style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                        style: const TextStyle(color: brandMuted, fontSize: 12)),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: Colors.grey),
+              const Icon(Icons.chevron_right, color: brandMuted),
             ],
           ),
         ),
