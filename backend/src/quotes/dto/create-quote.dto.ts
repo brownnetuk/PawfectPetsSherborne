@@ -62,6 +62,10 @@ export class QuoteVisitPlanDto {
 
   @IsIn(['1', '2'])
   visitsLastDay: string;
+
+  @IsOptional()
+  @IsIn(['20', '30', '40'])
+  visitDuration?: string;
 }
 
 // See QuoteDayCarePlan in ../schemas/quote.schema.ts.

@@ -8,7 +8,13 @@ import ProductAvailabilityWarningModal from '../components/ProductAvailabilityWa
 import { PlusCircleIcon, TrashIcon } from '../components/icons';
 import { annualLeaveOn } from '../utils/annualLeave';
 import { availabilityMismatch } from '../utils/productAvailability';
-import { isBoardingProduct, isDayCareProduct, isVisitProduct, visitCountForProduct } from '../utils/visitMapping';
+import {
+  isBoardingProduct,
+  isDayCareProduct,
+  isVisitProduct,
+  visitCountForProduct,
+  visitDurationForProduct,
+} from '../utils/visitMapping';
 import type { Animal, AnnualLeave, Appointment, BankHoliday, Customer, DayBooking, Product, VisitMapping } from '../types';
 
 type ViewMode = 'week' | 'month';
@@ -416,6 +422,7 @@ export default function BookingsPage() {
     // "Regular"/middle default: the day after start if the range has a
     // genuine middle day, else just fall back to the first day's own count.
     const visitsPerDay = rangeDates.length > 2 ? countFor(addDays(start, 1)) : visitsFirstDay;
+    const visitDuration = visitDurationForProduct(visitMapping, productId(byDate.get(dateKey(start))!.product));
     // Prefer an explicit visitTime; fall back to the same start/end inference
     // used for display, checked against the full fetched window (not just
     // the visible calendar range, so this stays accurate).
@@ -440,6 +447,7 @@ export default function BookingsPage() {
       visitsPerDay,
       visitsFirstDay,
       visitsLastDay,
+      visitDuration,
       amPmFirstDay,
       amPmLastDay,
       editAnimalId: aid,

@@ -362,6 +362,18 @@ export class SettingsService {
       twoVisitWeekdayProduct: doc?.twoVisitWeekdayProduct?.toString() ?? null,
       twoVisitWeekendProduct: doc?.twoVisitWeekendProduct?.toString() ?? null,
       twoVisitBankHolidayProduct: doc?.twoVisitBankHolidayProduct?.toString() ?? null,
+      oneVisit30MinWeekdayProduct: doc?.oneVisit30MinWeekdayProduct?.toString() ?? null,
+      oneVisit30MinWeekendProduct: doc?.oneVisit30MinWeekendProduct?.toString() ?? null,
+      oneVisit30MinBankHolidayProduct: doc?.oneVisit30MinBankHolidayProduct?.toString() ?? null,
+      twoVisit30MinWeekdayProduct: doc?.twoVisit30MinWeekdayProduct?.toString() ?? null,
+      twoVisit30MinWeekendProduct: doc?.twoVisit30MinWeekendProduct?.toString() ?? null,
+      twoVisit30MinBankHolidayProduct: doc?.twoVisit30MinBankHolidayProduct?.toString() ?? null,
+      oneVisit40MinWeekdayProduct: doc?.oneVisit40MinWeekdayProduct?.toString() ?? null,
+      oneVisit40MinWeekendProduct: doc?.oneVisit40MinWeekendProduct?.toString() ?? null,
+      oneVisit40MinBankHolidayProduct: doc?.oneVisit40MinBankHolidayProduct?.toString() ?? null,
+      twoVisit40MinWeekdayProduct: doc?.twoVisit40MinWeekdayProduct?.toString() ?? null,
+      twoVisit40MinWeekendProduct: doc?.twoVisit40MinWeekendProduct?.toString() ?? null,
+      twoVisit40MinBankHolidayProduct: doc?.twoVisit40MinBankHolidayProduct?.toString() ?? null,
       dayCareHalfDayProduct: doc?.dayCareHalfDayProduct?.toString() ?? null,
       dayCareFullDayProduct: doc?.dayCareFullDayProduct?.toString() ?? null,
       dayCareSecondDogHalfDayProduct: doc?.dayCareSecondDogHalfDayProduct?.toString() ?? null,
@@ -381,6 +393,18 @@ export class SettingsService {
     if (dto.twoVisitWeekdayProduct !== undefined) update.twoVisitWeekdayProduct = dto.twoVisitWeekdayProduct;
     if (dto.twoVisitWeekendProduct !== undefined) update.twoVisitWeekendProduct = dto.twoVisitWeekendProduct;
     if (dto.twoVisitBankHolidayProduct !== undefined) update.twoVisitBankHolidayProduct = dto.twoVisitBankHolidayProduct;
+    if (dto.oneVisit30MinWeekdayProduct !== undefined) update.oneVisit30MinWeekdayProduct = dto.oneVisit30MinWeekdayProduct;
+    if (dto.oneVisit30MinWeekendProduct !== undefined) update.oneVisit30MinWeekendProduct = dto.oneVisit30MinWeekendProduct;
+    if (dto.oneVisit30MinBankHolidayProduct !== undefined) update.oneVisit30MinBankHolidayProduct = dto.oneVisit30MinBankHolidayProduct;
+    if (dto.twoVisit30MinWeekdayProduct !== undefined) update.twoVisit30MinWeekdayProduct = dto.twoVisit30MinWeekdayProduct;
+    if (dto.twoVisit30MinWeekendProduct !== undefined) update.twoVisit30MinWeekendProduct = dto.twoVisit30MinWeekendProduct;
+    if (dto.twoVisit30MinBankHolidayProduct !== undefined) update.twoVisit30MinBankHolidayProduct = dto.twoVisit30MinBankHolidayProduct;
+    if (dto.oneVisit40MinWeekdayProduct !== undefined) update.oneVisit40MinWeekdayProduct = dto.oneVisit40MinWeekdayProduct;
+    if (dto.oneVisit40MinWeekendProduct !== undefined) update.oneVisit40MinWeekendProduct = dto.oneVisit40MinWeekendProduct;
+    if (dto.oneVisit40MinBankHolidayProduct !== undefined) update.oneVisit40MinBankHolidayProduct = dto.oneVisit40MinBankHolidayProduct;
+    if (dto.twoVisit40MinWeekdayProduct !== undefined) update.twoVisit40MinWeekdayProduct = dto.twoVisit40MinWeekdayProduct;
+    if (dto.twoVisit40MinWeekendProduct !== undefined) update.twoVisit40MinWeekendProduct = dto.twoVisit40MinWeekendProduct;
+    if (dto.twoVisit40MinBankHolidayProduct !== undefined) update.twoVisit40MinBankHolidayProduct = dto.twoVisit40MinBankHolidayProduct;
     if (dto.dayCareHalfDayProduct !== undefined) update.dayCareHalfDayProduct = dto.dayCareHalfDayProduct;
     if (dto.dayCareFullDayProduct !== undefined) update.dayCareFullDayProduct = dto.dayCareFullDayProduct;
     if (dto.dayCareSecondDogHalfDayProduct !== undefined)

@@ -32,6 +32,7 @@ export default function ScheduleTable({ visitPlan, dayCarePlan, boardingPlan }: 
         'Visits',
         `${visitPlan.visitsPerDay} per day (first day ${visitPlan.visitsFirstDay}, last day ${visitPlan.visitsLastDay})`,
       ],
+      ['Duration', `${visitPlan.visitDuration ?? '20'} minutes per visit`],
     ];
     const names = animalNames(visitPlan.animals);
     if (names) rows.push(['Pets', names]);

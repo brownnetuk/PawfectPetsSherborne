@@ -437,6 +437,8 @@ export interface QuoteVisitPlan {
   visitsPerDay: '1' | '2';
   visitsFirstDay: '1' | '2';
   visitsLastDay: '1' | '2';
+  // Unset on quotes made before visit lengths existed (all 20 minutes).
+  visitDuration?: '20' | '30' | '40';
 }
 
 export interface QuoteDayCarePlan {
@@ -665,6 +667,18 @@ export interface VisitMapping {
   twoVisitWeekdayProduct: string | null;
   twoVisitWeekendProduct: string | null;
   twoVisitBankHolidayProduct: string | null;
+  oneVisit30MinWeekdayProduct: string | null;
+  oneVisit30MinWeekendProduct: string | null;
+  oneVisit30MinBankHolidayProduct: string | null;
+  twoVisit30MinWeekdayProduct: string | null;
+  twoVisit30MinWeekendProduct: string | null;
+  twoVisit30MinBankHolidayProduct: string | null;
+  oneVisit40MinWeekdayProduct: string | null;
+  oneVisit40MinWeekendProduct: string | null;
+  oneVisit40MinBankHolidayProduct: string | null;
+  twoVisit40MinWeekdayProduct: string | null;
+  twoVisit40MinWeekendProduct: string | null;
+  twoVisit40MinBankHolidayProduct: string | null;
   dayCareHalfDayProduct: string | null;
   dayCareFullDayProduct: string | null;
   dayCareSecondDogHalfDayProduct: string | null;
