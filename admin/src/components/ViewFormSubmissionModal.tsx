@@ -6,9 +6,12 @@ import Modal from './Modal';
 
 export default function ViewFormSubmissionModal({
   submission,
+  reference,
   onClose,
 }: {
   submission: FormSubmissionRecord;
+  // Shown in the PDF header -- see buildFormSubmissionPdf.
+  reference?: string;
   onClose: () => void;
 }) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -26,7 +29,7 @@ export default function ViewFormSubmissionModal({
       .getFormSubmission(submission._id)
       .then((full) => ({ ...submission, formFieldsSnapshot: full.formFieldsSnapshot }))
       .catch(() => submission)
-      .then((resolved) => buildFormSubmissionPdf(resolved))
+      .then((resolved) => buildFormSubmissionPdf(resolved, { reference }))
       .then((doc) => {
         if (cancelled) return;
         // A blob URL, not doc.output('datauristring') -- jsPDF's datauristring
@@ -43,7 +46,7 @@ export default function ViewFormSubmissionModal({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [submission]);
+  }, [submission, reference]);
 
   const petSuffix =
     submission.animal && typeof submission.animal === 'object'

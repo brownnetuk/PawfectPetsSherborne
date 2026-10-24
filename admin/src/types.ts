@@ -531,6 +531,8 @@ export interface BoardingBooking {
   checkOutSubmission?: string;
   checkOutAt?: string;
   checkOutBy?: string;
+  // Incident Report form submissions -- see IncidentReportsCard.
+  incidentReports?: string[];
   statusOverride?: BookingStatusLabel;
   archived?: boolean;
   createdAt: string;
@@ -592,6 +594,7 @@ export interface BoardingWorkflowSettings {
   checkOutFormBoarding: string | null;
   checkOutFormDayCare: string | null;
   checkOutRequireSignature: boolean;
+  incidentReportForm: string | null;
 }
 
 export interface CrmActivity {
@@ -952,6 +955,9 @@ export type DisplayFormField = FormFieldBase & {
   // page here (formSubmissionPdf.ts) and a stronger section-divider style
   // on the live fill form/preview.
   startsNewPage?: boolean;
+  // Opens a new PDF section card here (no page break) and shows the same
+  // section-divider style as startsNewPage on the live fill form/preview.
+  startsSection?: boolean;
   // The customer's fill form shows the current terms/declaration from
   // Settings > Business Info here instead of `label` (the fallback copy,
   // and what the preview/PDF show).

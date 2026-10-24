@@ -87,7 +87,8 @@ function referenceMultichoiceAnswers(
   return {};
 }
 
-// Staff-facing fill flow for check-in/check-out -- reuses the same public
+// Staff-facing fill flow for check-in/check-out (and a booking's incident
+// reports) -- reuses the same public
 // GET .../public + POST .../submit endpoints the customer-facing intake app's
 // FormFillPage uses (a @Public() route accepts an authenticated admin caller
 // just fine, it just doesn't require one), so no backend changes were needed
@@ -100,6 +101,8 @@ export default function FormFillModal({
   referenceSubmission,
   referenceLabel,
   presetPetNames,
+  saveEdit,
+  pdfReference,
   onClose,
   onSubmitted,
 }: {
@@ -114,7 +117,17 @@ export default function FormFillModal({
   // choice field (optionsSource: 'customerPets') gets pre-populated with one
   // repetition per name here instead of starting empty, so staff aren't
   // re-picking a pet the app already knows.
+  //
+  // Also pre-ticks those names on a top-level "which pet" field (a
+  // customerPets multichoice, or a choice when there's just the one dog) --
+  // e.g. the incident report's "Dog(s) involved".
   presetPetNames?: string[];
+  // Edit mode: re-opens an already-completed submission with its saved
+  // answers, and saves through this instead of the one-time submit endpoint
+  // (e.g. updateBookingIncidentReport).
+  saveEdit?: (answers: Record<string, unknown>) => Promise<void>;
+  // Shown in the emailed PDF copy's header, e.g. the booking reference.
+  pdfReference?: string;
   onClose: () => void;
   onSubmitted: (submissionId: string) => void;
 }) {
@@ -134,12 +147,22 @@ export default function FormFillModal({
       .then((raw) => {
         const s = { ...raw, fields: resolveStaffPlaceholder(raw.fields, staff?.name ?? 'Staff') };
         setSubmission(s);
+        if (saveEdit) {
+          setAnswers(s.answers ?? {});
+          setLoadState('ready');
+          return;
+        }
         if (s.status === 'completed') {
           setLoadState('already-completed');
           return;
         }
         const initial: Record<string, unknown> = defaultAnswersFor(s.fields.filter((f) => f.type !== 'group'));
         for (const field of s.fields) {
+          if ((field.type === 'multichoice' || field.type === 'choice') && field.optionsSource === 'customerPets') {
+            const known = (presetPetNames ?? []).filter((name) => field.options.includes(name));
+            if (field.type === 'multichoice' && known.length > 0) initial[field.id] = known;
+            if (field.type === 'choice' && known.length === 1) initial[field.id] = known[0];
+          }
           if (field.type === 'group') {
             const petNameField = field.fields.find((f) => f.type === 'choice' && f.optionsSource === 'customerPets');
             if (petNameField && presetPetNames && presetPetNames.length > 0) {
@@ -224,7 +247,8 @@ export default function FormFillModal({
     setError(null);
     setSubmitting(true);
     try {
-      await api.submitFormSubmission(submissionId, answers);
+      if (saveEdit) await saveEdit(answers);
+      else await api.submitFormSubmission(submissionId, answers);
       onSubmitted(submissionId);
       setLoadState('submitted');
     } catch (err) {
@@ -239,7 +263,7 @@ export default function FormFillModal({
     setEmailError(null);
     try {
       const full = await api.getFormSubmission(submissionId);
-      const doc = await buildFormSubmissionPdf(full);
+      const doc = await buildFormSubmissionPdf(full, { reference: pdfReference });
       const attachmentData = doc.output('datauristring');
       await api.sendFormSubmissionCopy(submissionId, attachmentData, `${full.formName}.pdf`);
       setEmailSent(true);
@@ -257,7 +281,7 @@ export default function FormFillModal({
       {loadState === 'already-completed' && <p>This form has already been completed.</p>}
       {loadState === 'submitted' && (
         <div>
-          <p>Submitted.</p>
+          <p>{saveEdit ? 'Saved.' : 'Submitted.'}</p>
           {emailError && <div className="error-banner">{emailError}</div>}
           {emailSent ? (
             <p style={{ color: 'var(--brand-green)', fontWeight: 600 }}>Emailed a copy to the customer.</p>
@@ -308,7 +332,7 @@ export default function FormFillModal({
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={submitting}>
-              {submitting ? 'Submitting…' : 'Submit'}
+              {submitting ? (saveEdit ? 'Saving…' : 'Submitting…') : saveEdit ? 'Save changes' : 'Submit'}
             </button>
           </div>
         </form>

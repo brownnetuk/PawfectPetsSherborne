@@ -10,6 +10,7 @@ import FormFillModal from '../components/FormFillModal';
 import Modal from '../components/Modal';
 import NewBoardingBookingModal from '../components/NewBoardingBookingModal';
 import NewBookingModal from '../components/NewBookingModal';
+import IncidentReportsCard from '../components/IncidentReportsCard';
 import ObservationsCard from '../components/ObservationsCard';
 import type { BoardingEditInitial, DayCareEditInitial } from '../components/NewBookingModal';
 import PoliciesTab from '../components/PoliciesTab';
@@ -2052,6 +2053,12 @@ function BookingDetail({
           </div>
 
           <ObservationsCard bookingId={booking._id} readOnly={readOnly} />
+
+          <IncidentReportsCard
+            bookingId={booking._id}
+            reference={booking.reference}
+            petNames={boardingPetNames(booking.animals)}
+          />
         </div>
       </div>
 

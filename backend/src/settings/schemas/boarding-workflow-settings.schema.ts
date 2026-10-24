@@ -4,7 +4,7 @@ import { Form } from '../../forms/schemas/form.schema';
 
 // Singleton-style collection, same pattern as VisitMapping/BusinessInfo:
 // exactly one document holds Settings > Boarding's Pre-check-in/Check-in/
-// Check-out cards -- which Form (from the dynamic Forms builder) each stage
+// Check-out/Incident report cards -- which Form (from the dynamic Forms builder) each stage
 // uses, split by Boarding vs Day Care since the two need different fields.
 @Schema({ timestamps: true })
 export class BoardingWorkflowSettings extends Document {
@@ -39,6 +39,13 @@ export class BoardingWorkflowSettings extends Document {
 
   @Prop({ default: true })
   checkOutRequireSignature?: boolean;
+
+  // The form staff fill in from a booking's Incident Reports card -- one for
+  // both Boarding and Day Care (nothing in an incident is stay-type
+  // specific). Pointed at the seeded "Incident Report" form on first boot
+  // (FormsService.seedIncidentReportForm()).
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Form.name })
+  incidentReportForm?: Types.ObjectId;
 }
 
 export const BoardingWorkflowSettingsSchema = SchemaFactory.createForClass(BoardingWorkflowSettings);

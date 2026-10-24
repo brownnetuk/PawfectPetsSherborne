@@ -266,6 +266,13 @@ export default function FormBuilder({ form, onClose, onSaved }: Props) {
             >
               <PlusIcon /> New page
             </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => addField('display', null, { label: 'New section', startsSection: true })}
+            >
+              <PlusIcon /> New section
+            </button>
           </div>
         </div>
 
@@ -463,6 +470,11 @@ function FieldRow({ field, index, siblings, parentGroupId, selectedId, onSelect,
               New page
             </span>
           )}
+          {field.type === 'display' && field.startsSection && !field.startsNewPage && (
+            <span className="badge" style={{ background: 'var(--sage-badge)', color: 'var(--brand-green)' }}>
+              New section
+            </span>
+          )}
           {field.type !== 'group' && field.mapping && (
             <span style={{ color: 'var(--muted)', fontSize: '0.78rem' }}>→ {field.mapping.path}</span>
           )}
@@ -577,6 +589,16 @@ function FieldRow({ field, index, siblings, parentGroupId, selectedId, onSelect,
                 onChange={(e) => onUpdate(field.id, (f) => (f.type === 'display' ? { ...f, startsNewPage: e.target.checked } : f))}
               />
               Start a new page here (PDF and printed forms)
+            </label>
+          )}
+          {field.type === 'display' && !field.startsNewPage && (
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={field.startsSection ?? false}
+                onChange={(e) => onUpdate(field.id, (f) => (f.type === 'display' ? { ...f, startsSection: e.target.checked } : f))}
+              />
+              Start a new section here (its own card in the PDF, same page)
             </label>
           )}
 

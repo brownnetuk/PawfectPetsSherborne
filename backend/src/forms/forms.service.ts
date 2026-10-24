@@ -8,6 +8,7 @@ import {
   DEFAULT_CHECKIN_FORM,
   DEFAULT_CHECKOUT_FORM,
 } from './default-boarding-checkin-checkout-forms';
+import { DEFAULT_INCIDENT_REPORT_FORM } from './default-incident-report-form';
 import { FormField } from './form-field.types';
 import {
   DEFAULT_PRE_CHECKIN_FORM,
@@ -17,11 +18,14 @@ import {
   PRE_CHECKIN_MEDICATIONS_FIELD,
 } from './default-pre-checkin-form';
 import { Form } from './schemas/form.schema';
+import { BoardingWorkflowSettings } from '../settings/schemas/boarding-workflow-settings.schema';
 
 @Injectable()
 export class FormsService implements OnModuleInit {
   constructor(
     @InjectModel(Form.name) private readonly formModel: Model<Form>,
+    @InjectModel(BoardingWorkflowSettings.name)
+    private readonly boardingWorkflowSettingsModel: Model<BoardingWorkflowSettings>,
   ) {}
 
   // Seeds the "Arrival Check-In", "Departure Check-Out", and "Pre-Check In
@@ -50,6 +54,7 @@ export class FormsService implements OnModuleInit {
         .findOneAndUpdate({ name: seed.name }, { $setOnInsert: seed }, { upsert: true })
         .exec();
     }
+    await this.seedIncidentReportForm();
     await this.addMissingCheckOutDetailsFields();
     await this.upgradePreCheckInForms();
   }
@@ -131,6 +136,30 @@ export class FormsService implements OnModuleInit {
       if (JSON.stringify(fields) !== before) {
         await this.formModel.updateOne({ _id: form._id }, { $set: { fields } }).exec();
       }
+    }
+  }
+
+  // Seeds the "Incident Report" form the same way as the others above, and
+  // -- only on the boot that actually inserts it -- points Settings >
+  // Boarding's "Incident report form" picker at it when nothing's chosen
+  // yet, so the booking page's Incident Reports card works out of the box.
+  // A picker staff later clear (or a form they delete) is never re-filled.
+  private async seedIncidentReportForm(): Promise<void> {
+    const result = await this.formModel
+      .findOneAndUpdate(
+        { name: DEFAULT_INCIDENT_REPORT_FORM.name },
+        { $setOnInsert: DEFAULT_INCIDENT_REPORT_FORM },
+        { upsert: true, new: true, includeResultMetadata: true },
+      )
+      .exec();
+    if (result.lastErrorObject?.updatedExisting || !result.value) return;
+    const settings = await this.boardingWorkflowSettingsModel.findOne().exec();
+    if (!settings) {
+      await this.boardingWorkflowSettingsModel.create({ incidentReportForm: result.value._id });
+    } else if (!settings.incidentReportForm) {
+      await this.boardingWorkflowSettingsModel
+        .updateOne({ _id: settings._id }, { $set: { incidentReportForm: result.value._id } })
+        .exec();
     }
   }
 

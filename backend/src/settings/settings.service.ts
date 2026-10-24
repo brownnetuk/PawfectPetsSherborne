@@ -424,7 +424,7 @@ export class SettingsService {
     return this.getVisitMapping();
   }
 
-  // Settings > Boarding's Pre-check-in/Check-in/Check-out cards.
+  // Settings > Boarding's Pre-check-in/Check-in/Check-out/Incident report cards.
   async getBoardingWorkflowSettings() {
     const doc = await this.boardingWorkflowSettingsModel.findOne().exec();
     return {
@@ -438,6 +438,7 @@ export class SettingsService {
       checkOutFormBoarding: doc?.checkOutFormBoarding?.toString() ?? null,
       checkOutFormDayCare: doc?.checkOutFormDayCare?.toString() ?? null,
       checkOutRequireSignature: doc?.checkOutRequireSignature ?? true,
+      incidentReportForm: doc?.incidentReportForm?.toString() ?? null,
     };
   }
 
@@ -453,6 +454,7 @@ export class SettingsService {
     if (dto.checkOutFormBoarding !== undefined) update.checkOutFormBoarding = dto.checkOutFormBoarding;
     if (dto.checkOutFormDayCare !== undefined) update.checkOutFormDayCare = dto.checkOutFormDayCare;
     if (dto.checkOutRequireSignature !== undefined) update.checkOutRequireSignature = dto.checkOutRequireSignature;
+    if (dto.incidentReportForm !== undefined) update.incidentReportForm = dto.incidentReportForm;
     await this.boardingWorkflowSettingsModel.findOneAndUpdate({}, update, { upsert: true }).exec();
     return this.getBoardingWorkflowSettings();
   }
