@@ -9,7 +9,8 @@ import Modal from '../components/Modal';
 import OtherIncomeModal, { type OtherIncomeDraft } from '../components/OtherIncomeModal';
 import SortableTh from '../components/SortableTh';
 import ViewExpenseModal from '../components/ViewExpenseModal';
-import { CopyIcon, InvoicesIcon, MailIcon, PencilIcon, TrashIcon } from '../components/icons';
+import { CopyIcon, ExportIcon, InvoicesIcon, MailIcon, PencilIcon, TrashIcon } from '../components/icons';
+import { downloadExpensePdf } from '../pdf/expensePdf';
 import { buildReceiptPdf } from '../pdf/receiptPdf';
 import type { BankTransfer, CreditNote, Expense, OtherIncome, Payment } from '../types';
 import BankAccountsTab from './BankAccountsTab';
@@ -482,6 +483,7 @@ function ExpensesCard() {
   const [deleting, setDeleting] = useState<Expense | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [exportingId, setExportingId] = useState<string | null>(null);
   const [filters, setFilters] = useState(currentMonthFilters);
 
   function refresh() {
@@ -505,6 +507,18 @@ function ExpensesCard() {
         e.amount.toFixed(2),
       ]),
   );
+
+  async function handleExport(expense: Expense) {
+    setExportingId(expense._id);
+    setError(null);
+    try {
+      await downloadExpensePdf(expense);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export this expense');
+    } finally {
+      setExportingId(null);
+    }
+  }
 
   async function handleDelete() {
     if (!deleting) return;
@@ -586,6 +600,14 @@ function ExpensesCard() {
                 </td>
                 <td onClick={(ev) => ev.stopPropagation()}>
                   <div style={{ display: 'flex', gap: 2 }}>
+                    <button
+                      className="icon-btn"
+                      title={exportingId === e._id ? 'Exporting…' : 'Export as PDF'}
+                      disabled={exportingId === e._id}
+                      onClick={() => handleExport(e)}
+                    >
+                      <ExportIcon />
+                    </button>
                     <button className="icon-btn" title="Edit" onClick={() => setEditing(e)}>
                       <PencilIcon />
                     </button>
