@@ -15,6 +15,7 @@ import { CreateAnimalDto } from '../animals/dto/create-animal.dto';
 import { PublicUpdateAnimalDto } from '../animals/dto/public-update-animal.dto';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
+import { BoardingBooking } from '../boarding-bookings/schemas/boarding-booking.schema';
 import { CustomersService } from '../customers/customers.service';
 import { CreateCustomerDto } from '../customers/dto/create-customer.dto';
 import { UpdateCustomerDto } from '../customers/dto/update-customer.dto';
@@ -183,6 +184,11 @@ export class FormSubmissionsService {
     private readonly auditLogService: AuditLogService,
     private readonly settingsService: SettingsService,
     private readonly notificationService: NotificationService,
+    // Read-only, to tell a booking's pre-check-in submission apart from any
+    // other form (schema only -- importing BoardingBookingsModule would be
+    // circular, see BoardingBookingsService.sendPreCheckIn()).
+    @InjectModel(BoardingBooking.name)
+    private readonly boardingBookingModel: Model<BoardingBooking>,
   ) {}
 
   async create(dto: CreateFormSubmissionDto): Promise<FormSubmission> {
@@ -520,7 +526,22 @@ export class FormSubmissionsService {
     if (actor === 'Customer') {
       const customerName =
         (customerInstance as { name?: string }).name || submission.recipientName;
-      await this.notificationService.notifyFormSubmitted(submission.formName, customerName);
+      const preCheckInBooking = await this.boardingBookingModel
+        .findOne({ preCheckInSubmission: submission._id })
+        .populate('animals', 'name')
+        .exec();
+      if (preCheckInBooking) {
+        const petNames = (preCheckInBooking.animals as unknown as ({ name?: string } | null)[])
+          .map((a) => a?.name)
+          .filter((n): n is string => !!n);
+        await this.notificationService.notifyPreCheckInCompleted(
+          preCheckInBooking.reference,
+          customerName,
+          petNames,
+        );
+      } else {
+        await this.notificationService.notifyFormSubmitted(submission.formName, customerName);
+      }
     }
 
     return submission;

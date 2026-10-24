@@ -111,6 +111,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
               MaterialPageRoute(builder: (_) => const SettingsScreen()),
             ),
           ),
+          const NotificationsAction(),
           const LogoutAction(),
         ],
         bottom: PreferredSize(

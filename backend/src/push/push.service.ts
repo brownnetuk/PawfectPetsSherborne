@@ -80,18 +80,39 @@ export class PushService {
 
   // Sends an alert to every STAFF device (customer-app tokens are excluded so
   // internal reminders never reach customers), under the staff apns-topic.
+  // `badge`, when given, also sets the app icon's red badge (the unread count).
   async sendToAll(
     title: string,
     body: string,
     data: Record<string, unknown> = {},
+    badge?: number,
   ): Promise<{ sent: number; total: number; failures: { status: number; reason?: string }[] }> {
     if (!this.apns.configured) {
       this.logger.debug('APNs not configured; skipping push');
       return { sent: 0, total: 0, failures: [] };
     }
-    // `customer: null` matches both null and missing (legacy staff tokens).
-    const tokens = await this.pushTokenModel.find({ customer: null }).exec();
-    return this.deliver(tokens, title, body, data, undefined);
+    const tokens = await this.staffTokens();
+    return this.deliver(tokens, title, body, data, undefined, badge);
+  }
+
+  // Silently sets the app icon badge on every STAFF device (0 clears it), so
+  // reading notifications on one phone or in the admin clears the red badge
+  // everywhere. Best-effort: failures are logged and retired tokens pruned.
+  async setBadgeOnAll(badge: number): Promise<void> {
+    if (!this.apns.configured) return;
+    const tokens = await this.staffTokens();
+    for (const t of tokens) {
+      const result = await this.apns.sendBadge(t.token, badge);
+      if (result.unregistered) await this.removeToken(t.token);
+      else if (!result.ok) {
+        this.logger.warn(`Badge update failed (status=${result.status} reason=${result.reason ?? 'n/a'})`);
+      }
+    }
+  }
+
+  // `customer: null` matches both null and missing (legacy staff tokens).
+  private staffTokens(): Promise<PushToken[]> {
+    return this.pushTokenModel.find({ customer: null }).exec();
   }
 
   // Sends an alert to a single customer's device(s), under the customer app's
@@ -119,12 +140,13 @@ export class PushService {
     body: string,
     data: Record<string, unknown>,
     topic: string | undefined,
+    badge?: number,
   ): Promise<{ sent: number; total: number; failures: { status: number; reason?: string }[] }> {
     this.logger.log(`Sending push "${title}" to ${tokens.length} device(s)`);
     let sent = 0;
     const failures: { status: number; reason?: string }[] = [];
     for (const t of tokens) {
-      const result = await this.apns.send(t.token, title, body, data, topic);
+      const result = await this.apns.send(t.token, title, body, data, topic, badge);
       if (result.ok) {
         sent++;
       } else if (result.unregistered) {

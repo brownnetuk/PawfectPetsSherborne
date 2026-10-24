@@ -21,6 +21,7 @@ import '../models/form_summary.dart';
 import '../models/invoice.dart';
 import '../models/message.dart';
 import '../models/product.dart';
+import '../models/notification_item.dart';
 import '../models/notification_settings.dart';
 import '../models/quote.dart';
 import '../models/staff.dart';
@@ -400,6 +401,19 @@ class Repository {
   /// reminders to it.
   Future<void> registerPushToken(String token) =>
       _client.post('/push/register', {'token': token, 'platform': 'ios'});
+
+  // --- notification feed (shared with the admin bell) ---
+  Future<List<NotificationItem>> getNotifications() async =>
+      (await _client.getList('/notifications'))
+          .map((j) => NotificationItem.fromJson(j as Map<String, dynamic>))
+          .toList();
+
+  Future<int> getUnreadNotificationCount() async =>
+      ((await _client.get('/notifications/unread-count'))['count'] as num?)?.toInt() ?? 0;
+
+  Future<void> markNotificationRead(String id) => _client.post('/notifications/$id/read', {});
+
+  Future<void> markAllNotificationsRead() => _client.post('/notifications/mark-read', {});
 
   /// The deposit percentage configured in the admin's Settings > Deposit
   /// (from GET /settings/business) -- the same figure the backend's "Request

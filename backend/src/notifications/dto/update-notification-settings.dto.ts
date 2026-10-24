@@ -20,6 +20,10 @@ export class UpdateNotificationSettingsDto {
 
   @IsOptional()
   @IsBoolean()
+  preCheckInCompleted?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   appointmentReminders?: boolean;
 
   @IsOptional()

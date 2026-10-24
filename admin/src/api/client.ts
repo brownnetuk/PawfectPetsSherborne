@@ -1288,6 +1288,7 @@ export interface NotificationSettings {
   customerUpdated: boolean;
   customerPetUpdated: boolean;
   formSubmitted: boolean;
+  preCheckInCompleted: boolean;
   appointmentReminders: boolean;
   appointmentLeadMinutes: number;
   dailyDigest: boolean;

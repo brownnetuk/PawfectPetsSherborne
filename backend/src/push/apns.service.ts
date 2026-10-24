@@ -120,13 +120,34 @@ export class ApnsService {
     data: Record<string, unknown> = {},
     // apns-topic to deliver under; defaults to the staff app's bundle id.
     topic?: string,
+    // App icon badge to show with this alert (the unread count); omitted
+    // leaves the icon's current badge as it is.
+    badge?: number,
+  ): Promise<ApnsSendResult> {
+    const aps: Record<string, unknown> = { alert: { title, body }, sound: 'default' };
+    if (badge !== undefined) aps.badge = badge;
+    return this.post(deviceToken, { aps, ...data }, topic, 10);
+  }
+
+  // Badge-only update (no banner, no sound): sets the app icon's red badge
+  // to `badge`, 0 clearing it. Used to keep every staff phone's icon in step
+  // when notifications are read somewhere else.
+  sendBadge(deviceToken: string, badge: number, topic?: string): Promise<ApnsSendResult> {
+    return this.post(deviceToken, { aps: { badge } }, topic, 5);
+  }
+
+  private async post(
+    deviceToken: string,
+    body: Record<string, unknown>,
+    topic: string | undefined,
+    priority: 5 | 10,
   ): Promise<ApnsSendResult> {
     const apnsTopic = topic ?? this.bundleId;
     if (!this.key || !this.keyId || !this.teamId || !apnsTopic) {
       return { ok: false, unregistered: false, status: 0, reason: 'APNs not configured' };
     }
     const host = this.production ? 'https://api.push.apple.com' : 'https://api.sandbox.push.apple.com';
-    const payload = JSON.stringify({ aps: { alert: { title, body }, sound: 'default' }, ...data });
+    const payload = JSON.stringify(body);
 
     return new Promise<ApnsSendResult>((resolve) => {
       const client = http2.connect(host);
@@ -140,6 +161,7 @@ export class ApnsService {
         authorization: `bearer ${this.providerToken()}`,
         'apns-topic': apnsTopic,
         'apns-push-type': 'alert',
+        'apns-priority': String(priority),
         'content-type': 'application/json',
       });
       let status = 0;

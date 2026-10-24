@@ -19,7 +19,7 @@ class BoardingScreen extends StatelessWidget {
       appBar: AppBar(
         toolbarHeight: brandTitleHeight,
         title: const BrandTitle(lead: 'Dog', highlight: 'boarding'),
-        actions: const [LogoutAction()],
+        actions: const [NotificationsAction(), LogoutAction()],
       ),
       body: ListView(
         children: [
