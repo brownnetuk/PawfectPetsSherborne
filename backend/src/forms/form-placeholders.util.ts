@@ -23,6 +23,10 @@ export const FORM_PLACEHOLDERS: { key: string; hint: string }[] = [
     key: 'staffMemberSignedIn',
     hint: 'The staff member filling the form in -- only resolves on a staff-filled form (e.g. Check-in/Check-out in admin), never here (this module only knows the customer record); admin/src/components/FormFillModal.tsx substitutes it client-side after fetching, using the logged-in staff\'s own name. Shows as literal text on a customer-facing form.',
   },
+  {
+    key: 'today',
+    hint: "Today's date -- as a Date field's default value it (resolved by the fill page, never here) starts as the day the form is opened, still editable",
+  },
 ];
 
 // Only ever built for a submission with a known, real customer -- a

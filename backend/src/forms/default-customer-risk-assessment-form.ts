@@ -16,6 +16,18 @@ import { FormField } from './form-field.types';
 //  - Each section's ☐ boxes are one multi-select, so any number can be ticked.
 //  - The risk score is worked out from likelihood × severity as staff fill it
 //    in (admin CustomerRiskAssessmentsCard), but stays editable.
+// Starts as today's date but stays editable, so an assessment done on paper
+// earlier can be entered with its real date. (First seeded as a non-editable
+// 'today' field -- FormsService.upgradeCustomerRiskAssessmentDate() converts
+// that.)
+export const CRA_DATE_FIELD: FormField = {
+  id: 'cra-date',
+  type: 'date',
+  label: 'Date of assessment',
+  required: true,
+  defaultValue: '{{today}}',
+};
+
 const ONE_TO_FIVE = ['1', '2', '3', '4', '5'];
 
 function section(id: string, label: string, first = false): FormField {
@@ -103,6 +115,6 @@ export const DEFAULT_CUSTOMER_RISK_ASSESSMENT_FORM: {
     section('cra-signOffHeading', 'Sign-off'),
     { id: 'cra-assessedBy', type: 'text', label: 'Assessed by', required: true, defaultValue: '{{staffMemberSignedIn}}' },
     { id: 'cra-signature', type: 'signature', label: 'Signature', required: false },
-    { id: 'cra-date', type: 'today', label: 'Date', required: false },
+    CRA_DATE_FIELD,
   ],
 };

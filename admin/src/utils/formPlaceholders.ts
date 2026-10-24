@@ -25,4 +25,8 @@ export const FORM_PLACEHOLDERS: { key: string; hint: string }[] = [
     key: 'staffMemberSignedIn',
     hint: 'The staff member filling the form in -- only resolves on a staff-filled form opened from Boarding & Day Care (e.g. Check-in/Check-out), shows as literal text on a form sent to a customer to fill in themselves',
   },
+  {
+    key: 'today',
+    hint: "Today's date -- as a Date field's default value it starts as the day the form is opened, still editable",
+  },
 ];

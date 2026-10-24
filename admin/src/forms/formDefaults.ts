@@ -14,7 +14,12 @@ export function defaultAnswersFor(fields: FormField[]): Record<string, unknown> 
       (field.type === 'text' || field.type === 'textarea' || field.type === 'number' || field.type === 'date') &&
       field.defaultValue
     ) {
-      defaults[field.id] = field.defaultValue;
+      // {{today}} on a date field starts it as today's (local) date -- still
+      // editable, unlike a 'today' field. Never resolved server-side.
+      defaults[field.id] =
+        field.type === 'date' && field.defaultValue.trim() === '{{today}}'
+          ? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+          : field.defaultValue;
     }
   }
   return defaults;

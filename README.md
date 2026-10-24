@@ -3540,6 +3540,7 @@ flowchart LR
 
 - Supported: `customerName`, `firstName`, `surname`, `email`, `phone`, `address`, `postcode`, `petNames`, `petName`.
 - `staffMemberSignedIn` is left as literal text; the admin's `FormFillModal` replaces it.
+- `today` is left as literal text too; a Date field defaulting to `{{today}}` starts as the day the form is opened (`formDefaults.ts`, admin and frontend), still editable.
 - Unknown tokens stay as literal text.
 
 **Seeded forms** (`FormsService.onModuleInit`). Each is an atomic `$setOnInsert` upsert by `name`:
@@ -3583,8 +3584,9 @@ flowchart LR
   - dog details: dog's name (`customerPets` multichoice, required), owner's name (`{{customerName}}`), arrival date;
   - behavioural history, health & vaccination status, handling & escape risk: each paper section's tick boxes as one multichoice, with a details box after the first two;
   - risk rating & action: likelihood and severity (1-5 choices, required), risk score (number, filled in as likelihood × severity by the admin fill form), action needed;
-  - sign-off: assessed by (`{{staffMemberSignedIn}}`), signature, date (`today`).
+  - sign-off: assessed by (`{{staffMemberSignedIn}}`), signature, date of assessment (a required `date` field defaulting to `{{today}}`, so it starts as today but can be changed).
   - The first boot that inserts it also points `BoardingWorkflowSettings.customerRiskAssessmentForm` at it when unset.
+  - `upgradeCustomerRiskAssessmentDate()` swaps the first version's non-editable `today` date field for that one, and `CustomerRiskAssessmentsService.onModuleInit()` does the same in saved assessments' snapshots.
 
 **Boot-time migrations:**
 

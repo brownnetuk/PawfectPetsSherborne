@@ -93,7 +93,16 @@ function summarise(assessment: FormSubmissionRecord) {
     ),
   );
   const assessedOn =
-    asDate(asText(answer(fields.find((f) => f.type === "today")))) ??
+    // The date of assessment: a 'today' field on older assessments, otherwise
+    // the date field that isn't the arrival date.
+    asDate(
+      asText(
+        answer(
+          fields.find((f) => f.type === "today") ??
+            fields.find((f) => f.type === "date" && !/arriv/i.test(f.label)),
+        ),
+      ),
+    ) ??
     asDate(assessment.submittedAt ?? undefined);
   const { likelihood, severity, score } = ratingFields(fields);
   const typedScore = Number(asText(answer(score)));
