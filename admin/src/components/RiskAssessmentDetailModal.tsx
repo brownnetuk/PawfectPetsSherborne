@@ -25,7 +25,7 @@ function scoreBand(score: number): 'low' | 'medium' | 'high' {
   return 'high';
 }
 
-function RiskScoreBadge({ likelihood, severity }: { likelihood: number; severity: number }) {
+export function RiskScoreBadge({ likelihood, severity }: { likelihood: number; severity: number }) {
   const score = likelihood * severity;
   const band = scoreBand(score);
   return <span className={`badge badge-${band}`}>{score} - {band.toUpperCase()}</span>;

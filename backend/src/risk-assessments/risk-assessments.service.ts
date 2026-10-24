@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import * as mammoth from 'mammoth';
 import { Model } from 'mongoose';
 import { nextSequenceNumber } from '../common/document-number.util';
 import { escapeHtml } from '../common/html.util';
@@ -10,8 +11,10 @@ import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
 import { CreateRiskAssessmentDto } from './dto/create-risk-assessment.dto';
 import { CreateRiskItemDto } from './dto/create-risk-item.dto';
+import { ImportRiskAssessmentDto } from './dto/import-risk-assessment.dto';
 import { UpdateRiskAssessmentDto } from './dto/update-risk-assessment.dto';
 import { UpdateRiskItemDto } from './dto/update-risk-item.dto';
+import { ImportedRiskAssessmentDraft, parseRiskAssessmentHtml } from './risk-assessment-import.parser';
 import {
   ReviewFrequency,
   RiskAssessment,
@@ -104,6 +107,64 @@ export class RiskAssessmentsService {
       scope: dto.scope,
       status: dto.status ?? 'draft',
       auditLog: [{ action: 'Assessment Created', actor, at: new Date() }],
+    }).save();
+    return created;
+  }
+
+  // "Import from Word" step 1: reads the uploaded .docx into a draft the
+  // admin app shows for checking/editing -- nothing is saved until
+  // importAssessment(). Images (e.g. a letterhead logo) are dropped rather
+  // than inlined, since only the text is used.
+  async previewImport(dataUri: string, fileName?: string): Promise<ImportedRiskAssessmentDraft> {
+    const base64 = dataUri.includes(',') ? dataUri.slice(dataUri.indexOf(',') + 1) : dataUri;
+    const buffer = Buffer.from(base64, 'base64');
+    let html: string;
+    try {
+      const result = await mammoth.convertToHtml(
+        { buffer },
+        { convertImage: mammoth.images.imgElement(() => Promise.resolve({ src: '' })) },
+      );
+      html = result.value;
+    } catch {
+      throw new BadRequestException("Could not read that file -- make sure it's a Word (.docx) document.");
+    }
+    return parseRiskAssessmentHtml(html, fileName);
+  }
+
+  // "Import from Word" step 2: creates the assessment and every risk in one
+  // save (rather than create() then addRisk() per row), so a failure part-way
+  // can't leave a half-imported assessment behind. Always starts as a draft.
+  async importAssessment(dto: ImportRiskAssessmentDto, actor: string): Promise<RiskAssessment> {
+    const seq = await nextSequenceNumber(this.businessInfoModel, 'riskAssessmentNextNumber');
+    const source = dto.fileName ? ` from "${dto.fileName}"` : ' from a Word document';
+    const assessedBy = dto.assessedBy ? `, originally assessed by ${dto.assessedBy}` : '';
+    const created = await new this.riskAssessmentModel({
+      raId: `RA${seq}`,
+      assessmentDate: dto.assessmentDate ?? today(),
+      name: dto.name,
+      regulationReference: dto.regulationReference,
+      reviewFrequency: dto.reviewFrequency,
+      nextReviewDate: dto.nextReviewDate,
+      scope: dto.scope,
+      status: 'draft',
+      risks: dto.risks.map((r) => ({
+        hazard: r.hazard,
+        whoAtRisk: r.whoAtRisk,
+        existingControls: r.existingControls ?? [],
+        furtherActions: r.furtherActions ?? [],
+        likelihood: r.likelihood,
+        severity: r.severity,
+        residualRisk: r.residualRisk,
+        reviewPeriod: r.reviewPeriod,
+      })),
+      auditLog: [
+        {
+          action: 'Assessment Imported',
+          changes: `Imported${source} with ${dto.risks.length} risk${dto.risks.length === 1 ? '' : 's'}${assessedBy}`,
+          actor,
+          at: new Date(),
+        },
+      ],
     }).save();
     return created;
   }
