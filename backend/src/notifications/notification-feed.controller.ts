@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, Post } from '@nestjs/common';
+import { Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 
 // The admin app's notification centre (the bell): recent notifications, the
@@ -20,6 +20,13 @@ export class NotificationFeedController {
   @Post('mark-read')
   async markRead() {
     await this.notifications.markAllRead();
+    return { ok: true };
+  }
+
+  // One notification read, e.g. a staff member tapped its push on their phone.
+  @Post(':id/read')
+  async markOneRead(@Param('id') id: string) {
+    await this.notifications.markRead(id);
     return { ok: true };
   }
 

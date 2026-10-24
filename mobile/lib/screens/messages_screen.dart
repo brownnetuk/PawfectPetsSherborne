@@ -92,6 +92,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
             tooltip: 'New message',
             onPressed: _newMessage,
           ),
+          const NotificationsAction(),
           const LogoutAction(),
         ],
       ),

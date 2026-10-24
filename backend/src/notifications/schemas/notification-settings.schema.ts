@@ -21,6 +21,11 @@ export class NotificationSettings extends Document {
   @Prop({ default: true })
   formSubmitted: boolean;
 
+  // A customer completed a boarding / day care booking's pre-check-in form
+  // (replaces the generic formSubmitted push for that form).
+  @Prop({ default: true })
+  preCheckInCompleted: boolean;
+
   // Appointment reminder, sent this many minutes before it starts.
   @Prop({ default: true })
   appointmentReminders: boolean;

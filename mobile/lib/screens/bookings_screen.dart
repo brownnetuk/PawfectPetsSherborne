@@ -428,6 +428,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
             tooltip: 'Generate invoices',
             onPressed: _openGenerateInvoices,
           ),
+          const NotificationsAction(),
           const LogoutAction(),
         ],
       ),

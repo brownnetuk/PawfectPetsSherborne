@@ -7,6 +7,7 @@ import 'bookings_screen.dart';
 import 'business_screen.dart';
 import 'customers_screen.dart';
 import 'messages_screen.dart';
+import 'notifications_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -15,7 +16,7 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _index = 0;
   // Which tabs have been opened. An IndexedStack builds all its children up
   // front, so without this every tab's initState (and its data fetch) would
@@ -36,9 +37,36 @@ class _HomeShellState extends State<HomeShell> {
     super.initState();
     // Now that a staff member is logged in, ask iOS for notification
     // permission and register this device for appointment-reminder pushes.
+    // Tapping a push opens the notifications list on the current tab.
+    _push = context.read<PushService>();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<PushService>().start();
+      _push.onOpenNotifications = _openNotifications;
+      _push.start();
+      _push.consumePendingOpen();
     });
+  }
+
+  late final PushService _push;
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _push.onOpenNotifications = null;
+    super.dispose();
+  }
+
+  // Back in the foreground: notifications may have been read elsewhere (or
+  // new ones arrived), so re-sync the bell and the app icon badge.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _push.refreshBadge();
+  }
+
+  void _openNotifications() {
+    _navigatorKeys[_index].currentState?.push(
+      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+    );
   }
 
   static const _screens = [
@@ -97,6 +125,30 @@ class _HomeShellState extends State<HomeShell> {
   }
 }
 
+/// Shared notifications bell for the top-level tab screens, with a red dot
+/// while there are unread notifications (the same count as the icon badge).
+class NotificationsAction extends StatelessWidget {
+  const NotificationsAction({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: context.read<PushService>().unreadCount,
+      builder: (context, unread, _) => IconButton(
+        icon: Badge(
+          isLabelVisible: unread > 0,
+          label: Text(unread > 99 ? '99+' : '$unread'),
+          child: const Icon(Icons.notifications_outlined),
+        ),
+        tooltip: 'Notifications',
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+        ),
+      ),
+    );
+  }
+}
+
 /// Shared "log out" AppBar action used by the top-level tab screens.
 class LogoutAction extends StatelessWidget {
   const LogoutAction({super.key});
@@ -106,7 +158,11 @@ class LogoutAction extends StatelessWidget {
     return IconButton(
       icon: const Icon(Icons.logout),
       tooltip: 'Log out',
-      onPressed: () => context.read<AuthProvider>().logout(),
+      onPressed: () {
+        // A logged-out phone shouldn't keep showing the red badge.
+        context.read<PushService>().clearBadge();
+        context.read<AuthProvider>().logout();
+      },
     );
   }
 }

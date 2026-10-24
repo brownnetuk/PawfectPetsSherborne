@@ -28,10 +28,13 @@ export class NotificationService {
   ) {}
 
   // Records the notification in the admin feed and pushes it to phones. Every
-  // notification goes through here so the two stay in sync.
+  // notification goes through here so the two stay in sync. The push carries
+  // the feed item's id (so tapping it can mark that one read) and sets the
+  // app icon's red badge to the unread count, which stays until it's read.
   async dispatch(title: string, body: string, type: string): Promise<void> {
-    await this.itemModel.create({ title, body, type });
-    await this.push.sendToAll(title, body, { type });
+    const item = await this.itemModel.create({ title, body, type });
+    const badge = await this.unreadCount();
+    await this.push.sendToAll(title, body, { type, notificationId: String(item._id) }, badge);
   }
 
   // --- feed (admin notification centre) ---
@@ -43,12 +46,26 @@ export class NotificationService {
     return this.itemModel.countDocuments({ read: false }).exec();
   }
 
+  // Reading notifications (here, on a phone, or clearing the feed) updates the
+  // badge on every staff phone, since the feed and its unread count are shared.
   async markAllRead(): Promise<void> {
     await this.itemModel.updateMany({ read: false }, { read: true }).exec();
+    await this.syncBadge();
+  }
+
+  async markRead(id: string): Promise<void> {
+    if (!Types.ObjectId.isValid(id)) return;
+    const res = await this.itemModel.updateOne({ _id: id, read: false }, { read: true }).exec();
+    if (res.modifiedCount > 0) await this.syncBadge();
   }
 
   async clearAll(): Promise<void> {
     await this.itemModel.deleteMany({}).exec();
+    await this.syncBadge();
+  }
+
+  private async syncBadge(): Promise<void> {
+    await this.push.setBadgeOnAll(await this.unreadCount());
   }
 
   async notifyCustomerActivated(name: string): Promise<void> {
@@ -90,6 +107,26 @@ export class NotificationService {
       'Form submitted',
       `${customerName || 'A customer'} submitted "${formName}".`,
       'formSubmitted',
+    );
+  }
+
+  // A customer completed the pre-check-in form for a boarding / day care
+  // booking. Sent instead of the generic "Form submitted" for these forms.
+  // `preCheckInCompleted` defaults on, including for a settings document
+  // saved before the toggle existed (hence `!== false`).
+  async notifyPreCheckInCompleted(
+    reference: string,
+    customerName?: string,
+    petNames: string[] = [],
+  ): Promise<void> {
+    const s = await this.settings.get();
+    if (s.preCheckInCompleted === false) return;
+    const who = customerName || 'A customer';
+    const pets = petNames.length ? ` for ${this.joinList(petNames)}` : '';
+    await this.dispatch(
+      'Pre-check-in completed',
+      `${who} completed the pre-check-in form${pets} (${reference}).`,
+      'preCheckInCompleted',
     );
   }
 

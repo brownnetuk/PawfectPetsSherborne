@@ -18,7 +18,7 @@ class BusinessScreen extends StatelessWidget {
       appBar: AppBar(
         toolbarHeight: brandTitleHeight,
         title: const BrandTitle(lead: 'Our', highlight: 'business'),
-        actions: const [LogoutAction()],
+        actions: const [NotificationsAction(), LogoutAction()],
       ),
       body: ListView(
         children: [

@@ -5,6 +5,8 @@ class NotificationSettings {
   final bool customerUpdated;
   final bool customerPetUpdated;
   final bool formSubmitted;
+  // A customer completed a boarding / day care booking's pre-check-in form.
+  final bool preCheckInCompleted;
   final bool appointmentReminders;
   final int appointmentLeadMinutes;
   final bool dailyDigest;
@@ -26,6 +28,7 @@ class NotificationSettings {
     required this.invoicesOverdue,
     required this.invoicesRead,
     this.checklistReminders = true,
+    this.preCheckInCompleted = true,
   });
 
   factory NotificationSettings.fromJson(Map<String, dynamic> json) => NotificationSettings(
@@ -40,6 +43,7 @@ class NotificationSettings {
         invoicesOverdue: json['invoicesOverdue'] as bool? ?? true,
         invoicesRead: json['invoicesRead'] as bool? ?? true,
         checklistReminders: json['checklistReminders'] as bool? ?? true,
+        preCheckInCompleted: json['preCheckInCompleted'] as bool? ?? true,
       );
 
   NotificationSettings copyWith({
@@ -54,6 +58,7 @@ class NotificationSettings {
     bool? invoicesOverdue,
     bool? invoicesRead,
     bool? checklistReminders,
+    bool? preCheckInCompleted,
   }) =>
       NotificationSettings(
         customerActivated: customerActivated ?? this.customerActivated,
@@ -67,6 +72,7 @@ class NotificationSettings {
         invoicesOverdue: invoicesOverdue ?? this.invoicesOverdue,
         invoicesRead: invoicesRead ?? this.invoicesRead,
         checklistReminders: checklistReminders ?? this.checklistReminders,
+        preCheckInCompleted: preCheckInCompleted ?? this.preCheckInCompleted,
       );
 
   Map<String, dynamic> toJson() => {
@@ -81,5 +87,6 @@ class NotificationSettings {
         'invoicesOverdue': invoicesOverdue,
         'invoicesRead': invoicesRead,
         'checklistReminders': checklistReminders,
+        'preCheckInCompleted': preCheckInCompleted,
       };
 }

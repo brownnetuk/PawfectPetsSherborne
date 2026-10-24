@@ -146,6 +146,12 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                 value: s.formSubmitted,
                 onChanged: (v) => _save(s.copyWith(formSubmitted: v)),
               ),
+              SwitchListTile(
+                title: const Text('Pre-check-in completed'),
+                subtitle: const Text('When a customer completes the pre-check-in form for a boarding or day care booking'),
+                value: s.preCheckInCompleted,
+                onChanged: (v) => _save(s.copyWith(preCheckInCompleted: v)),
+              ),
               const Divider(height: 1),
               _sectionHeader('Bookings'),
               SwitchListTile(

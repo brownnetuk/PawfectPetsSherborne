@@ -5,10 +5,14 @@ import UserNotifications
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   // Channel to Dart for push: native -> Dart delivers the APNs device token
-  // ("onToken"); Dart -> native asks us to request permission + register
-  // ("start"). Set up defensively so nothing here can block app launch.
+  // ("onToken") and taps on a notification ("onNotificationTap", with its
+  // feed id); Dart -> native asks us to request permission + register
+  // ("start"), set the app icon badge ("setBadge"), and hands over a tap that
+  // launched the app before Dart was listening ("takeLaunchTap"). Set up
+  // defensively so nothing here can block app launch.
   private var pushChannel: FlutterMethodChannel?
   private var pendingToken: String?
+  private var pendingTap: String?
 
   override func application(
     _ application: UIApplication,
@@ -28,10 +32,17 @@ import UserNotifications
     }
     let channel = FlutterMethodChannel(name: "pawfectpets/push", binaryMessenger: registrar.messenger())
     channel.setMethodCallHandler { [weak self] call, result in
-      if call.method == "start" {
+      switch call.method {
+      case "start":
         self?.requestAndRegister()
         result(nil)
-      } else {
+      case "setBadge":
+        self?.setBadge((call.arguments as? Int) ?? 0)
+        result(nil)
+      case "takeLaunchTap":
+        result(self?.pendingTap)
+        self?.pendingTap = nil
+      default:
         result(FlutterMethodNotImplemented)
       }
     }
@@ -70,12 +81,44 @@ import UserNotifications
     NSLog("APNs registration failed: \(error.localizedDescription)")
   }
 
-  // Show reminders as a banner even when the app is in the foreground.
+  // The red count on the app icon (0 clears it), mirroring the unread
+  // notifications count Dart reads from the server.
+  private func setBadge(_ count: Int) {
+    DispatchQueue.main.async {
+      if #available(iOS 16.0, *) {
+        UNUserNotificationCenter.current().setBadgeCount(count) { _ in }
+      } else {
+        UIApplication.shared.applicationIconBadgeNumber = count
+      }
+    }
+  }
+
+  // Show reminders as a banner even when the app is in the foreground, and
+  // apply the badge the push carries (the unread count).
   override func userNotificationCenter(
     _ center: UNUserNotificationCenter,
     willPresent notification: UNNotification,
     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
   ) {
-    completionHandler([.banner, .sound])
+    completionHandler([.banner, .list, .sound, .badge])
+  }
+
+  // Staff tapped a notification: tell Dart which feed item it was so it's
+  // marked read (clearing/decrementing the badge) and the list opens. If Dart
+  // isn't listening yet (cold launch), keep it for "takeLaunchTap".
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse,
+    withCompletionHandler completionHandler: @escaping () -> Void
+  ) {
+    let id = response.notification.request.content.userInfo["notificationId"] as? String ?? ""
+    pendingTap = id
+    if let channel = pushChannel {
+      channel.invokeMethod("onNotificationTap", arguments: id) { [weak self] result in
+        let handled = !(result is FlutterError) && (result as? NSObject) !== FlutterMethodNotImplemented
+        if handled { self?.pendingTap = nil }
+      }
+    }
+    completionHandler()
   }
 }

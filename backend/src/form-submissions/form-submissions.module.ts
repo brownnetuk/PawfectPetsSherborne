@@ -2,6 +2,10 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AnimalsModule } from '../animals/animals.module';
 import { AuditLogModule } from '../audit-log/audit-log.module';
+import {
+  BoardingBooking,
+  BoardingBookingSchema,
+} from '../boarding-bookings/schemas/boarding-booking.schema';
 import { CustomersModule } from '../customers/customers.module';
 import { FormsModule } from '../forms/forms.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -17,6 +21,7 @@ import {
   imports: [
     MongooseModule.forFeature([
       { name: FormSubmission.name, schema: FormSubmissionSchema },
+      { name: BoardingBooking.name, schema: BoardingBookingSchema },
     ]),
     FormsModule,
     CustomersModule,

@@ -5509,6 +5509,11 @@ function NotificationsSettingsTab() {
 
       <div className="section-title">Forms</div>
       {toggle('Form submitted', 'When a customer submits a form sent to them, including pre-boarding forms', 'formSubmitted')}
+      {toggle(
+        'Pre-check-in completed',
+        'When a customer completes the pre-check-in form for a boarding or day care booking',
+        'preCheckInCompleted',
+      )}
 
       <div className="section-title">Bookings</div>
       {toggle(
