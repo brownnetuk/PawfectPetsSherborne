@@ -819,7 +819,7 @@ export default function NewBookingModal({
       {confirmDelete && (
         <Modal title="Delete this booking?" onClose={() => setConfirmDelete(false)}>
           <p>
-            This permanently removes every day of this booking ({initial?.editEntries.length ?? 0} day
+            This removes every day of this booking ({initial?.editEntries.length ?? 0} day
             {initial && initial.editEntries.length === 1 ? '' : 's'}).
           </p>
           <div className="modal-actions">

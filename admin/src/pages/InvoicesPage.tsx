@@ -651,7 +651,7 @@ function InvoicesTab() {
         <Modal title="Delete invoice?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently deletes invoice <strong>{deleting.invoiceNumber}</strong>.
+            This deletes invoice <strong>{deleting.invoiceNumber}</strong>.
           </p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
@@ -684,7 +684,7 @@ function InvoicesTab() {
       {bulkDeleteConfirm && (
         <Modal title={`Delete ${selectedInvoices.length} invoice${selectedInvoices.length === 1 ? '' : 's'}?`} onClose={() => setBulkDeleteConfirm(false)}>
           <p>
-            This permanently deletes{' '}
+            This deletes{' '}
             <strong>{selectedInvoices.map((inv) => inv.invoiceNumber).join(', ')}</strong>.
           </p>
           <div className="modal-actions">
@@ -981,7 +981,7 @@ function QuotesTab() {
         <Modal title="Delete quote?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently deletes quote <strong>{deleting.quoteNumber}</strong>.
+            This deletes quote <strong>{deleting.quoteNumber}</strong>.
           </p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setDeleting(null)}>

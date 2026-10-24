@@ -384,7 +384,7 @@ function PaymentsCard() {
         <Modal title="Delete other income?" onClose={() => setDeletingIncome(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes the £{deletingIncome.amount.toFixed(2)} received from{' '}
+            This removes the £{deletingIncome.amount.toFixed(2)} received from{' '}
             <strong>{deletingIncome.receivedFrom}</strong> and takes it back off {accountLabel(deletingIncome.account)}'s
             balance.
           </p>
@@ -403,7 +403,7 @@ function PaymentsCard() {
         <Modal title="Delete payment?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes payment <strong>{deleting.paymentId}</strong> and restores its amount to the
+            This removes payment <strong>{deleting.paymentId}</strong> and restores its amount to the
             invoice's outstanding balance.
           </p>
           <div className="modal-actions">
@@ -671,7 +671,7 @@ function ExpensesCard() {
         <Modal title="Delete expense?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes this expense{deleting.account ? ' and restores its amount to the account balance' : ''}.
+            This removes this expense{deleting.account ? ' and restores its amount to the account balance' : ''}.
           </p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
@@ -790,7 +790,7 @@ function CreditNotesCard() {
         <Modal title="Delete credit note?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes credit note <strong>{deleting.creditNoteNumber}</strong> and reverses its
+            This removes credit note <strong>{deleting.creditNoteNumber}</strong> and reverses its
             effect on the linked invoice and account balance, if any.
           </p>
           <div className="modal-actions">
@@ -905,7 +905,7 @@ function BankTransfersCard() {
         <Modal title="Delete this transfer?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes this transfer and reverses its effect on both accounts' balances.
+            This removes this transfer and reverses its effect on both accounts' balances.
           </p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setDeleting(null)}>

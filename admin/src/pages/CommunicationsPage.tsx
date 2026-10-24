@@ -603,7 +603,7 @@ function PushMessagesTab() {
         <Modal title="Delete this push message?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes <strong>{deleting.title}</strong> from the history. It doesn't unsend the
+            This removes <strong>{deleting.title}</strong> from the history. It doesn't unsend the
             push that was already delivered.
           </p>
           <div className="modal-actions">
@@ -1082,7 +1082,7 @@ function EmailTab() {
         <Modal title="Delete this email?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes <strong>{deleting.subject}</strong> from the history. It doesn't unsend the
+            This removes <strong>{deleting.subject}</strong> from the history. It doesn't unsend the
             emails that were already delivered.
           </p>
           <div className="modal-actions">

@@ -72,7 +72,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Delete expense?'),
-        content: Text('This permanently deletes "${_expense.description}".'),
+        content: Text('This deletes "${_expense.description}".'),
         actions: [
           TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
           FilledButton(

@@ -109,7 +109,7 @@ class _BankTransfersScreenState extends State<BankTransfersScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Delete this transfer?'),
         content: const Text(
-          'This permanently removes the transfer and reverses its effect on both accounts\' balances.',
+          'This removes the transfer and reverses its effect on both accounts\' balances.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),

@@ -14,6 +14,7 @@ import Modal from '../components/Modal';
 import NamedListCard from '../components/NamedListCard';
 import PdfTemplateDesigner from '../components/PdfTemplateDesigner';
 import PreBoardingSettingsTab from '../components/PreBoardingSettingsTab';
+import RecycleBinTab from '../components/RecycleBinTab';
 import RegistrationPdfsCard from '../components/RegistrationPdfsCard';
 import RichTextEditor from '../components/RichTextEditor';
 import { BOOKING_PLACEHOLDERS } from '../utils/bookingPlaceholders';
@@ -64,7 +65,8 @@ type Tab =
   | 'preBoarding'
   | 'forms'
   | 'financial'
-  | 'notifications';
+  | 'notifications'
+  | 'recycleBin';
 
 const TAB_LABELS: Record<Tab, string> = {
   business: 'Business Info',
@@ -78,6 +80,7 @@ const TAB_LABELS: Record<Tab, string> = {
   forms: 'Forms',
   financial: 'Finance',
   notifications: 'Notifications',
+  recycleBin: 'Recycle Bin',
 };
 
 export default function SettingsPage() {
@@ -92,7 +95,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="tabs">
-        {(['business', 'staff', 'email', 'templates', 'invoices', 'bookings', 'boarding', 'preBoarding', 'forms', 'financial', 'notifications'] as Tab[]).map((t) => (
+        {(['business', 'staff', 'email', 'templates', 'invoices', 'bookings', 'boarding', 'preBoarding', 'forms', 'financial', 'notifications', 'recycleBin'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -110,6 +113,7 @@ export default function SettingsPage() {
       {tab === 'forms' && <FormsTab />}
       {tab === 'financial' && <FinancialTab />}
       {tab === 'notifications' && <NotificationsSettingsTab />}
+      {tab === 'recycleBin' && <RecycleBinTab />}
     </div>
   );
 }
@@ -961,7 +965,7 @@ function VetPracticesCard() {
         <Modal title="Delete vet practice?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes <strong>{deleting.practiceName}</strong> from the list. It won't
+            This removes <strong>{deleting.practiceName}</strong> from the list. It won't
             affect any customer who already has these details saved.
           </p>
           <div className="modal-actions">
@@ -1664,7 +1668,7 @@ function RolesCard({ roles, onChanged }: { roles: Role[]; onChanged: () => void 
         <Modal title="Delete role?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes <strong>{deleting.name}</strong>. Any staff account it's assigned
+            This removes <strong>{deleting.name}</strong>. Any staff account it's assigned
             to would need reassigning first.
           </p>
           <div className="modal-actions">
@@ -2042,7 +2046,7 @@ function EmailGroupsCard() {
         <Modal title="Delete this group?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes <strong>{deleting.name}</strong>. It doesn't affect the customers in it or any
+            This removes <strong>{deleting.name}</strong>. It doesn't affect the customers in it or any
             emails already sent to it.
           </p>
           <div className="modal-actions">
@@ -4208,7 +4212,7 @@ function InvoiceTermsCard() {
       {deleting && (
         <Modal title="Delete invoice term?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
-          <p>This permanently removes this term.</p>
+          <p>This removes this term.</p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
               Cancel
@@ -4565,7 +4569,7 @@ function ProductsCard() {
         <Modal title="Delete product?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes <strong>{deleting.name}</strong> from the product catalog.
+            This removes <strong>{deleting.name}</strong> from the product catalog.
           </p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
@@ -4774,7 +4778,7 @@ function BankHolidaysCard() {
         <Modal title="Delete bank holiday?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes <strong>{deleting.name}</strong> from the bank holiday list.
+            This removes <strong>{deleting.name}</strong> from the bank holiday list.
           </p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
@@ -4950,7 +4954,7 @@ function AnnualLeaveCard() {
         <Modal title="Delete annual leave?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes <strong>{deleting.name}</strong> and unblocks those dates on the Bookings
+            This removes <strong>{deleting.name}</strong> and unblocks those dates on the Bookings
             calendar.
           </p>
           <div className="modal-actions">
@@ -5208,7 +5212,7 @@ function BankAccountsCard() {
         <Modal title="Delete bank account?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes <strong>{deleting.name}</strong>.
+            This removes <strong>{deleting.name}</strong>.
           </p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
@@ -5344,7 +5348,7 @@ function PaymentMethodsCard() {
       {deleting && (
         <Modal title="Delete payment method?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
-          <p>This permanently removes this payment method.</p>
+          <p>This removes this payment method.</p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setDeleting(null)}>
               Cancel

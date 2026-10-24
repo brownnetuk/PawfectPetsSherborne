@@ -327,8 +327,8 @@ export default function PoliciesTab() {
         <Modal title="Delete this policy?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently deletes <strong>{deleting.name}</strong> and all {deleting.versions.length} of its
-            versions, including sign-off history. This can't be undone.
+            This deletes <strong>{deleting.name}</strong> and all {deleting.versions.length} of its
+            versions, including sign-off history. It goes to the Recycle Bin in Settings, where it can be restored.
           </p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setDeleting(null)} disabled={deleteBusy}>

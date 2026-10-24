@@ -140,7 +140,7 @@ export default function ObservationsCard({ bookingId, readOnly }: { bookingId: s
       {confirmDelete && (
         <Modal title="Delete this observation?" onClose={() => setConfirmDelete(null)}>
           <p>
-            This permanently removes the {confirmDelete.category} observation from{' '}
+            This removes the {confirmDelete.category} observation from{' '}
             {new Date(confirmDelete.observedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
             {confirmDelete.photos.length > 0 ? ', including its photos' : ''}.
           </p>

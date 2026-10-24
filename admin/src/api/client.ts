@@ -1591,3 +1591,31 @@ export function sendPreBoardingForm(id: string): Promise<void> {
 export function deletePreBoardingForm(id: string): Promise<void> {
   return request(`/pre-boarding/${id}`, { method: 'DELETE' });
 }
+
+// Settings > Recycle Bin -- see backend/src/recycle-bin/.
+export interface RecycleBinEntry {
+  id: string;
+  deletedAt: string;
+  deletedBy: string;
+  typeLabel: string;
+  label: string;
+  customerName?: string | null;
+  itemCount: number;
+  alsoIncludes: string;
+}
+
+export function listRecycleBin(): Promise<RecycleBinEntry[]> {
+  return request('/recycle-bin');
+}
+
+export function restoreRecycleBinEntry(id: string): Promise<{ restored: number }> {
+  return request(`/recycle-bin/${id}/restore`, { method: 'POST' });
+}
+
+export function purgeRecycleBinEntry(id: string): Promise<void> {
+  return request(`/recycle-bin/${id}`, { method: 'DELETE' });
+}
+
+export function emptyRecycleBin(): Promise<{ deleted: number }> {
+  return request('/recycle-bin', { method: 'DELETE' });
+}

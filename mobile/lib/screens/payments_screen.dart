@@ -88,7 +88,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Delete payment?'),
         content: Text(
-          'This permanently removes payment ${payment.paymentId} and restores its amount to the invoice\'s outstanding balance.',
+          'This removes payment ${payment.paymentId} and restores its amount to the invoice\'s outstanding balance.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),

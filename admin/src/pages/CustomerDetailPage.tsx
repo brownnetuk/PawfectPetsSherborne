@@ -433,15 +433,15 @@ export default function CustomerDetailPage() {
         >
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently deletes <strong>{customer.name}</strong>'s record. If they still have
+            This deletes <strong>{customer.name}</strong>'s record. If they still have
             pets, bookings, invoices, quotes, or CRM activity on file, deletion is blocked until
             those are removed first.
           </p>
           {deleteError && !forceChallenge && (
             <p className="hint">
-              "Force delete" bypasses that check and permanently removes everything on file for
+              "Force delete" bypasses that check and removes everything on file for
               this customer -- pets, bookings, invoices (and their payments/credit notes), quotes,
-              and CRM activity -- along with the customer record itself. This can't be undone.
+              and CRM activity -- along with the customer record itself. It goes to the Recycle Bin in Settings, where it can be restored.
             </p>
           )}
           {forceChallenge && (
@@ -903,7 +903,7 @@ function PetsTab({
         <Modal title="Delete pet?" onClose={() => setDeletingAnimal(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently deletes {deletingAnimal.name}'s record. If they're on any bookings,
+            This deletes {deletingAnimal.name}'s record. If they're on any bookings,
             deletion is blocked until those are removed first.
             {deletingAnimal.linkedAnimal && (
               <>
@@ -1671,7 +1671,7 @@ function ActivityItem({ activity, onChange }: { activity: CrmActivity; onChange:
 
       {showDelete && (
         <Modal title="Delete note?" onClose={() => setShowDelete(false)}>
-          <p>This permanently deletes this note.</p>
+          <p>This deletes this note.</p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setShowDelete(false)}>
               Cancel
@@ -2067,7 +2067,7 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
         <Modal title="Delete this form submission?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes the <strong>{deleting.formName}</strong> link sent to{' '}
+            This removes the <strong>{deleting.formName}</strong> link sent to{' '}
             {deleting.recipientName || deleting.recipientEmail}.
             {deleting.status === 'completed' &&
               " The customer/pet records it created are kept -- this only removes the submission record itself."}

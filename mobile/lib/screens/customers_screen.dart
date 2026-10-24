@@ -60,7 +60,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
       context: context,
       builder: (_) => HoldToDeleteDialog(
         title: 'Delete customer?',
-        message: 'This permanently deletes ${c.name}. This cannot be undone.',
+        message: 'This deletes ${c.name}. It can be restored from Settings > Recycle Bin in the admin app.',
       ),
     );
     if (confirmed != true) return false;

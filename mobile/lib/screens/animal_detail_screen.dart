@@ -44,7 +44,7 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Delete pet?'),
-        content: Text('This permanently deletes ${_animal.name}. This cannot be undone.'),
+        content: Text('This deletes ${_animal.name}. It can be restored from Settings > Recycle Bin in the admin app.'),
         actions: [
           TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
           FilledButton(

@@ -119,7 +119,7 @@ export default function ChecklistsCard() {
         <Modal title="Delete checklist?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes <strong>{deleting.name}</strong>. Days it's already been assigned to keep
+            This removes <strong>{deleting.name}</strong>. Days it's already been assigned to keep
             their own copy of its items, unaffected.
           </p>
           <div className="modal-actions">

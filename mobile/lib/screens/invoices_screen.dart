@@ -147,7 +147,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
       context: context,
       builder: (_) => HoldToDeleteDialog(
         title: 'Delete invoice?',
-        message: 'This permanently deletes ${inv.invoiceNumber}. This cannot be undone.',
+        message: 'This deletes ${inv.invoiceNumber}. It can be restored from Settings > Recycle Bin in the admin app.',
       ),
     );
     if (confirmed != true) return;

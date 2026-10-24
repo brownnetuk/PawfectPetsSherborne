@@ -831,6 +831,17 @@ Auth column legend:
 | DELETE | `/audit-log/registration-snapshots/orphaned` | `settings.manage` | Deletes `registration_email_sent` entries whose customer no longer exists; returns `{ deleted }`. |
 | PATCH | `/audit-log/:id/attachment` | `settings.manage` | `{ attachmentData, attachmentName }` replaces a registration snapshot's PDF, stamps `regeneratedAt` and, the first time only, keeps the previous PDF in `originalAttachmentData`/`originalAttachmentName`. 404 for any other entry type. |
 
+#### `RecycleBinController` (`src/recycle-bin/recycle-bin.controller.ts`, prefix `/recycle-bin`)
+
+Every record deleted during an HTTP `DELETE` request (from any app) is copied into the Recycle Bin before it's deleted: `recycleBinPlugin` (registered on the Mongoose connection in `app.module.ts`) catches each delete at the database layer, and `recycleBinContextMiddleware` (`main.ts`) groups everything one request deletes, including a cascade such as a force-deleted customer, into one entry. Deletes outside a `DELETE` request (scheduled clean-ups, edits that regenerate records) stay real deletes, as do push tokens and the staff notification feed. Items stay until restored or permanently deleted; there's no automatic expiry.
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/recycle-bin` | staff | One row per delete action, newest first: `{ id, deletedAt, deletedBy, typeLabel, label, customerName, itemCount, alsoIncludes }` |
+| POST | `/recycle-bin/:id/restore` | staff | Puts every record in the entry back with its original id, then redoes what each service's `remove()` undid (invoice `amountPaid`/status, bank balances, a pet's link to its copy, an incident report's link to its booking). 409 if a record already exists again, or its customer/invoice is still in the bin. All-or-nothing. |
+| DELETE | `/recycle-bin/:id` | `recycleBin.purge` | Permanently deletes one entry |
+| DELETE | `/recycle-bin` | `recycleBin.purge` | Empties the bin |
+
 ---
 
 ### Data model

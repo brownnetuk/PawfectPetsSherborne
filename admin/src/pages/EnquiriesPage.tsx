@@ -228,7 +228,7 @@ export default function EnquiriesPage() {
       {deletingEnquiry && (
         <Modal title="Delete enquiry?" onClose={() => setDeletingEnquiry(null)}>
           <p>
-            This permanently deletes the enquiry from <strong>{deletingEnquiry.name}</strong>.
+            This deletes the enquiry from <strong>{deletingEnquiry.name}</strong>.
           </p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setDeletingEnquiry(null)}>
