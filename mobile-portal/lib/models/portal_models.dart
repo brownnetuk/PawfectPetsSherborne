@@ -139,6 +139,46 @@ class EmergencyVet {
       );
 }
 
+/// A staff-managed vet practice (admin Settings > Business Info > Vet
+/// Practices), offered on the Emergency Vet screen so a customer can pick
+/// their practice instead of typing it. Picking one copies these fields into
+/// the form; it isn't kept as a live reference (same as the intake form).
+class VetPractice {
+  final String id;
+  final String practiceName;
+  final String address1;
+  final String? address2;
+  final String town;
+  final String? county;
+  final String postcode;
+  final String telephone;
+  final String? email;
+
+  VetPractice({
+    required this.id,
+    required this.practiceName,
+    required this.address1,
+    this.address2,
+    required this.town,
+    this.county,
+    required this.postcode,
+    required this.telephone,
+    this.email,
+  });
+
+  factory VetPractice.fromJson(Map<String, dynamic> j) => VetPractice(
+        id: j['_id'] as String,
+        practiceName: j['practiceName'] as String? ?? '',
+        address1: j['address1'] as String? ?? '',
+        address2: j['address2'] as String?,
+        town: j['town'] as String? ?? '',
+        county: j['county'] as String?,
+        postcode: j['postcode'] as String? ?? '',
+        telephone: j['telephone'] as String? ?? '',
+        email: j['email'] as String?,
+      );
+}
+
 class Security {
   final bool keysProvided;
   final String? furtherInformation;
