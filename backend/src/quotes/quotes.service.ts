@@ -389,18 +389,17 @@ export class QuotesService {
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) days.push(new Date(d));
 
     let created = 0;
-    const mappingKey: Record<string, Record<string, keyof VisitMapping>> = {
-      '1': {
-        weekday: 'oneVisitWeekdayProduct',
-        weekend: 'oneVisitWeekendProduct',
-        bank_holiday: 'oneVisitBankHolidayProduct',
-      },
-      '2': {
-        weekday: 'twoVisitWeekdayProduct',
-        weekend: 'twoVisitWeekendProduct',
-        bank_holiday: 'twoVisitBankHolidayProduct',
-      },
+    // 20 minute visits use the original un-suffixed slots; 30/40 have a
+    // "30Min"/"40Min" infix, e.g. oneVisit30MinWeekdayProduct.
+    const duration = plan.visitDuration ?? '20';
+    const infix = duration === '20' ? '' : `${duration}Min`;
+    const dayTypeSuffix: Record<string, string> = {
+      weekday: 'Weekday',
+      weekend: 'Weekend',
+      bank_holiday: 'BankHoliday',
     };
+    const mappingKeyFor = (visits: string, dayType: string) =>
+      `${visits === '2' ? 'two' : 'one'}Visit${infix}${dayTypeSuffix[dayType]}Product` as keyof VisitMapping;
 
     for (const [i, date] of days.entries()) {
       const isFirst = i === 0;
@@ -412,10 +411,10 @@ export class QuotesService {
         : date.getDay() === 0 || date.getDay() === 6
           ? 'weekend'
           : 'weekday';
-      const productId = mapping[mappingKey[visits][dayType]] as Types.ObjectId | undefined;
+      const productId = mapping[mappingKeyFor(visits, dayType)] as Types.ObjectId | undefined;
       if (!productId) {
         console.error(
-          `Quote ${quote.quoteNumber}: no product configured for ${visits} visit(s) on a ${dayType}; skipping ${localKey(date)}.`,
+          `Quote ${quote.quoteNumber}: no product configured for ${visits} ${duration} minute visit(s) on a ${dayType}; skipping ${localKey(date)}.`,
         );
         continue;
       }
@@ -524,6 +523,7 @@ export class QuotesService {
               visitsPerDay: updated.visitPlan.visitsPerDay,
               visitsFirstDay: updated.visitPlan.visitsFirstDay,
               visitsLastDay: updated.visitPlan.visitsLastDay,
+              visitDuration: updated.visitPlan.visitDuration ?? '20',
             }
           : undefined,
         dayCarePlan: updated.dayCarePlan

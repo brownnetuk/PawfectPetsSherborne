@@ -37,6 +37,66 @@ export class UpdateVisitMappingDto {
   @IsOptional()
   @ValidateIf((_, v) => v !== null)
   @IsMongoId()
+  oneVisit30MinWeekdayProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  oneVisit30MinWeekendProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  oneVisit30MinBankHolidayProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  twoVisit30MinWeekdayProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  twoVisit30MinWeekendProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  twoVisit30MinBankHolidayProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  oneVisit40MinWeekdayProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  oneVisit40MinWeekendProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  oneVisit40MinBankHolidayProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  twoVisit40MinWeekdayProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  twoVisit40MinWeekendProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
+  twoVisit40MinBankHolidayProduct?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsMongoId()
   dayCareHalfDayProduct?: string | null;
 
   @IsOptional()

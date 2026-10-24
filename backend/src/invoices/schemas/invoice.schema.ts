@@ -34,6 +34,12 @@ export class InvoiceVisitPlan {
 
   @Prop({ required: true, enum: ['1', '2'] })
   visitsLastDay: string;
+
+  // Minutes per visit -- picks the 20/30/40 minute product set in Settings >
+  // Bookings > Visits. Unset on quotes made before durations existed, which
+  // were all 20 minute visits.
+  @Prop({ enum: ['20', '30', '40'], default: '20' })
+  visitDuration?: string;
 }
 const InvoiceVisitPlanSchema = SchemaFactory.createForClass(InvoiceVisitPlan);
 

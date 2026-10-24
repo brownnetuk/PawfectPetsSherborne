@@ -6,7 +6,7 @@ import DateInput from './DateInput';
 import { TimeReadout } from './DateTimeReadout';
 import Modal from './Modal';
 import { addDays, buildVisitPlan, dateKey, parseYmd } from '../utils/visitPlan';
-import type { VisitCount, VisitTime } from '../utils/visitPlan';
+import type { VisitCount, VisitDuration, VisitTime } from '../utils/visitPlan';
 import { annualLeaveOn, rangeOverlapsAnnualLeave } from '../utils/annualLeave';
 import { dayCareProductFor, isVisitProduct } from '../utils/visitMapping';
 import type { Animal, AnnualLeave, Customer, DayBooking } from '../types';
@@ -44,6 +44,7 @@ export interface NewBookingInitial {
   visitsPerDay: VisitCount;
   visitsFirstDay: VisitCount;
   visitsLastDay: VisitCount;
+  visitDuration: VisitDuration;
   amPmFirstDay: VisitTime;
   amPmLastDay: VisitTime;
   editAnimalId: string;
@@ -113,6 +114,7 @@ export default function NewBookingModal({
     initial?.animalIds ?? boardingInitial?.animalIds ?? (dayCareInitial ? [dayCareInitial.animalId] : []),
   );
   const [visitsPerDay, setVisitsPerDay] = useState<VisitCount>(initial?.visitsPerDay ?? '1');
+  const [visitDuration, setVisitDuration] = useState<VisitDuration>(initial?.visitDuration ?? '20');
   const [startDate, setStartDate] = useState(initial?.startDate ?? '');
   const [visitsFirstDay, setVisitsFirstDay] = useState<VisitCount>(initial?.visitsFirstDay ?? '1');
   const [amPmFirstDay, setAmPmFirstDay] = useState<VisitTime>(initial?.amPmFirstDay ?? 'PM');
@@ -231,6 +233,7 @@ export default function NewBookingModal({
         visitsPerDay,
         visitsFirstDay,
         visitsLastDay,
+        visitDuration,
         mapping,
         bankHolidays,
         amPmFirstDay,
@@ -637,12 +640,22 @@ export default function NewBookingModal({
         </div>
         {service === 'visits' && (
           <>
-            <div className="field">
-              <label>How Many Visits per Day</label>
-              <select value={visitsPerDay} onChange={(e) => setVisitsPerDay(e.target.value as VisitCount)}>
-                <option value="1">1</option>
-                <option value="2">2</option>
-              </select>
+            <div className="field-row">
+              <div className="field">
+                <label>How Many Visits per Day</label>
+                <select value={visitsPerDay} onChange={(e) => setVisitsPerDay(e.target.value as VisitCount)}>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Visit Length</label>
+                <select value={visitDuration} onChange={(e) => setVisitDuration(e.target.value as VisitDuration)}>
+                  <option value="20">20 minutes</option>
+                  <option value="30">30 minutes</option>
+                  <option value="40">40 minutes</option>
+                </select>
+              </div>
             </div>
             <div className="field-row" style={{ gridTemplateColumns: '1.4fr 1fr 1fr' }}>
               <div className="field">

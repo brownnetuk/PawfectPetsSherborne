@@ -158,6 +158,50 @@ describe('createBookingsFromVisitPlan', () => {
     }
   });
 
+  it('uses the 30 minute products for a 30 minute visit plan', async () => {
+    await dayBookingModel.deleteMany({});
+    const customer = await customerModel.create({ name: 'Sam Doe', email: 'sam@example.com' });
+    const petFields = {
+      species: 'dog',
+      breed: 'Collie',
+      sex: 'male',
+      age: 2,
+      vaccinated: true,
+      allergies: { status: 'no' },
+      medication: { onMedication: false },
+      aggressionToPeople: false,
+      customer: customer._id,
+    };
+    const pet = await animalModel.create({ name: 'Bramble', ...petFields });
+    const weekday30 = await productModel.create({ name: '1 Visit 30 mins (Weekday)', price: 14, productCode: 'V1WD30' });
+    // The first test's mapping doc already holds the 20 minute slots.
+    await visitMappingModel.updateOne({}, { oneVisit30MinWeekdayProduct: weekday30._id }).exec();
+
+    // Mon 14 Dec 2026, a single weekday.
+    const quote = await quoteModel.create({
+      quoteNumber: 'QUO-TEST-3',
+      customer: customer._id,
+      lineItems: [{ description: 'x', quantity: 1, unitPrice: 1 }],
+      issueDate: new Date(),
+      validUntil: new Date(),
+      visitPlan: {
+        animals: [pet._id],
+        startDate: '2026-12-14',
+        endDate: '2026-12-14',
+        visitsPerDay: '1',
+        visitsFirstDay: '1',
+        visitsLastDay: '1',
+        visitDuration: '30',
+      },
+    });
+    await (service as unknown as { createBookingsFromVisitPlan(q: Quote, i: string): Promise<void> })
+      .createBookingsFromVisitPlan(quote, customer._id!.toString());
+
+    const bookings = await dayBookingModel.find().exec();
+    expect(bookings).toHaveLength(1);
+    expect(String(bookings[0].product)).toBe(String(weekday30._id));
+  });
+
   it('does nothing for a quote without a visit plan', async () => {
     await dayBookingModel.deleteMany({});
     const quote = await quoteModel.create({

@@ -358,6 +358,7 @@ export interface DocVisitPlan {
   visitsPerDay: string;
   visitsFirstDay: string;
   visitsLastDay: string;
+  visitDuration?: string;
 }
 
 export interface DocDayCarePlan {
