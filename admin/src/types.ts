@@ -1068,6 +1068,10 @@ export interface FormSubmissionPublic {
 
 export type ChecklistCategory = 'boarding' | 'dayCare';
 
+// Which part of the day an auto-assigned checklist covers -- see backend's
+// ChecklistTemplate.session.
+export type ChecklistSession = 'AM' | 'PM' | 'allDay';
+
 export interface ChecklistTemplate {
   _id: string;
   category: ChecklistCategory;
@@ -1075,6 +1079,7 @@ export interface ChecklistTemplate {
   completeByTime?: string;
   items: string[];
   autoAssign: boolean;
+  session?: ChecklistSession;
   createdAt: string;
 }
 
