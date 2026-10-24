@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'boarding_bookings_screen.dart';
+import 'checklists_screen.dart';
 import 'completed_bookings_screen.dart';
 import 'home_shell.dart';
 import 'in_progress_screen.dart';
@@ -59,6 +60,16 @@ class BoardingScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const CompletedBookingsScreen()),
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: Icon(Icons.checklist_outlined, color: Theme.of(context).colorScheme.primary),
+            title: const Text('Checklists'),
+            subtitle: const Text('Today\'s boarding and day care rounds to tick off'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ChecklistsScreen()),
             ),
           ),
           const Divider(height: 1),
