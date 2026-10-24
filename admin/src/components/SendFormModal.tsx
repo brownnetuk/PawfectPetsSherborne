@@ -254,7 +254,7 @@ export default function SendFormModal({ form, customer, existing, onClose }: Pro
           <label>Existing customer (optional)</label>
           <select value={customerId} onChange={(e) => handlePickCustomer(e.target.value)}>
             <option value="">— New / not on file yet —</option>
-            {customers.map((c) => (
+            {[...customers].sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
               <option key={c._id} value={c._id}>
                 {c.name}
               </option>
