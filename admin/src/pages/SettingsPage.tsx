@@ -5492,6 +5492,13 @@ function NotificationsSettingsTab() {
       {toggle('Invoice overdue', 'The day after an unpaid invoice\'s due date', 'invoicesOverdue')}
       {toggle('Invoice read', 'When a customer opens an invoice', 'invoicesRead')}
 
+      <div className="section-title">Checklists</div>
+      {toggle(
+        'Checklist due soon',
+        "An hour before a day's checklist complete-by time, if it still has unticked items",
+        'checklistReminders',
+      )}
+
       {saving && <div style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>Saving…</div>}
     </div>
   );

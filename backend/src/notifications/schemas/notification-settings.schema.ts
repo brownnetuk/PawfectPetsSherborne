@@ -43,6 +43,11 @@ export class NotificationSettings extends Document {
   @Prop({ default: true })
   invoicesRead: boolean;
 
+  // A day's checklist still has unticked items an hour before its
+  // complete-by time (ChecklistsService.sendDueReminders).
+  @Prop({ default: true })
+  checklistReminders: boolean;
+
   // Internal dedup for the daily digest: the last local date ('YYYY-MM-DD')
   // a digest went out, so the 5-minutely cron only sends once per day.
   @Prop()

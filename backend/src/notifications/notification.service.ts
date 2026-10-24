@@ -104,6 +104,19 @@ export class NotificationService {
     );
   }
 
+  // A day's checklist is due in about an hour and still has unticked items.
+  // `checklistReminders` defaults on, including for a settings document saved
+  // before the toggle existed (hence `!== false`, not a truthy check).
+  async notifyChecklistDue(name: string, completeByTime: string, remaining: number): Promise<void> {
+    const s = await this.settings.get();
+    if (s.checklistReminders === false) return;
+    await this.dispatch(
+      'Checklist due soon',
+      `"${name}" is due by ${completeByTime} and still has ${remaining} item${remaining === 1 ? '' : 's'} to tick off.`,
+      'checklistDue',
+    );
+  }
+
   async notifyInvoiceRead(invoiceNumber: string, customerName?: string): Promise<void> {
     const s = await this.settings.get();
     if (!s.invoicesRead) return;
