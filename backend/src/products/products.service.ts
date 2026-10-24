@@ -44,6 +44,44 @@ export class ProductsService {
     return new this.productModel(dto).save();
   }
 
+  /**
+   * Upserts the CSV import's rows by productCode: an existing product with the
+   * same code is overwritten with the row's values (blank optional columns
+   * clear the field), anything else is created.
+   */
+  async importProducts(
+    rows: CreateProductDto[],
+  ): Promise<{ created: number; updated: number }> {
+    let created = 0;
+    let updated = 0;
+    for (const row of rows) {
+      const productCode = row.productCode.trim();
+      const set: Record<string, unknown> = {
+        productCode,
+        name: row.name.trim(),
+        price: row.price,
+        displayInPriceList: row.displayInPriceList ?? false,
+      };
+      const unset: Record<string, ''> = {};
+      if (row.description?.trim()) set.description = row.description.trim();
+      else unset.description = '';
+      if (row.availability) set.availability = row.availability;
+      else unset.availability = '';
+
+      const existing = await this.productModel.findOne({ productCode }).exec();
+      if (existing) {
+        await this.productModel
+          .updateOne({ _id: existing._id }, { $set: set, $unset: unset })
+          .exec();
+        updated++;
+      } else {
+        await new this.productModel(set).save();
+        created++;
+      }
+    }
+    return { created, updated };
+  }
+
   findAll(): Promise<Product[]> {
     return this.productModel.find().sort({ name: 1 }).exec();
   }

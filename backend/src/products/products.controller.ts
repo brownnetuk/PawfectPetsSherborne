@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { CreateProductDto } from './dto/create-product.dto';
+import { ImportProductsDto } from './dto/import-products.dto';
 import { SendPriceListDto } from './dto/send-price-list.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
@@ -13,6 +14,12 @@ export class ProductsController {
   @Post()
   create(@Body() dto: CreateProductDto) {
     return this.productsService.create(dto);
+  }
+
+  @RequirePermission('settings.manage')
+  @Post('import')
+  importProducts(@Body() dto: ImportProductsDto) {
+    return this.productsService.importProducts(dto.products);
   }
 
   // Not gated: read as the item picker when any staff member creates an

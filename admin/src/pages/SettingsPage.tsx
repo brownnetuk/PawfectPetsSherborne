@@ -9,6 +9,7 @@ import DateInput from '../components/DateInput';
 import { TimeReadout } from '../components/DateTimeReadout';
 import FormBuilder from '../components/FormBuilder';
 import FormsListCard from '../components/FormsListCard';
+import ActionsMenu from '../components/ActionsMenu';
 import Modal from '../components/Modal';
 import NamedListCard from '../components/NamedListCard';
 import PdfTemplateDesigner from '../components/PdfTemplateDesigner';
@@ -25,6 +26,8 @@ import { buildItemsTableHtml, escapeHtml, interpolateBody, interpolateSubject } 
 import { PERMISSION_CATALOG } from '../utils/permissionCatalog';
 import { useCollapsibleCards } from '../utils/useCollapsibleCards';
 import { AVAILABILITY_LABELS } from '../utils/productAvailability';
+import { downloadProductsCsv, parseProductsCsv } from '../utils/productsCsv';
+import type { ParsedProductsCsv } from '../utils/productsCsv';
 import { VISIT_DURATIONS, visitMappingKey } from '../utils/visitPlan';
 import type {
   AnnualLeave,
@@ -4157,6 +4160,11 @@ function ProductsCard() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<ProductSortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState<ParsedProductsCsv | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<string | null>(null);
 
   function refresh() {
     api
@@ -4198,6 +4206,32 @@ function ProductsCard() {
     }
   }
 
+  async function handleImportFile(file: File) {
+    setImportError(null);
+    setImportResult(null);
+    setImporting(parseProductsCsv(await file.text()));
+  }
+
+  async function handleImport() {
+    if (!importing) return;
+    setImportBusy(true);
+    setImportError(null);
+    try {
+      const { created, updated } = await api.importProducts(importing.products);
+      setImporting(null);
+      setImportResult(`Imported ${created} new and updated ${updated} existing product${updated === 1 ? '' : 's'}.`);
+      refresh();
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Failed to import products');
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
+  const existingCodes = new Set((products ?? []).map((p) => p.productCode));
+  const importUpdates = importing ? importing.products.filter((p) => existingCodes.has(p.productCode)).length : 0;
+  const importCreates = importing ? importing.products.length - importUpdates : 0;
+
   // Toggles whether a product shows on the staff app's Price List --
   // optimistic, reverting on failure (same pattern as the Forms visible
   // toggle).
@@ -4221,11 +4255,35 @@ function ProductsCard() {
             A reusable catalog of products and services for invoices and quotes.
           </p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
-          Add product
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <ActionsMenu
+            items={[
+              {
+                label: 'Export to CSV',
+                onClick: () => downloadProductsCsv(products ?? []),
+                disabled: !products || products.length === 0,
+              },
+              { label: 'Import from CSV', onClick: () => importInputRef.current?.click() },
+            ]}
+          />
+          <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}>
+            Add product
+          </button>
+        </div>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (file) void handleImportFile(file);
+          }}
+        />
       </div>
       {error && <div className="error-banner">{error}</div>}
+      {importResult && <div className="success-banner">{importResult}</div>}
       {!products || products.length === 0 ? (
         <div className="empty-state">{products === null ? 'Loading…' : 'No products yet.'}</div>
       ) : (
@@ -4286,6 +4344,41 @@ function ProductsCard() {
             refresh();
           }}
         />
+      )}
+
+      {importing && (
+        <Modal title="Import products from CSV" onClose={() => setImporting(null)}>
+          {importError && <div className="error-banner">{importError}</div>}
+          {importing.errors.length > 0 && (
+            <div className="error-banner">
+              {importing.products.length > 0 ? 'These rows will be skipped:' : 'Nothing can be imported:'}
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {importing.errors.map((msg) => (
+                  <li key={msg}>{msg}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {importing.products.length > 0 && (
+            <p>
+              This will add <strong>{importCreates}</strong> new product{importCreates === 1 ? '' : 's'} and overwrite{' '}
+              <strong>{importUpdates}</strong> existing product{importUpdates === 1 ? '' : 's'} with the same product code.
+              Products not in the file are left as they are.
+            </p>
+          )}
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setImporting(null)}>
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={handleImport}
+              disabled={importBusy || importing.products.length === 0}
+            >
+              {importBusy ? 'Importing…' : `Import ${importing.products.length} product${importing.products.length === 1 ? '' : 's'}`}
+            </button>
+          </div>
+        </Modal>
       )}
 
       {deleting && (

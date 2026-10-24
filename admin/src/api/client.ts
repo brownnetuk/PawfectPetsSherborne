@@ -920,6 +920,11 @@ export function updateProduct(id: string, input: Partial<CreateProductInput>): P
 export function deleteProduct(id: string): Promise<void> {
   return request(`/products/${id}`, { method: 'DELETE' });
 }
+// Settings > Products CSV import: overwrites products whose productCode
+// matches a row, creates the rest.
+export function importProducts(products: CreateProductInput[]): Promise<{ created: number; updated: number }> {
+  return request('/products/import', { method: 'POST', body: JSON.stringify({ products }) });
+}
 
 // --- bank holidays ---
 export function listBankHolidays(): Promise<BankHoliday[]> {
