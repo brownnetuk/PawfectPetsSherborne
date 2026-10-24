@@ -1794,6 +1794,8 @@ function AuditLogTab({
   );
 }
 
+const GENERAL_GROUP = 'General';
+
 // Deliberately lazy-fetches (unlike this page's other tabs, which are all fed
 // from CustomerDetailPage's own eager-fetch-on-mount) -- submissions are
 // rarely viewed, so there's no reason to fetch them for every customer page
@@ -1811,6 +1813,36 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
   const [deleting, setDeleting] = useState<FormSubmissionRecord | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Group keys (booking reference, or GENERAL_GROUP) staff have collapsed --
+  // every group starts expanded.
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  // One collapsible group per linked booking (newest reference first), then
+  // "General" for forms not tied to a booking. Submissions arrive newest
+  // first, so each group's rows stay in that order.
+  const groups = useMemo(() => {
+    const byKey = new Map<string, FormSubmissionRecord[]>();
+    for (const s of submissions ?? []) {
+      const key = s.booking?.reference ?? GENERAL_GROUP;
+      const list = byKey.get(key);
+      if (list) list.push(s);
+      else byKey.set(key, [s]);
+    }
+    const keys = [...byKey.keys()]
+      .filter((k) => k !== GENERAL_GROUP)
+      .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+    if (byKey.has(GENERAL_GROUP)) keys.push(GENERAL_GROUP);
+    return keys.map((key) => ({ key, rows: byKey.get(key)! }));
+  }, [submissions]);
+
+  function toggleGroup(key: string) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   function refresh() {
     api
@@ -1901,36 +1933,58 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
               <th></th>
             </tr>
           </thead>
-          <tbody>
-            {submissions.map((s) => (
-              <tr key={s._id} onClick={() => setViewing(s)}>
-                <td>
-                  {s.formName}
-                  {s.animal && typeof s.animal === 'object' && (
-                    <span style={{ color: 'var(--muted)' }}> — {s.animal.name}</span>
-                  )}
-                  {s.animals && s.animals.length > 0 && (
-                    <span style={{ color: 'var(--muted)' }}>
-                      {' '}
-                      — {s.animals.map((a) => (typeof a === 'object' ? a.name : a)).join(', ')}
-                    </span>
-                  )}
-                </td>
-                <td>{statusLabel(s.status)}</td>
-                <td>{new Date(s.createdAt).toLocaleDateString('en-GB')}</td>
-                <td>{s.submittedAt ? new Date(s.submittedAt).toLocaleDateString('en-GB') : '—'}</td>
-                <td onClick={(e) => e.stopPropagation()}>
-                  <ActionsMenu
-                    items={[
-                      { label: 'Resend', onClick: () => setResendChoice(s) },
-                      { label: 'Edit', onClick: () => setEditing(s) },
-                      { label: 'Delete', onClick: () => setDeleting(s), danger: true, dividerBefore: true },
-                    ]}
-                  />
+          {groups.map((g) => (
+            <tbody key={g.key} className={collapsedGroups.has(g.key) ? 'card-collapsed' : undefined}>
+              <tr
+                className="card-collapse-header"
+                role="button"
+                tabIndex={0}
+                aria-expanded={!collapsedGroups.has(g.key)}
+                onClick={() => toggleGroup(g.key)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleGroup(g.key);
+                  }
+                }}
+              >
+                <td colSpan={5}>
+                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>
+                    {g.key}
+                    <span style={{ color: 'var(--muted)', fontWeight: 400 }}>({g.rows.length})</span>
+                  </h3>
                 </td>
               </tr>
-            ))}
-          </tbody>
+              {g.rows.map((s) => (
+                <tr key={s._id} onClick={() => setViewing(s)}>
+                  <td>
+                    {s.formName}
+                    {s.animal && typeof s.animal === 'object' && (
+                      <span style={{ color: 'var(--muted)' }}> — {s.animal.name}</span>
+                    )}
+                    {s.animals && s.animals.length > 0 && (
+                      <span style={{ color: 'var(--muted)' }}>
+                        {' '}
+                        — {s.animals.map((a) => (typeof a === 'object' ? a.name : a)).join(', ')}
+                      </span>
+                    )}
+                  </td>
+                  <td>{statusLabel(s.status)}</td>
+                  <td>{new Date(s.createdAt).toLocaleDateString('en-GB')}</td>
+                  <td>{s.submittedAt ? new Date(s.submittedAt).toLocaleDateString('en-GB') : '—'}</td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <ActionsMenu
+                      items={[
+                        { label: 'Resend', onClick: () => setResendChoice(s) },
+                        { label: 'Edit', onClick: () => setEditing(s) },
+                        { label: 'Delete', onClick: () => setDeleting(s), danger: true, dividerBefore: true },
+                      ]}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          ))}
         </table>
       )}
 

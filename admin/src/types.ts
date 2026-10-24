@@ -1050,6 +1050,10 @@ export interface FormSubmissionRecord {
   answers?: Record<string, unknown>;
   submittedAt?: string;
   createdAt: string;
+  // Only on a customer's own list (GET /form-submissions?customer=) -- the
+  // boarding booking this is a pre-check-in/check-in/check-out/incident
+  // report form for, if any. See backend's FormSubmissionsService.findAll().
+  booking?: { _id: string; reference: string };
 }
 
 // An Incident Report form submission, with the boarding booking it's linked
