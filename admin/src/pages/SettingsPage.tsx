@@ -3004,6 +3004,7 @@ function InvoicesSettingsTab() {
       <BankDetailsCard />
       <NotesMessageCard kind="invoice" />
       <NotesMessageCard kind="quote" />
+      <PriceListInformationCard />
     </div>
   );
 }
@@ -3058,6 +3059,7 @@ function BoardingSettingsTab() {
       <PreCheckInCard />
       <CheckInFormCard />
       <CheckOutFormCard />
+      <IncidentReportFormCard />
       <ChecklistsCard />
     </div>
   );
@@ -3215,7 +3217,7 @@ function BookingRichTextCard({
   );
 }
 
-// A plain <select> of every Form, used by the three cards below for their
+// A plain <select> of every Form, used by the cards below for their
 // Boarding/Day Care form pickers.
 function FormPicker({
   forms,
@@ -3474,6 +3476,62 @@ function CheckOutFormCard() {
   );
 }
 
+function IncidentReportFormCard() {
+  const { settings, forms, error: loadError, refresh } = useBoardingWorkflowSettings();
+  const [form, setForm] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!settings) return;
+    setForm(settings.incidentReportForm ?? '');
+  }, [settings]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      await api.updateBoardingWorkflowSettings({ incidentReportForm: form || null });
+      setSaved(true);
+      refresh();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save incident report settings');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Incident report form</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        What staff fill in from a booking's Incident Reports card after any incident, near miss, illness, injury,
+        escape or death. Starts as the "Incident Report" form, built from the paper form -- edit its questions in
+        Settings &gt; Forms.
+      </p>
+      {(loadError || saveError) && <div className="error-banner">{loadError ?? saveError}</div>}
+      {!settings ? (
+        <div className="empty-state">Loading…</div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div className="field-row">
+            <FormPicker forms={forms} value={form} onChange={setForm} label="Boarding & Day Care form" />
+          </div>
+          <div className="modal-actions" style={{ justifyContent: 'flex-start', gap: 12 }}>
+            <button className="btn btn-primary" type="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            {saved && <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>}
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
 // Every visit count/length/day type combination, 20 minute slots first.
 const VISIT_MAPPING_FIELDS: { key: keyof VisitMapping; label: string }[] = VISIT_DURATIONS.flatMap((duration) =>
   (['1', '2'] as const).flatMap((visits) =>
@@ -3639,6 +3697,71 @@ function NotesMessageCard({ kind }: { kind: 'invoice' | 'quote' }) {
         <form onSubmit={handleSubmit}>
           <div className="field">
             <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} />
+          </div>
+          <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
+            <button className="btn btn-primary" type="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save changes'}
+            </button>
+            {saved && (
+              <span style={{ color: 'var(--brand-green)', fontSize: '0.85rem', fontWeight: 600 }}>Saved.</span>
+            )}
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+// Free text appended to the end of the staff app's price list PDF
+// (mobile/lib/utils/price_list_pdf.dart) -- e.g. booking terms, what's
+// included, or how to get in touch. Left blank, nothing is added.
+function PriceListInformationCard() {
+  const [text, setText] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api
+      .getBusinessInfo()
+      .then((info) => {
+        setText(info.priceListInformation ?? '');
+        setLoaded(true);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load the price list information'));
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      await api.updateBusinessInfo({ priceListInformation: text });
+      setSaved(true);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save the price list information');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Price list Information</h2>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
+        Added to the end of the price list PDF emailed from the staff app. Leave blank to add nothing.
+      </p>
+      {error && <div className="error-banner">{error}</div>}
+      {saveError && <div className="error-banner">{saveError}</div>}
+      {!loaded ? (
+        <div className="empty-state">Loading…</div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div className="field">
+            <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} />
           </div>
           <div className="modal-actions" style={{ justifyContent: 'flex-start', alignItems: 'center' }}>
             <button className="btn btn-primary" type="submit" disabled={saving}>

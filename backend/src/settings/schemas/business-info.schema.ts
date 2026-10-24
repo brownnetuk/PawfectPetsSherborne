@@ -110,6 +110,11 @@ export class BusinessInfo extends Document {
   @Prop()
   quoteNotesMessage?: string;
 
+  // Free text appended to the end of the staff app's price list PDF
+  // (Settings > Invoice/Quotes > Price list Information).
+  @Prop()
+  priceListInformation?: string;
+
   // Numbering for generated invoices/quotes -- {year} and {seq} are
   // substituted by formatDocumentNumber (backend/src/common/document-number.util.ts);
   // *NextNumber is the number the *next* created document will use, and is

@@ -18,6 +18,7 @@ import type {
   BusinessInfo,
   ChecklistAssignment,
   ChecklistCategory,
+  ChecklistSession,
   ChecklistTemplate,
   Conversation,
   CreditNote,
@@ -629,6 +630,30 @@ export function updateBookingObservation(
 }
 export function deleteBookingObservation(bookingId: string, id: string): Promise<void> {
   return request(`/boarding-bookings/${bookingId}/observations/${id}`, { method: 'DELETE' });
+}
+
+// --- booking incident reports (Incident Report form submissions on a boarding/day care booking) ---
+export function listBookingIncidentReports(bookingId: string): Promise<FormSubmissionRecord[]> {
+  return request(`/boarding-bookings/${bookingId}/incident-reports`);
+}
+// Starts a new, pending report from Settings > Boarding's incident report
+// form -- fill it in with FormFillModal, or deleteBookingIncidentReport() to
+// discard it.
+export function createBookingIncidentReport(bookingId: string): Promise<FormSubmissionRecord> {
+  return request(`/boarding-bookings/${bookingId}/incident-reports`, { method: 'POST' });
+}
+export function updateBookingIncidentReport(
+  bookingId: string,
+  id: string,
+  answers: Record<string, unknown>,
+): Promise<FormSubmissionRecord> {
+  return request(`/boarding-bookings/${bookingId}/incident-reports/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ answers }),
+  });
+}
+export function deleteBookingIncidentReport(bookingId: string, id: string): Promise<void> {
+  return request(`/boarding-bookings/${bookingId}/incident-reports/${id}`, { method: 'DELETE' });
 }
 
 // --- invoice terms ---
@@ -1250,6 +1275,7 @@ export interface ChecklistTemplateInput {
   completeByTime?: string;
   items: string[];
   autoAssign?: boolean;
+  session?: ChecklistSession;
 }
 export function createChecklistTemplate(input: ChecklistTemplateInput): Promise<ChecklistTemplate> {
   return request('/checklist-templates', { method: 'POST', body: JSON.stringify(input) });
@@ -1271,7 +1297,7 @@ export function toggleChecklistItem(id: string, index: number): Promise<Checklis
 }
 export function updateChecklistAssignment(
   id: string,
-  input: { notes?: string; signatureImage?: string },
+  input: { notes?: string; signatureImage?: string; signedAt?: string },
 ): Promise<ChecklistAssignment> {
   return request(`/checklist-assignments/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
 }

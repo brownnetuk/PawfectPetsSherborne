@@ -232,6 +232,9 @@ export type DisplayFormField = FormFieldBase & {
   // Set by the admin's "+ New page" button -- a stronger section-divider
   // style here on the live fill form (no real pagination of its own).
   startsNewPage?: boolean;
+  // Set by the admin's "+ New section" button -- same divider style as
+  // startsNewPage here, but never a page break of its own.
+  startsSection?: boolean;
   // Shows the current terms/declaration from Settings > Business Info (the
   // same copy the intake wizard's AgreementStep shows) in place of `label`,
   // which stays as the fallback.

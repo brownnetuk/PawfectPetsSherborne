@@ -83,6 +83,12 @@ export type DisplayFormField = FormFieldBase & {
   // live fill form/preview, which has no real multi-page pagination of its
   // own to break.
   startsNewPage?: boolean;
+  // Like startsNewPage, but softer: the PDF export opens a new section card
+  // here (titled with `label`) without forcing a page break, and the live
+  // fill form/preview shows the same section-divider style. Used by the
+  // seeded "Incident Report" form (default-incident-report-form.ts) for its
+  // numbered paper-form sections.
+  startsSection?: boolean;
   // When set, the live fill form shows the CURRENT staff-managed copy of
   // this text from Settings > Business Info instead of `label` -- the same
   // public endpoints the real intake wizard's AgreementStep reads

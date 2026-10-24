@@ -3,7 +3,14 @@ import * as api from '../api/client';
 import Modal from './Modal';
 import type { BoardingWorkflowSettings, FormRecord } from '../types';
 
-type SlotKey = 'preCheckInFormBoarding' | 'preCheckInFormDayCare' | 'checkInFormBoarding' | 'checkInFormDayCare' | 'checkOutFormBoarding' | 'checkOutFormDayCare';
+type SlotKey =
+  | 'preCheckInFormBoarding'
+  | 'preCheckInFormDayCare'
+  | 'checkInFormBoarding'
+  | 'checkInFormDayCare'
+  | 'checkOutFormBoarding'
+  | 'checkOutFormDayCare'
+  | 'incidentReportForm';
 
 const SLOTS: { key: SlotKey; group: string; label: string }[] = [
   { key: 'preCheckInFormBoarding', group: 'Pre-check-in', label: 'Boarding' },
@@ -12,6 +19,7 @@ const SLOTS: { key: SlotKey; group: string; label: string }[] = [
   { key: 'checkInFormDayCare', group: 'Check-in', label: 'Day Care' },
   { key: 'checkOutFormBoarding', group: 'Check-out', label: 'Boarding' },
   { key: 'checkOutFormDayCare', group: 'Check-out', label: 'Day Care' },
+  { key: 'incidentReportForm', group: 'Incident reports', label: 'Boarding & Day Care' },
 ];
 
 // Which Boarding-workflow slots (Settings > Boarding) a given form currently

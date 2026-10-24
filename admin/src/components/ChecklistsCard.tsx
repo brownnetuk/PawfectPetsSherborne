@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
-import type { ChecklistCategory, ChecklistTemplate } from '../types';
+import type { ChecklistCategory, ChecklistSession, ChecklistTemplate } from '../types';
 import { TimeReadout } from './DateTimeReadout';
 import Modal from './Modal';
 import { PencilIcon, TrashIcon } from './icons';
@@ -8,6 +8,12 @@ import { PencilIcon, TrashIcon } from './icons';
 const CATEGORY_LABELS: Record<ChecklistCategory, string> = {
   dayCare: 'Day Care',
   boarding: 'Boarding',
+};
+
+const SESSION_LABELS: Record<ChecklistSession, string> = {
+  AM: 'AM',
+  PM: 'PM',
+  allDay: 'AM & PM',
 };
 
 // Settings > Boarding > Checklists -- reusable named task lists staff assign
@@ -81,7 +87,7 @@ export default function ChecklistsCard() {
                 <td>{t.name}</td>
                 <td>{t.completeByTime || '—'}</td>
                 <td>{t.items.length}</td>
-                <td>{t.autoAssign ? 'Yes' : 'No'}</td>
+                <td>{t.autoAssign ? `Yes (${SESSION_LABELS[t.session ?? 'allDay']})` : 'No'}</td>
                 <td>
                   <div style={{ display: 'flex', gap: 2 }}>
                     <button className="icon-btn" title="Edit" onClick={() => setEditing(t)}>
@@ -141,6 +147,7 @@ function EditChecklistModal({
 }) {
   const [category, setCategory] = useState<ChecklistCategory>(template?.category ?? 'dayCare');
   const [autoAssign, setAutoAssign] = useState(template?.autoAssign ?? false);
+  const [session, setSession] = useState<ChecklistSession>(template?.session ?? 'allDay');
   const [name, setName] = useState(template?.name ?? '');
   const [completeByTime, setCompleteByTime] = useState(template?.completeByTime ?? '');
   const [items, setItems] = useState<string[]>(template?.items ?? ['']);
@@ -164,7 +171,7 @@ function EditChecklistModal({
     setSubmitting(true);
     setError(null);
     try {
-      const input = { category, name, completeByTime: completeByTime || undefined, items: cleanedItems, autoAssign };
+      const input = { category, name, completeByTime: completeByTime || undefined, items: cleanedItems, autoAssign, session };
       if (template) {
         await api.updateChecklistTemplate(template._id, input);
       } else {
@@ -199,6 +206,20 @@ function EditChecklistModal({
             {category === 'boarding' ? 'boarding' : 'day care'} booking.
           </p>
         </div>
+        {autoAssign && (
+          <div className="field">
+            <label>Assign to</label>
+            <select value={session} onChange={(e) => setSession(e.target.value as ChecklistSession)}>
+              <option value="AM">AM - days a dog is in for the morning</option>
+              <option value="PM">PM - days a dog is in for the afternoon</option>
+              <option value="allDay">AM &amp; PM - any day a dog is in</option>
+            </select>
+            <p style={{ color: 'var(--muted)', fontSize: '0.82rem', marginTop: 4 }}>
+              A dog dropped off at or after 12:00 isn't in for the morning, and one collected at or before 12:00
+              isn't in for the afternoon.
+            </p>
+          </div>
+        )}
         <div className="field">
           <label>Name</label>
           <input

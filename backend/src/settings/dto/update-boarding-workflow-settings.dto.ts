@@ -43,4 +43,8 @@ export class UpdateBoardingWorkflowSettingsDto {
   @IsOptional()
   @IsBoolean()
   checkOutRequireSignature?: boolean;
+
+  @IsOptional()
+  @IsMongoId()
+  incidentReportForm?: string;
 }

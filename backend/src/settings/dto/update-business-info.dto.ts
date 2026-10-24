@@ -111,6 +111,10 @@ export class UpdateBusinessInfoDto {
 
   @IsOptional()
   @IsString()
+  priceListInformation?: string;
+
+  @IsOptional()
+  @IsString()
   @ValidateIf((o) => !!o.invoiceNumberTemplate)
   @Matches(/\{seq\}/, REQUIRE_SEQ_TOKEN)
   invoiceNumberTemplate?: string;

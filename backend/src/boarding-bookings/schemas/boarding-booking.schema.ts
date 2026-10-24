@@ -116,6 +116,12 @@ export class BoardingBooking extends Document {
   @Prop()
   checkOutBy?: string;
 
+  // Submitted (and any still-pending) Incident Report form submissions for
+  // this stay, in the order they were started -- see
+  // BookingIncidentReportsService.
+  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: FormSubmission.name }], default: [] })
+  incidentReports: Types.ObjectId[];
+
   // Unset (the default) means the status shown is computed automatically
   // from the fields above (see BoardingBookingsService.statusLabel()) --
   // set once staff manually override it from the Booking Detail page,

@@ -9,6 +9,7 @@ import '../models/bank_transfer.dart';
 import '../models/boarding_booking.dart';
 import '../models/booking.dart';
 import '../models/booking_observation.dart';
+import '../models/checklist.dart';
 import '../models/day_booking.dart';
 import '../models/finance_report.dart';
 import '../models/payment.dart' as models;
@@ -270,6 +271,58 @@ class Repository {
   Future<Booking> updateBookingStatus(String id, String status) async =>
       Booking.fromJson(await _client.patch('/bookings/$id', {'status': status}));
 
+  // --- checklists (Boarding > Checklists; templates live in admin Settings) ---
+
+  /// Every reusable checklist template, as the admin's Settings > Boarding >
+  /// Checklists lists them. Not gated: any staff member can assign one.
+  Future<List<ChecklistTemplate>> listChecklistTemplates() async =>
+      (await _client.getList('/checklist-templates')).map((e) => ChecklistTemplate.fromJson(e)).toList();
+
+  /// Creates a template. The server requires the `settings.manage`
+  /// permission, so a plain staff login gets a 403 the caller should show.
+  Future<ChecklistTemplate> createChecklistTemplate({
+    required String category, // 'boarding' | 'dayCare'
+    required String name,
+    String? completeByTime,
+    required List<String> items,
+    bool autoAssign = false,
+  }) async =>
+      ChecklistTemplate.fromJson(await _client.post('/checklist-templates', {
+        'category': category,
+        'name': name,
+        if (completeByTime != null && completeByTime.isNotEmpty) 'completeByTime': completeByTime,
+        'items': items,
+        'autoAssign': autoAssign,
+      }));
+
+  /// The checklists assigned to days from [from] (inclusive) to [to]
+  /// (exclusive), same $gte/$lt range as day bookings.
+  Future<List<ChecklistAssignment>> listChecklistAssignments({required DateTime from, required DateTime to}) async =>
+      (await _client.getList('/checklist-assignments', query: {'from': _ymd(from), 'to': _ymd(to)}))
+          .map((e) => ChecklistAssignment.fromJson(e))
+          .toList();
+
+  /// Assigns a copy of [templateId] to [date]. The server snapshots the
+  /// template's name, items, category and complete-by time.
+  Future<ChecklistAssignment> assignChecklist({required String templateId, required DateTime date}) async =>
+      ChecklistAssignment.fromJson(
+          await _client.post('/checklist-assignments', {'template': templateId, 'date': _ymd(date)}));
+
+  /// Ticks or unticks item [index]; the server records who did it from the
+  /// logged-in staff member.
+  Future<ChecklistAssignment> toggleChecklistItem(String id, int index) async =>
+      ChecklistAssignment.fromJson(await _client.patch('/checklist-assignments/$id/items/$index', {}));
+
+  /// Saves the day's notes and/or sign-off signature (a base64 PNG data URI;
+  /// an empty string clears the sign-off). Only the keys given are sent.
+  Future<ChecklistAssignment> updateChecklistAssignment(String id, {String? notes, String? signatureImage}) async =>
+      ChecklistAssignment.fromJson(await _client.patch('/checklist-assignments/$id', {
+        if (notes != null) 'notes': notes,
+        if (signatureImage != null) 'signatureImage': signatureImage,
+      }));
+
+  Future<void> deleteChecklistAssignment(String id) => _client.delete('/checklist-assignments/$id');
+
   // --- day bookings (the calendar: one dog + one day + one product) ---
   static String _ymd(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -358,13 +411,19 @@ class Repository {
   }
 
   /// Business name + contact line for the price-list PDF's header/sign-off.
-  Future<({String name, String contactLine})> getBusinessContact() async {
+  Future<({String name, String contactLine, String priceListInformation})>
+      getBusinessContact() async {
     final json = await _client.get('/settings/business');
     final contact = [json['telephone'], json['email']]
         .whereType<String>()
         .where((v) => v.trim().isNotEmpty)
         .join('  ·  ');
-    return (name: json['name'] as String? ?? 'PawfectPets Sherborne', contactLine: contact);
+    return (
+      name: json['name'] as String? ?? 'PawfectPets Sherborne',
+      contactLine: contact,
+      // Settings > Invoice/Quotes > Price list Information.
+      priceListInformation: json['priceListInformation'] as String? ?? '',
+    );
   }
 
   /// The business logo bytes (Settings > Business Info), or null if none.

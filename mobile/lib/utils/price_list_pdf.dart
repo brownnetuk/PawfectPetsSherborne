@@ -20,11 +20,15 @@ const _muted = PdfColor.fromInt(0xff5f6f7a);
 const _rule = PdfColor.fromInt(0xffd9e6ef);
 
 /// Builds the customer-facing price list as a branded A4 PDF, styled the same
-/// as the booking confirmation.
+/// as the booking confirmation. Products are listed under one heading per
+/// section (Walks, Visits, ...), and [information] -- the free text from
+/// Settings > Invoice/Quotes > Price list Information -- is appended after
+/// them when it isn't blank.
 Future<Uint8List> buildPriceListPdf({
-  required List<Product> products,
+  required List<({String heading, List<Product> products})> sections,
   required String businessName,
   required String contactLine,
+  String information = '',
   Uint8List? logoBytes,
 }) async {
   // Same faces the booking confirmation uses, fetched from Google Fonts --
@@ -133,30 +137,65 @@ Future<Uint8List> buildPriceListPdf({
         ),
       );
 
-  // One cream card per chunk so a long list paginates cleanly (a single
-  // background container can't split across pages).
+  // One cream card per section, split into chunks so a long section
+  // paginates cleanly (a single background container can't split across
+  // pages). The heading goes on the section's first card.
   const chunkSize = 12;
   final cards = <pw.Widget>[];
-  for (var start = 0; start < products.length; start += chunkSize) {
-    final chunk = products.sublist(
-        start, start + chunkSize > products.length ? products.length : start + chunkSize);
-    cards.add(pw.Container(
-      margin: const pw.EdgeInsets.only(top: 16),
-      decoration: pw.BoxDecoration(color: _cream, borderRadius: pw.BorderRadius.circular(12)),
-      padding: const pw.EdgeInsets.fromLTRB(16, 14, 16, 10),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          if (start == 0) ...[
-            pw.Text('Our prices', style: displayStyle(16, _blue)),
+  for (final section in sections) {
+    final products = section.products;
+    for (var start = 0; start < products.length; start += chunkSize) {
+      final chunk = products.sublist(
+          start, start + chunkSize > products.length ? products.length : start + chunkSize);
+      cards.add(pw.Container(
+        margin: const pw.EdgeInsets.only(top: 16),
+        decoration: pw.BoxDecoration(color: _cream, borderRadius: pw.BorderRadius.circular(12)),
+        padding: const pw.EdgeInsets.fromLTRB(16, 14, 16, 10),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            if (start == 0) ...[
+              pw.Text(section.heading, style: displayStyle(16, _blue)),
+              yellowBar(),
+            ],
+            for (var i = 0; i < chunk.length; i++)
+              productRow(chunk[i], last: i == chunk.length - 1),
+          ],
+        ),
+      ));
+    }
+  }
+
+  // The Price list Information text, one widget per paragraph straight on
+  // the page (no background card) so a long block can run onto the next page.
+  final paragraphs = information
+      .split(RegExp(r'\n\s*\n'))
+      .map((p) => p.trim())
+      .where((p) => p.isNotEmpty)
+      .toList();
+  final informationBlock = <pw.Widget>[
+    if (paragraphs.isNotEmpty) ...[
+      pw.Padding(
+        padding: const pw.EdgeInsets.only(top: 18, left: 16, right: 16),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text('Good to know', style: displayStyle(16, _blue)),
             yellowBar(),
           ],
-          for (var i = 0; i < chunk.length; i++)
-            productRow(chunk[i], last: i == chunk.length - 1),
-        ],
+        ),
       ),
-    ));
-  }
+      for (final p in paragraphs)
+        pw.Padding(
+          padding: const pw.EdgeInsets.only(left: 16, right: 16, bottom: 6),
+          child: pw.Paragraph(
+            text: p,
+            style: bodyStyle(10.5, _ink).copyWith(lineSpacing: 2),
+            margin: pw.EdgeInsets.zero,
+          ),
+        ),
+    ],
+  ];
 
   final signOff = pw.Container(
     margin: const pw.EdgeInsets.only(top: 18),
@@ -177,6 +216,7 @@ Future<Uint8List> buildPriceListPdf({
     build: (_) => [
       header,
       ...cards,
+      ...informationBlock,
       signOff,
       pw.Padding(
         padding: const pw.EdgeInsets.only(top: 6),

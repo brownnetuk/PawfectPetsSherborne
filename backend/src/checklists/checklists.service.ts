@@ -156,12 +156,20 @@ export class ChecklistsService {
   }
 
   // Called by DayBookingsService whenever a booking is created/dated, so any
-  // auto-assign template matching that booking's category gets a copy on
-  // that day -- unless one's already there (from a previous booking that
-  // day, or a staff member assigning it by hand).
-  async autoAssignForDate(date: Date, category: ChecklistCategory): Promise<void> {
+  // auto-assign template matching that booking's category -- and a part of
+  // the day the dog is actually in for (AM/PM/either for 'allDay') -- gets a
+  // copy on that day, unless one's already there (from a previous booking
+  // that day, or a staff member assigning it by hand).
+  async autoAssignForDate(
+    date: Date,
+    category: ChecklistCategory,
+    presence: { am: boolean; pm: boolean },
+  ): Promise<void> {
     const templates = await this.templateModel.find({ category, autoAssign: true }).exec();
     for (const template of templates) {
+      const session = template.session ?? 'allDay';
+      const wanted = session === 'AM' ? presence.am : session === 'PM' ? presence.pm : presence.am || presence.pm;
+      if (!wanted) continue;
       const exists = await this.assignmentModel.exists({ template: template._id, date });
       if (exists) continue;
       await this.createAssignment(template, date);
@@ -196,6 +204,12 @@ export class ChecklistsService {
       assignment.signatureImage = dto.signatureImage || undefined;
       assignment.signedBy = dto.signatureImage ? actor : undefined;
       assignment.signedAt = dto.signatureImage ? new Date() : undefined;
+    }
+    if (dto.signedAt !== undefined) {
+      if (!assignment.signatureImage) {
+        throw new BadRequestException('This checklist has not been signed yet');
+      }
+      assignment.signedAt = new Date(dto.signedAt);
     }
     return assignment.save();
   }

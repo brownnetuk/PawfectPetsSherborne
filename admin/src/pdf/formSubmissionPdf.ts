@@ -1,6 +1,6 @@
 import type { jsPDF } from 'jspdf';
 import type { FormField, FormSubmissionRecord } from '../types';
-import { withPetName } from '../forms/formDefaults';
+import { isFieldVisible, withPetName } from '../forms/formDefaults';
 import { formatMedications } from '../utils/formatMedications';
 import { parseRichLabelRuns } from '../utils/richLabel';
 import {
@@ -94,7 +94,7 @@ function singleFieldBlock(doc: jsPDF, field: FormField, value: unknown): Block {
 // marker inside its "Pet" group. Promoting a *top-level* display field to a
 // full section is buildSections' job below.
 function repetitionBlocks(doc: jsPDF, fields: FormField[], answers: Record<string, unknown>): Block[] {
-  return fields.map((field) =>
+  return fields.filter((field) => isFieldVisible(field, answers)).map((field) =>
     field.type === 'display' ? displayBlock(doc, field.label) : singleFieldBlock(doc, field, answers[field.id]),
   );
 }
@@ -147,6 +147,10 @@ function buildSections(
     forceNewPage = false;
   };
   for (const field of fields) {
+    // A field the fill form hid (its visibleWhen not met -- e.g. an "If yes:
+    // details" box whose question was answered No) is left out here too,
+    // rather than printed as an empty row.
+    if (!isFieldVisible(field, answers)) continue;
     if (field.type === 'display') {
       // A section title only when it's actually the marker that opens one --
       // startsNewPage explicitly, or it's the very first display field seen
@@ -161,7 +165,9 @@ function buildSections(
       // field holding a whole consent statement) is the section's first
       // paragraph instead -- under the form's name for the opening section,
       // untitled for a new page.
-      if (title === null || field.startsNewPage) {
+      // startsSection is the same as startsNewPage minus the page break --
+      // a new card, packed onto the current page if it fits.
+      if (title === null || field.startsNewPage || field.startsSection) {
         const opening: boolean = title === null && !field.startsNewPage;
         flush();
         forceNewPage = !!field.startsNewPage;
@@ -200,15 +206,21 @@ function buildSections(
   return sections;
 }
 
-/** Renders a completed (or in-progress) form submission as a branded, multi-section PDF, in the booking confirmation's style. */
-export async function buildFormSubmissionPdf(submission: FormSubmissionRecord): Promise<jsPDF> {
+/**
+ * Renders a completed (or in-progress) form submission as a branded, multi-section PDF, in the booking confirmation's style.
+ * `reference` (e.g. a booking reference, for an incident report) is added to the header's subtitle.
+ */
+export async function buildFormSubmissionPdf(
+  submission: FormSubmissionRecord,
+  { reference }: { reference?: string } = {},
+): Promise<jsPDF> {
   const w = new BrandPdfWriter();
   const [, contact] = await Promise.all([w.init(), loadContactLine()]);
   const doc = w.doc;
   const who = submission.recipientName || submission.recipientEmail;
   w.drawHeader({
     title: submission.formName,
-    subtitle: who ? `for ${who}` : undefined,
+    subtitle: [who ? `for ${who}` : '', reference ?? ''].filter(Boolean).join(' · ') || undefined,
     badge: submission.submittedAt
       ? { label: 'Submitted', value: new Date(submission.submittedAt).toLocaleDateString('en-GB') }
       : undefined,

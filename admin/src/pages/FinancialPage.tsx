@@ -7,6 +7,7 @@ import DateRangeFilterBar, { currentMonthFilters, inDateRange, matchesSearch } f
 import ExpenseModal from '../components/ExpenseModal';
 import Modal from '../components/Modal';
 import OtherIncomeModal, { type OtherIncomeDraft } from '../components/OtherIncomeModal';
+import SortableTh from '../components/SortableTh';
 import ViewExpenseModal from '../components/ViewExpenseModal';
 import { CopyIcon, InvoicesIcon, MailIcon, PencilIcon, TrashIcon } from '../components/icons';
 import { buildReceiptPdf } from '../pdf/receiptPdf';
@@ -71,6 +72,41 @@ type PaymentRow =
   | { kind: 'payment'; date: string; createdAt: string; payment: Payment }
   | { kind: 'otherIncome'; date: string; createdAt: string; income: OtherIncome };
 
+type PaymentSortKey = 'date' | 'invoice' | 'paymentId' | 'amount' | 'charges' | 'paymentMethod' | 'account';
+
+// The value each column sorts on. Other Income rows sort by what they show in
+// that column (received-from under Invoice, "Other income" under Payment ID).
+function paymentSortValue(row: PaymentRow, key: PaymentSortKey): string | number {
+  if (row.kind === 'otherIncome') {
+    const o = row.income;
+    switch (key) {
+      case 'date': return new Date(o.date).getTime();
+      case 'invoice': return o.receivedFrom;
+      case 'paymentId': return 'Other income';
+      case 'amount': return o.amount;
+      case 'charges': return 0;
+      case 'paymentMethod': return '';
+      case 'account': return accountLabel(o.account);
+    }
+  }
+  const p = row.payment;
+  switch (key) {
+    case 'date': return new Date(p.date).getTime();
+    case 'invoice': return invoiceLabel(p.invoice);
+    case 'paymentId': return p.paymentId;
+    case 'amount': return p.amount;
+    case 'charges': return p.charges ?? 0;
+    case 'paymentMethod': return p.paymentMethod ?? '';
+    case 'account': return accountLabel(p.account);
+  }
+}
+
+// Strings compare naturally (so PAY-10 sorts after PAY-9), numbers numerically.
+function comparePaymentValues(a: string | number, b: string | number): number {
+  if (typeof a === 'number' && typeof b === 'number') return a - b;
+  return String(a).localeCompare(String(b), 'en-GB', { numeric: true, sensitivity: 'base' });
+}
+
 function PaymentsCard() {
   const [payments, setPayments] = useState<Payment[] | null>(null);
   const [otherIncome, setOtherIncome] = useState<OtherIncome[] | null>(null);
@@ -88,6 +124,19 @@ function PaymentsCard() {
   const [receiptBusy, setReceiptBusy] = useState(false);
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [filters, setFilters] = useState(currentMonthFilters);
+  // No column active until a header is clicked, so the list keeps its
+  // newest-first order by default.
+  const [sortKey, setSortKey] = useState<PaymentSortKey | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  function toggleSort(key: PaymentSortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
 
   function refresh() {
     api
@@ -109,7 +158,7 @@ function PaymentsCard() {
         ].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
       : null;
 
-  const visibleRows = (rows ?? []).filter((row) => {
+  const filteredRows = (rows ?? []).filter((row) => {
     if (!inDateRange(row.date, filters.from, filters.to)) return false;
     const date = new Date(row.date).toLocaleDateString('en-GB');
     if (row.kind === 'otherIncome') {
@@ -127,6 +176,13 @@ function PaymentsCard() {
       accountLabel(p.account),
     ]);
   });
+  const visibleRows = sortKey
+    ? [...filteredRows].sort((a, b) => {
+        const cmp = comparePaymentValues(paymentSortValue(a, sortKey), paymentSortValue(b, sortKey));
+        return sortDir === 'asc' ? cmp : -cmp;
+      })
+    : filteredRows;
+  const sortProps = { activeKey: sortKey, dir: sortDir, onSort: toggleSort };
 
   async function handleDeleteIncome() {
     if (!deletingIncome) return;
@@ -226,13 +282,13 @@ function PaymentsCard() {
         <table>
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Invoice</th>
-              <th>Payment ID</th>
-              <th>Amount</th>
-              <th>Charges</th>
-              <th>Payment Method</th>
-              <th>Account</th>
+              <SortableTh label="Date" sortKey="date" {...sortProps} />
+              <SortableTh label="Invoice" sortKey="invoice" {...sortProps} />
+              <SortableTh label="Payment ID" sortKey="paymentId" {...sortProps} />
+              <SortableTh label="Amount" sortKey="amount" {...sortProps} />
+              <SortableTh label="Charges" sortKey="charges" {...sortProps} />
+              <SortableTh label="Payment Method" sortKey="paymentMethod" {...sortProps} />
+              <SortableTh label="Account" sortKey="account" {...sortProps} />
               <th></th>
             </tr>
           </thead>
