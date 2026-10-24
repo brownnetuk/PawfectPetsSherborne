@@ -103,6 +103,7 @@ export class SettingsService {
       accountNumber: doc?.accountNumber ?? '',
       invoiceNotesMessage: doc?.invoiceNotesMessage ?? DEFAULT_INVOICE_NOTES_MESSAGE,
       quoteNotesMessage: doc?.quoteNotesMessage ?? DEFAULT_QUOTE_NOTES_MESSAGE,
+      priceListInformation: doc?.priceListInformation ?? '',
       invoiceNumberTemplate: doc?.invoiceNumberTemplate ?? 'INV-{year}-{seq}',
       invoiceNextNumber: doc?.invoiceNextNumber ?? 1,
       quoteNumberTemplate: doc?.quoteNumberTemplate ?? 'QUO-{year}-{seq}',
@@ -162,6 +163,8 @@ export class SettingsService {
       update.invoiceNotesMessage = dto.invoiceNotesMessage;
     if (dto.quoteNotesMessage !== undefined)
       update.quoteNotesMessage = dto.quoteNotesMessage;
+    if (dto.priceListInformation !== undefined)
+      update.priceListInformation = dto.priceListInformation;
     if (dto.invoiceNumberTemplate !== undefined)
       update.invoiceNumberTemplate = dto.invoiceNumberTemplate;
     if (dto.invoiceNextNumber !== undefined)

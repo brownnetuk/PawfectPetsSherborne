@@ -99,7 +99,8 @@ class _PriceListScreenState extends State<PriceListScreen> {
 
   /// Prompts for a name and email, builds the branded PDF and emails it.
   Future<void> _emailPriceList() async {
-    final products = _listed((await _future).products);
+    final data = await _future;
+    final products = _listed(data.products);
     if (!mounted) return;
     if (products.isEmpty) {
       ScaffoldMessenger.of(context)
@@ -154,10 +155,20 @@ class _PriceListScreenState extends State<PriceListScreen> {
       final repo = context.read<Repository>();
       final business = await repo.getBusinessContact();
       final logo = await repo.getBusinessLogo();
+      // Same groups as the filter pills, in pill order, skipping any with
+      // nothing listed.
+      final sections = [
+        for (final group in _Group.values.where((g) => g != _Group.all))
+          (
+            heading: group.label,
+            products: products.where((p) => _groupOf(p, data.mapping) == group).toList(),
+          ),
+      ].where((s) => s.products.isNotEmpty).toList();
       final pdfBytes = await buildPriceListPdf(
-        products: products,
+        sections: sections,
         businessName: business.name,
         contactLine: business.contactLine,
+        information: business.priceListInformation,
         logoBytes: logo,
       );
       await repo.sendPriceListEmail(

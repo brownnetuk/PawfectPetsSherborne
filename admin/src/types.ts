@@ -711,6 +711,7 @@ export interface BusinessInfo {
   accountNumber: string;
   invoiceNotesMessage: string;
   quoteNotesMessage: string;
+  priceListInformation: string;
   invoiceNumberTemplate: string;
   invoiceNextNumber: number;
   quoteNumberTemplate: string;

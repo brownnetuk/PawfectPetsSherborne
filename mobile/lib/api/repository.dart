@@ -358,13 +358,19 @@ class Repository {
   }
 
   /// Business name + contact line for the price-list PDF's header/sign-off.
-  Future<({String name, String contactLine})> getBusinessContact() async {
+  Future<({String name, String contactLine, String priceListInformation})>
+      getBusinessContact() async {
     final json = await _client.get('/settings/business');
     final contact = [json['telephone'], json['email']]
         .whereType<String>()
         .where((v) => v.trim().isNotEmpty)
         .join('  ·  ');
-    return (name: json['name'] as String? ?? 'PawfectPets Sherborne', contactLine: contact);
+    return (
+      name: json['name'] as String? ?? 'PawfectPets Sherborne',
+      contactLine: contact,
+      // Settings > Invoice/Quotes > Price list Information.
+      priceListInformation: json['priceListInformation'] as String? ?? '',
+    );
   }
 
   /// The business logo bytes (Settings > Business Info), or null if none.
