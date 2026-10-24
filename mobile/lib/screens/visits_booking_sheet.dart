@@ -41,6 +41,9 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
   String? _customerId;
   final Set<String> _animalIds = {};
   int _visitsPerDay = 1;
+  // Visit length in minutes ('20' | '30' | '40') -- picks which Settings >
+  // Bookings > Visits product set the plan is built from, as in the admin.
+  String _visitDuration = '20';
   DateTime? _startDate;
   int _visitsFirstDay = 1;
   String _amPmFirstDay = 'PM';
@@ -119,6 +122,7 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
       visitsLastDay: _visitsLastDay,
       mapping: widget.visitMapping,
       bankHolidays: widget.bankHolidays,
+      duration: _visitDuration,
       amPmFirstDay: _amPmFirstDay,
       amPmLastDay: _amPmLastDay,
     );
@@ -406,7 +410,15 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
                     title: Text('${a.name}${a.species.isNotEmpty ? ' (${a.species})' : ''}'),
                   ),
               const SizedBox(height: 12),
-              _visitsDropdown('How many visits per day', _visitsPerDay, (v) => setState(() => _visitsPerDay = v)),
+              Row(
+                children: [
+                  Expanded(
+                    child: _visitsDropdown('How many visits per day', _visitsPerDay, (v) => setState(() => _visitsPerDay = v)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: _durationDropdown('Visit length', _visitDuration, (v) => setState(() => _visitDuration = v))),
+                ],
+              ),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -459,6 +471,20 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
               if (v != null) onChanged(v);
             }
           : null,
+    );
+  }
+
+  /// 20 / 30 / 40 minute visit length -- the admin's "Visit Length" select.
+  Widget _durationDropdown(String label, String value, ValueChanged<String> onChanged) {
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      decoration: InputDecoration(labelText: label),
+      items: [
+        for (final d in VisitMapping.visitDurations) DropdownMenuItem(value: d, child: Text('$d minutes')),
+      ],
+      onChanged: (v) {
+        if (v != null) onChanged(v);
+      },
     );
   }
 

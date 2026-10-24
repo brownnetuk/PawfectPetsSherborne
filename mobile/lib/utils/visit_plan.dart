@@ -13,7 +13,7 @@ class VisitPlanDay {
 
 class VisitPlanResult {
   final List<VisitPlanDay> plan;
-  /// "N Visit (Day Type)" labels for any combination with no product mapped.
+  /// "N Visit, M mins (Day Type)" labels for any combination with no product mapped.
   final List<String> missing;
   VisitPlanResult(this.plan, this.missing);
 }
@@ -21,7 +21,8 @@ class VisitPlanResult {
 /// Builds the day-by-day visit product plan for a date range, mirroring the
 /// admin `buildVisitPlan`: the first/last day use their own visit counts,
 /// every day between uses [visitsPerDay]; the mapped product comes from the
-/// Settings > Bookings > Visits mapping for each day's (count × day-type).
+/// Settings > Bookings > Visits mapping for each day's (count × length ×
+/// day-type), [duration] picking the 20/30/40 minute product set.
 /// An AM/PM override is recorded only for a single-visit first/last day.
 VisitPlanResult buildVisitPlan({
   required DateTime start,
@@ -31,6 +32,7 @@ VisitPlanResult buildVisitPlan({
   required int visitsLastDay,
   required VisitMapping mapping,
   required List<BankHoliday> bankHolidays,
+  String duration = '20',
   String amPmFirstDay = 'PM',
   String amPmLastDay = 'AM',
 }) {
@@ -52,9 +54,9 @@ VisitPlanResult buildVisitPlan({
                 ? visitsLastDay
                 : visitsPerDay;
     final dayType = dayTypeFor(date, bankHolidays);
-    final productId = mapping.productFor(visits, dayType);
+    final productId = mapping.productFor(visits, dayType, duration: duration);
     if (productId == null || productId.isEmpty) {
-      missing.add('$visits Visit (${availabilityLabels[dayType] ?? dayType})');
+      missing.add('$visits Visit, $duration mins (${availabilityLabels[dayType] ?? dayType})');
       continue;
     }
     String? visitTime;
