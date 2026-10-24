@@ -4686,6 +4686,8 @@ Every page uses the same pattern: local `useState`, a `useEffect` fetch through 
     - Each day shows a named box per dog per section, with a red border at capacity.
     - A day modal shows a 24h `TimelineRow` per booking, with AM (8am–1pm) and PM (1pm–6pm) background bands. Rounded bar ends mark exact times; square ends mean the stay continues past that edge.
     - Clicking a dog opens `BookingDetailModal`, which shows every row of the stay plus the invoice (`getInvoice`) and its payments (`listPayments`).
+  - **Check In / Check Out.** `CheckInOutTab`: one table of every boarding/day care booking (archived and old ones included) from `listBoardingBookings`, showing scheduled drop-off/pick-up beside the recorded `checkInAt`/`checkInBy` and `checkOutAt`/`checkOutBy`, with "View form" for the linked submission. Filters: All, Awaiting check-in, Checked in not out, Checked out; search by reference/customer/dog; sortable. A due stage shows a Check In / Check Out button that opens the booking straight into that form; a past one with nothing recorded shows "Not recorded".
+  - **Incident Reports.** `IncidentReportsCard` with no booking: every booking's reports.
   - **Risk Assessments.** `RiskAssessmentsTab`.
   - **Policies.** `PoliciesTab`.
   - **Checklists** (`ChecklistsTab`). A week or month calendar from `listChecklistAssignments(from, to)`, with templates from `listChecklistTemplates()`.
