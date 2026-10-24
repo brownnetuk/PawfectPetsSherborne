@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditEventType } from '../audit-log/schemas/audit-log-entry.schema';
 import { Customer } from '../customers/schemas/customer.schema';
 import { FormSubmission, FormSubmissionStatus } from '../form-submissions/schemas/form-submission.schema';
+import { CRA_DATE_FIELD } from '../forms/default-customer-risk-assessment-form';
 import { FormsService } from '../forms/forms.service';
 import { SettingsService } from '../settings/settings.service';
 
@@ -19,7 +20,7 @@ import { SettingsService } from '../settings/settings.service';
 // after it's submitted. Which of the customer's dogs it covers is the form's
 // own customer's-dogs field.
 @Injectable()
-export class CustomerRiskAssessmentsService {
+export class CustomerRiskAssessmentsService implements OnModuleInit {
   constructor(
     @InjectModel(FormSubmission.name)
     private readonly formSubmissionModel: Model<FormSubmission>,
@@ -29,6 +30,22 @@ export class CustomerRiskAssessmentsService {
     private readonly settingsService: SettingsService,
     private readonly auditLogService: AuditLogService,
   ) {}
+
+  // Assessments saved while the form's date was a non-editable 'today' field
+  // get the editable date field in their snapshot too, so editing one lets
+  // staff change its date (the saved answer is kept). A no-op once converted.
+  async onModuleInit(): Promise<void> {
+    await this.formSubmissionModel
+      .updateMany(
+        {
+          customerRiskAssessment: true,
+          formFieldsSnapshot: { $elemMatch: { id: CRA_DATE_FIELD.id, type: 'today' } },
+        },
+        { $set: { 'formFieldsSnapshot.$[f]': CRA_DATE_FIELD } },
+        { arrayFilters: [{ 'f.id': CRA_DATE_FIELD.id, 'f.type': 'today' }] },
+      )
+      .exec();
+  }
 
   private async findAssessment(id: string): Promise<FormSubmission> {
     const submission = await this.formSubmissionModel.findOne({ _id: id, customerRiskAssessment: true }).exec();

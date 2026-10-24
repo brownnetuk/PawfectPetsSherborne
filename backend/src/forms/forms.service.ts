@@ -8,7 +8,7 @@ import {
   DEFAULT_CHECKIN_FORM,
   DEFAULT_CHECKOUT_FORM,
 } from './default-boarding-checkin-checkout-forms';
-import { DEFAULT_CUSTOMER_RISK_ASSESSMENT_FORM } from './default-customer-risk-assessment-form';
+import { CRA_DATE_FIELD, DEFAULT_CUSTOMER_RISK_ASSESSMENT_FORM } from './default-customer-risk-assessment-form';
 import { DEFAULT_INCIDENT_REPORT_FORM } from './default-incident-report-form';
 import { FormField } from './form-field.types';
 import {
@@ -58,6 +58,7 @@ export class FormsService implements OnModuleInit {
     await this.seedPickedForm(DEFAULT_INCIDENT_REPORT_FORM, 'incidentReportForm');
     await this.seedPickedForm(DEFAULT_CUSTOMER_RISK_ASSESSMENT_FORM, 'customerRiskAssessmentForm');
     await this.addMissingCheckOutDetailsFields();
+    await this.upgradeCustomerRiskAssessmentDate();
     await this.upgradePreCheckInForms();
   }
 
@@ -163,6 +164,19 @@ export class FormsService implements OnModuleInit {
         .updateOne({ _id: settings._id }, { $set: { [setting]: result.value._id } })
         .exec();
     }
+  }
+
+  // The risk assessment's date was first seeded as a non-editable 'today'
+  // field -- swaps it (on the seeded form, or a staff copy of it) for the
+  // editable date field that starts as today. A no-op once converted.
+  private async upgradeCustomerRiskAssessmentDate(): Promise<void> {
+    await this.formModel
+      .updateMany(
+        { fields: { $elemMatch: { id: CRA_DATE_FIELD.id, type: 'today' } } },
+        { $set: { 'fields.$[f]': CRA_DATE_FIELD } },
+        { arrayFilters: [{ 'f.id': CRA_DATE_FIELD.id, 'f.type': 'today' }] },
+      )
+      .exec();
   }
 
   // Any form (the seeded "Departure Check-Out", or a staff copy of it) that

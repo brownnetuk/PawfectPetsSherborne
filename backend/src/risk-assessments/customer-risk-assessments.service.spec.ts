@@ -29,7 +29,7 @@ describe('CustomerRiskAssessmentsService', () => {
           return Promise.resolve(withId);
         }),
       })),
-      { findOne: jest.fn(), find: jest.fn(), findByIdAndDelete: jest.fn(() => exec({})) },
+      { findOne: jest.fn(), find: jest.fn(), findByIdAndDelete: jest.fn(() => exec({})), updateMany: jest.fn(() => exec({})) },
     ) as jest.Mock & Record<string, jest.Mock>;
     customerModel = { findById: jest.fn(() => exec(customer)) };
     settingsService = {
@@ -121,5 +121,14 @@ describe('CustomerRiskAssessmentsService', () => {
     submissionModel.findOne.mockReturnValue(exec(null));
     await expect(service.remove('id')).rejects.toThrow(NotFoundException);
     expect(submissionModel.findByIdAndDelete).not.toHaveBeenCalled();
+  });
+
+  it("swaps an older assessment's non-editable date for the editable one", async () => {
+    await service.onModuleInit();
+    expect(submissionModel.updateMany).toHaveBeenCalledWith(
+      { customerRiskAssessment: true, formFieldsSnapshot: { $elemMatch: { id: 'cra-date', type: 'today' } } },
+      { $set: { 'formFieldsSnapshot.$[f]': expect.objectContaining({ id: 'cra-date', type: 'date', defaultValue: '{{today}}' }) } },
+      { arrayFilters: [{ 'f.id': 'cra-date', 'f.type': 'today' }] },
+    );
   });
 });
