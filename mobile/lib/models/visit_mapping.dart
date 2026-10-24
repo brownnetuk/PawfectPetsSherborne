@@ -18,10 +18,15 @@ class VisitMapping {
   final String? boardingSecondDogPerDay;
   final String? boardingHalfDay;
   final String? boardingSecondDogHalfDay;
-  // The 30 and 40 minute visit slots (the six above are the 20 minute ones).
-  // Only needed to recognise those bookings as visits, so kept as id sets.
-  final Set<String> longerOneVisitIds;
-  final Set<String> longerTwoVisitIds;
+  // Every visit slot by its backend field name (oneVisitWeekdayProduct,
+  // twoVisit30MinBankHolidayProduct, ...) -- the six named fields above are
+  // the 20 minute ones; 30 and 40 minute visits have a "30Min"/"40Min" infix.
+  // See [visitSlotKey]. Unconfigured slots are absent.
+  final Map<String, String> visitSlots;
+
+  /// The visit lengths staff can pick, in minutes -- same set as the admin's
+  /// Settings > Bookings > Visits and quote/booking forms.
+  static const visitDurations = ['20', '30', '40'];
 
   VisitMapping({
     this.oneVisitWeekday,
@@ -38,18 +43,30 @@ class VisitMapping {
     this.boardingSecondDogPerDay,
     this.boardingHalfDay,
     this.boardingSecondDogHalfDay,
-    this.longerOneVisitIds = const {},
-    this.longerTwoVisitIds = const {},
+    this.visitSlots = const {},
   });
 
   static String? _id(dynamic v) =>
       v is Map<String, dynamic> ? v['_id'] as String? : (v as String?);
 
-  static Set<String> _longerIds(Map<String, dynamic> json, String count) => [
-        for (final minutes in ['30', '40'])
-          for (final day in ['Weekday', 'Weekend', 'BankHoliday'])
-            _id(json['${count}Visit${minutes}Min${day}Product']),
-      ].whereType<String>().toSet();
+  static const _dayTypeSuffix = {'weekday': 'Weekday', 'weekend': 'Weekend', 'bank_holiday': 'BankHoliday'};
+
+  /// The backend field for ([visits] 1|2, [duration] '20'|'30'|'40',
+  /// [dayType] 'weekday'|'weekend'|'bank_holiday'), e.g.
+  /// oneVisitWeekdayProduct or twoVisit30MinBankHolidayProduct -- the same
+  /// naming as the admin's visitMappingKey.
+  static String visitSlotKey(int visits, String duration, String dayType) {
+    final infix = duration == '20' ? '' : '${duration}Min';
+    return '${visits == 2 ? 'two' : 'one'}Visit$infix${_dayTypeSuffix[dayType] ?? 'Weekday'}Product';
+  }
+
+  static Map<String, String> _visitSlots(Map<String, dynamic> json) => {
+        for (final visits in [1, 2])
+          for (final duration in visitDurations)
+            for (final dayType in _dayTypeSuffix.keys)
+              if (_id(json[visitSlotKey(visits, duration, dayType)]) case final String id)
+                visitSlotKey(visits, duration, dayType): id,
+      };
 
   factory VisitMapping.fromJson(Map<String, dynamic> json) => VisitMapping(
         oneVisitWeekday: _id(json['oneVisitWeekdayProduct']),
@@ -66,18 +83,17 @@ class VisitMapping {
         boardingSecondDogPerDay: _id(json['boardingSecondDogPerDayProduct']),
         boardingHalfDay: _id(json['boardingHalfDayProduct']),
         boardingSecondDogHalfDay: _id(json['boardingSecondDogHalfDayProduct']),
-        longerOneVisitIds: _longerIds(json, 'one'),
-        longerTwoVisitIds: _longerIds(json, 'two'),
+        visitSlots: _visitSlots(json),
       );
 
-  Set<String> get _oneVisitIds => {
-        ...{oneVisitWeekday, oneVisitWeekend, oneVisitBankHoliday}.whereType<String>(),
-        ...longerOneVisitIds,
+  Set<String> _visitIds(int visits, [List<String> durations = visitDurations]) => {
+        for (final duration in durations)
+          for (final dayType in _dayTypeSuffix.keys)
+            if (visitSlots[visitSlotKey(visits, duration, dayType)] case final String id) id,
       };
-  Set<String> get _twoVisitIds => {
-        ...{twoVisitWeekday, twoVisitWeekend, twoVisitBankHoliday}.whereType<String>(),
-        ...longerTwoVisitIds,
-      };
+
+  Set<String> get _oneVisitIds => _visitIds(1);
+  Set<String> get _twoVisitIds => _visitIds(2);
   Set<String> get _dayCareIds => {
         dayCareHalfDay,
         dayCareFullDay,
@@ -104,20 +120,21 @@ class VisitMapping {
     return null;
   }
 
-  /// The mapped 20 minute product for [visits] (1 or 2) on the given [dayType]
-  /// ('weekday' | 'weekend' | 'bank_holiday'), or null if unconfigured.
-  String? productFor(int visits, String dayType) {
-    if (visits == 1) {
-      return switch (dayType) {
-        'weekend' => oneVisitWeekend,
-        'bank_holiday' => oneVisitBankHoliday,
-        _ => oneVisitWeekday,
-      };
+  /// The visit length ('20' | '30' | '40') a mapped visit product is set up
+  /// for, defaulting to '20' for anything else -- the admin's
+  /// visitDurationForProduct.
+  String visitDurationForProduct(String productId) {
+    for (final duration in visitDurations) {
+      if (_visitIds(1, [duration]).contains(productId) || _visitIds(2, [duration]).contains(productId)) {
+        return duration;
+      }
     }
-    return switch (dayType) {
-      'weekend' => twoVisitWeekend,
-      'bank_holiday' => twoVisitBankHoliday,
-      _ => twoVisitWeekday,
-    };
+    return '20';
   }
+
+  /// The mapped product for [visits] (1 or 2) of [duration] minutes
+  /// ('20' | '30' | '40', default 20) on the given [dayType]
+  /// ('weekday' | 'weekend' | 'bank_holiday'), or null if unconfigured.
+  String? productFor(int visits, String dayType, {String duration = '20'}) =>
+      visitSlots[visitSlotKey(visits, duration, dayType)];
 }

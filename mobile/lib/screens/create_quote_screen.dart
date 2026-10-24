@@ -66,6 +66,9 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
   bool _showVisits = false;
   final Set<String> _visitAnimalIds = {};
   int _visitsPerDay = 1;
+  // Visit length in minutes ('20' | '30' | '40'), saved on the quote's visit
+  // plan so accepting it books that length's products -- as in the admin.
+  String _visitDuration = '20';
   DateTime? _visitStart;
   DateTime? _visitEnd;
   int _visitsFirstDay = 1;
@@ -304,6 +307,7 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
       visitsLastDay: _visitsLastDay,
       mapping: data.visitMapping,
       bankHolidays: data.bankHolidays,
+      duration: _visitDuration,
     );
     if (result.missing.isNotEmpty) {
       setState(() => _visitError =
@@ -490,7 +494,27 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
                 title: Text('${p.name}${p.species.isNotEmpty ? ' (${p.species})' : ''}'),
               ),
           const SizedBox(height: 8),
-          _visitsCountDropdown('How many visits per day', _visitsPerDay, (v) => setState(() => _visitsPerDay = v)),
+          Row(
+            children: [
+              Expanded(
+                child: _visitsCountDropdown('How many visits per day', _visitsPerDay, (v) => setState(() => _visitsPerDay = v)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: _visitDuration,
+                  decoration: const InputDecoration(labelText: 'Visit length'),
+                  items: [
+                    for (final d in VisitMapping.visitDurations)
+                      DropdownMenuItem(value: d, child: Text('$d minutes')),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) setState(() => _visitDuration = v);
+                  },
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -854,6 +878,7 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
           'visitsPerDay': '$_visitsPerDay',
           'visitsFirstDay': '$_visitsFirstDay',
           'visitsLastDay': '$_visitsLastDay',
+          'visitDuration': _visitDuration,
         };
       }
       Map<String, dynamic>? dayCarePlan;

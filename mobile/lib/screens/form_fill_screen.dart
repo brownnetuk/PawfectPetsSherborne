@@ -433,7 +433,7 @@ class _FormFillScreenState extends State<FormFillScreen> {
           ),
         ));
       case 'toggle':
-        final extra = _toggleExtra(label);
+        final extra = _toggleExtra(label, scope);
         final tile = SwitchListTile(
           contentPadding: EdgeInsets.zero,
           dense: true,
@@ -617,10 +617,12 @@ class _FormFillScreenState extends State<FormFillScreen> {
 
   /// Context shown under a confirmation toggle, picked by its label: the
   /// pets' vaccination cards, the owner's pre-check-in feeding answers, or
-  /// the customer's emergency contact.
-  Widget? _toggleExtra(String label) {
+  /// the customer's emergency contact. [scope] is the answers the toggle
+  /// sits in -- a per-pet repetition for the check-in's "Dog's name"
+  /// sections -- so the vaccination card can be narrowed to that one dog.
+  Widget? _toggleExtra(String label, Map<String, dynamic> scope) {
     final lower = label.toLowerCase();
-    if (lower.contains('vaccination record')) return _vaccineCardThumbs();
+    if (lower.contains('vaccination record')) return _vaccineCardThumbs(_scopePetName(scope));
     if (lower.contains('feeding') && widget.preCheckInSubmissionId != null) {
       return _extraLink(Icons.restaurant_outlined, 'View feeding instructions', _showFeedingModal);
     }
@@ -641,12 +643,28 @@ class _FormFillScreenState extends State<FormFillScreen> {
     );
   }
 
+  /// The pet a repetition's answers are about: the first answer that names one
+  /// of the booking's pets (the "Dog's name" choice). Null for a top-level
+  /// toggle, or before a pet has been picked.
+  String? _scopePetName(Map<String, dynamic> scope) {
+    final names = widget.presetPetNames.isNotEmpty ? widget.presetPetNames : _animals.map((a) => a.name).toList();
+    for (final v in scope.values) {
+      if (v is String && names.contains(v)) return v;
+    }
+    return null;
+  }
+
   /// The booked pets' vaccination cards (from their customer-details records),
-  /// as tappable thumbnails that expand to a zoomable full view.
-  Widget? _vaccineCardThumbs() {
+  /// as tappable thumbnails that expand to a zoomable full view. Inside a
+  /// pet's own section ([petName] set) only that pet's card is shown (nothing
+  /// if it has none on file); every booked pet's card is shown when the
+  /// toggle isn't tied to one pet.
+  Widget? _vaccineCardThumbs(String? petName) {
     final withCards = _animals
         .where((a) =>
-            (widget.presetPetNames.isEmpty || widget.presetPetNames.contains(a.name)) &&
+            (petName != null
+                ? a.name == petName
+                : widget.presetPetNames.isEmpty || widget.presetPetNames.contains(a.name)) &&
             (a.vaccineRecordPhoto?.trim().isNotEmpty ?? false))
         .toList();
     if (withCards.isEmpty) return null;

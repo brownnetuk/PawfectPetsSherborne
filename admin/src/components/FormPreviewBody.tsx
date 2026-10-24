@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormField, GroupFormField, VisibilityRule } from '../types';
+import { withPetName } from '../forms/formDefaults';
 import RichLabel from '../utils/richLabel';
 import DateInput from './DateInput';
 
@@ -119,7 +120,11 @@ export default function FormPreviewBody({ name, description, fields }: Props) {
       <h2>{name || '(untitled form)'}</h2>
       {description && <p style={{ color: 'var(--muted)' }}>{description}</p>}
 
-      {fields
+      {/* {{petName}} reads as it would on a real send with no single pet to
+          name ("your dog" -- see withPetName / the backend's labelPlaceholders)
+          rather than as the raw token; other {{tokens}} stay literal, since
+          this preview has no customer to resolve them against. */}
+      {withPetName(fields, undefined)
         .filter((field) => isVisible(field.visibleWhen, answers))
         .map((field) =>
           field.type === 'group' ? (
@@ -144,7 +149,7 @@ export default function FormPreviewBody({ name, description, fields }: Props) {
                       </button>
                     )}
                   </div>
-                  {field.fields
+                  {withPetName(field.fields, field.repetitionLabels?.[index])
                     .filter((child) => isVisible(child.visibleWhen, repetition))
                     .map((child) => (
                       <PreviewField

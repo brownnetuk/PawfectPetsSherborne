@@ -6,6 +6,7 @@ import '../api/repository.dart';
 import '../models/bank_holiday.dart';
 import '../models/customer.dart';
 import '../models/day_booking.dart';
+import '../models/invoice.dart';
 import '../models/product.dart';
 import '../models/visit_mapping.dart';
 import '../utils/visit_plan.dart';
@@ -13,8 +14,9 @@ import '../utils/visit_plan.dart';
 /// Books "Visits" across a date range, mirroring the admin New Booking modal:
 /// for each day in the range it looks up the product from the Visits mapping
 /// (visit count × day-type) and creates a day booking per selected dog, adding
-/// the owner's travel product when configured. Pops `true` when anything was
-/// created.
+/// the owner's travel product when configured. Once created, offers to raise
+/// a draft invoice for just those rows and then to email it, same as the
+/// admin's BookingInvoicePrompt. Pops `true` when anything was created.
 class VisitsBookingSheet extends StatefulWidget {
   final List<Customer> customers;
   final List<AnimalRef> animals;
@@ -39,6 +41,9 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
   String? _customerId;
   final Set<String> _animalIds = {};
   int _visitsPerDay = 1;
+  // Visit length in minutes ('20' | '30' | '40') -- picks which Settings >
+  // Bookings > Visits product set the plan is built from, as in the admin.
+  String _visitDuration = '20';
   DateTime? _startDate;
   int _visitsFirstDay = 1;
   String _amPmFirstDay = 'PM';
@@ -117,6 +122,7 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
       visitsLastDay: _visitsLastDay,
       mapping: widget.visitMapping,
       bankHolidays: widget.bankHolidays,
+      duration: _visitDuration,
       amPmFirstDay: _amPmFirstDay,
       amPmLastDay: _amPmLastDay,
     );
@@ -150,41 +156,169 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
       final owner = animal == null ? null : _ownerOf(animal.customerId);
       final travelId = (owner?.travelChargeable ?? false) ? owner?.travelProductId : null;
 
-      var created = 0;
+      // Every row created this time round -- what the invoice prompt bills.
+      final createdRows = <DayBooking>[];
       var skipped = 0;
       for (final entry in plan) {
         if (ids.any((id) => existingKeys.contains('$id|${_ymd(entry.date)}'))) {
           skipped++;
           continue;
         }
-        await repo.createDayBooking(
+        createdRows.add(await repo.createDayBooking(
           animalId: primaryId,
           additionalAnimalIds: otherIds,
           date: entry.date,
           productId: entry.productId,
           quantity: 1,
           visitTime: entry.visitTime,
-        );
-        created++;
+        ));
         if (travelId != null && travelId.isNotEmpty && travelId != entry.productId) {
-          await repo.createDayBooking(
+          createdRows.add(await repo.createDayBooking(
             animalId: primaryId,
             date: entry.date,
             productId: travelId,
             quantity: 1,
-          );
-          created++;
+          ));
         }
       }
+      final created = createdRows.length;
       setState(() {
         _busy = false;
         _result = 'Created $created booking${created == 1 ? '' : 's'}'
             '${skipped > 0 ? ', skipped $skipped already booked' : ''}.';
       });
+      if (created > 0 && mounted) {
+        await _offerInvoice(repo, custId, createdRows);
+      }
     } catch (e) {
       setState(() {
         _busy = false;
         _error = e is ApiException ? e.message : 'Failed to save the booking';
+      });
+    }
+  }
+
+  /// A yes/no question on top of the sheet. Pops with the dialog's own
+  /// context (showDialog uses the root navigator, not this sheet's).
+  Future<bool> _ask({
+    required String title,
+    required String message,
+    required String noLabel,
+    required String yesLabel,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: Text(noLabel)),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: Text(yesLabel)),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  /// Asked straight after the bookings are created, mirroring the admin's
+  /// BookingInvoicePrompt: "Generate an invoice?" Yes raises one draft
+  /// invoice from just the rows created (one line per product, travel rows
+  /// included since the sheet books them as their own product) and links
+  /// those rows to it so the monthly Generate Invoices run skips them. Then
+  /// offers to email it straight away. Either step declined leaves the
+  /// bookings (and any draft) exactly as they are.
+  Future<void> _offerInvoice(Repository repo, String customerId, List<DayBooking> rows) async {
+    final customerName = _ownerOf(customerId)?.name ?? 'the customer';
+    final generate = await _ask(
+      title: 'Generate an invoice?',
+      message: 'Create a draft invoice for this booking now?',
+      noLabel: 'No',
+      yesLabel: 'Yes, create draft',
+    );
+    if (!generate || !mounted) return;
+
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final Invoice invoice;
+    try {
+      // Sum quantity per product into one line item each, pricing from the
+      // catalogue (the create response may carry only the product id).
+      final catalogue = {for (final p in widget.products) p.id: p};
+      final byProduct = <String, ({String name, double price, int qty})>{};
+      for (final row in rows) {
+        final product = catalogue[row.productId];
+        final name = product?.name ?? (row.productName.isNotEmpty ? row.productName : 'Booking');
+        final price = product?.price ?? row.productPrice;
+        final existing = byProduct[row.productId];
+        byProduct[row.productId] = existing == null
+            ? (name: name, price: price, qty: row.quantity)
+            : (name: existing.name, price: existing.price, qty: existing.qty + row.quantity);
+      }
+      final lineItems = byProduct.values
+          .map((p) => InvoiceLineItem(description: p.name, quantity: p.qty.toDouble(), unitPrice: p.price))
+          .toList();
+
+      final dates = rows.map((r) => DateTime(r.date.year, r.date.month, r.date.day)).toList()..sort();
+      final first = dates.first;
+      final last = dates.last;
+      final terms = await repo.listInvoiceTerms();
+      InvoiceTerm? defaultTerm;
+      for (final t in terms) {
+        if (t.isDefault) defaultTerm = t;
+      }
+
+      // Drafted by the server; due on the last date it covers, same as the
+      // monthly run.
+      invoice = await repo.createInvoice(
+        customerId: customerId,
+        lineItems: lineItems,
+        issueDate: DateTime.now(),
+        dueDate: last,
+        paymentTerms: defaultTerm?.text,
+        subject: first == last
+            ? 'Booking for ${_dateFmt.format(first)}'
+            : 'Booking ${_dateFmt.format(first)} – ${_dateFmt.format(last)}',
+      );
+      for (final row in rows) {
+        await repo.updateDayBooking(row.id, invoiceId: invoice.id);
+      }
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _result = '$_result Draft invoice ${invoice.invoiceNumber} created.';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = e is ApiException ? e.message : 'Failed to generate the invoice';
+      });
+      return;
+    }
+
+    final send = await _ask(
+      title: 'Send invoice',
+      message: 'Email invoice ${invoice.invoiceNumber} to $customerName?',
+      noLabel: 'Not now',
+      yesLabel: 'Send',
+    );
+    if (!send || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      await repo.sendInvoiceEmail(invoice.id);
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _result = '$_result Emailed to $customerName.';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = e is ApiException ? e.message : 'Failed to send the invoice';
       });
     }
   }
@@ -219,11 +353,16 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
                 decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
                 child: Text(_result!, style: TextStyle(color: Colors.green.shade800)),
               ),
+              // Raising/emailing the invoice after the bookings are in.
+              if (_busy) ...[
+                const SizedBox(height: 12),
+                const LinearProgressIndicator(),
+              ],
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(true),
+                  onPressed: _busy ? null : () => Navigator.of(context).pop(true),
                   child: const Text('Close'),
                 ),
               ),
@@ -271,7 +410,15 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
                     title: Text('${a.name}${a.species.isNotEmpty ? ' (${a.species})' : ''}'),
                   ),
               const SizedBox(height: 12),
-              _visitsDropdown('How many visits per day', _visitsPerDay, (v) => setState(() => _visitsPerDay = v)),
+              Row(
+                children: [
+                  Expanded(
+                    child: _visitsDropdown('How many visits per day', _visitsPerDay, (v) => setState(() => _visitsPerDay = v)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: _durationDropdown('Visit length', _visitDuration, (v) => setState(() => _visitDuration = v))),
+                ],
+              ),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -324,6 +471,20 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
               if (v != null) onChanged(v);
             }
           : null,
+    );
+  }
+
+  /// 20 / 30 / 40 minute visit length -- the admin's "Visit Length" select.
+  Widget _durationDropdown(String label, String value, ValueChanged<String> onChanged) {
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      decoration: InputDecoration(labelText: label),
+      items: [
+        for (final d in VisitMapping.visitDurations) DropdownMenuItem(value: d, child: Text('$d minutes')),
+      ],
+      onChanged: (v) {
+        if (v != null) onChanged(v);
+      },
     );
   }
 
