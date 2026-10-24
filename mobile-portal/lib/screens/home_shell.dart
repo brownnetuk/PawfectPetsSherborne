@@ -5,7 +5,7 @@ import '../api/repository.dart';
 import '../services/notification_store.dart';
 import '../services/push_service.dart';
 import '../state/auth_provider.dart';
-import '../theme.dart';
+import '../widgets/brand.dart';
 import 'bookings_screen.dart';
 import 'details_screen.dart';
 import 'invoices_screen.dart';
@@ -27,7 +27,14 @@ class _HomeShellState extends State<HomeShell> {
   late final NotificationsCenter _center;
   static const _messagesTab = 4;
 
-  static const _titles = ['My Details', 'Invoices', 'Quotes', 'Bookings', 'Messages'];
+  // The blue header band's title per tab, same shape as the staff app's tabs.
+  static const _titles = [
+    BrandTitle(lead: 'My', highlight: 'details'),
+    BrandTitle(lead: 'Your', highlight: 'invoices'),
+    BrandTitle(lead: 'Your', highlight: 'quotes'),
+    BrandTitle(lead: 'Your', highlight: 'bookings'),
+    BrandTitle(lead: 'Your', highlight: 'messages'),
+  ];
 
   @override
   void initState() {
@@ -105,14 +112,11 @@ class _HomeShellState extends State<HomeShell> {
           if (n.needsAck)
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: brandGreen,
-                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.compact,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               icon: const Icon(Icons.check, size: 18),
               label: const Text('Acknowledge'),
@@ -168,7 +172,8 @@ class _HomeShellState extends State<HomeShell> {
     ];
     return Scaffold(
       appBar: AppBar(
-        title: Text(_titles[_index]),
+        toolbarHeight: brandTitleHeight,
+        title: _titles[_index],
         actions: [
           _BellButton(unread: _unread, onPressed: _openNotifications),
           IconButton(

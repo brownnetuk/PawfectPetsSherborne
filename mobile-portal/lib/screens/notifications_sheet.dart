@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/notification_store.dart';
 import '../theme.dart';
+import '../widgets/brand.dart';
 
 /// The bell feed: lists this customer's notifications (on-device captures merged
 /// with the server feed). Marks them read on open, and pops the tapped
@@ -32,8 +33,13 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
       maxChildSize: 0.95,
       builder: (context, controller) => Column(
         children: [
-          const SizedBox(height: 12),
-          Text('Notifications', style: Theme.of(context).textTheme.titleMedium),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: BrandHeading('Notifications', padding: EdgeInsets.only(top: 8, bottom: 4)),
+            ),
+          ),
           const Divider(height: 20),
           Expanded(
             child: FutureBuilder<List<LocalNotification>>(
@@ -45,7 +51,7 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
                 final items = snap.data ?? [];
                 if (items.isEmpty) {
                   return Center(
-                    child: Text('No notifications yet.', style: TextStyle(color: Colors.grey.shade600)),
+                    child: Text('No notifications yet.', style: TextStyle(color: brandMuted)),
                   );
                 }
                 return ListView.separated(
@@ -56,14 +62,15 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
                     final n = items[i];
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: const Color(0xFFEAF5EE),
-                        child: Icon(_iconFor(n.type), color: brandGreenDark, size: 20),
+                        backgroundColor: brandBlueTint,
+                        child: Icon(_iconFor(n.type), color: brandBlue, size: 20),
                       ),
-                      title: Text(n.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text(n.body, maxLines: 2, overflow: TextOverflow.ellipsis),
+                      title: Text(n.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                      subtitle: Text(n.body, maxLines: 2, overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: brandMuted)),
                       trailing: Text(
                         DateFormat('d MMM HH:mm').format(n.timestamp),
-                        style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                        style: const TextStyle(color: brandMuted, fontSize: 11),
                       ),
                       onTap: () => Navigator.of(context).pop(n),
                     );

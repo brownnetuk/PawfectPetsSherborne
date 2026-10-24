@@ -2,7 +2,7 @@ name: pawfectpets_portal
 description: "Pawfect Pets Sherborne — customer portal app."
 publish_to: 'none'
 
-version: 1.0.0+18
+version: 1.1.0+19
 
 environment:
   sdk: ^3.13.1
@@ -41,3 +41,21 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+
+  # Brand look, shared with the staff app and the admin's booking-confirmation
+  # PDFs: the round logo, Archivo Black for display headings and DM Sans for
+  # body text (both SIL OFL -- see assets/fonts/README.md).
+  assets:
+    - assets/images/logo.png
+
+  fonts:
+    - family: DMSans
+      fonts:
+        - asset: assets/fonts/DMSans-Regular.ttf
+        - asset: assets/fonts/DMSans-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/DMSans-Italic.ttf
+          style: italic
+    - family: ArchivoBlack
+      fonts:
+        - asset: assets/fonts/ArchivoBlack-Regular.ttf

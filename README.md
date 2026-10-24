@@ -5707,14 +5707,18 @@ Override it with `flutter run --dart-define=API_BASE_URL=http://localhost:3000`.
 - The `MaterialApp.home` is a `Consumer<AuthProvider>` that shows a spinner while `loading`, then `HomeShell` if `loggedIn`, else `LoginScreen`.
 - `AuthProvider` is the **only `ChangeNotifier`**. Screens otherwise use local `StatefulWidget` state with `FutureBuilder`, and get services via `context.read<Repository>()`.
 
-`lib/theme.dart`:
-- Material 3, seed and primary `brandGreen #2F7A4F`, `brandGreenDark #1F5C38`.
-- Scaffold background `#F6F8F7`, a white app bar, green elevated buttons, filled outlined inputs.
-- `statusColor`/`statusBg` map statuses: active/completed/paid/confirmed are green, pending/requested amber, cancelled red, anything else grey.
+`lib/theme.dart` (a copy of the staff app's `mobile/lib/theme.dart`, so both apps and the booking-confirmation PDFs share one look):
+- Brand palette: blue `#0072B5` (dark `#005A8F`), yellow `#FDF101`, pink `#C72F56`, cream `#FBF7EE`, ink `#1D2A33`, muted `#5F6F7A`, rule `#D9E6EF`, plus blue/yellow/pink tints.
+- Fonts: `ArchivoBlack` for display headings (`displayFont`) and `DMSans` for body text (`bodyFont`), bundled under `assets/fonts/`.
+- Material 3: a blue app bar with rounded lower corners and white display-font title, flat cream cards (radius 16), a white navigation bar with a yellow selected indicator, blue elevated/filled buttons, blue outlined buttons, cream chips, rounded (12) outlined inputs, pink FAB.
+- `OnBrandBar` restyles controls placed on the blue header band (white labels/borders).
+- `statusColor`/`statusBg` map statuses: active/completed/paid/confirmed/accepted are blue on blue tint, pending/requested/sent/partially_paid ink on yellow tint, cancelled/declined dark pink on pink tint, anything else muted grey.
+
+`lib/widgets/brand.dart` (copied from the staff app): `BrandTitle` (round logo, "PAWFECT PETS · SHERBORNE" eyebrow, display-font title with the yellow-underlined word; `brandTitleHeight` 76), `RefPill` (yellow document-number pill), `BrandSectionLabel` (small-caps blue label) and `BrandHeading` (display-font heading over a short yellow bar).
 
 `lib/widgets/common.dart`:
 - Formatters: `money` (en_GB £) and `dateFmt` (`d MMM yyyy`).
-- `StatusChip`.
+- `StatusChip` (underscores shown as spaces).
 - `ErrorListView` (Retry, scrollable so pull-to-refresh works) and `EmptyListView`.
 
 ### Networking (`lib/api/api_client.dart`)
@@ -5939,7 +5943,7 @@ The save calls `POST /portal/animals` or `PATCH /portal/animals/:id`, then pops 
 #### Messages tab (`messages_screen.dart`)
 
 - A chat thread that loads on init and **polls every 5s**. It keeps the view at the bottom if the user was already within 40px of it.
-- Staff bubbles are grey and on the left; the customer's are green and on the right. Each shows "{senderName ∣ Pawfect Pets ∣ You} · d MMM HH:mm".
+- Staff bubbles are cream and on the left; the customer's are brand blue and on the right (the mirror of the staff app's thread). Each shows "{senderName ∣ Pawfect Pets ∣ You} · d MMM HH:mm".
 - The composer allows 1–4 lines and has a send button.
 - **Long-press on your own message** offers "Delete message? This removes it for everyone." and then calls `DELETE /portal/messages/:id`.
 
@@ -6035,7 +6039,8 @@ The save calls `POST /portal/animals` or `PATCH /portal/animals/:id`, then pops 
 |---|---|
 | `lib/main.dart` | Entry point: builds `ApiClient`, `Repository` and `PushService`, wraps the app in a `MultiProvider`, and chooses the root screen from `AuthProvider` state |
 | `lib/config.dart` | Compile-time `--dart-define` constants |
-| `lib/theme.dart` | Material 3 theme (`brandGreen #2F7A4F`, `brandGreenDark #1F5C38`, scaffold `#F6F8F7`), plus `statusColor()` / `statusBg()` for status pills |
+| `lib/theme.dart` | Material 3 brand theme shared with the staff app (blue `#0072B5`, yellow `#FDF101`, pink, cream cards, Archivo Black + DM Sans), `OnBrandBar`, plus `statusColor()` / `statusBg()` for status pills |
+| `lib/widgets/brand.dart` | `BrandTitle` header-band title, `RefPill`, `BrandSectionLabel`, `BrandHeading` (copied from the staff app) |
 | `lib/api/api_client.dart` | Thin HTTP wrapper (`package:http`) |
 | `lib/api/repository.dart` | One method per backend call (868 lines), plus a session cache for reference data |
 | `lib/state/auth_provider.dart` | The only global state (`ChangeNotifier`) |

@@ -14,11 +14,11 @@ class StatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final label = status.isEmpty ? '' : status[0].toUpperCase() + status.substring(1);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(color: statusBg(status), borderRadius: BorderRadius.circular(999)),
       child: Text(
-        label,
-        style: TextStyle(color: statusColor(status), fontSize: 12, fontWeight: FontWeight.w600),
+        label.replaceAll('_', ' '),
+        style: TextStyle(color: statusColor(status), fontSize: 12, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -52,7 +52,7 @@ class EmptyListView extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(children: [
       const SizedBox(height: 120),
-      Center(child: Text(message, style: TextStyle(color: Colors.grey.shade600))),
+      Center(child: Text(message, style: const TextStyle(color: brandMuted))),
     ]);
   }
 }

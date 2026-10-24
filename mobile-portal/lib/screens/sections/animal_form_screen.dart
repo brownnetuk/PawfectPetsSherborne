@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import '../../theme.dart';
 import 'package:provider/provider.dart';
 import 'package:signature/signature.dart';
 import '../../api/api_client.dart';
@@ -501,9 +502,9 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFB),
+        color: brandCream,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: brandRule),
       ),
       child: Column(
         children: [
@@ -514,7 +515,7 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
               if (_meds.length > 1)
                 IconButton(
                   visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.delete_outline, color: Color(0xFFC0392B)),
+                  icon: const Icon(Icons.delete_outline, color: brandPink),
                   onPressed: () => _removeMed(i),
                 ),
             ],
@@ -564,9 +565,9 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFB),
+              color: brandCream,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
+              border: Border.all(color: brandRule),
             ),
             child: Text(consentText, style: const TextStyle(fontSize: 13, height: 1.4)),
           ),
@@ -575,19 +576,19 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
             padding: const EdgeInsets.only(bottom: 6),
             child: Text(
               'A signature is already on file. Sign again below only if you want to replace it.',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              style: const TextStyle(color: brandMuted, fontSize: 12),
             ),
           ),
         const Text('Sign to consent', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
         Container(
           decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFCBD5E1)),
+            border: Border.all(color: brandRule),
             borderRadius: BorderRadius.circular(8),
             color: Colors.white,
           ),
           clipBehavior: Clip.antiAlias,
-          child: Signature(controller: _sig, height: 160, backgroundColor: const Color(0xFFF8FAFB)),
+          child: Signature(controller: _sig, height: 160, backgroundColor: brandCream),
         ),
         Align(
           alignment: Alignment.centerRight,
@@ -611,7 +612,7 @@ class _AnimalFormScreenState extends State<AnimalFormScreen> {
           const Text('Vaccination card', style: TextStyle(fontWeight: FontWeight.w600)),
           const Text(
             'A photo of your pet\'s vaccination card or record (optional).',
-            style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+            style: TextStyle(fontSize: 12, color: brandMuted),
           ),
           const SizedBox(height: 8),
           if (bytes != null)

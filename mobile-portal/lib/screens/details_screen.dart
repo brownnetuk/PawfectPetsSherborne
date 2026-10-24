@@ -27,9 +27,10 @@ class DetailsScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(profile?.name ?? '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 2),
-                Text(profile?.email ?? '', style: TextStyle(color: Colors.grey.shade600)),
+                Text(profile?.name ?? '',
+                    style: const TextStyle(fontFamily: displayFont, fontSize: 18, color: brandBlue)),
+                const SizedBox(height: 4),
+                Text(profile?.email ?? '', style: const TextStyle(color: brandMuted)),
               ],
             ),
           ),
@@ -93,12 +94,12 @@ class _MenuTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: const Color(0xFFEAF5EE),
-          child: Icon(icon, color: brandGreenDark),
+          backgroundColor: brandBlueTint,
+          child: Icon(icon, color: brandBlue),
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: Text(subtitle, style: const TextStyle(color: brandMuted)),
+        trailing: const Icon(Icons.chevron_right, color: brandMuted),
         onTap: onTap,
       ),
     );

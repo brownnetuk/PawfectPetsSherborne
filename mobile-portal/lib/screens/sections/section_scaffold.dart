@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme.dart';
 
 /// Shared chrome for an editable Details sub-section: an app bar, an error
 /// banner, the scrollable form body, and a sticky Save button.
@@ -30,9 +31,9 @@ class SectionScaffold extends StatelessWidget {
           if (error != null)
             Container(
               width: double.infinity,
-              color: const Color(0xFFFDECEA),
+              color: brandPinkTint,
               padding: const EdgeInsets.all(12),
-              child: Text(error!, style: const TextStyle(color: Color(0xFFC0392B))),
+              child: Text(error!, style: const TextStyle(color: brandPink, fontWeight: FontWeight.w600)),
             ),
           Expanded(
             child: ListView(

@@ -102,7 +102,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFC0392B)),
+            style: TextButton.styleFrom(foregroundColor: brandPink),
             child: const Text('Delete'),
           ),
         ],
@@ -166,7 +166,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
           child: Text(
             'No messages yet. Send us a message and we\'ll reply here.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600),
+            style: const TextStyle(color: brandMuted),
           ),
         ),
       );
@@ -203,19 +203,21 @@ class _Bubble extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              // Mirror of the staff app's thread: the customer's own messages
+              // are the blue bubbles, the business's replies cream.
               decoration: BoxDecoration(
-                color: fromStaff ? const Color(0xFFEEF1F4) : brandGreen,
+                color: fromStaff ? brandCream : brandBlue,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Text(
                 message.body,
-                style: TextStyle(color: fromStaff ? Colors.black87 : Colors.white),
+                style: TextStyle(color: fromStaff ? brandInk : Colors.white),
               ),
             ),
             const SizedBox(height: 2),
             Text(
               '${fromStaff ? (message.senderName ?? 'Pawfect Pets') : 'You'} · ${DateFormat('d MMM HH:mm').format(message.createdAt)}',
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+              style: const TextStyle(color: brandMuted, fontSize: 11),
             ),
           ],
           ),

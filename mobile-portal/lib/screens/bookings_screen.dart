@@ -76,28 +76,29 @@ class _BookingCard extends StatelessWidget {
             Container(
               width: 46,
               height: 46,
-              decoration: BoxDecoration(color: statusBg('confirmed'), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: brandBlueTint, borderRadius: BorderRadius.circular(12)),
               alignment: Alignment.center,
-              child: const Icon(Icons.pets, color: brandGreenDark),
+              child: const Icon(Icons.pets, color: brandBlue),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('${b.productName}$qty', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text('${b.productName}$qty', style: const TextStyle(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 2),
-                  Text(b.animalName, style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
+                  Text(b.animalName, style: const TextStyle(color: brandMuted, fontSize: 13)),
                 ],
               ),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(dateFmt.format(b.date), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                Text(dateFmt.format(b.date),
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: brandBlue)),
                 if (b.visitTime != null) ...[
                   const SizedBox(height: 2),
-                  Text(b.visitTime!, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                  Text(b.visitTime!, style: const TextStyle(color: brandMuted, fontSize: 12)),
                 ],
               ],
             ),
