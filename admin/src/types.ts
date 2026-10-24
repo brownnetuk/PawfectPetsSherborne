@@ -1165,6 +1165,32 @@ export interface RiskAssessment {
   updatedAt: string;
 }
 
+// "Import from Word" (Risk Assessments list): what the backend read out of
+// an uploaded .docx, shown as an editable preview before it's saved.
+// likelihood/severity are null where the document's cell couldn't be read.
+export interface ImportedRiskDraft {
+  hazard: string;
+  whoAtRisk?: string;
+  existingControls: string[];
+  furtherActions: string[];
+  likelihood: number | null;
+  severity: number | null;
+  residualRisk: ResidualRisk;
+  reviewPeriod?: ReviewFrequency;
+}
+
+export interface ImportedRiskAssessmentDraft {
+  name: string;
+  regulationReference?: string;
+  reviewFrequency?: ReviewFrequency;
+  scope?: string;
+  assessmentDate?: string;
+  nextReviewDate?: string;
+  assessedBy?: string;
+  risks: ImportedRiskDraft[];
+  warnings: string[];
+}
+
 // --- Policies (Boarding & Day Care > Policies) ---
 
 export type PolicyStatus = 'draft' | 'published';

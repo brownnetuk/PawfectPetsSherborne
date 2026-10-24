@@ -3,6 +3,7 @@ import * as api from '../api/client';
 import { buildRiskAssessmentPdf } from '../pdf/riskAssessmentPdf';
 import ActionsMenu from './ActionsMenu';
 import Badge from './Badge';
+import ImportRiskAssessmentModal from './ImportRiskAssessmentModal';
 import Modal from './Modal';
 import RiskAssessmentDetailModal, { ReviewRiskAssessmentModal } from './RiskAssessmentDetailModal';
 import type { RiskAssessment } from '../types';
@@ -32,6 +33,7 @@ export default function RiskAssessmentsTab() {
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [emailing, setEmailing] = useState<RiskAssessment | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
 
   function refresh() {
     api
@@ -70,9 +72,14 @@ export default function RiskAssessmentsTab() {
     <div>
       <div className="page-header">
         <h1>Risk Assessments</h1>
-        <button className="btn btn-primary" onClick={() => setShowForm({ mode: 'create' })}>
-          + Create Risk Assessment
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-secondary" onClick={() => setImporting(true)}>
+            Import from Word
+          </button>
+          <button className="btn btn-primary" onClick={() => setShowForm({ mode: 'create' })}>
+            + Create Risk Assessment
+          </button>
+        </div>
       </div>
 
       <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -8 }}>
@@ -141,6 +148,18 @@ export default function RiskAssessmentsTab() {
           onSaved={() => {
             setShowForm(null);
             refresh();
+          }}
+        />
+      )}
+
+      {importing && (
+        <ImportRiskAssessmentModal
+          existing={assessments ?? []}
+          onClose={() => setImporting(false)}
+          onImported={(ra) => {
+            setImporting(false);
+            refresh();
+            setOpenId(ra._id);
           }}
         />
       )}

@@ -14,6 +14,7 @@ import type {
   BookingObservation,
   Booking,
   BookingStatusLabel,
+  ImportedRiskAssessmentDraft,
   ObservationCategory,
   BusinessInfo,
   ChecklistAssignment,
@@ -1375,6 +1376,22 @@ export function updateRiskItem(
 }
 export function deleteRiskItem(assessmentId: string, riskId: string): Promise<RiskAssessment> {
   return request(`/risk-assessments/${assessmentId}/risks/${riskId}`, { method: 'DELETE' });
+}
+export function previewRiskAssessmentImport(file: string, fileName: string): Promise<ImportedRiskAssessmentDraft> {
+  return request('/risk-assessments/import/preview', { method: 'POST', body: JSON.stringify({ file, fileName }) });
+}
+export function importRiskAssessment(input: {
+  name: string;
+  regulationReference?: string;
+  reviewFrequency?: string;
+  scope?: string;
+  assessmentDate?: string;
+  nextReviewDate?: string;
+  assessedBy?: string;
+  fileName?: string;
+  risks: RiskItemInput[];
+}): Promise<RiskAssessment> {
+  return request('/risk-assessments/import', { method: 'POST', body: JSON.stringify(input) });
 }
 export function sendRiskAssessmentEmail(id: string, email: string): Promise<RiskAssessment> {
   return request(`/risk-assessments/${id}/send-email`, { method: 'POST', body: JSON.stringify({ email }) });

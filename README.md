@@ -2894,6 +2894,8 @@ There is no PATCH or GET-by-id, and no status field.
 | POST | `/risk-assessments` | `bookings.manage` | Create. `raId = RA{n}` from `BusinessInfo.riskAssessmentNextNumber`. `assessmentDate` = today. Audit entry "Assessment Created". |
 | PATCH | `/risk-assessments/:id` | `bookings.manage` | Update the header fields. Records the changed fields in the audit log. Going `live` (and not already live) with a `reviewFrequency` sets `nextReviewDate`. |
 | DELETE | `/risk-assessments/:id` | `bookings.manage` | Delete. |
+| POST | `/risk-assessments/import/preview` | `bookings.manage` | "Import from Word" step 1. Body `{ file, fileName }` (base64 `.docx` data URI). Reads it with mammoth and `risk-assessment-import.parser.ts` into a draft (name, scope, dates, review frequency, risks, warnings). Columns are matched by header wording, not position. Nothing is saved. |
+| POST | `/risk-assessments/import` | `bookings.manage` | "Import from Word" step 2. Creates the (checked/edited) draft as a new `draft` assessment with all its risks in one save. Audit entry "Assessment Imported". |
 | POST | `/risk-assessments/:id/review` | `bookings.manage` | "Review Policy" sign-off. `nextReviewDate` = today + interval; resets `reviewDueNotified`. Audit entry "Policy Reviewed". |
 | POST | `/risk-assessments/:id/risks` | `bookings.manage` | Add a risk item. Audit entry "Risk Item Added". |
 | PATCH | `/risk-assessments/:id/risks/:riskId` | `bookings.manage` | Update a risk item. Audit entry "Risk Item Updated". |

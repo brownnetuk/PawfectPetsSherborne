@@ -4,6 +4,7 @@ import type { CurrentUserShape } from '../auth/current-user.decorator';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { CreateRiskAssessmentDto } from './dto/create-risk-assessment.dto';
 import { CreateRiskItemDto } from './dto/create-risk-item.dto';
+import { ImportRiskAssessmentDto, PreviewRiskAssessmentImportDto } from './dto/import-risk-assessment.dto';
 import { SendRiskAssessmentEmailDto } from './dto/send-risk-assessment-email.dto';
 import { UpdateRiskAssessmentDto } from './dto/update-risk-assessment.dto';
 import { UpdateRiskItemDto } from './dto/update-risk-item.dto';
@@ -27,6 +28,18 @@ export class RiskAssessmentsController {
   @Post()
   create(@Body() dto: CreateRiskAssessmentDto, @CurrentUser() user: CurrentUserShape) {
     return this.riskAssessmentsService.create(dto, user.name);
+  }
+
+  @RequirePermission('bookings.manage')
+  @Post('import/preview')
+  previewImport(@Body() dto: PreviewRiskAssessmentImportDto) {
+    return this.riskAssessmentsService.previewImport(dto.file, dto.fileName);
+  }
+
+  @RequirePermission('bookings.manage')
+  @Post('import')
+  importAssessment(@Body() dto: ImportRiskAssessmentDto, @CurrentUser() user: CurrentUserShape) {
+    return this.riskAssessmentsService.importAssessment(dto, user.name);
   }
 
   @RequirePermission('bookings.manage')
