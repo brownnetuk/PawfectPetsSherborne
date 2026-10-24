@@ -595,6 +595,7 @@ export interface BoardingWorkflowSettings {
   checkOutFormDayCare: string | null;
   checkOutRequireSignature: boolean;
   incidentReportForm: string | null;
+  customerRiskAssessmentForm: string | null;
 }
 
 export interface CrmActivity {

@@ -439,6 +439,7 @@ export class SettingsService {
       checkOutFormDayCare: doc?.checkOutFormDayCare?.toString() ?? null,
       checkOutRequireSignature: doc?.checkOutRequireSignature ?? true,
       incidentReportForm: doc?.incidentReportForm?.toString() ?? null,
+      customerRiskAssessmentForm: doc?.customerRiskAssessmentForm?.toString() ?? null,
     };
   }
 
@@ -455,6 +456,8 @@ export class SettingsService {
     if (dto.checkOutFormDayCare !== undefined) update.checkOutFormDayCare = dto.checkOutFormDayCare;
     if (dto.checkOutRequireSignature !== undefined) update.checkOutRequireSignature = dto.checkOutRequireSignature;
     if (dto.incidentReportForm !== undefined) update.incidentReportForm = dto.incidentReportForm;
+    if (dto.customerRiskAssessmentForm !== undefined)
+      update.customerRiskAssessmentForm = dto.customerRiskAssessmentForm;
     await this.boardingWorkflowSettingsModel.findOneAndUpdate({}, update, { upsert: true }).exec();
     return this.getBoardingWorkflowSettings();
   }

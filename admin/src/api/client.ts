@@ -669,6 +669,31 @@ export function deleteBookingIncidentReport(bookingId: string, id: string): Prom
   return request(`/boarding-bookings/${bookingId}/incident-reports/${id}`, { method: 'DELETE' });
 }
 
+// --- customer risk assessments (New Dog Intake Risk Assessment form submissions on a customer) ---
+// Completed ones, newest first -- every customer's, or just one's.
+export function listCustomerRiskAssessments(customerId?: string): Promise<FormSubmissionRecord[]> {
+  return request(`/customer-risk-assessments${customerId ? `?customer=${customerId}` : ''}`);
+}
+// Starts a new, pending one from Settings > Boarding's customer risk
+// assessment form -- fill it in with FormFillModal, or
+// deleteCustomerRiskAssessment() to discard it.
+export function createCustomerRiskAssessment(customerId: string): Promise<FormSubmissionRecord> {
+  return request('/customer-risk-assessments', { method: 'POST', body: JSON.stringify({ customer: customerId }) });
+}
+export function updateCustomerRiskAssessment(id: string, answers: Record<string, unknown>): Promise<FormSubmissionRecord> {
+  return request(`/customer-risk-assessments/${id}`, { method: 'PATCH', body: JSON.stringify({ answers }) });
+}
+// Links the assessment to a different customer.
+export function moveCustomerRiskAssessment(id: string, customerId: string): Promise<FormSubmissionRecord> {
+  return request(`/customer-risk-assessments/${id}/customer`, {
+    method: 'PATCH',
+    body: JSON.stringify({ customer: customerId }),
+  });
+}
+export function deleteCustomerRiskAssessment(id: string): Promise<void> {
+  return request(`/customer-risk-assessments/${id}`, { method: 'DELETE' });
+}
+
 // --- invoice terms ---
 export function listInvoiceTerms(): Promise<InvoiceTerm[]> {
   return request('/invoice-terms');

@@ -4,7 +4,7 @@ import { Form } from '../../forms/schemas/form.schema';
 
 // Singleton-style collection, same pattern as VisitMapping/BusinessInfo:
 // exactly one document holds Settings > Boarding's Pre-check-in/Check-in/
-// Check-out/Incident report cards -- which Form (from the dynamic Forms builder) each stage
+// Check-out/Incident report/Customer risk assessment cards -- which Form (from the dynamic Forms builder) each stage
 // uses, split by Boarding vs Day Care since the two need different fields.
 @Schema({ timestamps: true })
 export class BoardingWorkflowSettings extends Document {
@@ -46,6 +46,12 @@ export class BoardingWorkflowSettings extends Document {
   // (FormsService.seedIncidentReportForm()).
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Form.name })
   incidentReportForm?: Types.ObjectId;
+
+  // The form staff fill in for a customer's dog(s) from Risk Assessments >
+  // Customer Risk Assessments. Pointed at the seeded "New Dog Intake Risk
+  // Assessment" form on first boot (FormsService.seedPickedForm()).
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Form.name })
+  customerRiskAssessmentForm?: Types.ObjectId;
 }
 
 export const BoardingWorkflowSettingsSchema = SchemaFactory.createForClass(BoardingWorkflowSettings);

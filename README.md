@@ -2902,6 +2902,18 @@ There is no PATCH or GET-by-id, and no status field.
 | DELETE | `/risk-assessments/:id/risks/:riskId` | `bookings.manage` | Remove a risk item. Audit entry "Risk Item Removed". |
 | POST | `/risk-assessments/:id/send-email` | `bookings.manage` | Email `{email}` a rendered summary (`generic`). Audit entry "Emailed". |
 
+#### `CustomerRiskAssessmentsController` — `/customer-risk-assessments` (`risk-assessments/customer-risk-assessments.controller.ts`)
+
+Each customer risk assessment is an ordinary `FormSubmission` of Settings > Boarding's `customerRiskAssessmentForm` (the seeded "New Dog Intake Risk Assessment"), tied to the customer and flagged `customerRiskAssessment: true`. Filling one in uses the normal `/form-submissions/:id/public` and `/submit` endpoints; which dogs it covers is the form's own `customerPets` field.
+
+| Method | Path | Auth/permission | Purpose |
+|---|---|---|---|
+| GET | `/customer-risk-assessments` | JWT | Completed assessments, newest `submittedAt` first, with `customer` populated (`name`). `?customer=<id>` limits it to one customer. |
+| POST | `/customer-risk-assessments` | JWT | Body `{customer}` starts a pending, flagged submission (no animals). 400 if no form is configured or the customer has no email. |
+| PATCH | `/customer-risk-assessments/:id` | JWT | Body `{answers}` replaces a submitted assessment's answers and writes a "Risk assessment updated" audit entry. |
+| PATCH | `/customer-risk-assessments/:id/customer` | JWT | Body `{customer}` re-points the assessment and its recipient at another customer. Audit-logged once submitted. |
+| DELETE | `/customer-risk-assessments/:id` | JWT | Deletes the submission (also used to discard a cancelled new one). |
+
 #### `PoliciesController` — `/policies` (`policies/policies.controller.ts`)
 
 | Method | Path | Auth / permission | Purpose |
@@ -3566,7 +3578,13 @@ flowchart LR
   - immediate action; follow-up actions (owner informed, vet contacted, local authority, RIDDOR, risk assessment reviewed + "If yes"), each Yes/No/N/A;
   - root cause; preventive actions, action owner, target date;
   - sign-off: staff name/signature/date and licence holder name/signature/date (optional, so it can be added later by editing).
-  - The first boot that inserts it also points `BoardingWorkflowSettings.incidentReportForm` at it when unset (`seedIncidentReportForm()`).
+  - The first boot that inserts it also points `BoardingWorkflowSettings.incidentReportForm` at it when unset (`seedPickedForm()`).
+- **"New Dog Intake Risk Assessment"** (`default-customer-risk-assessment-form.ts`, staff-only). Built from the paper RA6 form, one `startsSection` heading per paper section:
+  - dog details: dog's name (`customerPets` multichoice, required), owner's name (`{{customerName}}`), arrival date;
+  - behavioural history, health & vaccination status, handling & escape risk: each paper section's tick boxes as one multichoice, with a details box after the first two;
+  - risk rating & action: likelihood and severity (1-5 choices, required), risk score (number, filled in as likelihood × severity by the admin fill form), action needed;
+  - sign-off: assessed by (`{{staffMemberSignedIn}}`), signature, date (`today`).
+  - The first boot that inserts it also points `BoardingWorkflowSettings.customerRiskAssessmentForm` at it when unset.
 
 **Boot-time migrations:**
 
@@ -4290,6 +4308,16 @@ Generated from `client.ts`, then checked by hand. "Used by" lists the files that
 | `moveBookingIncidentReport` | PATCH | `/boarding-bookings/:bookingId/incident-reports/:id/booking` | IncidentReportsCard |
 | `deleteBookingIncidentReport` | DELETE | `/boarding-bookings/:bookingId/incident-reports/:id` | IncidentReportsCard |
 | `listIncidentReports` | GET | `/incident-reports` | IncidentReportsCard (Incident Reports tab) |
+
+##### Customer risk assessments
+
+| Function | Method | Endpoint | Used by |
+|---|---|---|---|
+| `listCustomerRiskAssessments` | GET | `/customer-risk-assessments` | CustomerRiskAssessmentsCard (Risk Assessments tab, customer Forms tab) |
+| `createCustomerRiskAssessment` | POST | `/customer-risk-assessments` | CustomerRiskAssessmentsCard |
+| `updateCustomerRiskAssessment` | PATCH | `/customer-risk-assessments/:id` | CustomerRiskAssessmentsCard |
+| `moveCustomerRiskAssessment` | PATCH | `/customer-risk-assessments/:id/customer` | CustomerRiskAssessmentsCard |
+| `deleteCustomerRiskAssessment` | DELETE | `/customer-risk-assessments/:id` | CustomerRiskAssessmentsCard |
 
 ##### Invoice terms
 

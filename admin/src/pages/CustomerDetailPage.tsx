@@ -4,6 +4,7 @@ import * as api from '../api/client';
 import ActionsMenu from '../components/ActionsMenu';
 import Badge from '../components/Badge';
 import CopyMoveAnimalModal from '../components/CopyMoveAnimalModal';
+import CustomerRiskAssessmentsCard from '../components/CustomerRiskAssessmentsCard';
 import DocumentFormModal from '../components/DocumentFormModal';
 import EditAnimalModal from '../components/EditAnimalModal';
 import EditCustomerModal from '../components/EditCustomerModal';
@@ -414,7 +415,12 @@ export default function CustomerDetailPage() {
           onViewAttachment={setViewingSnapshot}
         />
       )}
-      {tab === 'forms' && <FormSubmissionsTab customer={customer} />}
+      {tab === 'forms' && (
+        <>
+          <CustomerRiskAssessmentsCard customerId={customer._id} />
+          <FormSubmissionsTab customer={customer} />
+        </>
+      )}
       {tab === 'defaults' && <CustomerDefaultsTab customer={customer} onChange={refresh} />}
 
       {showDelete && (

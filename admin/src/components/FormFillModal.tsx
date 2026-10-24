@@ -104,6 +104,7 @@ export default function FormFillModal({
   saveEdit,
   pdfReference,
   header,
+  deriveAnswers,
   onClose,
   onSubmitted,
 }: {
@@ -132,6 +133,10 @@ export default function FormFillModal({
   // Shown above the form in every state -- e.g. the incident report's
   // booking picker.
   header?: ReactNode;
+  // Run over the answers after every top-level change, to fill in answers
+  // worked out from others -- e.g. a customer risk assessment's risk score
+  // from its likelihood and severity.
+  deriveAnswers?: (answers: Record<string, unknown>, fields: FormField[]) => Record<string, unknown>;
   onClose: () => void;
   onSubmitted: (submissionId: string) => void;
 }) {
@@ -190,7 +195,10 @@ export default function FormFillModal({
   }, [submissionId]);
 
   function setAnswer(id: string, value: unknown) {
-    setAnswers((prev) => ({ ...prev, [id]: value }));
+    setAnswers((prev) => {
+      const next = { ...prev, [id]: value };
+      return deriveAnswers && submission ? deriveAnswers(next, submission.fields) : next;
+    });
   }
 
   function setGroupFieldAnswer(groupId: string, index: number, fieldId: string, value: unknown) {
