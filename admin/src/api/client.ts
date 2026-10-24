@@ -1270,7 +1270,7 @@ export function toggleChecklistItem(id: string, index: number): Promise<Checklis
 }
 export function updateChecklistAssignment(
   id: string,
-  input: { notes?: string; signatureImage?: string },
+  input: { notes?: string; signatureImage?: string; signedAt?: string },
 ): Promise<ChecklistAssignment> {
   return request(`/checklist-assignments/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
 }

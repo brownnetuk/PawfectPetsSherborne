@@ -128,6 +128,12 @@ export class ChecklistsService {
       assignment.signedBy = dto.signatureImage ? actor : undefined;
       assignment.signedAt = dto.signatureImage ? new Date() : undefined;
     }
+    if (dto.signedAt !== undefined) {
+      if (!assignment.signatureImage) {
+        throw new BadRequestException('This checklist has not been signed yet');
+      }
+      assignment.signedAt = new Date(dto.signedAt);
+    }
     return assignment.save();
   }
 
