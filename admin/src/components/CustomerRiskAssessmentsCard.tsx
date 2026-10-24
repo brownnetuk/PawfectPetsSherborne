@@ -12,6 +12,7 @@ import CustomerPicker from "./CustomerPicker";
 import FormFillModal from "./FormFillModal";
 import Modal from "./Modal";
 import ViewFormSubmissionModal from "./ViewFormSubmissionModal";
+import { formatUkDate } from "../utils/ukDate";
 
 // Same bands and colours as a risk on a site risk assessment
 // (RiskAssessmentDetailModal / riskAssessmentPdf.ts).
@@ -74,12 +75,8 @@ function summarise(assessment: FormSubmissionRecord) {
       : typeof value === "string" && value
         ? [value]
         : [];
-  const asDate = (value: string | undefined) => {
-    const parsed = value ? new Date(value) : null;
-    return parsed && !Number.isNaN(parsed.getTime())
-      ? parsed.toLocaleDateString("en-GB", { dateStyle: "medium" })
-      : undefined;
-  };
+  const asDate = (value: string | undefined) =>
+    formatUkDate(value, "") || undefined;
 
   const dogs = asList(
     answer(
