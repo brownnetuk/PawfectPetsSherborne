@@ -18,6 +18,10 @@ class VisitMapping {
   final String? boardingSecondDogPerDay;
   final String? boardingHalfDay;
   final String? boardingSecondDogHalfDay;
+  // The 30 and 40 minute visit slots (the six above are the 20 minute ones).
+  // Only needed to recognise those bookings as visits, so kept as id sets.
+  final Set<String> longerOneVisitIds;
+  final Set<String> longerTwoVisitIds;
 
   VisitMapping({
     this.oneVisitWeekday,
@@ -34,10 +38,18 @@ class VisitMapping {
     this.boardingSecondDogPerDay,
     this.boardingHalfDay,
     this.boardingSecondDogHalfDay,
+    this.longerOneVisitIds = const {},
+    this.longerTwoVisitIds = const {},
   });
 
   static String? _id(dynamic v) =>
       v is Map<String, dynamic> ? v['_id'] as String? : (v as String?);
+
+  static Set<String> _longerIds(Map<String, dynamic> json, String count) => [
+        for (final minutes in ['30', '40'])
+          for (final day in ['Weekday', 'Weekend', 'BankHoliday'])
+            _id(json['${count}Visit${minutes}Min${day}Product']),
+      ].whereType<String>().toSet();
 
   factory VisitMapping.fromJson(Map<String, dynamic> json) => VisitMapping(
         oneVisitWeekday: _id(json['oneVisitWeekdayProduct']),
@@ -54,12 +66,18 @@ class VisitMapping {
         boardingSecondDogPerDay: _id(json['boardingSecondDogPerDayProduct']),
         boardingHalfDay: _id(json['boardingHalfDayProduct']),
         boardingSecondDogHalfDay: _id(json['boardingSecondDogHalfDayProduct']),
+        longerOneVisitIds: _longerIds(json, 'one'),
+        longerTwoVisitIds: _longerIds(json, 'two'),
       );
 
-  Set<String> get _oneVisitIds =>
-      {oneVisitWeekday, oneVisitWeekend, oneVisitBankHoliday}.whereType<String>().toSet();
-  Set<String> get _twoVisitIds =>
-      {twoVisitWeekday, twoVisitWeekend, twoVisitBankHoliday}.whereType<String>().toSet();
+  Set<String> get _oneVisitIds => {
+        ...{oneVisitWeekday, oneVisitWeekend, oneVisitBankHoliday}.whereType<String>(),
+        ...longerOneVisitIds,
+      };
+  Set<String> get _twoVisitIds => {
+        ...{twoVisitWeekday, twoVisitWeekend, twoVisitBankHoliday}.whereType<String>(),
+        ...longerTwoVisitIds,
+      };
   Set<String> get _dayCareIds => {
         dayCareHalfDay,
         dayCareFullDay,
@@ -69,7 +87,7 @@ class VisitMapping {
   Set<String> get _boardingIds =>
       {boardingPerDay, boardingSecondDogPerDay}.whereType<String>().toSet();
 
-  /// True if [productId] is any of the six mapped visit products.
+  /// True if [productId] is any of the mapped visit products (any length).
   bool isVisitProduct(String productId) =>
       _oneVisitIds.contains(productId) || _twoVisitIds.contains(productId);
 
@@ -86,7 +104,7 @@ class VisitMapping {
     return null;
   }
 
-  /// The mapped product for [visits] (1 or 2) on the given [dayType]
+  /// The mapped 20 minute product for [visits] (1 or 2) on the given [dayType]
   /// ('weekday' | 'weekend' | 'bank_holiday'), or null if unconfigured.
   String? productFor(int visits, String dayType) {
     if (visits == 1) {

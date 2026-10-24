@@ -1,21 +1,33 @@
 import type { VisitMapping } from '../types';
 
-// Which of the 6 Settings > Bookings > Visits product slots a given product
-// id belongs to, if any -- used to tell a "Visit" entry (Bookings page's
-// Visits section) apart from an ordinary "Walk" entry (anything else).
+import { VISIT_DURATIONS, visitMappingKey } from './visitPlan';
+import type { VisitCount, VisitDuration } from './visitPlan';
+
+const DAY_TYPES = ['weekday', 'weekend', 'bank_holiday'] as const;
+
+function visitProductIds(mapping: VisitMapping, visits: VisitCount, durations = VISIT_DURATIONS): Set<string> {
+  const ids = durations.flatMap((duration) => DAY_TYPES.map((dayType) => mapping[visitMappingKey(visits, duration, dayType)]));
+  return new Set(ids.filter((id): id is string => !!id));
+}
+
+// Which of the Settings > Bookings > Visits product slots (1 or 2 visits, at
+// any length) a given product id belongs to, if any -- used to tell a
+// "Visit" entry (Bookings page's Visits section) apart from an ordinary
+// "Walk" entry (anything else).
 export function oneVisitProductIds(mapping: VisitMapping): Set<string> {
-  return new Set(
-    [mapping.oneVisitWeekdayProduct, mapping.oneVisitWeekendProduct, mapping.oneVisitBankHolidayProduct].filter(
-      (id): id is string => !!id,
-    ),
-  );
+  return visitProductIds(mapping, '1');
 }
 
 export function twoVisitProductIds(mapping: VisitMapping): Set<string> {
-  return new Set(
-    [mapping.twoVisitWeekdayProduct, mapping.twoVisitWeekendProduct, mapping.twoVisitBankHolidayProduct].filter(
-      (id): id is string => !!id,
-    ),
+  return visitProductIds(mapping, '2');
+}
+
+/** The visit length a Visits-mapping product is set up for, defaulting to 20 for anything else. */
+export function visitDurationForProduct(mapping: VisitMapping, productId: string): VisitDuration {
+  return (
+    VISIT_DURATIONS.find(
+      (d) => visitProductIds(mapping, '1', [d]).has(productId) || visitProductIds(mapping, '2', [d]).has(productId),
+    ) ?? '20'
   );
 }
 

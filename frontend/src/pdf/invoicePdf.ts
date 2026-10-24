@@ -108,6 +108,7 @@ function scheduleFor(record: InvoiceRecord | QuoteRecord): { title: string; rows
     const rows: [string, string][] = [
       ['Dates', `${ukDate(plan.startDate)} - ${ukDate(plan.endDate)}`],
       ['Visits', `${plan.visitsPerDay} per day (first day ${plan.visitsFirstDay}, last day ${plan.visitsLastDay})`],
+      ['Duration', `${plan.visitDuration ?? '20'} minutes per visit`],
     ];
     const names = scheduleAnimalNames(plan.animals);
     if (names) rows.push(['Pets', names]);

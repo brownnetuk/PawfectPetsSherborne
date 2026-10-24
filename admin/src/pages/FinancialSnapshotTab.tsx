@@ -6,6 +6,7 @@ import IncomeExpenseChart from '../components/IncomeExpenseChart';
 import { DragHandleIcon } from '../components/icons';
 import { bankAccountTypeLabel } from '../utils/bankAccountType';
 import { dateKey } from '../utils/visitPlan';
+import { oneVisitProductIds, twoVisitProductIds } from '../utils/visitMapping';
 import type {
   BankAccount,
   Customer,
@@ -460,14 +461,7 @@ function bookingCategoryByProduct(mapping: VisitMapping): Map<string, RevenueCat
   const add = (category: RevenueCategory, ids: (string | null)[]) => {
     for (const id of ids) if (id) byProduct.set(id, category);
   };
-  add('visits', [
-    mapping.oneVisitWeekdayProduct,
-    mapping.oneVisitWeekendProduct,
-    mapping.oneVisitBankHolidayProduct,
-    mapping.twoVisitWeekdayProduct,
-    mapping.twoVisitWeekendProduct,
-    mapping.twoVisitBankHolidayProduct,
-  ]);
+  add('visits', [...oneVisitProductIds(mapping), ...twoVisitProductIds(mapping)]);
   add('dayCare', [
     mapping.dayCareHalfDayProduct,
     mapping.dayCareFullDayProduct,

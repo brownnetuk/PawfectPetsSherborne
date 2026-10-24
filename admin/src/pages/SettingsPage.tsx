@@ -25,6 +25,7 @@ import { buildItemsTableHtml, escapeHtml, interpolateBody, interpolateSubject } 
 import { PERMISSION_CATALOG } from '../utils/permissionCatalog';
 import { useCollapsibleCards } from '../utils/useCollapsibleCards';
 import { AVAILABILITY_LABELS } from '../utils/productAvailability';
+import { VISIT_DURATIONS, visitMappingKey } from '../utils/visitPlan';
 import type {
   AnnualLeave,
   BankAccount,
@@ -3470,14 +3471,15 @@ function CheckOutFormCard() {
   );
 }
 
-const VISIT_MAPPING_FIELDS: { key: keyof VisitMapping; label: string }[] = [
-  { key: 'oneVisitWeekdayProduct', label: '1 Visit (Weekday)' },
-  { key: 'oneVisitWeekendProduct', label: '1 Visit (Weekend)' },
-  { key: 'oneVisitBankHolidayProduct', label: '1 Visit (Bank Holiday)' },
-  { key: 'twoVisitWeekdayProduct', label: '2 Visit (Weekday)' },
-  { key: 'twoVisitWeekendProduct', label: '2 Visit (Weekend)' },
-  { key: 'twoVisitBankHolidayProduct', label: '2 Visit (Bank Holiday)' },
-];
+// Every visit count/length/day type combination, 20 minute slots first.
+const VISIT_MAPPING_FIELDS: { key: keyof VisitMapping; label: string }[] = VISIT_DURATIONS.flatMap((duration) =>
+  (['1', '2'] as const).flatMap((visits) =>
+    (['weekday', 'weekend', 'bank_holiday'] as const).map((dayType) => ({
+      key: visitMappingKey(visits, duration, dayType),
+      label: `${visits} Visit, ${duration} mins (${AVAILABILITY_LABELS[dayType]})`,
+    })),
+  ),
+);
 
 function VisitsCard() {
   return (

@@ -174,6 +174,7 @@ export interface PdfInvoice {
     visitsPerDay: string;
     visitsFirstDay: string;
     visitsLastDay: string;
+    visitDuration?: string;
   };
   dayCarePlan?: {
     animals?: (string | { name?: string })[];
@@ -216,6 +217,7 @@ function scheduleFor(
         'Visits',
         `${plan.visitsPerDay} per day (first day ${plan.visitsFirstDay}, last day ${plan.visitsLastDay})`,
       ],
+      ['Duration', `${plan.visitDuration ?? '20'} minutes per visit`],
     ];
     const names = scheduleAnimalNames(plan.animals);
     if (names) rows.push(['Pets', names]);

@@ -26,6 +26,44 @@ export class VisitMapping extends Document {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
   twoVisitBankHolidayProduct?: Types.ObjectId;
 
+  // 30 and 40 minute visits -- the six un-suffixed slots above are the
+  // 20 minute ones (the only length there was before visit durations).
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  oneVisit30MinWeekdayProduct?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  oneVisit30MinWeekendProduct?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  oneVisit30MinBankHolidayProduct?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  twoVisit30MinWeekdayProduct?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  twoVisit30MinWeekendProduct?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  twoVisit30MinBankHolidayProduct?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  oneVisit40MinWeekdayProduct?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  oneVisit40MinWeekendProduct?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  oneVisit40MinBankHolidayProduct?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  twoVisit40MinWeekdayProduct?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  twoVisit40MinWeekendProduct?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
+  twoVisit40MinBankHolidayProduct?: Types.ObjectId;
+
   // Settings > Bookings > Day Care / Boarding cards -- same singleton,
   // separate service types from Visits' per-day-type mapping above.
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })

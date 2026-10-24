@@ -176,11 +176,23 @@ export class NotificationService {
       mapping?.oneVisitWeekdayProduct,
       mapping?.oneVisitWeekendProduct,
       mapping?.oneVisitBankHolidayProduct,
+      mapping?.oneVisit30MinWeekdayProduct,
+      mapping?.oneVisit30MinWeekendProduct,
+      mapping?.oneVisit30MinBankHolidayProduct,
+      mapping?.oneVisit40MinWeekdayProduct,
+      mapping?.oneVisit40MinWeekendProduct,
+      mapping?.oneVisit40MinBankHolidayProduct,
     );
     const twoVisit = ids(
       mapping?.twoVisitWeekdayProduct,
       mapping?.twoVisitWeekendProduct,
       mapping?.twoVisitBankHolidayProduct,
+      mapping?.twoVisit30MinWeekdayProduct,
+      mapping?.twoVisit30MinWeekendProduct,
+      mapping?.twoVisit30MinBankHolidayProduct,
+      mapping?.twoVisit40MinWeekdayProduct,
+      mapping?.twoVisit40MinWeekendProduct,
+      mapping?.twoVisit40MinBankHolidayProduct,
     );
     const dayCare = ids(
       mapping?.dayCareHalfDayProduct,

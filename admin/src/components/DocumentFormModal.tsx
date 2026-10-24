@@ -9,7 +9,7 @@ import Modal from './Modal';
 import SendPreviewModal from './SendPreviewModal';
 import { ChevronDownIcon } from './icons';
 import { buildVisitPlan, parseYmd as parseVisitYmd } from '../utils/visitPlan';
-import type { VisitCount } from '../utils/visitPlan';
+import type { VisitCount, VisitDuration } from '../utils/visitPlan';
 import { dayCareProductFor } from '../utils/visitMapping';
 import { travelProductForCustomer, travelQuantityFor, withTravelQuantity } from '../utils/travelLines';
 import type { Animal, BankHoliday, Customer, Invoice, InvoiceTerm, LineItem, Product, Quote, VisitMapping } from '../types';
@@ -404,6 +404,7 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
     (existingVisitPlan?.animals ?? []).map((a) => (typeof a === 'string' ? a : a._id)),
   );
   const [visitsPerDay, setVisitsPerDay] = useState<VisitCount>(existingVisitPlan?.visitsPerDay ?? '1');
+  const [visitDuration, setVisitDuration] = useState<VisitDuration>(existingVisitPlan?.visitDuration ?? '20');
   const [visitStartDate, setVisitStartDate] = useState(existingVisitPlan?.startDate ?? '');
   const [visitsFirstDay, setVisitsFirstDay] = useState<VisitCount>(existingVisitPlan?.visitsFirstDay ?? '1');
   const [visitEndDate, setVisitEndDate] = useState(existingVisitPlan?.endDate ?? '');
@@ -625,7 +626,16 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
       return;
     }
 
-    const { plan, missing } = buildVisitPlan(start, end, visitsPerDay, visitsFirstDay, visitsLastDay, visitMapping, bankHolidays);
+    const { plan, missing } = buildVisitPlan(
+      start,
+      end,
+      visitsPerDay,
+      visitsFirstDay,
+      visitsLastDay,
+      visitDuration,
+      visitMapping,
+      bankHolidays,
+    );
     if (missing.length > 0) {
       setVisitError(`No product is configured in Settings > Bookings > Visits for: ${missing.join(', ')}.`);
       return;
@@ -776,6 +786,7 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
                 visitsPerDay,
                 visitsFirstDay,
                 visitsLastDay,
+                visitDuration,
               }
             : null;
         const dayCarePlan =
@@ -999,12 +1010,22 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
                 </div>
               )}
             </div>
-            <div className="field">
-              <label>How Many Visits per Day</label>
-              <select value={visitsPerDay} onChange={(e) => setVisitsPerDay(e.target.value as VisitCount)}>
-                <option value="1">1</option>
-                <option value="2">2</option>
-              </select>
+            <div className="field-row">
+              <div className="field">
+                <label>How Many Visits per Day</label>
+                <select value={visitsPerDay} onChange={(e) => setVisitsPerDay(e.target.value as VisitCount)}>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Visit Length</label>
+                <select value={visitDuration} onChange={(e) => setVisitDuration(e.target.value as VisitDuration)}>
+                  <option value="20">20 minutes</option>
+                  <option value="30">30 minutes</option>
+                  <option value="40">40 minutes</option>
+                </select>
+              </div>
             </div>
             <div className="field-row">
               <div className="field">

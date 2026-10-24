@@ -2,23 +2,29 @@ import { AVAILABILITY_LABELS, dayTypeFor } from './productAvailability';
 import type { BankHoliday, ProductAvailability, VisitMapping } from '../types';
 
 export type VisitCount = '1' | '2';
+export type VisitDuration = '20' | '30' | '40';
+export const VISIT_DURATIONS: VisitDuration[] = ['20', '30', '40'];
 
-// Maps (visit count, day type) onto the matching VisitMapping field --
-// Settings > Bookings > Visits is where staff configure which product each
-// combination uses. Shared by NewBookingModal (Bookings page) and
-// DocumentFormModal's embedded Visits section (quotes).
-const MAPPING_KEY: Record<VisitCount, Record<ProductAvailability, keyof VisitMapping>> = {
-  '1': {
-    weekday: 'oneVisitWeekdayProduct',
-    weekend: 'oneVisitWeekendProduct',
-    bank_holiday: 'oneVisitBankHolidayProduct',
-  },
-  '2': {
-    weekday: 'twoVisitWeekdayProduct',
-    weekend: 'twoVisitWeekendProduct',
-    bank_holiday: 'twoVisitBankHolidayProduct',
-  },
+const DAY_TYPE_SUFFIX: Record<ProductAvailability, string> = {
+  weekday: 'Weekday',
+  weekend: 'Weekend',
+  bank_holiday: 'BankHoliday',
 };
+
+// Maps (visit count, length, day type) onto the matching VisitMapping field
+// -- Settings > Bookings > Visits is where staff configure which product
+// each combination uses. 20 minute visits are the original un-suffixed
+// slots; 30/40 have a "30Min"/"40Min" infix, e.g. oneVisit30MinWeekdayProduct.
+// Shared by NewBookingModal (Bookings page) and DocumentFormModal's embedded
+// Visits section (quotes).
+export function visitMappingKey(
+  visits: VisitCount,
+  duration: VisitDuration,
+  dayType: ProductAvailability,
+): keyof VisitMapping {
+  const infix = duration === '20' ? '' : `${duration}Min`;
+  return `${visits === '2' ? 'two' : 'one'}Visit${infix}${DAY_TYPE_SUFFIX[dayType]}Product` as keyof VisitMapping;
+}
 
 export function parseYmd(s: string): Date {
   const [y, m, d] = s.split('-').map(Number);
@@ -47,7 +53,7 @@ export interface VisitPlanDay {
 
 export interface VisitPlanResult {
   plan: VisitPlanDay[];
-  /** Human-readable "N Visit (Day Type)" labels for any combination with no product configured. */
+  /** Human-readable "N Visit, M mins (Day Type)" labels for any combination with no product configured. */
   missing: string[];
 }
 
@@ -55,7 +61,7 @@ export interface VisitPlanResult {
  * Builds the day-by-day product plan for a date range: the first/last day
  * use visitsFirstDay/visitsLastDay, every day between uses visitsPerDay
  * (irrelevant for a single-day range, where the first-day count and AM/PM
- * apply). amPmFirstDay/amPmLastDay are staff's explicit AM/PM override for
+ * apply). duration picks the 20/30/40 minute product set. amPmFirstDay/amPmLastDay are staff's explicit AM/PM override for
  * that boundary day, applied only when its own visit count is '1' (a
  * 2-visit day always covers both AM and PM regardless of this).
  * Returns `missing` instead of a product for any day whose (count, day type)
@@ -67,6 +73,7 @@ export function buildVisitPlan(
   visitsPerDay: VisitCount,
   visitsFirstDay: VisitCount,
   visitsLastDay: VisitCount,
+  duration: VisitDuration,
   mapping: VisitMapping,
   bankHolidays: BankHoliday[],
   amPmFirstDay: VisitTime = 'PM',
@@ -82,9 +89,9 @@ export function buildVisitPlan(
     const isLast = i === days.length - 1;
     const visits: VisitCount = days.length === 1 ? visitsFirstDay : isFirst ? visitsFirstDay : isLast ? visitsLastDay : visitsPerDay;
     const dayType = dayTypeFor(date, bankHolidays);
-    const productId = mapping[MAPPING_KEY[visits][dayType]];
+    const productId = mapping[visitMappingKey(visits, duration, dayType)];
     if (!productId) {
-      missing.add(`${visits} Visit (${AVAILABILITY_LABELS[dayType]})`);
+      missing.add(`${visits} Visit, ${duration} mins (${AVAILABILITY_LABELS[dayType]})`);
       return;
     }
     let visitTime: VisitTime | undefined;

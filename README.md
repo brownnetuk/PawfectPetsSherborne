@@ -1023,6 +1023,7 @@ Each of these is an ObjectId → `Product`, all optional:
 
 - `oneVisitWeekdayProduct`, `oneVisitWeekendProduct`, `oneVisitBankHolidayProduct`
 - `twoVisitWeekdayProduct`, `twoVisitWeekendProduct`, `twoVisitBankHolidayProduct`
+- The same six for 30 and 40 minute visits, with a `30Min`/`40Min` infix: `oneVisit30MinWeekdayProduct` … `twoVisit40MinBankHolidayProduct`. The un-suffixed slots above are the 20 minute visits.
 - `dayCareHalfDayProduct`, `dayCareFullDayProduct`
 - `dayCareSecondDogHalfDayProduct`, `dayCareSecondDogFullDayProduct`
 - `boardingPerDayProduct`, `boardingSecondDogPerDayProduct`
@@ -1805,7 +1806,7 @@ This model is still used by the mobile app (`listBookings`/`updateBookingStatus`
 | `paidAt` | Date | |
 | `amountPaid` | number | default 0; running total kept by `applyPayment` and `reversePayment` |
 | `openedAt` | Date | set by the tracking pixel |
-| `visitPlan` | `InvoiceVisitPlan` | `{animals[] → Animal, startDate, endDate, visitsPerDay '1'\|'2', visitsFirstDay '1'\|'2', visitsLastDay '1'\|'2'}` |
+| `visitPlan` | `InvoiceVisitPlan` | `{animals[] → Animal, startDate, endDate, visitsPerDay '1'\|'2', visitsFirstDay '1'\|'2', visitsLastDay '1'\|'2', visitDuration '20'\|'30'\|'40' (default '20')}` |
 | `dayCarePlan` | `InvoiceDayCarePlan` | `{animals[], date, dropOffPeriod AM\|PM, dropOffTime, collectionPeriod AM\|PM, collectionTime}` |
 | `boardingPlan` | `InvoiceBoardingPlan` | `{animals[], startDate, dropOffTime, endDate, pickUpTime}` |
 
@@ -2119,7 +2120,7 @@ Once `checkInAt` is set, every stage before `checkedIn` is forced to done. The f
 - It iterates every day from `startDate` to `endDate` inclusive.
 - Visit count per day: a single-day plan or the first day uses `visitsFirstDay`, the last day uses `visitsLastDay`, and days in between use `visitsPerDay`.
 - Day type: `bank_holiday` if the local date key is in the `BankHoliday` list, `weekend` on Sat/Sun, otherwise `weekday`.
-- The product comes from `VisitMapping[{one|two}Visit{Weekday|Weekend|BankHoliday}Product]`. An unmapped day is **skipped** and logged with `console.error`.
+- The product comes from `VisitMapping[{one|two}Visit{Weekday|Weekend|BankHoliday}Product]` for 20 minute visits, or `{one|two}Visit{30|40}Min{…}Product` when the plan's `visitDuration` is `'30'`/`'40'` (unset counts as `'20'`). An unmapped day is **skipped** and logged with `console.error`.
 - For a single visit, the first day is `visitTime = PM` and the last day is `AM`.
 - One row is created **per day** (not per pet): the first animal goes in `animal` and the rest in `additionalAnimals`, with `invoice = new invoice`. A summary `BOOKING_CREATED` audit entry is written.
 
