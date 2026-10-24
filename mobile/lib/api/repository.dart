@@ -142,6 +142,11 @@ class Repository {
     String? recipientName,
     // Which of the customer's pets the form is for (shapes a per-pet group).
     List<String>? animalIds,
+    // Opening a booking's check-in/check-out ('checkIn'/'checkOut') to fill
+    // in: the backend hands back that booking's still-pending one for this
+    // stage if there is one, instead of creating another.
+    String? forBookingId,
+    String? bookingStage,
   }) async {
     final json = await _client.post('/form-submissions', {
       'form': formId,
@@ -149,6 +154,10 @@ class Repository {
       'recipientEmail': recipientEmail,
       if (recipientName != null && recipientName.isNotEmpty) 'recipientName': recipientName,
       if (animalIds != null && animalIds.isNotEmpty) 'animals': animalIds,
+      if (forBookingId != null && bookingStage != null) ...{
+        'forBooking': forBookingId,
+        'bookingStage': bookingStage,
+      },
     });
     return json['_id'] as String;
   }

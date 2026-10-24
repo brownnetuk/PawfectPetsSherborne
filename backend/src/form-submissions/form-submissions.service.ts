@@ -193,6 +193,22 @@ export class FormSubmissionsService {
 
   async create(dto: CreateFormSubmissionDto): Promise<FormSubmission> {
     const form = await this.formsService.findOne(dto.form);
+    const bookingStage = dto.forBooking ? dto.bookingStage : undefined;
+    if (dto.forBooking && bookingStage) {
+      // Starting a booking's check-in/check-out again after closing the form
+      // without submitting -- reuse that still-pending submission (nothing
+      // is saved on it until submit) instead of piling up another.
+      const existing = await this.formSubmissionModel
+        .findOne({
+          forBooking: dto.forBooking,
+          bookingStage,
+          form: form._id,
+          status: FormSubmissionStatus.PENDING,
+        })
+        .sort({ createdAt: -1 })
+        .exec();
+      if (existing) return existing;
+    }
     const animals = dto.animals ?? [];
     let formFieldsSnapshot = form.fields as unknown as FormField[];
     if (animals.length > 1) {
@@ -214,6 +230,8 @@ export class FormSubmissionsService {
       animals: animals.length > 1 ? animals : undefined,
       recipientEmail: dto.recipientEmail,
       recipientName: dto.recipientName,
+      forBooking: bookingStage ? dto.forBooking : undefined,
+      bookingStage,
     }).save();
   }
 
@@ -279,7 +297,8 @@ export class FormSubmissionsService {
   // reference }) when it's one of that customer's boarding bookings'
   // pre-check-in/check-in/check-out/incident report forms -- the customer
   // page's Forms tab groups by it. The link lives on BoardingBooking, not
-  // here, so it's looked up rather than stored.
+  // here, so it's looked up rather than stored (apart from forBooking, on a
+  // check-in/check-out that hasn't been recorded on the booking yet).
   async findAll(
     customerId?: string,
   ): Promise<(FormSubmission | Record<string, unknown>)[]> {
@@ -304,8 +323,10 @@ export class FormSubmissionsService {
       string,
       { _id: string; reference: string }
     >();
+    const bookingById = new Map<string, { _id: string; reference: string }>();
     for (const b of bookings) {
       const ref = { _id: String(b._id), reference: b.reference };
+      bookingById.set(ref._id, ref);
       for (const id of [
         b.preCheckInSubmission,
         b.checkInSubmission,
@@ -316,7 +337,11 @@ export class FormSubmissionsService {
       }
     }
     return submissions.map((s) => {
-      const booking = bookingBySubmission.get(String(s._id));
+      // A check-in/check-out still being filled in isn't on the booking yet,
+      // but carries forBooking from when it was started.
+      const booking =
+        bookingBySubmission.get(String(s._id)) ??
+        (s.forBooking ? bookingById.get(String(s.forBooking)) : undefined);
       return { ...s.toObject(), booking };
     });
   }

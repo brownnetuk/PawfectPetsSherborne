@@ -1,6 +1,7 @@
 import {
   IsArray,
   IsEmail,
+  IsIn,
   IsMongoId,
   IsNotEmpty,
   IsOptional,
@@ -35,4 +36,14 @@ export class CreateFormSubmissionDto {
   @IsOptional()
   @IsString()
   recipientName?: string;
+
+  // The boarding booking whose check-in/check-out this is being opened to
+  // fill in -- see FormSubmission.forBooking. Both or neither.
+  @IsOptional()
+  @IsMongoId()
+  forBooking?: string;
+
+  @IsOptional()
+  @IsIn(['checkIn', 'checkOut'])
+  bookingStage?: 'checkIn' | 'checkOut';
 }

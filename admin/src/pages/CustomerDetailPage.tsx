@@ -1855,8 +1855,11 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
     api.listForms().then(setForms).catch(() => {});
   }, []);
 
-  function statusLabel(status: FormSubmissionRecord['status']): string {
-    return status === 'completed' ? 'Completed' : 'Sent — awaiting response';
+  function statusLabel(s: FormSubmissionRecord): string {
+    if (s.status === 'completed') return 'Completed';
+    // Opened from the booking by staff and closed without submitting -- it
+    // was never emailed to the customer.
+    return s.bookingStage ? 'Started — not submitted' : 'Sent — awaiting response';
   }
 
   // Falls back to a stand-in built from the submission's own snapshot if the
@@ -1969,7 +1972,7 @@ function FormSubmissionsTab({ customer }: { customer: Customer }) {
                       </span>
                     )}
                   </td>
-                  <td>{statusLabel(s.status)}</td>
+                  <td>{statusLabel(s)}</td>
                   <td>{new Date(s.createdAt).toLocaleDateString('en-GB')}</td>
                   <td>{s.submittedAt ? new Date(s.submittedAt).toLocaleDateString('en-GB') : '—'}</td>
                   <td onClick={(e) => e.stopPropagation()}>
