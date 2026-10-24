@@ -27,6 +27,13 @@ export class RolesService implements OnModuleInit {
         { upsert: true },
       )
       .exec();
+    // recycleBin.purge was added after most databases already had their
+    // Admin role, which the $setOnInsert above never touches again -- so
+    // grant it to that role here, since permanently deleting from the
+    // Recycle Bin is meant to be an Admin-only action.
+    await this.roleModel
+      .updateOne({ name: 'Admin' }, { $addToSet: { permissions: 'recycleBin.purge' } })
+      .exec();
   }
 
   // Shaped to { id, name, permissions } rather than returning the raw

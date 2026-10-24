@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { recycleBinContextMiddleware } from './recycle-bin/recycle-bin.context';
 
 // Some local/ISP DNS resolvers don't support the SRV/TXT lookups that
 // mongodb+srv:// URIs rely on, which breaks the Atlas connection with
@@ -41,6 +42,9 @@ async function bootstrap() {
   // else in the app sends small JSON payloads so raising this doesn't change
   // their behaviour.
   app.useBodyParser('json', { limit: '8mb' });
+  // Groups everything a DELETE request removes into one Recycle Bin entry
+  // (see recycle-bin.context.ts).
+  app.use(recycleBinContextMiddleware);
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

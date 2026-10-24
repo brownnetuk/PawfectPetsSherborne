@@ -622,8 +622,8 @@ export default function CustomerRiskAssessmentsCard({
           onClose={() => setConfirmDelete(null)}
         >
           <p>
-            This permanently removes the risk assessment from the customer's
-            forms. This can't be undone.
+            This removes the risk assessment from the customer's
+            forms. It goes to the Recycle Bin in Settings, where it can be restored.
           </p>
           <div className="modal-actions">
             <button

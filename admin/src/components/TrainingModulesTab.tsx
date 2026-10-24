@@ -150,8 +150,8 @@ export default function TrainingModulesTab() {
         <Modal title="Delete this training module?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently deletes <strong>{deleting.name}</strong>, its question bank, and every staff member's
-            attempt history for it. This can't be undone.
+            This deletes <strong>{deleting.name}</strong>, its question bank, and every staff member's
+            attempt history for it. It goes to the Recycle Bin in Settings, where it can be restored.
           </p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setDeleting(null)} disabled={deleteBusy}>

@@ -163,7 +163,7 @@ export default function FormsListCard({ onEdit }: Props) {
         <Modal title="Delete form?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes <strong>{deleting.name}</strong>. Submissions already
+            This removes <strong>{deleting.name}</strong>. Submissions already
             collected against it are kept (they snapshot their own copy of the form's fields), but
             it can no longer be sent to anyone new.
           </p>

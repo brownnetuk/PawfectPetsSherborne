@@ -98,7 +98,7 @@ class _CustomerNotesScreenState extends State<CustomerNotesScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete note?'),
-        content: Text('This permanently deletes "${note.subject}".'),
+        content: Text('This deletes "${note.subject}".'),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
           TextButton(

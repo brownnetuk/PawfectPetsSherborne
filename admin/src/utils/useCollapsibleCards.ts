@@ -9,7 +9,8 @@ import type { RefObject } from 'react';
 // etc.) that are also used elsewhere un-collapsed. A MutationObserver picks up
 // cards as tabs switch and as cards swap from their loading placeholder to
 // their loaded content. Cards inside a modal, cards nested in another card,
-// and cards with no title (bare tables) are left alone.
+// cards with no title (bare tables), and cards marked data-no-collapse are
+// left alone.
 export function useCollapsibleCards(containerRef: RefObject<HTMLElement | null>) {
   useEffect(() => {
     const container = containerRef.current;
@@ -39,6 +40,9 @@ export function useCollapsibleCards(containerRef: RefObject<HTMLElement | null>)
     const enhance = () => {
       container.querySelectorAll<HTMLElement>('.card').forEach((card) => {
         if (card.closest('.modal') || card.parentElement?.closest('.card')) return;
+        // Opt-out for a card that's the only thing on its tab (Recycle Bin),
+        // where starting collapsed would just hide the whole tab.
+        if (card.dataset.noCollapse !== undefined) return;
         const header = headerOf(card);
         if (!header || header.classList.contains('card-collapse-header')) return;
         // React can keep the same card element and swap its children (e.g. a

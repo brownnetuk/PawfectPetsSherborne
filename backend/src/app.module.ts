@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
+import { Connection } from 'mongoose';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ClientIpThrottlerGuard } from './common/client-ip-throttler.guard';
@@ -53,6 +54,8 @@ import { EmailMessagesModule } from './email-messages/email-messages.module';
 import { PoliciesModule } from './policies/policies.module';
 import { StaffTrainingModule } from './staff-training/staff-training.module';
 import { PreBoardingModule } from './pre-boarding/pre-boarding.module';
+import { RecycleBinModule } from './recycle-bin/recycle-bin.module';
+import { recycleBinPlugin } from './recycle-bin/recycle-bin.plugin';
 
 @Module({
   imports: [
@@ -74,6 +77,13 @@ import { PreBoardingModule } from './pre-boarding/pre-boarding.module';
           'MONGODB_URI',
           'mongodb://localhost:27017/pawfectpets',
         ),
+        // Applies to every model on this connection: copies anything deleted
+        // during a DELETE request into Settings > Recycle Bin first (see
+        // recycle-bin.plugin.ts).
+        connectionFactory: (connection: Connection) => {
+          connection.plugin(recycleBinPlugin);
+          return connection;
+        },
       }),
     }),
     EncryptionModule,
@@ -117,6 +127,7 @@ import { PreBoardingModule } from './pre-boarding/pre-boarding.module';
     PoliciesModule,
     StaffTrainingModule,
     PreBoardingModule,
+    RecycleBinModule,
     RolesModule,
     PortalModule,
     MessagesModule,

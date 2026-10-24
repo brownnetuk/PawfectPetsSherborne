@@ -174,8 +174,8 @@ export default function RiskAssessmentsTab() {
         <Modal title="Delete this risk assessment?" onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently deletes <strong>{deleting.name}</strong> ({deleting.raId}) and all {deleting.risks.length}{' '}
-            of its risks. This can't be undone.
+            This deletes <strong>{deleting.name}</strong> ({deleting.raId}) and all {deleting.risks.length}{' '}
+            of its risks. It goes to the Recycle Bin in Settings, where it can be restored.
           </p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setDeleting(null)} disabled={deleteBusy}>

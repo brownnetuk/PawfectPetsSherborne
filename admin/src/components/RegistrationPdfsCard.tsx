@@ -106,7 +106,7 @@ export default function RegistrationPdfsCard() {
   }
 
   // Leftover snapshots from customers that have since been deleted -- the
-  // ones regenerateAll above skips. Permanent, hence its own confirm.
+  // ones regenerateAll above skips. They go to Settings > Recycle Bin.
   async function deleteOrphans() {
     setConfirmingDelete(false);
     setDeleting(true);
@@ -179,8 +179,8 @@ export default function RegistrationPdfsCard() {
       {confirmingDelete && (
         <Modal title="Delete PDFs for deleted customers?" onClose={() => setConfirmingDelete(false)}>
           <p>
-            This permanently deletes every stored registration form PDF whose customer has been deleted. PDFs for
-            current customers aren't touched. This can't be undone.
+            This deletes every stored registration form PDF whose customer has been deleted. PDFs for
+            current customers aren't touched. It goes to the Recycle Bin in Settings, where it can be restored.
           </p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setConfirmingDelete(false)}>

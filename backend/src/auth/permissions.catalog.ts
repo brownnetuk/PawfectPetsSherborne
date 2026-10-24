@@ -20,4 +20,7 @@ export const ALL_PERMISSION_KEYS = [
   // training module's question bank carries the correct answers, which must
   // never be reachable by anyone who isn't a training author.
   'training.manage',
+  // Permanently deleting from Settings > Recycle Bin (emptying it, or one
+  // entry). Everything else there -- viewing, restoring -- is open to all staff.
+  'recycleBin.purge',
 ];

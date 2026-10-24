@@ -538,7 +538,9 @@ export class InvoicesService {
   }
 
   /** Adds a recorded payment's amount to amountPaid, flipping status to paid once it covers the total. */
-  async applyPayment(id: string, amount: number): Promise<Invoice> {
+  // `notify: false` is for the Recycle Bin putting a deleted payment back --
+  // the customer was already told the invoice was paid the first time.
+  async applyPayment(id: string, amount: number, { notify = true } = {}): Promise<Invoice> {
     const invoice = await this.invoiceModel.findById(id).exec();
     if (!invoice) {
       throw new NotFoundException(`Invoice ${id} not found`);
@@ -554,7 +556,7 @@ export class InvoicesService {
       .findByIdAndUpdate(id, update, { new: true })
       .populate('customer', 'name email address phoneNumber')
       .exec();
-    if (justPaid && updated) {
+    if (notify && justPaid && updated) {
       const cid = (updated.customer as unknown as { _id?: unknown })?._id ?? updated.customer;
       if (cid) {
         await this.notificationService.notifyCustomerInvoiceStatus(

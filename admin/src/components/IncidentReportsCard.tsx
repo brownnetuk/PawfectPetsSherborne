@@ -404,7 +404,7 @@ export default function IncidentReportsCard({
       )}
       {confirmDelete && (
         <Modal title="Delete this incident report?" onClose={() => setConfirmDelete(null)}>
-          <p>This permanently removes the report from its booking and the customer's forms.</p>
+          <p>This removes the report from its booking and the customer's forms.</p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setConfirmDelete(null)}>
               Cancel

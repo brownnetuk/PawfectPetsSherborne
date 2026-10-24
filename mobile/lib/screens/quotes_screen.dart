@@ -198,7 +198,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
       context: context,
       builder: (_) => HoldToDeleteDialog(
         title: 'Delete quote?',
-        message: 'This permanently deletes ${q.quoteNumber}. This cannot be undone.',
+        message: 'This deletes ${q.quoteNumber}. It can be restored from Settings > Recycle Bin in the admin app.',
       ),
     );
     if (confirmed != true) return;

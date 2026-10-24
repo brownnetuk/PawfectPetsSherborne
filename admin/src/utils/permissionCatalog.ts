@@ -33,4 +33,9 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
     label: 'Manage staff training',
     hint: 'Creating, editing, or deleting training modules and their quiz questions, changing who a module is assigned to, and viewing the training compliance audit. Unlike other permissions here, this also gates simply viewing the module list, since the question bank carries the correct answers.',
   },
+  {
+    key: 'recycleBin.purge',
+    label: 'Permanently delete from Recycle Bin',
+    hint: 'Permanently deleting items in Settings > Recycle Bin, or emptying it. Anyone can still restore from the Recycle Bin.',
+  },
 ];

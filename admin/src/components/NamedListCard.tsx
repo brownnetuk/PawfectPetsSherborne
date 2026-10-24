@@ -132,7 +132,7 @@ export default function NamedListCard<T extends NamedItem>({
         <Modal title={`Delete ${itemNoun}?`} onClose={() => setDeleting(null)}>
           {deleteError && <div className="error-banner">{deleteError}</div>}
           <p>
-            This permanently removes <strong>{deleting.name}</strong>.
+            This removes <strong>{deleting.name}</strong>.
           </p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setDeleting(null)}>

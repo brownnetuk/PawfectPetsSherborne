@@ -2115,7 +2115,7 @@ function BookingDetail({
       {confirmDelete && (
         <Modal title="Delete this booking?" onClose={() => setConfirmDelete(false)}>
           <p>
-            This permanently removes {booking.reference}, its calendar entries, and its invoice
+            This removes {booking.reference}, its calendar entries, and its invoice
             {invoice ? ` (${invoice.invoiceNumber})` : ''}. If that invoice has payments recorded against it, remove
             those first.
           </p>
