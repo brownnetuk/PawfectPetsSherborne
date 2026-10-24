@@ -45,6 +45,8 @@ describe('FormSubmissionsService booking check-in/check-out drafts', () => {
   let saved: Record<string, unknown>[];
   let submissionModel: jest.Mock & Record<string, jest.Mock>;
   let bookingModel: { find: jest.Mock };
+  let auditLogService: { hasFormEmailSentBetween: jest.Mock };
+  let settingsService: { getBoardingWorkflowSettings: jest.Mock };
   let service: FormSubmissionsService;
 
   beforeEach(() => {
@@ -57,9 +59,26 @@ describe('FormSubmissionsService booking check-in/check-out drafts', () => {
           return Promise.resolve(withId);
         }),
       })),
-      { findOne: jest.fn(() => chain(null)), find: jest.fn() },
+      {
+        findOne: jest.fn(() => chain(null)),
+        find: jest.fn(),
+        deleteMany: jest.fn(() => ({
+          exec: jest.fn().mockResolvedValue({ deletedCount: 1 }),
+        })),
+      },
     ) as unknown as jest.Mock & Record<string, jest.Mock>;
     bookingModel = { find: jest.fn() };
+    auditLogService = {
+      hasFormEmailSentBetween: jest.fn().mockResolvedValue(false),
+    };
+    settingsService = {
+      getBoardingWorkflowSettings: jest.fn().mockResolvedValue({
+        checkInFormBoarding: formId.toString(),
+        checkInFormDayCare: null,
+        checkOutFormBoarding: null,
+        checkOutFormDayCare: null,
+      }),
+    };
     const formsService = {
       findOne: jest.fn().mockResolvedValue({
         _id: formId,
@@ -73,8 +92,8 @@ describe('FormSubmissionsService booking check-in/check-out drafts', () => {
       formsService as never,
       {} as never,
       {} as never,
-      {} as never,
-      {} as never,
+      auditLogService as never,
+      settingsService as never,
       {} as never,
       bookingModel as never,
     );
@@ -151,5 +170,78 @@ describe('FormSubmissionsService booking check-in/check-out drafts', () => {
       reference: 'BK00001',
     });
     expect(rows[1].booking).toBeUndefined();
+  });
+
+  describe('removing unsubmitted check-in/check-out forms left from before', () => {
+    const createdAt = new Date('2026-10-17T09:00:00Z');
+    const linkedId = new Types.ObjectId();
+    const orphanId = new Types.ObjectId();
+    const emailedId = new Types.ObjectId();
+
+    beforeEach(() => {
+      jest.spyOn(console, 'log').mockImplementation(() => {});
+      submissionModel.find.mockReturnValue(
+        chain([
+          {
+            _id: linkedId,
+            customer: customerId,
+            formName: 'Arrival Check-In',
+            createdAt,
+          },
+          {
+            _id: orphanId,
+            customer: customerId,
+            formName: 'Arrival Check-In',
+            createdAt,
+          },
+          {
+            _id: emailedId,
+            customer: customerId,
+            formName: 'Arrival Check-In',
+            createdAt,
+          },
+        ]),
+      );
+      bookingModel.find.mockReturnValue(
+        chain([
+          { _id: bookingId, checkInSubmission: linkedId, incidentReports: [] },
+        ]),
+      );
+      auditLogService.hasFormEmailSentBetween.mockImplementation(() =>
+        Promise.resolve(
+          auditLogService.hasFormEmailSentBetween.mock.calls.length === 2,
+        ),
+      );
+    });
+
+    it('only looks at pending, unlinked submissions of the configured check-in/check-out forms', async () => {
+      await service.removeAbandonedCheckForms();
+      expect(submissionModel.find).toHaveBeenCalledWith({
+        form: { $in: [formId.toString()] },
+        status: FormSubmissionStatus.PENDING,
+        forBooking: { $exists: false },
+        customerRiskAssessment: { $ne: true },
+      });
+    });
+
+    it('deletes the orphans, keeping one a booking links to and one that was emailed', async () => {
+      await service.removeAbandonedCheckForms();
+      expect(auditLogService.hasFormEmailSentBetween).toHaveBeenCalledWith(
+        customerId.toString(),
+        'Arrival Check-In',
+        createdAt,
+        new Date(createdAt.getTime() + 10 * 60 * 1000),
+      );
+      expect(submissionModel.deleteMany).toHaveBeenCalledWith({
+        _id: { $in: [orphanId.toString()] },
+      });
+    });
+
+    it('does nothing when no check-in/check-out form is configured', async () => {
+      settingsService.getBoardingWorkflowSettings.mockResolvedValue({});
+      await service.removeAbandonedCheckForms();
+      expect(submissionModel.find).not.toHaveBeenCalled();
+      expect(submissionModel.deleteMany).not.toHaveBeenCalled();
+    });
   });
 });
