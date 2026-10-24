@@ -52,7 +52,9 @@ describe('ChecklistsService.autoAssignForDate', () => {
       })),
       { exists: jest.fn(({ template }: { template: string }) => Promise.resolve(existing.includes(template))) },
     );
-    const service = new ChecklistsService(templateModel as never, assignmentModel as never);
+    // No NotificationService needed here: auto-assign never sends the "due
+    // soon" reminder (that's the sendDueReminders cron).
+    const service = new ChecklistsService(templateModel as never, assignmentModel as never, {} as never);
     return { service, saved };
   }
 
