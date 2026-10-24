@@ -66,6 +66,15 @@ class Repository {
     return list.map((e) => Booking.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  // --- vet practices ---
+
+  /// The staff-maintained vet practice library (a public endpoint, shared
+  /// with the intake form's Vet Practice dropdown).
+  Future<List<VetPractice>> listVetPractices() async {
+    final list = await client.getList('/vet-practices');
+    return list.map((e) => VetPractice.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
   // --- animals ---
 
   Future<List<Animal>> listAnimals() async {
