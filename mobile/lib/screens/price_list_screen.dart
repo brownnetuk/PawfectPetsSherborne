@@ -6,12 +6,17 @@ import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/product.dart';
+import '../models/visit_mapping.dart';
+import '../theme.dart';
 import '../utils/price_list_pdf.dart';
 
 /// The customer-facing price sheet: every product flagged "Display in Price
-/// List" in the admin's Settings > Invoice/Quotes > Products, with an A-Z /
-/// Z-A sort toggle and a mail action that emails it as a branded PDF (same
-/// style as the booking confirmation) to a typed-in name and address.
+/// List" in the admin's Settings > Invoice/Quotes > Products, with a search
+/// box, Walks / Visits / Day Care / Boarding filter pills (sorted into those
+/// groups by the Settings > Bookings product mappings, the same way the
+/// calendar is), an A-Z / Z-A sort toggle and a mail action that emails the
+/// whole list as a branded PDF (same style as the booking confirmation) to a
+/// typed-in name and address.
 class PriceListScreen extends StatefulWidget {
   const PriceListScreen({super.key});
 
@@ -19,8 +24,25 @@ class PriceListScreen extends StatefulWidget {
   State<PriceListScreen> createState() => _PriceListScreenState();
 }
 
+/// The filter pills. Walks is everything not mapped to Visits, Day Care or
+/// Boarding -- the calendar's definition of a Walk.
+enum _Group { all, walks, visits, dayCare, boarding }
+
+extension on _Group {
+  String get label => switch (this) {
+        _Group.all => 'All',
+        _Group.walks => 'Walks',
+        _Group.visits => 'Visits',
+        _Group.dayCare => 'Day Care',
+        _Group.boarding => 'Boarding',
+      };
+}
+
 class _PriceListScreenState extends State<PriceListScreen> {
-  late Future<List<Product>> _future;
+  late Future<({List<Product> products, VisitMapping mapping})> _future;
+  final _searchController = TextEditingController();
+  String _search = '';
+  _Group _group = _Group.all;
   bool _sortAsc = true;
   bool _sending = false;
   static final _money = NumberFormat.currency(locale: 'en_GB', symbol: '£');
@@ -28,18 +50,56 @@ class _PriceListScreenState extends State<PriceListScreen> {
   @override
   void initState() {
     super.initState();
-    _future = context.read<Repository>().listProducts();
+    final repo = context.read<Repository>();
+    _future = Future.wait([repo.listProducts(), repo.getVisitMapping()]).then(
+      (results) => (products: results[0] as List<Product>, mapping: results[1] as VisitMapping),
+    );
   }
 
-  List<Product> _visible(List<Product> all) =>
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// Everything on the price list, sorted -- what the emailed PDF contains,
+  /// regardless of the search box and pills.
+  List<Product> _listed(List<Product> all) =>
       all.where((p) => p.displayInPriceList).toList()
         ..sort((a, b) => _sortAsc
             ? a.name.toLowerCase().compareTo(b.name.toLowerCase())
             : b.name.toLowerCase().compareTo(a.name.toLowerCase()));
 
+  _Group _groupOf(Product p, VisitMapping mapping) {
+    // The half-day boarding slots aren't part of isBoardingProduct (the
+    // calendar tells boarding stays apart by boardingStay instead), but on a
+    // price sheet they belong with Boarding.
+    if (mapping.isBoardingProduct(p.id) ||
+        p.id == mapping.boardingHalfDay ||
+        p.id == mapping.boardingSecondDogHalfDay) {
+      return _Group.boarding;
+    }
+    if (mapping.isDayCareProduct(p.id)) return _Group.dayCare;
+    if (mapping.isVisitProduct(p.id)) return _Group.visits;
+    return _Group.walks;
+  }
+
+  /// The listed products narrowed by the selected pill and the search text
+  /// (name, description or product code, case-insensitive).
+  List<Product> _visible(List<Product> all, VisitMapping mapping) {
+    final q = _search.trim().toLowerCase();
+    return _listed(all).where((p) {
+      if (_group != _Group.all && _groupOf(p, mapping) != _group) return false;
+      if (q.isEmpty) return true;
+      return p.name.toLowerCase().contains(q) ||
+          (p.description ?? '').toLowerCase().contains(q) ||
+          p.productCode.toLowerCase().contains(q);
+    }).toList();
+  }
+
   /// Prompts for a name and email, builds the branded PDF and emails it.
   Future<void> _emailPriceList() async {
-    final products = _visible(await _future);
+    final products = _listed((await _future).products);
     if (!mounted) return;
     if (products.isEmpty) {
       ScaffoldMessenger.of(context)
@@ -142,27 +202,98 @@ class _PriceListScreenState extends State<PriceListScreen> {
             label: Text(_sortAsc ? 'A-Z' : 'Z-A'),
           ),
         ],
+        // Search box and the sliding filter pills live on the blue band, the
+        // same arrangement as the Customers tab's search and status filter.
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(104),
+          child: OnBrandBar(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                  child: TextField(
+                    controller: _searchController,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                    onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                    decoration: InputDecoration(
+                      hintText: 'Search products…',
+                      prefixIcon: const Icon(Icons.search),
+                      isDense: true,
+                      suffixIcon: _search.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.close),
+                              tooltip: 'Clear',
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _search = '');
+                                FocusScope.of(context).unfocus();
+                              },
+                            ),
+                    ),
+                    onChanged: (v) => setState(() => _search = v),
+                  ),
+                ),
+                SizedBox(
+                  height: 48,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    children: [
+                      for (final group in _Group.values)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: FilterChip(
+                            label: Text(group.label),
+                            selected: _group == group,
+                            showCheckmark: false,
+                            onSelected: (_) => setState(() => _group = group),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-      body: FutureBuilder<List<Product>>(
+      body: FutureBuilder<({List<Product> products, VisitMapping mapping})>(
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (snapshot.hasError) {
+          if (snapshot.hasError || snapshot.data == null) {
             final message = snapshot.error is ApiException
                 ? (snapshot.error as ApiException).message
                 : 'Failed to load the price list';
             return Center(child: Text(message, textAlign: TextAlign.center));
           }
-          final products = _visible(snapshot.data ?? []);
-          if (products.isEmpty) {
+          final data = snapshot.data!;
+          if (_listed(data.products).isEmpty) {
             return const Center(
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: Text(
                   'No products are on the price list yet. Tick "Display in Price List" on a product in the admin\'s Settings > Invoice/Quotes.',
                   textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          }
+          final products = _visible(data.products, data.mapping);
+          if (products.isEmpty) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  _search.trim().isEmpty
+                      ? 'No ${_group.label.toLowerCase()} products are on the price list.'
+                      : 'No products match "${_search.trim()}".',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: brandMuted),
                 ),
               ),
             );
