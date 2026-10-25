@@ -366,9 +366,9 @@ function CustomerPicker({
   }, []);
 
   const q = query.trim().toLowerCase();
-  const filtered = (customers ?? []).filter(
-    (c) => c.name.toLowerCase().includes(q) || (c.email ?? '').toLowerCase().includes(q),
-  );
+  const filtered = (customers ?? [])
+    .filter((c) => c.name.toLowerCase().includes(q) || (c.email ?? '').toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <Modal title="New message" onClose={onClose}>
@@ -684,9 +684,9 @@ function SendPushModal({ onClose, onSent }: { onClose: () => void; onSent: () =>
   }, []);
 
   const q = query.trim().toLowerCase();
-  const filtered = (customers ?? []).filter(
-    (c) => c.name.toLowerCase().includes(q) || (c.email ?? '').toLowerCase().includes(q),
-  );
+  const filtered = (customers ?? [])
+    .filter((c) => c.name.toLowerCase().includes(q) || (c.email ?? '').toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name));
   const allFilteredSelected = filtered.length > 0 && filtered.every((c) => selected.has(c._id));
 
   function toggle(id: string) {
