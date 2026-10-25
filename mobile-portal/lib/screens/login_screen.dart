@@ -84,10 +84,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     await _run(() async {
       final repo = context.read<Repository>();
+      // Trim, as login() does, so a stray space doesn't send the code nowhere.
       if (reset) {
-        await repo.requestReset(_email.text);
+        await repo.requestReset(_email.text.trim());
       } else {
-        await repo.requestCode(_email.text);
+        await repo.requestCode(_email.text.trim());
       }
       setState(() {
         _codeStep = true;

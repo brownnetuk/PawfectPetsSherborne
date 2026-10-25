@@ -5826,7 +5826,7 @@ Override it with `flutter run --dart-define=API_BASE_URL=http://localhost:3000`.
 
 **Errors**:
 - Any network or timeout error throws `ApiException('Could not reach the server…')`.
-- **401** calls the registered `_onUnauthorized` handler and throws "Session expired. Please log in again.".
+- **401** on a signed-in request calls the registered `_onUnauthorized` handler and throws "Session expired. Please log in again.". The sign-in `POST`s (`/portal/login`, `/portal/request-code`, `/portal/request-reset`, `/portal/verify-code`, `/portal/set-password`, listed in `_signInPaths`) are exempt: their 401 is surfaced with the server's own message (e.g. "Incorrect email or password.") and does not fire the handler.
 - Any other non-2xx throws with the server's `message` (arrays joined with "; ").
 
 **Parsing**: an empty body is passed as `null` to the parser. The methods are `get`, `getList`, `post`, `patch`, `delete` and `getBytes`.
@@ -6108,7 +6108,7 @@ The save calls `POST /portal/animals` or `PATCH /portal/animals/:id`, then pops 
 **Security**
 11. **The password is stored on the device.** Biometric sign-in keeps the **plaintext password** in the keychain (`auth_provider.dart` `_passwordKey`), and the Face ID check is only an app-level `LocalAuthentication` prompt. Prefer a server-issued long-lived refresh token stored with keychain access control requiring biometrics. Also, credentials are saved automatically after `completeWithCode`, even though the user never opted in; ask first.
 12. **Token registration is never retried.** A failed `registerPushToken` is swallowed (`push_service.dart`), and `start()` is idempotent per process, so a token is never retried until a relaunch or a new token. Cache the last token, and re-register after login or on resume.
-13. **No client-side email check.** Login and code requests send `_email.text` untrimmed to `requestCode`/`requestReset` (`login_screen.dart`; `login` trims it, those don't). Trim it and add a basic email format check.
+13. **No client-side email format check.** `login_screen.dart` trims the email before every request, but nothing validates it looks like an address; add a basic format check so a typo is caught before the round trip.
 
 **Feature ideas**
 15. **Pull-to-refresh in Details.** Add pull-to-refresh on the Details tab, which calls `refreshProfile`. Today the profile only refreshes after a save.

@@ -17,12 +17,24 @@ class ApiException implements Exception {
 
 /// Thin REST client for the customer portal: attaches the customer bearer
 /// token, decodes JSON, and surfaces server error messages. Call
-/// [setUnauthorizedHandler] once at startup so a 401 anywhere bounces the app
-/// back to the login screen.
+/// [setUnauthorizedHandler] once at startup so a 401 on a signed-in request
+/// bounces the app back to the login screen. The sign-in endpoints themselves
+/// are exempt: their 401 means "wrong email or password" (or a bad code), so
+/// the server's own message is shown instead of "Session expired".
 class ApiClient {
   String? _token;
   void Function()? _onUnauthorized;
   final String _baseUrl = apiBaseUrl;
+
+  // Endpoints a customer calls while NOT signed in. A 401 from these is the
+  // server rejecting the credentials, not an expired session.
+  static const _signInPaths = {
+    '/portal/login',
+    '/portal/request-code',
+    '/portal/request-reset',
+    '/portal/verify-code',
+    '/portal/set-password',
+  };
 
   void setToken(String? token) => _token = token;
   void setUnauthorizedHandler(void Function() handler) => _onUnauthorized = handler;
@@ -39,6 +51,8 @@ class ApiClient {
     Future<http.Response> Function() send,
     T Function(dynamic) parse, {
     Duration timeout = const Duration(seconds: 20),
+    // False for the sign-in endpoints, whose 401 carries the real reason.
+    bool sessionBound = true,
   }) async {
     late http.Response res;
     try {
@@ -47,7 +61,7 @@ class ApiClient {
       throw ApiException('Could not reach the server. Check your connection and try again.');
     }
 
-    if (res.statusCode == 401) {
+    if (res.statusCode == 401 && sessionBound) {
       _onUnauthorized?.call();
       throw ApiException('Session expired. Please log in again.', statusCode: 401);
     }
@@ -80,6 +94,7 @@ class ApiClient {
         () => http.post(_uri(path), headers: _headers, body: jsonEncode(body ?? {})),
         (json) => json as Map<String, dynamic>,
         timeout: const Duration(seconds: 60),
+        sessionBound: !_signInPaths.contains(path),
       );
 
   Future<Map<String, dynamic>> patch(String path, Map<String, dynamic> body) => _handle(
