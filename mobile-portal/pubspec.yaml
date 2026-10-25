@@ -2,7 +2,7 @@ name: pawfectpets_portal
 description: "Pawfect Pets Sherborne — customer portal app."
 publish_to: 'none'
 
-version: 1.1.2+21
+version: 1.1.3+22
 
 environment:
   sdk: ^3.13.1

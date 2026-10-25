@@ -19,6 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _newPassword = TextEditingController();
   final _confirm = TextEditingController();
   final _digits = TextEditingController();
+  final _digitsFocus = FocusNode();
 
   // First-time-login toggle: hides the password field and switches to the
   // email-me-a-code flow.
@@ -45,6 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _newPassword.dispose();
     _confirm.dispose();
     _digits.dispose();
+    _digitsFocus.dispose();
     super.dispose();
   }
 
@@ -123,7 +125,14 @@ class _LoginScreenState extends State<LoginScreen> {
               digits: _needsDigits ? _digits.text.trim() : null,
             );
       } on ApiException catch (e) {
-        if (e.code == 'PHONE_DIGITS_REQUIRED') setState(() => _needsDigits = true);
+        // Not a failure: the server is telling us this is an additional user,
+        // so reveal the digits field and move the cursor there instead of
+        // showing a red error for a box they haven't seen yet.
+        if (e.code == 'PHONE_DIGITS_REQUIRED') {
+          setState(() => _needsDigits = true);
+          WidgetsBinding.instance.addPostFrameCallback((_) => _digitsFocus.requestFocus());
+          return;
+        }
         rethrow;
       }
     });
@@ -308,8 +317,14 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         if (_needsDigits) ...[
           const SizedBox(height: 14),
+          Text(
+            'This account has been shared with you, so we also need the last 3 digits of the mobile number we have for you.',
+            style: TextStyle(color: brandMuted, fontSize: 13),
+          ),
+          const SizedBox(height: 8),
           TextField(
             controller: _digits,
+            focusNode: _digitsFocus,
             keyboardType: TextInputType.number,
             maxLength: 3,
             decoration: const InputDecoration(
