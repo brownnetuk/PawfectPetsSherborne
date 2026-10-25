@@ -24,7 +24,7 @@ class Repository {
       'email': email,
       'code': code,
       'password': password,
-      if (digits != null) 'digits': digits,
+      'digits': ?digits,
     });
     return res['token'] as String;
   }

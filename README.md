@@ -5862,7 +5862,7 @@ Override it with `flutter run --dart-define=API_BASE_URL=http://localhost:3000`.
 | `acknowledgePushMessage(id)` | POST `/portal/push-messages/:id/acknowledge` | – | HomeShell notification modal "Acknowledge" |
 | `registerPushToken(token)` | POST `/portal/push/register` | `{token, platform: 'ios'}` | PushService `onToken` |
 
-The backend also exposes `POST /portal/verify-code` (throttled 10/min), which the app does not call. Every route after `login` has `@UseGuards(PortalJwtGuard)` on the backend. The auth routes are throttled: `request-code` and `request-reset` at 5/min, `login` at 10/min.
+The backend also exposes `POST /portal/verify-code` (throttled 10/min), which the app does not call. Instead, `setPassword` is sent without `digits` first; when the server answers 400 with `code: PHONE_DIGITS_REQUIRED` (the email belongs to an additional user, see Mobile App Access), `LoginScreen` treats that as a prompt rather than an error: it reveals and focuses the "Last 3 digits of your mobile number" field with an explanatory line, and the next submit includes `digits`. Every route after `login` has `@UseGuards(PortalJwtGuard)` on the backend. The auth routes are throttled: `request-code` and `request-reset` at 5/min, `login` at 10/min.
 
 ### Authentication (`lib/state/auth_provider.dart`, `lib/screens/login_screen.dart`)
 
@@ -6557,7 +6557,7 @@ flowchart TD
 | Widget | Behaviour |
 |---|---|
 | `HoldToDeleteDialog(title, message)` | The user ticks a checkbox, then presses and holds Delete for 5 s (an animation controller). Releasing early cancels. Pops `true` once the hold completes. Used for customers, invoices and quotes. |
-| `SignaturePad(onChanged)` | Finger-drawn strokes (`CustomPainter`). After each stroke it emits a PNG data URL, the same format as the web SignaturePad and PDF export; emits null when cleared. |
+| `SignaturePad(onChanged)` | Finger-drawn strokes (`CustomPainter`). Pointer capture is a custom `_InkRecognizer` (via `RawGestureDetector`) that accepts the touch on pointer-down, so the stroke starts from its first pixel and the enclosing form `ListView` never wins the gesture and scrolls instead (a plain pan gesture lost to the scroll view whenever a stroke began vertically, and dropped the first ~18 px of every stroke). Extra fingers during a stroke are ignored. After each stroke it emits a PNG data URL, the same format as the web SignaturePad and PDF export; emits null when cleared. |
 | `StatusBadge(status)` | Pill coloured by `statusColor` / `statusBg` from `theme.dart` |
 | `ZoomablePdf(load)` | Rasterises PDF pages at high DPI (`printing`) into an `InteractiveViewer` for pinch-zoom |
 

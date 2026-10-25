@@ -151,9 +151,12 @@ function ConversationList({
               textAlign: 'left',
               border: 'none',
               borderBottom: '1px solid var(--border)',
-              background: isActive ? 'var(--brand-green-soft, #eaf5ee)' : 'transparent',
+              background: isActive ? 'var(--accent-light)' : 'transparent',
+              boxShadow: isActive ? 'inset 3px 0 0 var(--accent)' : 'none',
               padding: '12px 14px',
               cursor: 'pointer',
+              fontFamily: 'inherit',
+              color: 'var(--ink)',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
@@ -263,8 +266,9 @@ function Thread({ customer, onSent }: { customer: ActiveCustomer; onSent: () => 
         )}
       </div>
       {error && <div className="error-banner" style={{ margin: '0 16px' }}>{error}</div>}
-      <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: 12, borderTop: '1px solid var(--border)' }}>
         <textarea
+          className="chat-input"
           rows={2}
           value={body}
           placeholder="Type a message…"
@@ -275,7 +279,6 @@ function Thread({ customer, onSent }: { customer: ActiveCustomer; onSent: () => 
               handleSend();
             }
           }}
-          style={{ flex: 1, resize: 'none' }}
         />
         <button className="btn btn-primary" onClick={handleSend} disabled={sending || !body.trim()}>
           {sending ? 'Sending…' : 'Send'}
