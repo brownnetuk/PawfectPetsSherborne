@@ -15,7 +15,10 @@ class PushService {
   static const _channel = MethodChannel('pawfectpets/push');
   final Repository _repository;
   final NotificationStore _store;
-  bool _started = false;
+  // The most recent APNs token iOS handed us, kept so a registration that
+  // failed (offline, or the token arrived before login) can be retried, and
+  // so a later login on the same device re-registers under that person.
+  String? _lastToken;
 
   /// The last tapped notification's payload (type/reference/title/body). The
   /// HomeShell listens to this and routes: a 'message' tap opens the Messages
@@ -30,11 +33,15 @@ class PushService {
     _channel.setMethodCallHandler(_handle);
   }
 
-  /// Kick off permission request + APNs registration. Safe to call more than
-  /// once; native only prompts once.
+  /// Kick off permission request + APNs registration. Called after every
+  /// login (HomeShell), not just the first in this process: the server files
+  /// the token under whoever is signed in (the customer, or an additional user
+  /// on their account), so a device that switches people must re-register.
+  /// iOS only prompts for permission once; re-registering just re-delivers
+  /// the same token, which is cheap.
   Future<void> start() async {
-    if (_started) return;
-    _started = true;
+    final cached = _lastToken;
+    if (cached != null) await _register(cached);
     try {
       await _channel.invokeMethod('start');
     } catch (_) {
@@ -42,15 +49,20 @@ class PushService {
     }
   }
 
+  Future<void> _register(String token) async {
+    try {
+      await _repository.registerPushToken(token);
+    } catch (_) {
+      // Not logged in yet or offline — retried on the next start()/token.
+    }
+  }
+
   Future<dynamic> _handle(MethodCall call) async {
     if (call.method == 'onToken') {
       final token = call.arguments as String?;
       if (token != null && token.isNotEmpty) {
-        try {
-          await _repository.registerPushToken(token);
-        } catch (_) {
-          // Not logged in yet or offline — re-sent on the next start()/token.
-        }
+        _lastToken = token;
+        await _register(token);
       }
     } else if (call.method == 'onNotificationReceived') {
       await _capture(call.arguments);

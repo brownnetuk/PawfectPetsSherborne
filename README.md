@@ -1215,7 +1215,7 @@ Docker Compose sets `TZ: Europe/London` for the backend so these local-time comp
 
 - `registerToken(token, platform, {staff?|customer?})`: upserts by token and sets the *other* audience field to `null`.
 - `sendToAll(title, body, data)`: sends to tokens where `customer: null` (staff devices only) under the staff topic.
-- `sendToCustomer(customerId, …)`: sends to that customer's tokens under the customer topic. It's a no-op unless `customerConfigured`.
+- `sendToCustomer(customerId, …)`: sends to every token filed under that customer (`{ customer: customerId }`) under the customer topic. Additional users' devices are registered with the same `customer` id (plus their `portalUser` id), so staff push messages, bell notifications and message alerts for a customer reach the customer's and all additional users' devices alike. It's a no-op unless `customerConfigured`.
 - `deliver(...)`: sends to each token one at a time, deletes tokens APNs reports as unregistered, and returns `{ sent, total, failures[] }`.
 - `removeCustomerTokens(customerId)`: called when portal access is disabled.
 
@@ -6059,8 +6059,8 @@ The save calls `POST /portal/animals` or `PATCH /portal/animals/:id`, then pops 
 ### Push service (`lib/services/push_service.dart`)
 
 - **Channel**: `MethodChannel('pawfectpets/push')`.
-- **`start()`**: idempotent (`_started`). It invokes the native `start` and swallows errors when no handler exists (non-iOS).
-- **`onToken`**: calls `POST /portal/push/register {token, platform:'ios'}`. Errors are swallowed; a comment says it is "re-sent on the next start()/token".
+- **`start()`**: runs on every login (`HomeShell.initState`), not once per process. It first re-posts the cached `_lastToken` (if any) and then invokes the native `start`, swallowing errors when no handler exists (non-iOS). iOS only prompts for permission once; `registerForRemoteNotifications` simply re-delivers the same token. This matters because the server files the token under whoever is signed in (`customer` + optional `portalUser`): a device that logs out as the customer and in as an additional user is re-registered under that person, and a registration that failed earlier (offline, token arrived before login) is retried.
+- **`onToken`**: caches the token in `_lastToken` and calls `POST /portal/push/register {token, platform:'ios'}`. Errors are swallowed and retried on the next `start()`/token.
 - **`onNotificationReceived` and `onNotificationTap`**: `_capture` normalises the payload.
   - The id is `notificationId`, falling back to `pushMessageId`, then a microsecond timestamp.
   - It reads `ackRequired` as either a bool or a string.
@@ -6108,7 +6108,7 @@ The save calls `POST /portal/animals` or `PATCH /portal/animals/:id`, then pops 
 
 **Security**
 11. **The password is stored on the device.** Biometric sign-in keeps the **plaintext password** in the keychain (`auth_provider.dart` `_passwordKey`), and the Face ID check is only an app-level `LocalAuthentication` prompt. Prefer a server-issued long-lived refresh token stored with keychain access control requiring biometrics. Also, credentials are saved automatically after `completeWithCode`, even though the user never opted in; ask first.
-12. **Token registration is never retried.** A failed `registerPushToken` is swallowed (`push_service.dart`), and `start()` is idempotent per process, so a token is never retried until a relaunch or a new token. Cache the last token, and re-register after login or on resume.
+12. **Token registration is only retried on login.** `start()` re-posts the cached token on every login, but not on `AppLifecycleState.resumed`, so a registration that failed while offline waits for the next sign-in or relaunch. Also, logout does not unregister the device, so it keeps receiving the previous account's pushes until someone else logs in on it.
 13. **No client-side email format check.** `login_screen.dart` trims the email before every request, but nothing validates it looks like an address; add a basic format check so a typo is caught before the round trip.
 
 **Feature ideas**
