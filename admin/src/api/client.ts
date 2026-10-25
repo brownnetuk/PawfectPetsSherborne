@@ -228,12 +228,40 @@ export function setCustomerPortalActive(
 export function sendCustomerPortalReset(id: string): Promise<{ ok: boolean }> {
   return request(`/customers/${id}/portal/reset`, { method: 'POST' });
 }
+// An additional person with the same app access as the customer.
+export interface PortalUser {
+  id: string;
+  name: string;
+  email: string;
+  phoneNumber: string;
+  setUp: boolean;
+  lastLoginAt: string | null;
+  addedAt: string | null;
+}
 export interface PortalStatus {
   portalActive: boolean;
+  // The email the customer's own access is granted for.
+  email: string;
   setUp: boolean;
   lastLoginAt: string | null;
   deviceCount: number;
   lastDeviceAt: string | null;
+  additionalUsers: PortalUser[];
+}
+export function addCustomerPortalUser(
+  id: string,
+  user: { name: string; email: string; phoneNumber: string },
+): Promise<PortalStatus> {
+  return request(`/customers/${id}/portal/users`, {
+    method: 'POST',
+    body: JSON.stringify(user),
+  });
+}
+export function removeCustomerPortalUser(id: string, userId: string): Promise<PortalStatus> {
+  return request(`/customers/${id}/portal/users/${userId}`, { method: 'DELETE' });
+}
+export function sendCustomerPortalUserReset(id: string, userId: string): Promise<{ ok: boolean }> {
+  return request(`/customers/${id}/portal/users/${userId}/reset`, { method: 'POST' });
 }
 export function getCustomerPortalStatus(id: string): Promise<PortalStatus> {
   return request(`/customers/${id}/portal/status`);

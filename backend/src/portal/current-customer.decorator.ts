@@ -3,6 +3,8 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 export interface CurrentCustomerData {
   customerId: string;
   email: string;
+  // Set when an additional user (not the customer themselves) is signed in.
+  portalUserId?: string;
 }
 
 // Pulls the authenticated customer (set by PortalJwtStrategy.validate) off the

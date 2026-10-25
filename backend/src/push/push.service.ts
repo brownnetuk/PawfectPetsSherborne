@@ -28,7 +28,7 @@ export class PushService {
   async registerToken(
     token: string,
     platform: string,
-    opts: { staff?: string; customer?: string } = {},
+    opts: { staff?: string; customer?: string; portalUser?: string } = {},
   ): Promise<void> {
     await this.pushTokenModel
       .updateOne(
@@ -39,6 +39,7 @@ export class PushService {
             platform,
             staff: opts.staff ?? null,
             customer: opts.customer ?? null,
+            portalUser: opts.portalUser ?? null,
           },
         },
         { upsert: true },
@@ -76,6 +77,10 @@ export class PushService {
   // revoked) so no further pushes reach them.
   removeCustomerTokens(customerId: string): Promise<unknown> {
     return this.pushTokenModel.deleteMany({ customer: customerId }).exec();
+  }
+
+  removePortalUserTokens(portalUserId: string): Promise<unknown> {
+    return this.pushTokenModel.deleteMany({ portalUser: portalUserId }).exec();
   }
 
   // Sends an alert to every STAFF device (customer-app tokens are excluded so

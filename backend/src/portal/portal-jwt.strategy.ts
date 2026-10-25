@@ -13,6 +13,8 @@ export interface PortalJwtPayload {
   sub: string; // customer id
   email: string;
   typ: 'portal';
+  // Set when an additional user (Customer.portalUsers) signed in.
+  uid?: string;
 }
 
 @Injectable()
@@ -30,15 +32,24 @@ export class PortalJwtStrategy extends PassportStrategy(Strategy, 'portal-jwt') 
 
   // Re-checks portalActive on every request so disabling a customer's Mobile
   // App Access revokes all their sessions immediately (their next call 401s,
-  // and the app's unauthorized handler logs them out).
+  // and the app's unauthorized handler logs them out). An additional user must
+  // also still be listed, so removing them revokes their sessions the same way.
   async validate(payload: PortalJwtPayload) {
     const customer = await this.customerModel
-      .findById(payload.sub)
-      .select('portalActive')
+      .findOne({
+        _id: payload.sub,
+        portalActive: true,
+        ...(payload.uid ? { 'portalUsers._id': payload.uid } : {}),
+      })
+      .select('_id')
       .exec();
-    if (!customer || !customer.portalActive) {
+    if (!customer) {
       throw new UnauthorizedException('Mobile app access has been disabled.');
     }
-    return { customerId: payload.sub, email: payload.email };
+    return {
+      customerId: payload.sub,
+      email: payload.email,
+      portalUserId: payload.uid,
+    };
   }
 }

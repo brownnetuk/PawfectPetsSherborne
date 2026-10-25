@@ -20,6 +20,11 @@ export class PushToken extends Document {
   // Set only for customer-portal-app tokens (the customer's id).
   @Prop({ index: true })
   customer?: string;
+
+  // Also set when the device belongs to one of the customer's additional
+  // portal users, so removing that person drops exactly their devices.
+  @Prop({ index: true })
+  portalUser?: string;
 }
 
 export const PushTokenSchema = SchemaFactory.createForClass(PushToken);

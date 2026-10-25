@@ -96,9 +96,9 @@ class AuthProvider extends ChangeNotifier {
   /// First-time / reset completion: sets the password and logs in with the
   /// token the server returns. Also saves the login so biometrics can be used
   /// next time (they just set this password, so it's the current one).
-  Future<void> completeWithCode(String email, String code, String password) async {
+  Future<void> completeWithCode(String email, String code, String password, {String? digits}) async {
     final trimmed = email.trim();
-    final token = await repository.setPassword(trimmed, code.trim(), password);
+    final token = await repository.setPassword(trimmed, code.trim(), password, digits: digits);
     await _saveCredentials(trimmed, password);
     await _persistSession(token);
   }

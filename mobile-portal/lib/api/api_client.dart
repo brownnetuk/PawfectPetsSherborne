@@ -6,7 +6,10 @@ import '../config.dart';
 class ApiException implements Exception {
   final String message;
   final int? statusCode;
-  ApiException(this.message, {this.statusCode});
+  /// Machine-readable reason the server gave, when it gave one (e.g.
+  /// `PHONE_DIGITS_REQUIRED` from set-password for an additional user).
+  final String? code;
+  ApiException(this.message, {this.statusCode, this.code});
 
   @override
   String toString() => message;
@@ -50,12 +53,14 @@ class ApiClient {
     }
     if (res.statusCode < 200 || res.statusCode >= 300) {
       String message = 'Request failed (${res.statusCode})';
+      String? code;
       try {
         final body = jsonDecode(res.body);
         final m = body['message'];
         message = m is List ? m.join('; ') : (m?.toString() ?? message);
+        code = body['code']?.toString();
       } catch (_) {}
-      throw ApiException(message, statusCode: res.statusCode);
+      throw ApiException(message, statusCode: res.statusCode, code: code);
     }
     if (res.body.isEmpty) return parse(null);
     return parse(jsonDecode(res.body));

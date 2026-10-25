@@ -17,11 +17,14 @@ class Repository {
   Future<void> requestReset(String email) => client.post('/portal/request-reset', {'email': email});
 
   /// Consume a code and set a password; returns the session token (auto-login).
-  Future<String> setPassword(String email, String code, String password) async {
+  /// [digits] is the last 3 digits of the mobile number -- only needed by an
+  /// additional user (the server answers PHONE_DIGITS_REQUIRED when it is).
+  Future<String> setPassword(String email, String code, String password, {String? digits}) async {
     final res = await client.post('/portal/set-password', {
       'email': email,
       'code': code,
       'password': password,
+      if (digits != null) 'digits': digits,
     });
     return res['token'] as String;
   }
