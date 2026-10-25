@@ -6556,7 +6556,7 @@ flowchart TD
 | Widget | Behaviour |
 |---|---|
 | `HoldToDeleteDialog(title, message)` | The user ticks a checkbox, then presses and holds Delete for 5 s (an animation controller). Releasing early cancels. Pops `true` once the hold completes. Used for customers, invoices and quotes. |
-| `SignaturePad(onChanged)` | Finger-drawn strokes (`CustomPainter`). After each stroke it emits a PNG data URL, the same format as the web SignaturePad and PDF export; emits null when cleared. |
+| `SignaturePad(onChanged)` | Finger-drawn strokes (`CustomPainter`). Pointer capture is a custom `_InkRecognizer` (via `RawGestureDetector`) that accepts the touch on pointer-down, so the stroke starts from its first pixel and the enclosing form `ListView` never wins the gesture and scrolls instead (a plain pan gesture lost to the scroll view whenever a stroke began vertically, and dropped the first ~18 px of every stroke). Extra fingers during a stroke are ignored. After each stroke it emits a PNG data URL, the same format as the web SignaturePad and PDF export; emits null when cleared. |
 | `StatusBadge(status)` | Pill coloured by `statusColor` / `statusBg` from `theme.dart` |
 | `ZoomablePdf(load)` | Rasterises PDF pages at high DPI (`printing`) into an `InteractiveViewer` for pinch-zoom |
 
