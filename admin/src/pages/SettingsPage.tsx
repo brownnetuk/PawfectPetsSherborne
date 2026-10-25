@@ -2087,9 +2087,9 @@ function EditEmailGroupModal({
   }, []);
 
   const q = query.trim().toLowerCase();
-  const filtered = (customers ?? []).filter(
-    (c) => c.name.toLowerCase().includes(q) || (c.email ?? '').toLowerCase().includes(q),
-  );
+  const filtered = (customers ?? [])
+    .filter((c) => c.name.toLowerCase().includes(q) || (c.email ?? '').toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   function toggle(id: string) {
     setSelected((prev) => {
