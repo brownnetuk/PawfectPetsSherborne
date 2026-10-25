@@ -5861,7 +5861,7 @@ Override it with `flutter run --dart-define=API_BASE_URL=http://localhost:3000`.
 | `acknowledgePushMessage(id)` | POST `/portal/push-messages/:id/acknowledge` | – | HomeShell notification modal "Acknowledge" |
 | `registerPushToken(token)` | POST `/portal/push/register` | `{token, platform: 'ios'}` | PushService `onToken` |
 
-The backend also exposes `POST /portal/verify-code` (throttled 10/min), which the app does not call. Every route after `login` has `@UseGuards(PortalJwtGuard)` on the backend. The auth routes are throttled: `request-code` and `request-reset` at 5/min, `login` at 10/min.
+The backend also exposes `POST /portal/verify-code` (throttled 10/min), which the app does not call. Instead, `setPassword` is sent without `digits` first; when the server answers 400 with `code: PHONE_DIGITS_REQUIRED` (the email belongs to an additional user, see Mobile App Access), `LoginScreen` treats that as a prompt rather than an error: it reveals and focuses the "Last 3 digits of your mobile number" field with an explanatory line, and the next submit includes `digits`. Every route after `login` has `@UseGuards(PortalJwtGuard)` on the backend. The auth routes are throttled: `request-code` and `request-reset` at 5/min, `login` at 10/min.
 
 ### Authentication (`lib/state/auth_provider.dart`, `lib/screens/login_screen.dart`)
 
