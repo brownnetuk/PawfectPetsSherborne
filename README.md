@@ -755,9 +755,12 @@ Auth column legend:
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| GET | `/customers/:id/portal/status` | staff | `{ portalActive, setUp (has passwordHash), lastLoginAt, deviceCount, lastDeviceAt }` |
+| GET | `/customers/:id/portal/status` | staff | `{ portalActive, email (the address access is granted for), setUp (has passwordHash), lastLoginAt, deviceCount, lastDeviceAt, additionalUsers: [{ id, name, email, phoneNumber, setUp, lastLoginAt, addedAt }] }` |
 | PATCH | `/customers/:id/portal` | staff | `{ active }`: toggle access. Disabling drops the customer's device tokens. First enable sends the `portal_enabled` email. |
 | POST | `/customers/:id/portal/reset` | staff | Email a reset code |
+| POST | `/customers/:id/portal/users` | staff | "Add additional access": `{ name, email, phoneNumber }`. The email must not already sign in anywhere (any customer's email or another additional user); the mobile needs at least 3 digits. Sends `portal_enabled` to them if access is on. Returns the status. |
+| DELETE | `/customers/:id/portal/users/:userId` | staff | Remove an additional user: their tokens stop working on the next request and their device tokens are dropped. Returns the status. |
+| POST | `/customers/:id/portal/users/:userId/reset` | staff | Email that additional user a reset code |
 | POST | `/customers/:id/portal/test-push` | staff | Record a bell item (type `test`), push it, and return `{ sent, total, failures, customerPushConfigured }` |
 
 #### `PushController` (`src/push/push.controller.ts`, prefix `/push`)
@@ -4665,7 +4668,7 @@ Every page uses the same pattern: local `useState`, a `useEffect` fetch through 
     - Clicking a row opens `ViewFormSubmissionModal`.
     - **Send form** opens `SendFormModal`.
   - **Customer Defaults.** Four cards:
-    - **Mobile App Access** (`CustomerPortalCard`). Shows `getCustomerPortalStatus` (set up, last login, device count). An enable/disable toggle calls `setCustomerPortalActive`; enabling asks for confirmation first because it emails the customer, and the toggle updates optimistically and reverts on failure. A password reset sends `sendCustomerPortalReset`, and **Send test push** sends `sendCustomerPortalTestPush`.
+    - **Mobile App Access** (`CustomerPortalCard`). Shows `getCustomerPortalStatus` (the email access is granted for, set up, last login, device count). **Additional access** lists the extra people who can use the app for this customer (`Customer.portalUsers`), with per-person **Password reset** / **Remove**, and **Add additional access** asks for Name, Email and Mobile number. Each additional user sees exactly what the customer sees, signs in with their own email, and is checked against the last 3 digits of their own mobile: when setting up/resetting their app password (`POST /portal/set-password` takes `digits`, and answers `code: PHONE_DIGITS_REQUIRED` until it gets them) and on every web portal sign-in. Their portal JWT carries `uid`, which the portal guard re-checks so removal revokes them. An enable/disable toggle calls `setCustomerPortalActive`; enabling asks for confirmation first because it emails the customer, and the toggle updates optimistically and reverts on failure. A password reset sends `sendCustomerPortalReset`, and **Send test push** sends `sendCustomerPortalTestPush`.
     - **Default Product** (`updateCustomer({ defaultProduct })`).
     - **Travel**: a chargeable toggle plus a travel product (`updateCustomer`).
     - **Regular Days**: weekday checkboxes saved to `regularDays` (`updateCustomer`). The Bookings page's "Recommended" list and the Financial projections use these.

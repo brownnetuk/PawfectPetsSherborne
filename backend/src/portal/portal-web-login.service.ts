@@ -17,6 +17,12 @@ import {
 } from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
 import { portalJwtSecret, PORTAL_WEB_TOKEN_TTL } from './portal-jwt.util';
+import {
+  findActivePortalAccount,
+  PortalAccount,
+  portalTokenPayload,
+  setAccountCreds,
+} from './portal-account';
 
 // The emailed code only needs to survive the trip to the inbox and back.
 export const WEB_CODE_TTL_MS = 10 * 60 * 1000;
@@ -90,37 +96,21 @@ export class PortalWebLoginService implements OnModuleInit {
     }
   }
 
-  private async findActiveWithCreds(email: string): Promise<Customer | null> {
-    const escaped = email.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return this.customerModel
-      .findOne({ email: new RegExp(`^${escaped}$`, 'i'), portalActive: true })
-      .select('+portalCredentials')
-      .exec();
-  }
-
-  private async setCreds(
-    customer: Customer,
+  private setCreds(
+    account: PortalAccount,
     fields: Record<string, unknown>,
+    opts?: { touchLogin?: boolean },
   ): Promise<void> {
-    const set: Record<string, unknown> = {};
-    const unset: Record<string, ''> = {};
-    for (const [key, value] of Object.entries(fields)) {
-      if (value === undefined) unset[`portalCredentials.${key}`] = '';
-      else set[`portalCredentials.${key}`] = value;
-    }
-    const update: Record<string, unknown> = {};
-    if (Object.keys(set).length) update.$set = set;
-    if (Object.keys(unset).length) update.$unset = unset;
-    await this.customerModel.updateOne({ _id: customer._id }, update).exec();
+    return setAccountCreds(this.customerModel, account, fields, opts);
   }
 
   // Always resolves quietly, so the endpoint can't be used to find out which
   // addresses have portal access.
   async requestCode(email: string): Promise<void> {
-    const customer = await this.findActiveWithCreds(email);
-    if (!customer?.email) return;
+    const account = await findActivePortalAccount(this.customerModel, email);
+    if (!account?.email) return;
     const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
-    await this.setCreds(customer, {
+    await this.setCreds(account, {
       webCodeHash: await bcrypt.hash(code, 10),
       webCodeExpiresAt: new Date(Date.now() + WEB_CODE_TTL_MS),
       webCodeAttempts: 0,
@@ -131,8 +121,8 @@ export class PortalWebLoginService implements OnModuleInit {
     });
     await this.settings.sendTemplatedEmail(
       EmailTrigger.PORTAL_WEB_LOGIN_CODE,
-      customer.email,
-      { customer_name: customer.name ?? '', code },
+      account.email,
+      { customer_name: account.name, code },
     );
   }
 
@@ -141,10 +131,10 @@ export class PortalWebLoginService implements OnModuleInit {
     code: string,
   ): Promise<{ stepToken: string }> {
     const invalid = new UnauthorizedException('Invalid or expired code.');
-    const customer = await this.findActiveWithCreds(email);
-    const creds = customer?.portalCredentials;
+    const account = await findActivePortalAccount(this.customerModel, email);
+    const creds = account?.creds;
     if (
-      !customer ||
+      !account ||
       !creds?.webCodeHash ||
       !creds.webCodeExpiresAt ||
       creds.webCodeExpiresAt.getTime() < Date.now()
@@ -154,7 +144,7 @@ export class PortalWebLoginService implements OnModuleInit {
     if (!(await bcrypt.compare(code, creds.webCodeHash))) {
       const attempts = (creds.webCodeAttempts ?? 0) + 1;
       await this.setCreds(
-        customer,
+        account,
         attempts >= WEB_CODE_MAX_ATTEMPTS
           ? {
               webCodeHash: undefined,
@@ -165,13 +155,13 @@ export class PortalWebLoginService implements OnModuleInit {
       );
       throw invalid;
     }
-    if (!lastThreeDigits(customer.phoneNumber)) {
+    if (!lastThreeDigits(account.phoneNumber)) {
       throw new BadRequestException(
         "We don't have a mobile number on file for you, so we can't finish signing you in. Please get in touch with us.",
       );
     }
     const stepToken = crypto.randomBytes(32).toString('hex');
-    await this.setCreds(customer, {
+    await this.setCreds(account, {
       // The code is single-use.
       webCodeHash: undefined,
       webCodeExpiresAt: undefined,
@@ -191,10 +181,10 @@ export class PortalWebLoginService implements OnModuleInit {
     const expired = new UnauthorizedException(
       'Your sign-in has expired. Please start again.',
     );
-    const customer = await this.findActiveWithCreds(email);
-    const creds = customer?.portalCredentials;
+    const account = await findActivePortalAccount(this.customerModel, email);
+    const creds = account?.creds;
     if (
-      !customer ||
+      !account ||
       !creds?.webStepHash ||
       !creds.webStepExpiresAt ||
       creds.webStepExpiresAt.getTime() < Date.now() ||
@@ -205,11 +195,11 @@ export class PortalWebLoginService implements OnModuleInit {
     ) {
       throw expired;
     }
-    const expected = lastThreeDigits(customer.phoneNumber);
+    const expected = lastThreeDigits(account.phoneNumber);
     if (!expected || digits !== expected) {
       const attempts = (creds.webStepAttempts ?? 0) + 1;
       if (attempts >= WEB_STEP_MAX_ATTEMPTS) {
-        await this.setCreds(customer, {
+        await this.setCreds(account, {
           webStepHash: undefined,
           webStepExpiresAt: undefined,
           webStepAttempts: undefined,
@@ -218,31 +208,24 @@ export class PortalWebLoginService implements OnModuleInit {
           "Those digits don't match the number we have. Please start again.",
         );
       }
-      await this.setCreds(customer, { webStepAttempts: attempts });
+      await this.setCreds(account, { webStepAttempts: attempts });
       throw new UnauthorizedException(
         "Those digits don't match the mobile number we have for you.",
       );
     }
-    await this.customerModel
-      .updateOne(
-        { _id: customer._id },
-        {
-          $set: { portalLastLoginAt: new Date() },
-          $unset: {
-            'portalCredentials.webStepHash': '',
-            'portalCredentials.webStepExpiresAt': '',
-            'portalCredentials.webStepAttempts': '',
-          },
-        },
-      )
-      .exec();
-    const token = this.jwt.sign(
-      { sub: customer._id?.toString(), email: customer.email, typ: 'portal' },
+    await this.setCreds(
+      account,
       {
-        secret: portalJwtSecret(this.config.getOrThrow<string>('JWT_SECRET')),
-        expiresIn: PORTAL_WEB_TOKEN_TTL,
+        webStepHash: undefined,
+        webStepExpiresAt: undefined,
+        webStepAttempts: undefined,
       },
+      { touchLogin: true },
     );
+    const token = this.jwt.sign(portalTokenPayload(account), {
+      secret: portalJwtSecret(this.config.getOrThrow<string>('JWT_SECRET')),
+      expiresIn: PORTAL_WEB_TOKEN_TTL,
+    });
     return { token };
   }
 }

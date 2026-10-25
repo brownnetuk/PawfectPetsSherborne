@@ -2168,6 +2168,11 @@ function CustomerPortalCard({ customer, onChange }: { customer: Customer; onChan
   const [confirmEnable, setConfirmEnable] = useState(false);
   // Login/usage status (set up? last login? registered devices?).
   const [status, setStatus] = useState<api.PortalStatus | null>(null);
+  // "Add additional access" dialog, and the additional user awaiting a
+  // remove confirmation.
+  const [addingUser, setAddingUser] = useState(false);
+  const [removeUser, setRemoveUser] = useState<api.PortalUser | null>(null);
+  const [userBusy, setUserBusy] = useState<string | null>(null);
 
   function refreshStatus() {
     api.getCustomerPortalStatus(customer._id).then(setStatus).catch(() => {});
@@ -2216,6 +2221,35 @@ function CustomerPortalCard({ customer, onChange }: { customer: Customer; onChan
     }
   }
 
+  async function handleUserReset(user: api.PortalUser) {
+    setUserBusy(user.id);
+    setError(null);
+    setNotice(null);
+    try {
+      await api.sendCustomerPortalUserReset(customer._id, user.id);
+      setNotice(`Password reset email sent to ${user.email}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send the reset email');
+    } finally {
+      setUserBusy(null);
+    }
+  }
+
+  async function handleRemoveUser(user: api.PortalUser) {
+    setRemoveUser(null);
+    setUserBusy(user.id);
+    setError(null);
+    setNotice(null);
+    try {
+      setStatus(await api.removeCustomerPortalUser(customer._id, user.id));
+      setNotice(`Removed access for ${user.name}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove access');
+    } finally {
+      setUserBusy(null);
+    }
+  }
+
   async function handleTestPush() {
     setPushing(true);
     setError(null);
@@ -2251,6 +2285,11 @@ function CustomerPortalCard({ customer, onChange }: { customer: Customer; onChan
           Portal Active
         </label>
       </div>
+      {active && (
+        <p style={{ margin: '-4px 0 10px', fontSize: '0.9rem' }}>
+          Access granted for <strong>{status?.email ?? customer.email}</strong>
+        </p>
+      )}
       {status && (
         <dl className="kv-grid" style={{ marginTop: -4 }}>
           <dt>Set up</dt>
@@ -2269,6 +2308,8 @@ function CustomerPortalCard({ customer, onChange }: { customer: Customer; onChan
         <Modal title="Enable app access?" onClose={() => setConfirmEnable(false)}>
           <p style={{ color: 'var(--muted)' }}>
             Send email to customer ({customer.email}) and enable the portal?
+            {status && status.additionalUsers.length > 0 &&
+              ` The ${status.additionalUsers.length === 1 ? 'additional user' : `${status.additionalUsers.length} additional users`} will be emailed too.`}
           </p>
           <div className="modal-actions">
             <button className="btn btn-secondary" onClick={() => setConfirmEnable(false)}>
@@ -2294,6 +2335,101 @@ function CustomerPortalCard({ customer, onChange }: { customer: Customer; onChan
         )}
       </div>
       <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '16px 0' }} />
+      <h3 style={{ margin: '0 0 4px', fontSize: '0.95rem' }}>Additional access</h3>
+      <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: 0 }}>
+        Let someone else (a partner, family member or dog walker) use the app for this customer.
+        They see everything the customer sees, sign in with their own email address, and confirm
+        the last 3 digits of the mobile number below when they set up their password.
+      </p>
+      {status && status.additionalUsers.length > 0 && (
+        <div style={{ overflowX: 'auto', marginBottom: 12 }}>
+          <table className="table-compact">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Mobile</th>
+                <th>Status</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {status.additionalUsers.map((u) => (
+                <tr key={u.id}>
+                  <td>{u.name}</td>
+                  <td>{u.email}</td>
+                  <td>{u.phoneNumber}</td>
+                  <td>
+                    {u.setUp
+                      ? `Set up${u.lastLoginAt ? ` · last login ${new Date(u.lastLoginAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}`
+                      : 'Not set up yet'}
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                    <span style={{ display: 'inline-flex', gap: 14 }}>
+                      <button
+                        type="button"
+                        className="btn-link"
+                        onClick={() => handleUserReset(u)}
+                        disabled={!active || userBusy === u.id}
+                        title={active ? '' : 'Enable the portal first'}
+                      >
+                        Password reset
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-link"
+                        onClick={() => setRemoveUser(u)}
+                        disabled={userBusy === u.id}
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div className="modal-actions" style={{ justifyContent: 'flex-start' }}>
+        <button className="btn btn-secondary" onClick={() => setAddingUser(true)}>
+          Add additional access
+        </button>
+      </div>
+      {addingUser && (
+        <AddPortalUserModal
+          customerId={customer._id}
+          portalActive={active}
+          onClose={() => setAddingUser(false)}
+          onAdded={(next, added) => {
+            setAddingUser(false);
+            setStatus(next);
+            setError(null);
+            setNotice(
+              active
+                ? `Access added for ${added.name} — welcome email sent to ${added.email}.`
+                : `Access added for ${added.name}. They'll be emailed when the portal is enabled.`,
+            );
+          }}
+        />
+      )}
+      {removeUser && (
+        <Modal title="Remove access?" onClose={() => setRemoveUser(null)}>
+          <p style={{ color: 'var(--muted)' }}>
+            {removeUser.name} ({removeUser.email}) will be signed out of the app and won't be able to
+            sign in for this customer again.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setRemoveUser(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={() => handleRemoveUser(removeUser)}>
+              Remove access
+            </button>
+          </div>
+        </Modal>
+      )}
+      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '16px 0' }} />
       <h3 style={{ margin: '0 0 4px', fontSize: '0.95rem' }}>Send test push</h3>
       <p style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: 0 }}>
         Send a one-off notification to this customer's app to check push is working.
@@ -2312,6 +2448,80 @@ function CustomerPortalCard({ customer, onChange }: { customer: Customer; onChan
         </button>
       </div>
     </div>
+  );
+}
+
+// "Add additional access": name, email and mobile for another person who
+// gets the same app access as the customer.
+function AddPortalUserModal({
+  customerId,
+  portalActive,
+  onClose,
+  onAdded,
+}: {
+  customerId: string;
+  portalActive: boolean;
+  onClose: () => void;
+  onAdded: (status: api.PortalStatus, added: { name: string; email: string }) => void;
+}) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim() || !email.trim() || !phoneNumber.trim()) {
+      setError('Enter a name, email address and mobile number.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const status = await api.addCustomerPortalUser(customerId, {
+        name: name.trim(),
+        email: email.trim(),
+        phoneNumber: phoneNumber.trim(),
+      });
+      onAdded(status, { name: name.trim(), email: email.trim() });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add access');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title="Add additional access" onClose={onClose}>
+      <form onSubmit={handleSave}>
+        {error && <div className="error-banner">{error}</div>}
+        <div className="field">
+          <label>Name</label>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        </div>
+        <div className="field">
+          <label>Email</label>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Mobile number</label>
+          <input type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
+        </div>
+        <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
+          They'll sign in with this email address and confirm the last 3 digits of this mobile number.
+          {portalActive ? ' A welcome email is sent straight away.' : ' They will be emailed when the portal is enabled.'}
+        </p>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>
+            {saving ? 'Adding…' : 'Add access'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

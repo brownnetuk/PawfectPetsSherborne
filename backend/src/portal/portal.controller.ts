@@ -67,14 +67,23 @@ export class PortalController {
   @Post('verify-code')
   @HttpCode(200)
   async verifyCode(@Body() dto: VerifyCodeDto) {
-    await this.portal.verifyCode(dto.email, dto.code);
-    return { ok: true };
+    const { phoneDigitsRequired } = await this.portal.verifyCode(
+      dto.email,
+      dto.code,
+    );
+    return { ok: true, phoneDigitsRequired };
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('set-password')
   @HttpCode(200)
   async setPassword(@Body() dto: SetPasswordDto) {
-    return this.portal.setPassword(dto.email, dto.code, dto.password);
+    return this.portal.setPassword(
+      dto.email,
+      dto.code,
+      dto.password,
+      dto.digits,
+    );
   }
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -235,7 +244,12 @@ export class PortalController {
     @CurrentCustomer() customer: CurrentCustomerData,
     @Body() dto: RegisterPushDto,
   ) {
-    await this.portal.registerPush(customer.customerId, dto.token, dto.platform);
+    await this.portal.registerPush(
+      customer.customerId,
+      dto.token,
+      dto.platform,
+      customer.portalUserId,
+    );
     return { ok: true };
   }
 

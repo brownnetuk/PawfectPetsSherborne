@@ -18,6 +18,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _code = TextEditingController();
   final _newPassword = TextEditingController();
   final _confirm = TextEditingController();
+  final _digits = TextEditingController();
 
   // First-time-login toggle: hides the password field and switches to the
   // email-me-a-code flow.
@@ -27,6 +28,10 @@ class _LoginScreenState extends State<LoginScreen> {
   // Whether the current code step is a password reset (vs first-time login) —
   // only affects the wording.
   bool _resetFlow = false;
+  // Set once the server asks for the last 3 digits of the mobile number --
+  // only additional users (people the customer's account was shared with)
+  // are asked.
+  bool _needsDigits = false;
   bool _busy = false;
   // Save the login so Face ID / Touch ID can be used next time.
   bool _remember = false;
@@ -39,6 +44,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _code.dispose();
     _newPassword.dispose();
     _confirm.dispose();
+    _digits.dispose();
     super.dispose();
   }
 
@@ -103,9 +109,23 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _error = 'The passwords don\'t match.');
       return;
     }
-    await _run(() => context
-        .read<AuthProvider>()
-        .completeWithCode(_email.text, _code.text, _newPassword.text));
+    if (_needsDigits && !RegExp(r'^\d{3}$').hasMatch(_digits.text.trim())) {
+      setState(() => _error = 'Enter the last 3 digits of your mobile number.');
+      return;
+    }
+    await _run(() async {
+      try {
+        await context.read<AuthProvider>().completeWithCode(
+              _email.text,
+              _code.text,
+              _newPassword.text,
+              digits: _needsDigits ? _digits.text.trim() : null,
+            );
+      } on ApiException catch (e) {
+        if (e.code == 'PHONE_DIGITS_REQUIRED') setState(() => _needsDigits = true);
+        rethrow;
+      }
+    });
   }
 
   void _startOver() {
@@ -114,6 +134,8 @@ class _LoginScreenState extends State<LoginScreen> {
       _code.clear();
       _newPassword.clear();
       _confirm.clear();
+      _digits.clear();
+      _needsDigits = false;
       _error = null;
     });
   }
@@ -283,6 +305,19 @@ class _LoginScreenState extends State<LoginScreen> {
           decoration: const InputDecoration(labelText: 'Confirm password'),
           onSubmitted: (_) => _submitCode(),
         ),
+        if (_needsDigits) ...[
+          const SizedBox(height: 14),
+          TextField(
+            controller: _digits,
+            keyboardType: TextInputType.number,
+            maxLength: 3,
+            decoration: const InputDecoration(
+              labelText: 'Last 3 digits of your mobile number',
+              counterText: '',
+            ),
+            onSubmitted: (_) => _submitCode(),
+          ),
+        ],
         const SizedBox(height: 20),
         ElevatedButton(
           onPressed: _busy ? null : _submitCode,

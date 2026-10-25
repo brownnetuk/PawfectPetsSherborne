@@ -21,6 +21,20 @@ export class SetPortalActiveDto {
   active: boolean;
 }
 
+// Staff "Add additional access" on the Mobile App Access card.
+export class AddPortalUserDto {
+  @IsString()
+  @MinLength(1)
+  name: string;
+
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  @MinLength(3)
+  phoneNumber: string;
+}
+
 // Staff "send test push" from the Customer Portal card.
 export class TestPushDto {
   @IsOptional()
@@ -52,7 +66,9 @@ export class WebVerifyPhoneDto {
   stepToken: string;
 
   @IsString()
-  @Matches(/^\d{3}$/, { message: 'Enter the last 3 digits of your mobile number.' })
+  @Matches(/^\d{3}$/, {
+    message: 'Enter the last 3 digits of your mobile number.',
+  })
   digits: string;
 }
 
@@ -67,6 +83,15 @@ export class SetPasswordDto {
   @IsString()
   @MinLength(8)
   password: string;
+
+  // Additional users only: the last 3 digits of the mobile number staff
+  // recorded for them (see PortalService.setPassword).
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{3}$/, {
+    message: 'Enter the last 3 digits of your mobile number.',
+  })
+  digits?: string;
 }
 
 export class LoginDto {

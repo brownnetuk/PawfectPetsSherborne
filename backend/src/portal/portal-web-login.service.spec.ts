@@ -14,6 +14,14 @@ import {
 } from './portal-web-login.service';
 
 type Creds = Record<string, unknown>;
+type User = {
+  _id: string;
+  name: string;
+  email: string;
+  phoneNumber: string;
+  credentials: Creds;
+  lastLoginAt?: Date;
+};
 type Row = {
   _id: string;
   email: string;
@@ -22,39 +30,72 @@ type Row = {
   portalActive: boolean;
   portalCredentials: Creds;
   portalLastLoginAt?: Date;
+  portalUsers: User[];
 };
 
 // A one-customer stand-in for the Customer model: findOne honours the
-// email regex + portalActive filter, updateOne applies dotted $set/$unset.
+// portalActive + $or (customer email / additional-user email) filter, and
+// updateOne applies dotted $set/$unset to either the customer's credentials or
+// (via the `portalUsers.$` positional path) the matched additional user's.
 function fakeCustomerModel(row: Row) {
+  const snapshot = () => ({
+    ...row,
+    portalCredentials: { ...row.portalCredentials },
+    portalUsers: row.portalUsers.map((u) => ({
+      ...u,
+      credentials: { ...u.credentials },
+    })),
+  });
+  const apply = (
+    filter: Record<string, unknown>,
+    path: string,
+    value: unknown,
+    unset: boolean,
+  ) => {
+    let target: Record<string, unknown> = row;
+    let rest = path;
+    if (path.startsWith('portalUsers.$.')) {
+      const user = row.portalUsers.find(
+        (u) => u._id === filter['portalUsers._id'],
+      );
+      if (!user) return;
+      target = user;
+      rest = path.slice('portalUsers.$.'.length);
+    }
+    const parts = rest.split('.');
+    for (const part of parts.slice(0, -1)) {
+      target = target[part] as Record<string, unknown>;
+    }
+    const last = parts[parts.length - 1];
+    if (unset) delete target[last];
+    else target[last] = value;
+  };
   return {
-    findOne: (filter: { email: RegExp; portalActive: boolean }) => ({
+    findOne: (filter: {
+      portalActive: boolean;
+      $or: [{ email: RegExp }, { 'portalUsers.email': RegExp }];
+    }) => ({
       select: () => ({
-        exec: () =>
-          Promise.resolve(
-            filter.email.test(row.email) && row.portalActive
-              ? {
-                  ...row,
-                  portalCredentials: { ...row.portalCredentials },
-                }
-              : null,
-          ),
+        exec: () => {
+          const re = filter.$or[0].email;
+          const hit =
+            row.portalActive &&
+            (re.test(row.email) ||
+              row.portalUsers.some((u) => re.test(u.email)));
+          return Promise.resolve(hit ? snapshot() : null);
+        },
       }),
     }),
     updateOne: (
-      _filter: unknown,
+      filter: Record<string, unknown>,
       update: { $set?: Record<string, unknown>; $unset?: Record<string, ''> },
     ) => ({
       exec: () => {
         for (const [path, value] of Object.entries(update.$set ?? {})) {
-          if (path.startsWith('portalCredentials.')) {
-            row.portalCredentials[path.split('.')[1]] = value;
-          } else {
-            (row as Record<string, unknown>)[path] = value;
-          }
+          apply(filter, path, value, false);
         }
         for (const path of Object.keys(update.$unset ?? {})) {
-          delete row.portalCredentials[path.split('.')[1]];
+          apply(filter, path, undefined, true);
         }
         return Promise.resolve();
       },
@@ -67,6 +108,7 @@ describe('PortalWebLoginService', () => {
   let row: Row;
   let service: PortalWebLoginService;
   let sentCode: string | undefined;
+  let sentTo: string | undefined;
   const jwt = new JwtService({});
 
   beforeEach(() => {
@@ -77,12 +119,23 @@ describe('PortalWebLoginService', () => {
       phoneNumber: '+44 (0)7700 900 123',
       portalActive: true,
       portalCredentials: { passwordHash: 'app-password' },
+      portalUsers: [
+        {
+          _id: 'user1',
+          name: 'Sam Bloggs',
+          email: 'sam@example.com',
+          phoneNumber: '07700 900 456',
+          credentials: {},
+        },
+      ],
     };
     sentCode = undefined;
+    sentTo = undefined;
     const settings = {
       sendTemplatedEmail: jest.fn(
-        (_t: unknown, _to: string, vars: Record<string, string>) => {
+        (_t: unknown, to: string, vars: Record<string, string>) => {
           sentCode = vars.code;
+          sentTo = to;
           return Promise.resolve();
         },
       ),
@@ -187,5 +240,36 @@ describe('PortalWebLoginService', () => {
     await expect(
       service.verifyCode('jo@example.com', sentCode!),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('signs an additional user in against their own mobile number', async () => {
+    await service.requestCode('SAM@example.com');
+    expect(sentTo).toBe('sam@example.com');
+    const { stepToken } = await service.verifyCode(
+      'sam@example.com',
+      sentCode!,
+    );
+    // The customer's own credentials are untouched.
+    expect(row.portalCredentials.webStepHash).toBeUndefined();
+    // The customer's digits don't work for Sam.
+    await expect(
+      service.verifyPhone('sam@example.com', stepToken, '123'),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    const { token } = await service.verifyPhone(
+      'sam@example.com',
+      stepToken,
+      '456',
+    );
+    const payload = jwt.verify<{ sub: string; uid: string; email: string }>(
+      token,
+      { secret: portalJwtSecret(JWT_SECRET) },
+    );
+    expect(payload).toMatchObject({
+      sub: 'cust1',
+      uid: 'user1',
+      email: 'sam@example.com',
+    });
+    expect(row.portalUsers[0].lastLoginAt).toBeInstanceOf(Date);
+    expect(row.portalLastLoginAt).toBeUndefined();
   });
 });

@@ -156,7 +156,7 @@ const AgreementSchema = SchemaFactory.createForClass(Agreement);
 // endpoints that read a Customer don't leak it; PortalAuthService explicitly
 // selects it with `.select('+portalCredentials')`).
 @Schema({ _id: false })
-class PortalCredentials {
+export class PortalCredentials {
   // bcrypt hash of the customer's chosen password.
   @Prop()
   passwordHash?: string;
@@ -197,8 +197,41 @@ class PortalCredentials {
 
   @Prop()
   webStepAttempts?: number;
+
+  // App set-up/reset for an additional user (see PortalUser): wrong guesses at
+  // the last 3 digits of their mobile against the current code.
+  @Prop()
+  phoneAttempts?: number;
 }
 const PortalCredentialsSchema = SchemaFactory.createForClass(PortalCredentials);
+
+// An additional person staff have given access to this customer's account in
+// the app/web portal (Customer Defaults > Mobile App Access > "Add additional
+// access"). They see exactly what the customer sees, but sign in with their own
+// email and are checked against their own mobile number (last 3 digits) when
+// they set up/reset their password in the app and on every web sign-in.
+@Schema({ timestamps: true })
+export class PortalUser {
+  _id?: Types.ObjectId;
+
+  @Prop({ required: true })
+  name: string;
+
+  @Prop({ required: true })
+  email: string;
+
+  @Prop({ required: true })
+  phoneNumber: string;
+
+  @Prop()
+  lastLoginAt?: Date;
+
+  @Prop({ type: PortalCredentialsSchema, default: {} })
+  credentials?: PortalCredentials;
+
+  createdAt?: Date;
+}
+const PortalUserSchema = SchemaFactory.createForClass(PortalUser);
 
 @Schema({ timestamps: true })
 export class Customer extends Document {
@@ -288,6 +321,12 @@ export class Customer extends Document {
 
   @Prop({ type: PortalCredentialsSchema, select: false })
   portalCredentials?: PortalCredentials;
+
+  // Additional people with the same app access (see PortalUser). Hidden like
+  // portalCredentials, since each entry carries its own credentials; the
+  // admin's Mobile App Access card reads them via the portal status endpoint.
+  @Prop({ type: [PortalUserSchema], select: false })
+  portalUsers?: PortalUser[];
 }
 
 export const CustomerSchema = SchemaFactory.createForClass(Customer);

@@ -27,11 +27,26 @@ import { PushMessagesService } from '../push-messages/push-messages.service';
 import { SettingsService } from '../settings/settings.service';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { portalJwtSecret, PORTAL_TOKEN_TTL } from './portal-jwt.util';
-import { UpdateMeDto } from './dto/portal-auth.dto';
+import { AddPortalUserDto, UpdateMeDto } from './dto/portal-auth.dto';
+import {
+  emailRegex,
+  findActivePortalAccount,
+  isObjectId,
+  PortalAccount,
+  portalTokenPayload,
+  replaceAccountCreds,
+  setAccountCreds,
+} from './portal-account';
+import { lastThreeDigits } from './portal-web-login.service';
 import { PortalCreateAnimalDto } from './dto/portal-animal.dto';
 
 // First-time-login and password-reset codes are valid for 48 hours.
 const CODE_TTL_MS = 48 * 60 * 60 * 1000;
+// Wrong mobile-digit guesses an additional user gets against one code before
+// it's thrown away (they then request a new one).
+export const APP_PHONE_MAX_ATTEMPTS = 3;
+// Lets the app tell "ask for the mobile digits" apart from other errors.
+export const PHONE_DIGITS_REQUIRED = 'PHONE_DIGITS_REQUIRED';
 
 @Injectable()
 export class PortalService {
@@ -92,32 +107,29 @@ export class PortalService {
 
   // The customer app registers its APNs device token here (tagged with the
   // customer id so sends route to the customer topic).
+  // An additional user's devices are also tagged with their id, so removing
+  // their access can drop exactly their tokens.
   async registerPush(
     customerId: string,
     token: string,
     platform = 'ios',
+    portalUserId?: string,
   ): Promise<void> {
-    await this.push.registerToken(token, platform, { customer: customerId });
+    await this.push.registerToken(token, platform, {
+      customer: customerId,
+      portalUser: portalUserId,
+    });
   }
 
-  // Case-insensitive lookup of a portal-enabled customer, with the hidden
-  // credentials sub-doc loaded. Returns null when no such active customer.
-  private async findActiveWithCreds(email: string): Promise<Customer | null> {
-    const escaped = email.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return this.customerModel
-      .findOne({ email: new RegExp(`^${escaped}$`, 'i'), portalActive: true })
-      .select('+portalCredentials')
-      .exec();
+  private findActiveAccount(email: string): Promise<PortalAccount | null> {
+    return findActivePortalAccount(this.customerModel, email);
   }
 
-  private sign(customer: Customer): string {
-    return this.jwt.sign(
-      { sub: customer._id?.toString(), email: customer.email, typ: 'portal' },
-      {
-        secret: portalJwtSecret(this.config.getOrThrow<string>('JWT_SECRET')),
-        expiresIn: PORTAL_TOKEN_TTL,
-      },
-    );
+  private sign(account: PortalAccount): string {
+    return this.jwt.sign(portalTokenPayload(account), {
+      secret: portalJwtSecret(this.config.getOrThrow<string>('JWT_SECRET')),
+      expiresIn: PORTAL_TOKEN_TTL,
+    });
   }
 
   private static genCode(): string {
@@ -125,32 +137,36 @@ export class PortalService {
   }
 
   // Generates a fresh code into the right slot and emails it (shared by the
-  // public request-code/reset endpoints and the staff-triggered reset). The
-  // customer must have been loaded with `+portalCredentials`.
+  // public request-code/reset endpoints and the staff-triggered resets).
   private async issueCode(
-    customer: Customer,
+    account: PortalAccount,
     kind: 'login' | 'reset',
   ): Promise<void> {
     const code = PortalService.genCode();
     const hash = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + CODE_TTL_MS);
-    const creds = customer.portalCredentials ?? {};
-    if (kind === 'login') {
-      creds.loginCodeHash = hash;
-      creds.loginCodeExpiresAt = expiresAt;
-    } else {
-      creds.resetCodeHash = hash;
-      creds.resetCodeExpiresAt = expiresAt;
-    }
-    customer.portalCredentials = creds;
-    await customer.save();
+    await setAccountCreds(
+      this.customerModel,
+      account,
+      kind === 'login'
+        ? {
+            loginCodeHash: hash,
+            loginCodeExpiresAt: expiresAt,
+            phoneAttempts: 0,
+          }
+        : {
+            resetCodeHash: hash,
+            resetCodeExpiresAt: expiresAt,
+            phoneAttempts: 0,
+          },
+    );
 
     const trigger =
       kind === 'login'
         ? EmailTrigger.PORTAL_LOGIN_CODE
         : EmailTrigger.PORTAL_PASSWORD_RESET;
-    await this.settings.sendTemplatedEmail(trigger, customer.email, {
-      customer_name: customer.name ?? '',
+    await this.settings.sendTemplatedEmail(trigger, account.email, {
+      customer_name: account.name,
       code,
     });
   }
@@ -159,9 +175,9 @@ export class PortalService {
   // Always resolves quietly (even for unknown/disabled emails) so the endpoint
   // can't be used to probe which addresses have portal access.
   async requestCode(email: string, kind: 'login' | 'reset'): Promise<void> {
-    const customer = await this.findActiveWithCreds(email);
-    if (!customer) return;
-    await this.issueCode(customer, kind);
+    const account = await this.findActiveAccount(email);
+    if (!account) return;
+    await this.issueCode(account, kind);
   }
 
   // --- staff-triggered (PortalAdminController, behind the staff guard) ---
@@ -169,8 +185,12 @@ export class PortalService {
   // Toggles a customer's portal access on/off. Turning it off also blocks
   // login (login checks portalActive).
   async setPortalActive(customerId: string, active: boolean) {
-    const before = await this.customerModel.findById(customerId).exec();
-    if (!before) throw new NotFoundException(`Customer ${customerId} not found`);
+    const before = await this.customerModel
+      .findById(customerId)
+      .select('+portalUsers')
+      .exec();
+    if (!before)
+      throw new NotFoundException(`Customer ${customerId} not found`);
     const wasActive = before.portalActive ?? false;
     before.portalActive = active;
     await before.save();
@@ -180,20 +200,122 @@ export class PortalService {
     if (!active && wasActive) {
       await this.push.removeCustomerTokens(customerId);
     }
-    // Email the customer the first time access is switched on (best-effort —
-    // a missing PORTAL_ENABLED template mustn't block the toggle).
-    if (active && !wasActive && before.email) {
-      try {
-        await this.settings.sendTemplatedEmail(
-          EmailTrigger.PORTAL_ENABLED,
-          before.email,
-          { customer_name: before.name ?? '' },
-        );
-      } catch (err) {
-        console.error(`Failed to send portal-enabled email to ${before.email}:`, err);
+    // Email the customer (and any additional users) when access is switched
+    // on (best-effort — a missing PORTAL_ENABLED template mustn't block the
+    // toggle).
+    if (active && !wasActive) {
+      if (before.email) await this.sendWelcome(before.email, before.name ?? '');
+      for (const user of before.portalUsers ?? []) {
+        await this.sendWelcome(user.email, user.name);
       }
     }
     return { portalActive: active };
+  }
+
+  private async sendWelcome(email: string, name: string): Promise<void> {
+    try {
+      await this.settings.sendTemplatedEmail(
+        EmailTrigger.PORTAL_ENABLED,
+        email,
+        {
+          customer_name: name,
+        },
+      );
+    } catch (err) {
+      console.error(`Failed to send portal-enabled email to ${email}:`, err);
+    }
+  }
+
+  // --- additional users (Mobile App Access > "Add additional access") ---
+
+  // Adds a person with the same app access as the customer. Their email must
+  // not already sign in to any account (customer or additional user), or the
+  // sign-in lookup would be ambiguous. If access is already on they're sent
+  // the welcome email straight away.
+  async addPortalUser(customerId: string, dto: AddPortalUserDto) {
+    const customer = await this.customerModel
+      .findById(customerId)
+      .select('+portalUsers')
+      .exec();
+    if (!customer)
+      throw new NotFoundException(`Customer ${customerId} not found`);
+    const name = dto.name.trim();
+    const email = dto.email.trim();
+    const phoneNumber = dto.phoneNumber.trim();
+    if (!name) throw new BadRequestException('Enter a name.');
+    if (!lastThreeDigits(phoneNumber)) {
+      throw new BadRequestException(
+        'Enter a mobile number -- it is used to verify this person when they sign in.',
+      );
+    }
+    const re = emailRegex(email);
+    const clash = await this.customerModel
+      .findOne({ $or: [{ email: re }, { 'portalUsers.email': re }] })
+      .select('name')
+      .lean()
+      .exec();
+    if (clash) {
+      throw new BadRequestException(
+        String(clash._id) === customerId
+          ? 'That email address already has access to this customer.'
+          : `That email address is already used by another customer (${clash.name}), so it can't sign in here too.`,
+      );
+    }
+    await this.customerModel
+      .updateOne(
+        { _id: customer._id },
+        {
+          $push: { portalUsers: { name, email, phoneNumber, credentials: {} } },
+        },
+      )
+      .exec();
+    if (customer.portalActive) await this.sendWelcome(email, name);
+    return this.getPortalStatus(customerId);
+  }
+
+  // Removes an additional user: their sessions stop working on their next
+  // request (the portal guard checks they're still listed) and their devices
+  // stop getting this customer's pushes.
+  async removePortalUser(customerId: string, userId: string) {
+    if (!isObjectId(userId)) throw new NotFoundException('User not found');
+    const res = await this.customerModel
+      .updateOne(
+        { _id: customerId, 'portalUsers._id': userId },
+        { $pull: { portalUsers: { _id: userId } } },
+      )
+      .exec();
+    if (!res.matchedCount) throw new NotFoundException('User not found');
+    await this.push.removePortalUserTokens(userId);
+    return this.getPortalStatus(customerId);
+  }
+
+  // Staff "Password reset" for an additional user: emails them a reset code.
+  async adminSendUserReset(customerId: string, userId: string) {
+    const customer = await this.customerModel
+      .findById(customerId)
+      .select('+portalUsers')
+      .exec();
+    if (!customer)
+      throw new NotFoundException(`Customer ${customerId} not found`);
+    const user = customer.portalUsers?.find((u) => String(u._id) === userId);
+    if (!user) throw new NotFoundException('User not found');
+    if (!customer.portalActive) {
+      throw new BadRequestException(
+        'Enable the portal for this customer before sending a reset.',
+      );
+    }
+    await this.issueCode(
+      {
+        customer,
+        user,
+        email: user.email,
+        name: user.name,
+        phoneNumber: user.phoneNumber,
+        creds: user.credentials ?? {},
+      },
+      'reset',
+    );
+    return { ok: true };
   }
 
   // Staff "Password reset" button: emails this customer a reset code.
@@ -211,7 +333,16 @@ export class PortalService {
     if (!customer.email) {
       throw new BadRequestException('This customer has no email address on file.');
     }
-    await this.issueCode(customer, 'reset');
+    await this.issueCode(
+      {
+        customer,
+        email: customer.email,
+        name: customer.name ?? '',
+        phoneNumber: customer.phoneNumber,
+        creds: customer.portalCredentials ?? {},
+      },
+      'reset',
+    );
     return { ok: true };
   }
 
@@ -240,7 +371,7 @@ export class PortalService {
 
   // Validates a code against either slot (login or reset), honouring expiry.
   private static async matchCode(
-    creds: Customer['portalCredentials'],
+    creds: PortalAccount['creds'] | undefined,
     code: string,
   ): Promise<boolean> {
     if (!creds) return false;
@@ -257,40 +388,102 @@ export class PortalService {
   }
 
   // Pre-check used by the app before showing the "set a password" screen.
-  async verifyCode(email: string, code: string): Promise<void> {
-    const customer = await this.findActiveWithCreds(email);
-    if (!customer || !(await PortalService.matchCode(customer.portalCredentials, code))) {
+  // Tells the app whether this account will also need the last 3 digits of
+  // their mobile (additional users only).
+  async verifyCode(
+    email: string,
+    code: string,
+  ): Promise<{ phoneDigitsRequired: boolean }> {
+    const account = await this.findActiveAccount(email);
+    if (!account || !(await PortalService.matchCode(account.creds, code))) {
       throw new UnauthorizedException('Invalid or expired code.');
     }
+    return { phoneDigitsRequired: !!account.user };
   }
 
-  // Consumes a valid code, sets the password, and logs the customer in.
+  // Consumes a valid code, sets the password, and logs the customer in. An
+  // additional user must also give the last 3 digits of the mobile number
+  // staff recorded for them -- that's what ties the emailed code to the person
+  // staff actually added.
   async setPassword(
     email: string,
     code: string,
     password: string,
+    digits?: string,
   ): Promise<{ token: string }> {
-    const customer = await this.findActiveWithCreds(email);
-    if (!customer || !(await PortalService.matchCode(customer.portalCredentials, code))) {
+    const account = await this.findActiveAccount(email);
+    if (!account || !(await PortalService.matchCode(account.creds, code))) {
       throw new UnauthorizedException('Invalid or expired code.');
     }
+    if (account.user) await this.checkPhoneDigits(account, digits);
     // Replace the whole sub-doc so both codes are dropped (single-use) and only
     // the new password hash remains.
-    customer.portalCredentials = { passwordHash: await bcrypt.hash(password, 10) };
-    customer.portalLastLoginAt = new Date();
-    await customer.save();
-    return { token: this.sign(customer) };
+    await replaceAccountCreds(
+      this.customerModel,
+      account,
+      { passwordHash: await bcrypt.hash(password, 10) },
+      { touchLogin: true },
+    );
+    return { token: this.sign(account) };
+  }
+
+  private async checkPhoneDigits(
+    account: PortalAccount,
+    digits: string | undefined,
+  ): Promise<void> {
+    const expected = lastThreeDigits(account.phoneNumber);
+    if (!expected) {
+      throw new BadRequestException(
+        "We don't have a mobile number on file for you, so we can't finish setting up your login. Please get in touch with us.",
+      );
+    }
+    if (!digits) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: PHONE_DIGITS_REQUIRED,
+        message: 'Enter the last 3 digits of your mobile number.',
+      });
+    }
+    if (digits === expected) return;
+    const attempts = (account.creds.phoneAttempts ?? 0) + 1;
+    if (attempts >= APP_PHONE_MAX_ATTEMPTS) {
+      // Burn the codes: they have to request a fresh one.
+      await setAccountCreds(this.customerModel, account, {
+        loginCodeHash: undefined,
+        loginCodeExpiresAt: undefined,
+        resetCodeHash: undefined,
+        resetCodeExpiresAt: undefined,
+        phoneAttempts: undefined,
+      });
+      // 400 not 401, so the app shows this message rather than treating it
+      // as an expired session.
+      throw new BadRequestException(
+        "Those digits don't match the number we have. Please request a new code.",
+      );
+    }
+    await setAccountCreds(this.customerModel, account, {
+      phoneAttempts: attempts,
+    });
+    throw new BadRequestException({
+      statusCode: 400,
+      code: PHONE_DIGITS_REQUIRED,
+      message: "Those digits don't match the mobile number we have for you.",
+    });
   }
 
   async login(email: string, password: string): Promise<{ token: string }> {
-    const customer = await this.findActiveWithCreds(email);
-    const hash = customer?.portalCredentials?.passwordHash;
-    if (!customer || !hash || !(await bcrypt.compare(password, hash))) {
+    const account = await this.findActiveAccount(email);
+    const hash = account?.creds.passwordHash;
+    if (!account || !hash || !(await bcrypt.compare(password, hash))) {
       throw new UnauthorizedException('Incorrect email or password.');
     }
-    customer.portalLastLoginAt = new Date();
-    await customer.save();
-    return { token: this.sign(customer) };
+    await setAccountCreds(
+      this.customerModel,
+      account,
+      {},
+      { touchLogin: true },
+    );
+    return { token: this.sign(account) };
   }
 
   // Login/usage status for the admin's Mobile App Access card. Stateless JWT
@@ -299,16 +492,30 @@ export class PortalService {
   async getPortalStatus(customerId: string) {
     const customer = await this.customerModel
       .findById(customerId)
-      .select('+portalCredentials portalActive portalLastLoginAt')
+      .select(
+        '+portalCredentials +portalUsers email portalActive portalLastLoginAt',
+      )
       .exec();
     if (!customer) throw new NotFoundException(`Customer ${customerId} not found`);
     const devices = await this.push.customerTokenStats(customerId);
     return {
       portalActive: customer.portalActive ?? false,
+      // The email the customer's own access is granted for.
+      email: customer.email,
       setUp: !!customer.portalCredentials?.passwordHash,
       lastLoginAt: customer.portalLastLoginAt ?? null,
       deviceCount: devices.count,
       lastDeviceAt: devices.lastAt,
+      // Never the credentials themselves -- just whether they've set up.
+      additionalUsers: (customer.portalUsers ?? []).map((u) => ({
+        id: String(u._id),
+        name: u.name,
+        email: u.email,
+        phoneNumber: u.phoneNumber,
+        setUp: !!u.credentials?.passwordHash,
+        lastLoginAt: u.lastLoginAt ?? null,
+        addedAt: u.createdAt ?? null,
+      })),
     };
   }
 

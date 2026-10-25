@@ -225,6 +225,11 @@ class _CustomerDefaultsScreenState extends State<CustomerDefaultsScreen> {
                 value: _portalActive,
                 onChanged: _portalBusy ? null : _togglePortal,
               ),
+              if (_portalActive && (widget.customer.email ?? '').isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text('Access granted for ${widget.customer.email}'),
+                ),
               if (_portalActive)
                 OutlinedButton.icon(
                   onPressed: _portalBusy ? null : _sendReset,
