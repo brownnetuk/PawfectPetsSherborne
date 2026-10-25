@@ -97,8 +97,8 @@ export class PortalService {
     return { count: await this.messages.customerUnread(customerId) };
   }
 
-  sendMessage(customerId: string, body: string) {
-    return this.messages.customerSend(customerId, body);
+  sendMessage(customerId: string, body: string, portalUserId?: string) {
+    return this.messages.customerSend(customerId, body, portalUserId);
   }
 
   deleteMessage(customerId: string, messageId: string) {
@@ -523,14 +523,27 @@ export class PortalService {
   // Never includes credentials (loaded without the hidden sub-doc) nor the
   // decrypted alarm instructions (only whether some are on file). Bundles the
   // business's current terms so the read-only Agreement screen can render them.
-  async getProfile(customerId: string) {
-    const c = await this.customerModel.findById(customerId).exec();
+  // `portalUserId` is set when an additional user is signed in; the profile is
+  // still the customer's, but `viewer` says who is actually looking at it.
+  async getProfile(customerId: string, portalUserId?: string) {
+    const c = await this.customerModel
+      .findById(customerId)
+      .select('+portalUsers')
+      .exec();
     if (!c) throw new UnauthorizedException();
     const ec = c.emergencyContact;
     const ev = c.emergencyVet;
     const business = await this.settings.getBusinessInfo();
+    const portalUser = portalUserId
+      ? c.portalUsers?.find((u) => String(u._id) === portalUserId)
+      : undefined;
     return {
       id: c._id?.toString(),
+      // Who is signed in: the customer themselves (portalUserId null) or an
+      // additional user. The app uses this to label its own messages "You".
+      viewer: portalUser
+        ? { portalUserId: String(portalUser._id), name: portalUser.name }
+        : { portalUserId: null, name: c.name },
       firstName: c.firstName,
       surname: c.surname,
       name: c.name,
@@ -594,13 +607,17 @@ export class PortalService {
 
   // Edits the customer's own contact details via CustomersService (so name/
   // address stay computed and the change is audit-logged), then nudges staff.
-  async updateProfile(customerId: string, dto: UpdateMeDto) {
+  async updateProfile(
+    customerId: string,
+    dto: UpdateMeDto,
+    portalUserId?: string,
+  ) {
     await this.customers.update(
       customerId,
       dto as UpdateCustomerDto,
       'Customer (portal)',
     );
-    const updated = await this.getProfile(customerId);
+    const updated = await this.getProfile(customerId, portalUserId);
     await this.notifications.notifyCustomerUpdated(updated.name);
     return updated;
   }

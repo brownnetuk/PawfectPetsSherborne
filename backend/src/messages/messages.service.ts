@@ -139,20 +139,33 @@ export class MessagesService {
     return { ok: true };
   }
 
-  async customerSend(customerId: string, body: string) {
-    const customer = await this.customerModel.findById(customerId).exec();
+  // `portalUserId` is set when an additional user (someone the customer shared
+  // app access with) is signed in: the message is signed with their configured
+  // name rather than the customer's, and tagged with their id.
+  async customerSend(customerId: string, body: string, portalUserId?: string) {
+    const customer = await this.customerModel
+      .findById(customerId)
+      .select('+portalUsers')
+      .exec();
     if (!customer) throw new NotFoundException(`Customer ${customerId} not found`);
+    const portalUser = portalUserId
+      ? customer.portalUsers?.find((u) => String(u._id) === portalUserId)
+      : undefined;
+    const senderName = portalUser?.name?.trim() || customer.name;
     const message = await this.messageModel.create({
       customer: customerId,
       sender: 'customer',
-      senderName: customer.name,
+      senderName,
+      portalUser: portalUser?._id,
       body,
       readByStaff: false,
       readByCustomer: true,
     });
-    // Notify staff (admin feed + push to staff devices).
+    // Notify staff (admin feed + push to staff devices). Name the person who
+    // wrote it, and the account it belongs to when those differ.
     const preview = body.length > 80 ? `${body.slice(0, 80)}…` : body;
-    await this.notifications.dispatch('New message', `${customer.name}: ${preview}`, 'message');
+    const who = portalUser ? `${senderName} (${customer.name})` : customer.name;
+    await this.notifications.dispatch('New message', `${who}: ${preview}`, 'message');
     return message;
   }
 }

@@ -122,7 +122,7 @@ export class PortalController {
   @UseGuards(PortalJwtGuard)
   @Get('me')
   async me(@CurrentCustomer() customer: CurrentCustomerData) {
-    return this.portal.getProfile(customer.customerId);
+    return this.portal.getProfile(customer.customerId, customer.portalUserId);
   }
 
   @UseGuards(PortalJwtGuard)
@@ -131,7 +131,11 @@ export class PortalController {
     @CurrentCustomer() customer: CurrentCustomerData,
     @Body() dto: UpdateMeDto,
   ) {
-    return this.portal.updateProfile(customer.customerId, dto);
+    return this.portal.updateProfile(
+      customer.customerId,
+      dto,
+      customer.portalUserId,
+    );
   }
 
   @UseGuards(PortalJwtGuard)
@@ -273,7 +277,11 @@ export class PortalController {
     @CurrentCustomer() customer: CurrentCustomerData,
     @Body() dto: SendMessageDto,
   ) {
-    return this.portal.sendMessage(customer.customerId, dto.body);
+    return this.portal.sendMessage(
+      customer.customerId,
+      dto.body,
+      customer.portalUserId,
+    );
   }
 
   @UseGuards(PortalJwtGuard)

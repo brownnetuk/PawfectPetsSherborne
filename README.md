@@ -729,7 +729,7 @@ Auth column legend:
 | POST | `/portal/web/verify-code` | public (10/min) | Step 2: `{ email, code }` → `{ stepToken }`. 5 wrong codes discards the code. 400 if no mobile number is on file. |
 | POST | `/portal/web/verify-phone` | public (10/min) | Step 3: `{ email, stepToken, digits }` (last 3 digits of `phoneNumber`) → `{ token }` (portal JWT, 12h). 3 wrong tries discards the step. |
 | GET | `/portal/quotes/:id/pdf` | customer | Ownership check, then inline PDF (`quote-<id>.pdf`) |
-| GET | `/portal/me` | customer | Curated profile: contact details, emergency contact and vet, `security { keysProvided, furtherInformation, hasAlarmInstructions }`, the agreement (including `signatureImage`), current `terms { html, version, documentDate }` and `offLeadConsentText` |
+| GET | `/portal/me` | customer | Curated profile: contact details, emergency contact and vet, `security { keysProvided, furtherInformation, hasAlarmInstructions }`, the agreement (including `signatureImage`), current `terms { html, version, documentDate }`, `offLeadConsentText`, and `viewer { portalUserId, name }` saying who is signed in (`portalUserId` null and the customer's name for the customer themselves; the additional user's id and configured name otherwise) |
 | PATCH | `/portal/me` | customer | Update `UpdateMeDto` (contact fields, `emergencyContact`, `emergencyVet` without authorisation, `security`; **email can't be changed**) through `CustomersService.update(actor 'Customer (portal)')`. Then dispatches the staff notification `customerUpdated`. |
 | GET | `/portal/invoices` | customer | `InvoicesService.findAll(customerId)` (all statuses) |
 | GET | `/portal/invoices/:id/pdf` | customer | Ownership check, then inline PDF (`invoice-<id>.pdf`) |
@@ -2819,7 +2819,7 @@ The subject of the `generic` template must reference `{{campaignSubject}}`. Othe
 |---|---|---|---|
 | GET | `/portal/messages` | Customer portal JWT | Marks staff messages `readByCustomer=true`, then returns the thread. |
 | GET | `/portal/messages/unread-count` | Customer portal JWT | Count of staff messages with `readByCustomer=false`. |
-| POST | `/portal/messages` | Customer portal JWT | Customer message. `sender='customer'`, `senderName=customer.name`. Calls `NotificationService.dispatch('New message', '<name>: <first 80 chars>…', 'message')`, which writes the admin feed and pushes to all staff devices. |
+| POST | `/portal/messages` | Customer portal JWT | Customer message. `sender='customer'`. When the customer themselves is signed in, `senderName=customer.name`; when an additional user is (JWT `uid`), `senderName` is that person's configured name (falling back to the customer's if blank) and `portalUser` is set to their id. Calls `NotificationService.dispatch('New message', '<name>: <first 80 chars>…', 'message')` (`'<user name> (<customer name>): …'` for an additional user), which writes the admin feed and pushes to all staff devices. `messages-customer-send.spec.ts` covers the four cases. |
 | DELETE | `/portal/messages/:id` | Customer portal JWT | A customer may delete only their **own** messages in their own thread. A staff message gives 403; a message from another thread gives 404. |
 
 #### `CrmController` — `/crm/activities` (`crm/crm.controller.ts`)
@@ -3014,7 +3014,8 @@ All schemas use `@Schema({ timestamps: true })` (adding `createdAt` and `updated
 |---|---|---|---|
 | `customer` | ObjectId → `Customer`, required, **indexed** | | A conversation = all messages for one customer |
 | `sender` | enum `'staff' \| 'customer'`, required | | |
-| `senderName` | string? | | Snapshot of the staff or customer name |
+| `senderName` | string? | | Snapshot of the staff or customer name (an additional user's own name when they sent it) |
+| `portalUser` | ObjectId? | | For customer messages sent by an additional user: their `Customer.portalUsers` sub-document id. Unset for the customer's own messages. |
 | `body` | string, required | | DTO allows ≤ 5000 characters, not empty |
 | `readByStaff` | boolean | `false` | |
 | `readByCustomer` | boolean | `false` | |
@@ -6035,7 +6036,7 @@ The save calls `POST /portal/animals` or `PATCH /portal/animals/:id`, then pops 
 #### Messages tab (`messages_screen.dart`)
 
 - A chat thread that loads on init and **polls every 5s**. It keeps the view at the bottom if the user was already within 40px of it.
-- Staff bubbles are cream and on the left; the customer's are brand blue and on the right (the mirror of the staff app's thread). Each shows "{senderName ∣ Pawfect Pets ∣ You} · d MMM HH:mm".
+- Staff bubbles are cream and on the left; the customer's are brand blue and on the right (the mirror of the staff app's thread). Each shows "{sender} · d MMM HH:mm", where the sender is the staff member's `senderName` (or "Pawfect Pets"), "You" for a customer-side message whose `portalUserId` matches `Profile.viewerId` (both null for the customer themselves), and otherwise the other person on the shared account's `senderName`. The `viewerId` comes from `AuthProvider.profile`.
 - The composer allows 1–4 lines and has a send button.
 - **Long-press on your own message** offers "Delete message? This removes it for everyone." and then calls `DELETE /portal/messages/:id`.
 
@@ -6080,7 +6081,7 @@ The save calls `POST /portal/animals` or `PATCH /portal/animals/:id`, then pops 
 | `Animal` | `_id`, species, breed, name, sex, age, vaccinated, vaccineExpiryDate (date part only), vaccineRecordPhoto, colourMarkings, microchipNumber, insured, insurer, neuteredStatus, temperamentNotes, aggression fields, travelsWellInCar, chasesLivestock(+details), allergies.status/details, medication.onMedication/medications, offLeadConsent.mode |
 | `AnimalMedication` | name, dosage, frequency, vetPrescribed, administeredByPawfectPets |
 | `PortalNotification` | `_id`, title, body, type, reference, read, createdAt (local) |
-| `PortalMessage` | `_id`, sender (`staff`/`customer`), senderName, body, createdAt |
+| `PortalMessage` | `_id`, sender (`staff`/`customer`), senderName, portalUserId (from `portalUser`; set when an additional user sent it), body, createdAt |
 | `LineItem` | description, quantity, unitPrice, discountPercent; `lineTotal` |
 | `Invoice` | `_id`, invoiceNumber, lineItems, subtotal, total, amountPaid, status, subject, issueDate, dueDate; `balanceDue` (clamped ≥ 0) |
 | `Quote` | `_id`, quoteNumber, lineItems, subtotal, total, status, subject, issueDate, validUntil |
@@ -6549,7 +6550,7 @@ flowchart TD
 
 | File | What it shows | Actions → endpoints |
 |---|---|---|
-| `messages_screen.dart` | **MessagesScreen**: conversations with unread badges, **polling every 10 s**; new-conversation button → `SelectCustomerScreen`. **MessageThreadScreen**: bubbles (`_Bubble`), composer, **polling every 5 s**, long-press delete ("This removes it for everyone.") | `GET /messages/conversations`; `GET /messages/:customerId`; `POST /messages/:customerId`; `DELETE /messages/:customerId/:messageId` |
+| `messages_screen.dart` | **MessagesScreen**: conversations with unread badges, **polling every 10 s**; new-conversation button → `SelectCustomerScreen`. **MessageThreadScreen**: bubbles (`_Bubble`; customer-side bubbles are labelled with `senderName`, so a message from an additional user on the account shows that person's name, falling back to "Customer"), composer, **polling every 5 s**, long-press delete ("This removes it for everyone.") | `GET /messages/conversations`; `GET /messages/:customerId`; `POST /messages/:customerId`; `DELETE /messages/:customerId/:messageId` |
 
 ### Widgets (`lib/widgets/`)
 

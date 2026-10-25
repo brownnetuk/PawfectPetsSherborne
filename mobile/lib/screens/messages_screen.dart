@@ -329,7 +329,9 @@ class _Bubble extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              '${fromStaff ? (message.senderName ?? 'Staff') : 'Customer'} · ${DateFormat('d MMM HH:mm').format(message.createdAt)}',
+              // Customer-side messages carry the writer's name: the customer,
+              // or an additional user on their account.
+              '${fromStaff ? (message.senderName ?? 'Staff') : (message.senderName ?? 'Customer')} · ${DateFormat('d MMM HH:mm').format(message.createdAt)}',
               style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
             ),
           ],

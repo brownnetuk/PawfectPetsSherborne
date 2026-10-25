@@ -20,6 +20,11 @@ class Profile {
   final Terms terms;
   // The business's off-lead consent wording, shown on the animal form (dogs).
   final String offLeadConsentText;
+  // Who is signed in. The profile is always the customer's; on a shared
+  // account an additional user has their own id and name here (`viewerId`
+  // is null for the customer themselves).
+  final String? viewerId;
+  final String viewerName;
 
   Profile({
     required this.id,
@@ -40,11 +45,16 @@ class Profile {
     required this.agreement,
     required this.terms,
     this.offLeadConsentText = '',
+    this.viewerId,
+    this.viewerName = '',
   });
 
   factory Profile.fromJson(Map<String, dynamic> json) {
     Map<String, dynamic>? m(String k) => json[k] as Map<String, dynamic>?;
+    final viewer = m('viewer');
     return Profile(
+      viewerId: viewer?['portalUserId'] as String?,
+      viewerName: viewer?['name'] as String? ?? json['name'] as String? ?? '',
       id: json['id'] as String? ?? json['_id'] as String? ?? '',
       firstName: json['firstName'] as String?,
       surname: json['surname'] as String?,
@@ -367,6 +377,9 @@ class PortalMessage {
   final String id;
   final String sender; // 'staff' | 'customer'
   final String? senderName;
+  // Set when a customer-side message was sent by an additional user on this
+  // account (null when the customer themselves sent it).
+  final String? portalUserId;
   final String body;
   final DateTime createdAt;
 
@@ -374,6 +387,7 @@ class PortalMessage {
     required this.id,
     required this.sender,
     this.senderName,
+    this.portalUserId,
     required this.body,
     required this.createdAt,
   });
@@ -384,6 +398,7 @@ class PortalMessage {
         id: j['_id'] as String,
         sender: j['sender'] as String? ?? 'staff',
         senderName: j['senderName'] as String?,
+        portalUserId: j['portalUser']?.toString(),
         body: j['body'] as String? ?? '',
         createdAt: DateTime.parse(j['createdAt'] as String).toLocal(),
       );

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/portal_models.dart';
+import '../state/auth_provider.dart';
 import '../theme.dart';
 
 /// The customer's message thread with the business. Polls every few seconds
@@ -171,12 +172,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
         ),
       );
     }
+    final viewerId = context.watch<AuthProvider>().profile?.viewerId;
     return ListView.builder(
       controller: _scroll,
       padding: const EdgeInsets.all(12),
       itemCount: _messages.length,
       itemBuilder: (context, i) => _Bubble(
         message: _messages[i],
+        viewerId: viewerId,
         onLongPress: () => _confirmDelete(_messages[i]),
       ),
     );
@@ -185,8 +188,19 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
 class _Bubble extends StatelessWidget {
   final PortalMessage message;
+  // The signed-in person's additional-user id (null for the customer).
+  final String? viewerId;
   final VoidCallback? onLongPress;
-  const _Bubble({required this.message, this.onLongPress});
+  const _Bubble({required this.message, this.viewerId, this.onLongPress});
+
+  // Staff bubbles carry the staff member's name. Customer-side bubbles read
+  // "You" when this person sent them; on a shared account, the other person's
+  // messages show the name staff configured for them.
+  String get _sender {
+    if (message.fromStaff) return message.senderName ?? 'Pawfect Pets';
+    if (message.portalUserId == viewerId) return 'You';
+    return message.senderName ?? 'You';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -216,7 +230,7 @@ class _Bubble extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              '${fromStaff ? (message.senderName ?? 'Pawfect Pets') : 'You'} · ${DateFormat('d MMM HH:mm').format(message.createdAt)}',
+              '$_sender · ${DateFormat('d MMM HH:mm').format(message.createdAt)}',
               style: const TextStyle(color: brandMuted, fontSize: 11),
             ),
           ],
