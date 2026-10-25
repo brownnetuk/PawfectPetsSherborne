@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:ui' as ui;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
@@ -7,6 +8,14 @@ import 'package:flutter/rendering.dart';
 /// URL (the same format the web apps' SignaturePad produces and the PDF
 /// export expects) via [onChanged] after every completed stroke; null when
 /// cleared.
+///
+/// The pad always sits inside a scrolling form, so it must win the touch
+/// outright: a plain pan gesture competes with the list's vertical drag and
+/// loses whenever a stroke starts by moving up or down (most letters do),
+/// which scrolled the page instead of drawing. It also only started after the
+/// touch-slop distance, clipping the start of every stroke and ignoring dots.
+/// [_InkRecognizer] claims the pointer the moment it lands, so every stroke
+/// is captured from its first pixel and the form never scrolls underneath.
 class SignaturePad extends StatefulWidget {
   final ValueChanged<String?> onChanged;
   const SignaturePad({super.key, required this.onChanged});
@@ -40,13 +49,20 @@ class _SignaturePadState extends State<SignaturePad> {
     widget.onChanged(null);
   }
 
+  void _start(Offset p) => setState(() => _strokes.add([p]));
+
+  void _move(Offset p) {
+    if (_strokes.isEmpty) return;
+    setState(() => _strokes.last.add(p));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          height: 160,
+          height: 180,
           decoration: BoxDecoration(
             border: Border.all(color: Colors.grey.shade400),
             borderRadius: BorderRadius.circular(8),
@@ -54,11 +70,17 @@ class _SignaturePadState extends State<SignaturePad> {
           clipBehavior: Clip.antiAlias,
           child: RepaintBoundary(
             key: _boundaryKey,
-            child: GestureDetector(
+            child: RawGestureDetector(
               behavior: HitTestBehavior.opaque,
-              onPanStart: (d) => setState(() => _strokes.add([d.localPosition])),
-              onPanUpdate: (d) => setState(() => _strokes.last.add(d.localPosition)),
-              onPanEnd: (_) => _emit(),
+              gestures: {
+                _InkRecognizer: GestureRecognizerFactoryWithHandlers<_InkRecognizer>(
+                  () => _InkRecognizer(),
+                  (r) => r
+                    ..onStart = _start
+                    ..onMove = _move
+                    ..onEnd = _emit,
+                ),
+              },
               child: CustomPaint(
                 painter: _StrokesPainter(_strokes),
                 child: _strokes.isEmpty
@@ -74,6 +96,43 @@ class _SignaturePadState extends State<SignaturePad> {
       ],
     );
   }
+}
+
+/// Single-finger "ink" recognizer: accepts the pointer on touch-down (no slop,
+/// no arena contest with the enclosing scroll view) and streams its path.
+/// Additional fingers while a stroke is in progress are ignored.
+class _InkRecognizer extends OneSequenceGestureRecognizer {
+  ValueChanged<Offset>? onStart;
+  ValueChanged<Offset>? onMove;
+  VoidCallback? onEnd;
+  int? _pointer;
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    if (_pointer != null) return;
+    _pointer = event.pointer;
+    startTrackingPointer(event.pointer, event.transform);
+    resolve(GestureDisposition.accepted);
+    onStart?.call(event.localPosition);
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    if (event.pointer != _pointer) return;
+    if (event is PointerMoveEvent) {
+      onMove?.call(event.localPosition);
+    } else if (event is PointerUpEvent || event is PointerCancelEvent) {
+      stopTrackingPointer(event.pointer);
+      _pointer = null;
+      onEnd?.call();
+    }
+  }
+
+  @override
+  void didStopTrackingLastPointer(int pointer) {}
+
+  @override
+  String get debugDescription => 'signature ink';
 }
 
 class _StrokesPainter extends CustomPainter {
