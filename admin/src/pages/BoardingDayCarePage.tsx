@@ -27,6 +27,7 @@ import {
   BOOKING_STATUS_LABELS,
   type Animal,
   type AnnualLeave,
+  type BoardingBooking,
   type BoardingBookingStage,
   type BoardingBookingWithStatus,
   type BookingStatusLabel,
@@ -356,6 +357,7 @@ function DashboardTab({
   onNavigateToBooking: (bookingId: string, autoStage?: 'checkIn' | 'checkOut') => void;
 } & StayEditHandlers) {
   const [dayBookings, setDayBookings] = useState<DayBooking[] | null>(null);
+  const [bookingsByStay, setBookingsByStay] = useState<Map<string, BoardingBooking>>(new Map());
   const [error, setError] = useState<string | null>(null);
 
   // A wide-ish window either side of today so a stay that started or ends
@@ -372,6 +374,17 @@ function DashboardTab({
       .listDayBookings(dateKey(from), dateKey(addDays(to, 1)))
       .then(setDayBookings)
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load bookings'));
+    // Only used to drop a stay that's already been checked in/out from the
+    // Arriving/Departing Today lists, so a failure here just leaves those
+    // lists unfiltered rather than blocking the whole dashboard.
+    api
+      .listBoardingBookings()
+      .then((all) => {
+        const byStay = new Map<string, BoardingBooking>();
+        for (const { booking } of all) if (booking.stayId) byStay.set(booking.stayId, booking);
+        setBookingsByStay(byStay);
+      })
+      .catch(() => setBookingsByStay(new Map()));
   }, [refreshSignal]);
 
   const today = new Date();
@@ -440,8 +453,14 @@ function DashboardTab({
       if (isBoarding) {
         const dropOffTime = sorted.find((r) => r.dropOffTime)?.dropOffTime;
         const pickUpTime = sorted.find((r) => r.pickUpTime)?.pickUpTime;
-        if (dateKey(new Date(sorted[0].date)) === todayKey) arrivals.push(sorted[0]);
-        if (dateKey(stayEndDate(new Date(sorted[sorted.length - 1].date), dropOffTime, pickUpTime)) === todayKey) {
+        // A stay that's already been checked in (or out) has already arrived
+        // (or departed), so it no longer belongs in that list.
+        const booking = bookingsByStay.get(sorted[0].stayId!);
+        if (dateKey(new Date(sorted[0].date)) === todayKey && !booking?.checkInAt) arrivals.push(sorted[0]);
+        if (
+          dateKey(stayEndDate(new Date(sorted[sorted.length - 1].date), dropOffTime, pickUpTime)) === todayKey &&
+          !booking?.checkOutAt
+        ) {
           departures.push(sorted[sorted.length - 1]);
         }
       } else {
@@ -451,7 +470,7 @@ function DashboardTab({
       }
     }
     return { arrivals, departures, dayCareToday };
-  }, [dayBookings, mapping, todayKey]);
+  }, [dayBookings, mapping, todayKey, bookingsByStay]);
 
   return (
     <div>
