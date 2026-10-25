@@ -20,8 +20,16 @@ export class Message extends Document {
   sender: 'staff' | 'customer';
 
   // The staff member's name, or the customer's name — snapshotted for display.
+  // For a customer message sent by an additional user (Mobile App Access),
+  // this is that person's name, not the customer's.
   @Prop()
   senderName?: string;
+
+  // Set when a customer message was sent by an additional user: the
+  // `Customer.portalUsers` sub-document id. Lets the customer app tell "mine"
+  // from "the other person on this account" when labelling bubbles.
+  @Prop({ type: MongooseSchema.Types.ObjectId })
+  portalUser?: Types.ObjectId;
 
   @Prop({ required: true })
   body: string;
