@@ -289,6 +289,62 @@ export class PortalService {
     return this.getPortalStatus(customerId);
   }
 
+  // --- customer-initiated (the app's "Delete my account") ---
+
+  // Deletes the signed-in person's app account. An additional user is removed
+  // outright. The customer themselves has their sign-in deleted and app access
+  // switched off for the whole account (so any additional users lose it too);
+  // every session then 401s on its next request and all devices stop getting
+  // pushes. The customer record itself is the business's (bookings, invoices),
+  // so staff are told and, when `eraseData` is set, asked to erase it.
+  async deleteAppAccount(
+    customerId: string,
+    portalUserId: string | undefined,
+    eraseData: boolean,
+  ): Promise<void> {
+    const customer = await this.customerModel
+      .findById(customerId)
+      .select('+portalUsers')
+      .exec();
+    if (!customer) throw new UnauthorizedException();
+    let who = customer.name || 'A customer';
+    if (portalUserId) {
+      const user = customer.portalUsers?.find(
+        (u) => String(u._id) === portalUserId,
+      );
+      if (user) who = `${user.name} (additional user for ${customer.name})`;
+      await this.customerModel
+        .updateOne(
+          { _id: customer._id },
+          { $pull: { portalUsers: { _id: portalUserId } } },
+        )
+        .exec();
+      await this.push.removePortalUserTokens(portalUserId);
+    } else {
+      await this.customerModel
+        .updateOne(
+          { _id: customer._id },
+          {
+            $set: { portalActive: false },
+            $unset: { portalCredentials: '', portalLastLoginAt: '' },
+          },
+        )
+        .exec();
+      await this.push.removeCustomerTokens(customerId);
+    }
+    try {
+      await this.notifications.dispatch(
+        eraseData ? 'Data erasure requested' : 'App account deleted',
+        eraseData
+          ? `${who} deleted their app account and asked for their personal data to be erased.`
+          : `${who} deleted their app account.`,
+        'portalAccountDeleted',
+      );
+    } catch (err) {
+      console.error('Failed to notify staff of app account deletion:', err);
+    }
+  }
+
   // Staff "Password reset" for an additional user: emails them a reset code.
   async adminSendUserReset(customerId: string, userId: string) {
     const customer = await this.customerModel

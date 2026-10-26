@@ -123,6 +123,11 @@ class Repository {
   Future<void> acknowledgePushMessage(String pushMessageId) =>
       client.post('/portal/push-messages/$pushMessageId/acknowledge');
 
+  // --- account ---
+
+  Future<void> deleteAccount({required bool eraseData}) =>
+      client.post('/portal/me/delete', {'eraseData': eraseData});
+
   // --- push ---
 
   Future<void> registerPushToken(String token) =>

@@ -136,6 +136,16 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Deletes this app account on the server, then signs out and forgets the
+  /// saved biometric login (it no longer works).
+  Future<void> deleteAccount({required bool eraseData}) async {
+    await repository.deleteAccount(eraseData: eraseData);
+    await _storage.delete(key: _emailKey);
+    await _storage.delete(key: _passwordKey);
+    savedEmail = null;
+    await logout();
+  }
+
   Future<void> logout() async {
     // Keep the saved biometric login so Face ID stays available after logout.
     await _storage.delete(key: _tokenKey);

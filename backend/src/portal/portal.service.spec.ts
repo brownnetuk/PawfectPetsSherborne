@@ -158,3 +158,94 @@ describe('PortalService (additional users in the app)', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 });
+
+describe('PortalService.deleteAppAccount', () => {
+  let updates: { filter: unknown; update: unknown }[];
+  let push: {
+    removeCustomerTokens: jest.Mock;
+    removePortalUserTokens: jest.Mock;
+  };
+  let notifications: { dispatch: jest.Mock };
+  let service: PortalService;
+
+  beforeEach(() => {
+    updates = [];
+    const model = {
+      findById: () => ({
+        select: () => ({
+          exec: () =>
+            Promise.resolve({
+              _id: 'cust1',
+              name: 'Jo',
+              portalActive: true,
+              portalUsers: [{ _id: 'user1', name: 'Sam' }],
+            }),
+        }),
+      }),
+      updateOne: (filter: unknown, update: unknown) => ({
+        exec: () => {
+          updates.push({ filter, update });
+          return Promise.resolve();
+        },
+      }),
+    };
+    push = {
+      removeCustomerTokens: jest.fn(() => Promise.resolve()),
+      removePortalUserTokens: jest.fn(() => Promise.resolve()),
+    };
+    notifications = { dispatch: jest.fn(() => Promise.resolve()) };
+    const none = {} as never;
+    service = new PortalService(
+      model as unknown as Model<Customer>,
+      none,
+      new JwtService({}),
+      none,
+      none,
+      none,
+      none,
+      none,
+      none,
+      notifications as never,
+      push as never,
+      none,
+      none,
+      none,
+    );
+  });
+
+  it('deletes the customer sign-in and switches app access off', async () => {
+    await service.deleteAppAccount('cust1', undefined, false);
+    expect(updates).toEqual([
+      {
+        filter: { _id: 'cust1' },
+        update: {
+          $set: { portalActive: false },
+          $unset: { portalCredentials: '', portalLastLoginAt: '' },
+        },
+      },
+    ]);
+    expect(push.removeCustomerTokens).toHaveBeenCalledWith('cust1');
+    expect(notifications.dispatch).toHaveBeenCalledWith(
+      'App account deleted',
+      'Jo deleted their app account.',
+      'portalAccountDeleted',
+    );
+  });
+
+  it('removes only the additional user, and passes on an erasure request', async () => {
+    await service.deleteAppAccount('cust1', 'user1', true);
+    expect(updates).toEqual([
+      {
+        filter: { _id: 'cust1' },
+        update: { $pull: { portalUsers: { _id: 'user1' } } },
+      },
+    ]);
+    expect(push.removePortalUserTokens).toHaveBeenCalledWith('user1');
+    expect(push.removeCustomerTokens).not.toHaveBeenCalled();
+    expect(notifications.dispatch).toHaveBeenCalledWith(
+      'Data erasure requested',
+      'Sam (additional user for Jo) deleted their app account and asked for their personal data to be erased.',
+      'portalAccountDeleted',
+    );
+  });
+});
