@@ -21,6 +21,15 @@ export class SetPortalActiveDto {
   active: boolean;
 }
 
+// Customer app "Delete my account". `eraseData` also asks the business to
+// erase the customer's personal records (staff action it, keeping anything the
+// law requires them to hold, e.g. invoices).
+export class DeleteAccountDto {
+  @IsOptional()
+  @IsBoolean()
+  eraseData?: boolean;
+}
+
 // Staff "Add additional access" on the Mobile App Access card.
 export class AddPortalUserDto {
   @IsString()

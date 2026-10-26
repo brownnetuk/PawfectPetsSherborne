@@ -731,6 +731,7 @@ Auth column legend:
 | GET | `/portal/quotes/:id/pdf` | customer | Ownership check, then inline PDF (`quote-<id>.pdf`) |
 | GET | `/portal/me` | customer | Curated profile: contact details, emergency contact and vet, `security { keysProvided, furtherInformation, hasAlarmInstructions }`, the agreement (including `signatureImage`), current `terms { html, version, documentDate }`, `offLeadConsentText`, and `viewer { portalUserId, name }` saying who is signed in (`portalUserId` null and the customer's name for the customer themselves; the additional user's id and configured name otherwise) |
 | PATCH | `/portal/me` | customer | Update `UpdateMeDto` (contact fields, `emergencyContact`, `emergencyVet` without authorisation, `security`; **email can't be changed**) through `CustomersService.update(actor 'Customer (portal)')`. Then dispatches the staff notification `customerUpdated`. |
+| POST | `/portal/me/delete` | customer | In-app account deletion (`DeleteAccountDto { eraseData? }`). An additional user is removed from `portalUsers`; the customer themselves has `portalCredentials`/`portalLastLoginAt` unset and `portalActive` set false (so additional users lose access too). Device tokens are dropped, and the staff notification `portalAccountDeleted` says whether personal-data erasure was requested. The customer record itself is kept for staff to action. |
 | GET | `/portal/invoices` | customer | `InvoicesService.findAll(customerId)` (all statuses) |
 | GET | `/portal/invoices/:id/pdf` | customer | Ownership check, then inline PDF (`invoice-<id>.pdf`) |
 | POST | `/portal/invoices/:id/send` | customer | Ownership check, then `InvoicesService.sendEmail(id, 'Customer (portal)')` |
@@ -5842,6 +5843,7 @@ Override it with `flutter run --dart-define=API_BASE_URL=http://localhost:3000`.
 | `login(email, password)` | POST `/portal/login` | → `{token}` | `AuthProvider.login` |
 | `me()` | GET `/portal/me` | → `Profile` | AuthProvider init, after login, `refreshProfile` |
 | `updateMe(patch)` | PATCH `/portal/me` | partial profile → `Profile` | Customer details, emergency contact, emergency vet, security screens |
+| `deleteAccount(eraseData:)` | POST `/portal/me/delete` | `{eraseData}` | DeleteAccountScreen (My Details > Delete Account) |
 | `listInvoices()` | GET `/portal/invoices` | → `List<Invoice>` | InvoicesScreen |
 | `invoicePdf(id)` | GET `/portal/invoices/:id/pdf` | bytes | Invoice sheet "Download PDF", `InvoicePdfScreen` |
 | `sendInvoice(id)` | POST `/portal/invoices/:id/send` | – | Invoice sheet "Send by email" |

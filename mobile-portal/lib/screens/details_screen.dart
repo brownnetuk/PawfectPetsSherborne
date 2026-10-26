@@ -5,6 +5,7 @@ import '../theme.dart';
 import 'sections/agreement_screen.dart';
 import 'sections/animals_screen.dart';
 import 'sections/customer_details_screen.dart';
+import 'sections/delete_account_screen.dart';
 import 'sections/emergency_contact_screen.dart';
 import 'sections/emergency_vet_screen.dart';
 import 'sections/security_screen.dart';
@@ -71,6 +72,12 @@ class DetailsScreen extends StatelessWidget {
           title: 'Agreement',
           subtitle: 'Terms & conditions you signed',
           onTap: () => _open(context, const AgreementScreen()),
+        ),
+        _MenuTile(
+          icon: Icons.person_remove_outlined,
+          title: 'Delete Account',
+          subtitle: 'Delete your app account',
+          onTap: () => _open(context, const DeleteAccountScreen()),
         ),
       ],
     );

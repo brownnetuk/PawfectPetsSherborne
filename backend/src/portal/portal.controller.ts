@@ -18,6 +18,7 @@ import { PortalJwtGuard } from './portal-jwt.guard';
 import { CurrentCustomer } from './current-customer.decorator';
 import type { CurrentCustomerData } from './current-customer.decorator';
 import {
+  DeleteAccountDto,
   LoginDto,
   RegisterPushDto,
   RequestCodeDto,
@@ -253,6 +254,22 @@ export class PortalController {
       dto.token,
       dto.platform,
       customer.portalUserId,
+    );
+    return { ok: true };
+  }
+
+  // In-app account deletion (App Store guideline 5.1.1(v)).
+  @UseGuards(PortalJwtGuard)
+  @Post('me/delete')
+  @HttpCode(200)
+  async deleteAccount(
+    @CurrentCustomer() customer: CurrentCustomerData,
+    @Body() dto: DeleteAccountDto,
+  ) {
+    await this.portal.deleteAppAccount(
+      customer.customerId,
+      customer.portalUserId,
+      dto.eraseData ?? false,
     );
     return { ok: true };
   }
