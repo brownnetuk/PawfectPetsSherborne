@@ -220,19 +220,22 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
     return result ?? false;
   }
 
-  /// Invoices a new booking can still be added to: issued this calendar
-  /// month, not paid or cancelled, and with something left to pay. Same rule
-  /// as the admin's BookingInvoicePrompt.
-  List<Invoice> _openInvoicesThisMonth(List<Invoice> invoices, String customerId) {
-    final now = DateTime.now();
+  /// Invoices a new booking can still be added to: not paid or cancelled,
+  /// and with something left to pay. Newest first. Same rule as the admin's
+  /// BookingInvoicePrompt.
+  List<Invoice> _openInvoices(List<Invoice> invoices, String customerId) {
     return invoices.where((inv) {
       if (inv.customer.id != customerId) return false;
       if (inv.status == 'paid' || inv.status == 'cancelled') return false;
-      if (inv.amountPaid > 0 && inv.amountPaid >= inv.total) return false;
-      final issued = inv.issueDate.toLocal();
-      return issued.year == now.year && issued.month == now.month;
+      return !(inv.amountPaid > 0 && inv.amountPaid >= inv.total);
     }).toList()
-      ..sort((a, b) => a.issueDate.compareTo(b.issueDate));
+      ..sort((a, b) => b.issueDate.compareTo(a.issueDate));
+  }
+
+  bool _issuedThisMonth(Invoice inv) {
+    final now = DateTime.now();
+    final issued = inv.issueDate.toLocal();
+    return issued.year == now.year && issued.month == now.month;
   }
 
   /// Folds the new booking's lines into an invoice's existing ones: a line
@@ -257,12 +260,22 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
     return merged;
   }
 
-  /// When the customer already has open invoices this month: add to one of
-  /// them, or create a new one. Returns the chosen invoice, `null` for a new
-  /// invoice, or `false` when dismissed.
+  /// When the customer already has open invoices: add to one of them (this
+  /// month's listed first), or create a new one. Returns the chosen invoice,
+  /// `null` for a new invoice, or `false` when dismissed.
   Future<Object?> _pickInvoice(List<Invoice> open) async {
     final money = NumberFormat.currency(locale: 'en_GB', symbol: '£');
-    final month = DateFormat('MMMM').format(DateTime.now());
+    final thisMonth = open.where(_issuedThisMonth).toList();
+    final earlier = open.where((inv) => !_issuedThisMonth(inv)).toList();
+    Widget heading(String text) => Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+          child: Text(text, style: Theme.of(context).textTheme.labelMedium),
+        );
+    Widget option(BuildContext dialogContext, Invoice inv) => SimpleDialogOption(
+          onPressed: () => Navigator.of(dialogContext).pop(inv),
+          child: Text('Add to ${inv.invoiceNumber} · ${_dateFmt.format(inv.issueDate.toLocal())} · '
+              '${money.format(inv.total)} · ${inv.status}'),
+        );
     final result = await showDialog<Object>(
       context: context,
       builder: (dialogContext) => SimpleDialog(
@@ -271,15 +284,14 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
             child: Text(
-              'This customer already has ${open.length == 1 ? 'an invoice' : '${open.length} invoices'} from $month. '
+              'This customer already has ${open.length == 1 ? 'an open invoice' : '${open.length} open invoices'}. '
               'Add this booking to ${open.length == 1 ? 'it' : 'one of them'}, or create a new draft?',
             ),
           ),
-          for (final inv in open.reversed)
-            SimpleDialogOption(
-              onPressed: () => Navigator.of(dialogContext).pop(inv),
-              child: Text('Add to ${inv.invoiceNumber} · ${money.format(inv.total)} · ${inv.status}'),
-            ),
+          if (thisMonth.isNotEmpty) heading('This month'),
+          for (final inv in thisMonth) option(dialogContext, inv),
+          if (earlier.isNotEmpty) heading('Earlier'),
+          for (final inv in earlier) option(dialogContext, inv),
           SimpleDialogOption(
             onPressed: () => Navigator.of(dialogContext).pop('new'),
             child: const Text('Create a new draft invoice'),
@@ -301,15 +313,15 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
   /// invoice from just the rows created (one line per product, travel rows
   /// included since the sheet books them as their own product) and links
   /// those rows to it so the monthly Generate Invoices run skips them. If the
-  /// customer already has an open invoice issued this month, staff can add
-  /// the rows to it instead. Then offers to email it straight away. Either
+  /// customer already has open invoices, staff can add the rows to one of
+  /// them instead. Then offers to email it straight away. Either
   /// step declined leaves the bookings (and any draft) exactly as they are.
   Future<void> _offerInvoice(Repository repo, String customerId, List<DayBooking> rows) async {
     final customerName = _ownerOf(customerId)?.name ?? 'the customer';
 
     List<Invoice> open = const [];
     try {
-      open = _openInvoicesThisMonth(await repo.listInvoices(customerId: customerId), customerId);
+      open = _openInvoices(await repo.listInvoices(customerId: customerId), customerId);
     } catch (_) {
       // Not being able to look is no reason to block creating a new one.
     }

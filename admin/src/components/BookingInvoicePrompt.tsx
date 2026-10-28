@@ -21,18 +21,21 @@ function formatDay(key: string): string {
   return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-// Invoices a new booking can still be added to: issued this calendar month,
-// not paid or cancelled, and with something left to pay.
-export function openInvoicesThisMonth(invoices: Invoice[], customerId: string, today = new Date()): Invoice[] {
+// Invoices a new booking can still be added to: not paid or cancelled, and
+// with something left to pay. Newest first.
+export function openInvoicesFor(invoices: Invoice[], customerId: string): Invoice[] {
   return invoices
     .filter((inv) => {
       if (customerIdOf(inv.customer) !== customerId) return false;
       if (inv.status === 'paid' || inv.status === 'cancelled') return false;
-      if ((inv.amountPaid ?? 0) > 0 && (inv.amountPaid ?? 0) >= inv.total) return false;
-      const issued = new Date(inv.issueDate);
-      return issued.getFullYear() === today.getFullYear() && issued.getMonth() === today.getMonth();
+      return !((inv.amountPaid ?? 0) > 0 && (inv.amountPaid ?? 0) >= inv.total);
     })
-    .sort((a, b) => a.issueDate.localeCompare(b.issueDate));
+    .sort((a, b) => b.issueDate.localeCompare(a.issueDate));
+}
+
+export function issuedThisMonth(invoice: Invoice, today = new Date()): boolean {
+  const issued = new Date(invoice.issueDate);
+  return issued.getFullYear() === today.getFullYear() && issued.getMonth() === today.getMonth();
 }
 
 // Folds the new booking's lines into an invoice's existing ones: a line for
@@ -54,8 +57,8 @@ export function mergeLineItems(existing: LineItem[], added: LineItem[]): LineIte
 // invoice?" Yes builds one draft invoice from just the rows that were
 // created (one line per product, same grouping as GenerateInvoicesModal) and
 // links those rows to it, so the monthly Generate Invoices run skips them.
-// When the customer already has an open invoice issued this month, staff can
-// pick it instead and the new lines are added to that invoice.
+// When the customer already has open invoices, staff can pick one instead
+// and the new lines are added to it. This month's are listed first.
 export default function BookingInvoicePrompt({
   customerId,
   bookings,
@@ -81,10 +84,12 @@ export default function BookingInvoicePrompt({
     api
       .listInvoices(customerId)
       .then((invoices) => {
-        const open = openInvoicesThisMonth(invoices, customerId);
+        const open = openInvoicesFor(invoices, customerId);
         setOpenInvoices(open);
-        // Default to the most recent one -- the usual "add it to this month's bill".
-        if (open.length > 0) setTarget(open[open.length - 1]._id);
+        // Default to this month's latest -- the usual "add it to this month's
+        // bill". Older ones are offered but never preselected.
+        const thisMonth = open.find((inv) => issuedThisMonth(inv));
+        if (thisMonth) setTarget(thisMonth._id);
       })
       // Not being able to look is no reason to block creating a new one.
       .catch(() => setOpenInvoices([]));
@@ -153,7 +158,28 @@ export default function BookingInvoicePrompt({
   }
 
   const hasOpen = !!openInvoices && openInvoices.length > 0;
-  const monthName = new Date().toLocaleDateString('en-GB', { month: 'long' });
+  const thisMonth = (openInvoices ?? []).filter((inv) => issuedThisMonth(inv));
+  const earlier = (openInvoices ?? []).filter((inv) => !issuedThisMonth(inv));
+
+  function invoiceOption(inv: Invoice) {
+    return (
+      <label key={inv._id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+        <input
+          type="radio"
+          name="booking-invoice-target"
+          checked={target === inv._id}
+          onChange={() => setTarget(inv._id)}
+          disabled={busy}
+        />
+        <span>
+          Add to {inv.invoiceNumber} · {formatDay(dateKey(new Date(inv.issueDate)))} · £{inv.total.toFixed(2)} ·{' '}
+          {inv.status}
+          {inv.subject && <span style={{ color: 'var(--muted)' }}> · {inv.subject}</span>}
+        </span>
+      </label>
+    );
+  }
+  const groupHeading: React.CSSProperties = { fontSize: '0.8rem', fontWeight: 600, color: 'var(--muted)' };
 
   return (
     <Modal title={hasOpen ? 'Add to an invoice?' : 'Generate an invoice?'} onClose={onClose}>
@@ -161,25 +187,14 @@ export default function BookingInvoicePrompt({
       {hasOpen ? (
         <>
           <p>
-            This customer already has {openInvoices.length === 1 ? 'an invoice' : `${openInvoices.length} invoices`} from{' '}
-            {monthName}. Add this booking to {openInvoices.length === 1 ? 'it' : 'one of them'}, or create a new draft?
+            This customer already has {openInvoices.length === 1 ? 'an open invoice' : `${openInvoices.length} open invoices`}.
+            Add this booking to {openInvoices.length === 1 ? 'it' : 'one of them'}, or create a new draft?
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '12px 0' }}>
-            {openInvoices.map((inv) => (
-              <label key={inv._id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                <input
-                  type="radio"
-                  name="booking-invoice-target"
-                  checked={target === inv._id}
-                  onChange={() => setTarget(inv._id)}
-                  disabled={busy}
-                />
-                <span>
-                  Add to {inv.invoiceNumber} · £{inv.total.toFixed(2)} · {inv.status}
-                  {inv.subject && <span style={{ color: 'var(--muted)' }}> · {inv.subject}</span>}
-                </span>
-              </label>
-            ))}
+            {thisMonth.length > 0 && <div style={groupHeading}>This month</div>}
+            {thisMonth.map(invoiceOption)}
+            {earlier.length > 0 && <div style={groupHeading}>Earlier</div>}
+            {earlier.map(invoiceOption)}
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input
                 type="radio"
