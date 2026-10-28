@@ -137,6 +137,19 @@ const STATUS_DONE_THROUGH_INDEX: Record<BookingStatusLabel, number> = {
   'Booking Complete': 7,
 };
 
+// computeStages()'s stage order (minus the optional leading 'quote'), which
+// STATUS_DONE_THROUGH_INDEX's values index into.
+const STAGE_ORDER: BoardingBookingStage['key'][] = [
+  'confirmed',
+  'invoiceRaised',
+  'paymentReceived',
+  'preCheckIn',
+  'checkedIn',
+  'inProgress',
+  'checkedOut',
+  'invoicePaid',
+];
+
 @Injectable()
 export class BoardingBookingsService {
   constructor(
@@ -657,6 +670,7 @@ export class BoardingBookingsService {
     });
     booking.preCheckInSentAt = new Date();
     booking.preCheckInSubmission = submission._id as unknown as BoardingBooking['preCheckInSubmission'];
+    booking.preCheckInCompletedAt = undefined;
     return booking.save();
   }
 
@@ -763,9 +777,9 @@ export class BoardingBookingsService {
     stages.push({
       key: 'preCheckIn',
       label: 'Pre-check-in',
-      done: !!booking.preCheckInSubmission,
+      done: !!booking.preCheckInCompletedAt,
       current: false,
-      sub: booking.preCheckInSentAt ? 'Sent' : undefined,
+      sub: booking.preCheckInCompletedAt ? 'Completed' : booking.preCheckInSentAt ? 'Sent' : undefined,
     });
     stages.push({ key: 'checkedIn', label: 'Checked in', done: !!booking.checkInAt, current: false });
     stages.push({
@@ -794,6 +808,11 @@ export class BoardingBookingsService {
     if (override) {
       this.applyStatusOverride(stages, override);
     } else {
+      // A pin that real progress has since overtaken still counts as a floor
+      // -- e.g. "Deposit Not Required" keeps that stage ticked (and labelled
+      // as such) once the pre-check-in comes back, rather than the timeline
+      // jumping back to "Payment received" as the current step.
+      if (booking.statusOverride) this.applyStatusFloor(stages, booking.statusOverride);
       const firstPending = stages.findIndex((s) => !s.done);
       if (firstPending >= 0) stages[firstPending].current = true;
     }
@@ -808,26 +827,30 @@ export class BoardingBookingsService {
   // amount paid, etc.) is left as computed above -- still factually true
   // regardless of which stage staff have manually marked as reached.
   private applyStatusOverride(stages: BoardingBookingStage[], override: BookingStatusLabel): void {
-    const order: BoardingBookingStage['key'][] = [
-      'confirmed',
-      'invoiceRaised',
-      'paymentReceived',
-      'preCheckIn',
-      'checkedIn',
-      'inProgress',
-      'checkedOut',
-      'invoicePaid',
-    ];
     const threshold = STATUS_DONE_THROUGH_INDEX[override];
     for (const stage of stages) {
       if (stage.key === 'quote') continue;
-      const index = order.indexOf(stage.key);
+      const index = STAGE_ORDER.indexOf(stage.key);
       stage.done = index <= threshold;
       stage.current = index === threshold + 1;
       // Relabel the stage itself (not just its done/current booleans) so the
       // timeline doesn't claim "Payment received" for a booking that never
       // actually received one -- the whole point of this status existing.
       if (stage.key === 'paymentReceived' && override === 'Deposit Not Required') {
+        stage.label = 'Deposit Not Required';
+      }
+    }
+  }
+
+  // Same as applyStatusOverride() for the stages the pin covers, but leaves
+  // everything past it as computed -- used once real progress has overtaken
+  // the pin (see effectiveOverride()).
+  private applyStatusFloor(stages: BoardingBookingStage[], pinned: BookingStatusLabel): void {
+    const threshold = STATUS_DONE_THROUGH_INDEX[pinned];
+    for (const stage of stages) {
+      if (stage.key === 'quote') continue;
+      if (STAGE_ORDER.indexOf(stage.key) <= threshold) stage.done = true;
+      if (stage.key === 'paymentReceived' && pinned === 'Deposit Not Required') {
         stage.label = 'Deposit Not Required';
       }
     }
@@ -848,15 +871,15 @@ export class BoardingBookingsService {
     return this.effectiveOverride(booking, invoice) ?? this.automaticStatusLabel(booking, invoice);
   }
 
-  // A pinned statusOverride stops counting once a real check-in/check-out
-  // has moved the booking past it -- otherwise a "Check In Complete" pinned
-  // before the stay kept the booking showing as checked in after the
-  // check-out form was completed (and so it never reached the Complete tab).
-  // Overrides at or ahead of the real progress, and any override before
-  // check-in, still win as before.
+  // A pinned statusOverride stops counting once real progress has moved the
+  // booking past it -- otherwise a "Check In Complete" pinned before the
+  // stay kept the booking showing as checked in after the check-out form
+  // was completed (and so it never reached the Complete tab), and a
+  // "Deposit Not Required" pin hid a completed pre-check-in. Overrides at or
+  // ahead of the real progress still win as before.
   private effectiveOverride(booking: BoardingBooking, invoice?: Invoice | null): BookingStatusLabel | undefined {
     const override = booking.statusOverride;
-    if (!override || !booking.checkInAt) return override;
+    if (!override) return override;
     const actual = this.automaticStatusLabel(booking, invoice);
     return STATUS_DONE_THROUGH_INDEX[override] < STATUS_DONE_THROUGH_INDEX[actual] ? undefined : override;
   }
@@ -865,7 +888,7 @@ export class BoardingBookingsService {
     if (booking.checkOutAt && invoice?.status === InvoiceStatus.PAID) return 'Booking Complete';
     if (booking.checkOutAt) return 'Check Out Complete';
     if (booking.checkInAt) return 'In Progress';
-    if (booking.preCheckInSubmission) return 'Pre Check In Complete';
+    if (booking.preCheckInCompletedAt) return 'Pre Check In Complete';
     const amountPaid = invoice?.amountPaid ?? 0;
     if (amountPaid > 0) return 'Deposit Paid';
     if (booking.paymentRequestType) return 'Deposit Requested';
