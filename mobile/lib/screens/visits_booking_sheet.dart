@@ -232,10 +232,12 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
       ..sort((a, b) => b.issueDate.compareTo(a.issueDate));
   }
 
-  bool _issuedThisMonth(Invoice inv) {
+  /// Months between the invoice's issue date and now: negative for earlier
+  /// months, 0 for this month, positive for later months.
+  int _issuedMonthOffset(Invoice inv) {
     final now = DateTime.now();
     final issued = inv.issueDate.toLocal();
-    return issued.year == now.year && issued.month == now.month;
+    return (issued.year - now.year) * 12 + (issued.month - now.month);
   }
 
   /// Folds the new booking's lines into an invoice's existing ones: a line
@@ -260,13 +262,15 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
     return merged;
   }
 
-  /// When the customer already has open invoices: add to one of them (this
-  /// month's listed first), or create a new one. Returns the chosen invoice,
+  /// When the customer already has open invoices: add to one of them
+  /// (grouped as this month, later, earlier), or create a new one. Returns the chosen invoice,
   /// `null` for a new invoice, or `false` when dismissed.
   Future<Object?> _pickInvoice(List<Invoice> open) async {
     final money = NumberFormat.currency(locale: 'en_GB', symbol: '£');
-    final thisMonth = open.where(_issuedThisMonth).toList();
-    final earlier = open.where((inv) => !_issuedThisMonth(inv)).toList();
+    final thisMonth = open.where((inv) => _issuedMonthOffset(inv) == 0).toList();
+    // Soonest first.
+    final later = open.where((inv) => _issuedMonthOffset(inv) > 0).toList().reversed.toList();
+    final earlier = open.where((inv) => _issuedMonthOffset(inv) < 0).toList();
     Widget heading(String text) => Padding(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
           child: Text(text, style: Theme.of(context).textTheme.labelMedium),
@@ -290,6 +294,8 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
           ),
           if (thisMonth.isNotEmpty) heading('This month'),
           for (final inv in thisMonth) option(dialogContext, inv),
+          if (later.isNotEmpty) heading('Later months'),
+          for (final inv in later) option(dialogContext, inv),
           if (earlier.isNotEmpty) heading('Earlier'),
           for (final inv in earlier) option(dialogContext, inv),
           SimpleDialogOption(

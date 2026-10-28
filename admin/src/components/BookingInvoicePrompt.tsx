@@ -33,9 +33,11 @@ export function openInvoicesFor(invoices: Invoice[], customerId: string): Invoic
     .sort((a, b) => b.issueDate.localeCompare(a.issueDate));
 }
 
-export function issuedThisMonth(invoice: Invoice, today = new Date()): boolean {
+// -1 = issued before this month, 0 = this month, 1 = a later month.
+export function issuedMonthOffset(invoice: Invoice, today = new Date()): -1 | 0 | 1 {
   const issued = new Date(invoice.issueDate);
-  return issued.getFullYear() === today.getFullYear() && issued.getMonth() === today.getMonth();
+  const diff = (issued.getFullYear() - today.getFullYear()) * 12 + (issued.getMonth() - today.getMonth());
+  return diff < 0 ? -1 : diff > 0 ? 1 : 0;
 }
 
 // Folds the new booking's lines into an invoice's existing ones: a line for
@@ -58,7 +60,7 @@ export function mergeLineItems(existing: LineItem[], added: LineItem[]): LineIte
 // created (one line per product, same grouping as GenerateInvoicesModal) and
 // links those rows to it, so the monthly Generate Invoices run skips them.
 // When the customer already has open invoices, staff can pick one instead
-// and the new lines are added to it. This month's are listed first.
+// and the new lines are added to it. Grouped as this month, later, earlier.
 export default function BookingInvoicePrompt({
   customerId,
   bookings,
@@ -87,8 +89,8 @@ export default function BookingInvoicePrompt({
         const open = openInvoicesFor(invoices, customerId);
         setOpenInvoices(open);
         // Default to this month's latest -- the usual "add it to this month's
-        // bill". Older ones are offered but never preselected.
-        const thisMonth = open.find((inv) => issuedThisMonth(inv));
+        // bill". Earlier and later ones are offered but never preselected.
+        const thisMonth = open.find((inv) => issuedMonthOffset(inv) === 0);
         if (thisMonth) setTarget(thisMonth._id);
       })
       // Not being able to look is no reason to block creating a new one.
@@ -158,8 +160,10 @@ export default function BookingInvoicePrompt({
   }
 
   const hasOpen = !!openInvoices && openInvoices.length > 0;
-  const thisMonth = (openInvoices ?? []).filter((inv) => issuedThisMonth(inv));
-  const earlier = (openInvoices ?? []).filter((inv) => !issuedThisMonth(inv));
+  const thisMonth = (openInvoices ?? []).filter((inv) => issuedMonthOffset(inv) === 0);
+  // Soonest first.
+  const later = (openInvoices ?? []).filter((inv) => issuedMonthOffset(inv) === 1).reverse();
+  const earlier = (openInvoices ?? []).filter((inv) => issuedMonthOffset(inv) === -1);
 
   function invoiceOption(inv: Invoice) {
     return (
@@ -193,6 +197,8 @@ export default function BookingInvoicePrompt({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '12px 0' }}>
             {thisMonth.length > 0 && <div style={groupHeading}>This month</div>}
             {thisMonth.map(invoiceOption)}
+            {later.length > 0 && <div style={groupHeading}>Later months</div>}
+            {later.map(invoiceOption)}
             {earlier.length > 0 && <div style={groupHeading}>Earlier</div>}
             {earlier.map(invoiceOption)}
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
