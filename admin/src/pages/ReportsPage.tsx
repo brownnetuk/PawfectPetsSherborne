@@ -5,6 +5,8 @@ import DateInput from '../components/DateInput';
 import { inDateRange } from '../components/DateRangeFilterBar';
 import ExpensesByCategoryChart from '../components/ExpensesByCategoryChart';
 import IncomeExpenseChart from '../components/IncomeExpenseChart';
+import { invoiceBalanceDue } from '../components/OverduePaymentModal';
+import { customerLabel } from '../components/SendPreviewModal';
 import SortableTh from '../components/SortableTh';
 import ViewExpenseModal from '../components/ViewExpenseModal';
 import type { CreditNote, Expense, ExpenseCategoryTotal, IncomeExpenseMonth, Invoice, OtherIncome, Payment } from '../types';
@@ -15,12 +17,13 @@ import {
   reportRange,
 } from '../utils/reportDateRange';
 
-type Tab = 'pl' | 'expensesByCategory' | 'incomeByCustomer';
+type Tab = 'pl' | 'expensesByCategory' | 'incomeByCustomer' | 'income';
 
 const TAB_LABELS: Record<Tab, string> = {
   pl: 'P/L',
   expensesByCategory: 'Expense Summary by Category',
   incomeByCustomer: 'Income Summary by Customer',
+  income: 'Income',
 };
 
 export default function ReportsPage() {
@@ -33,7 +36,7 @@ export default function ReportsPage() {
       </div>
 
       <div className="tabs">
-        {(['pl', 'expensesByCategory', 'incomeByCustomer'] as Tab[]).map((t) => (
+        {(['pl', 'expensesByCategory', 'incomeByCustomer', 'income'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
@@ -43,6 +46,7 @@ export default function ReportsPage() {
       {tab === 'pl' && <ProfitAndLossReport />}
       {tab === 'expensesByCategory' && <ExpenseSummaryByCategoryReport />}
       {tab === 'incomeByCustomer' && <IncomeSummaryByCustomerReport />}
+      {tab === 'income' && <InvoicesDueReport />}
     </div>
   );
 }
@@ -520,6 +524,143 @@ function IncomeSummaryByCustomerReport() {
               <tr style={{ fontWeight: 700 }}>
                 <td colSpan={3}>Total</td>
                 <td>£{selected.net.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type InvoiceSortKey = 'dueDate' | 'invoiceNumber' | 'customer' | 'total' | 'balance';
+
+// Every invoice falling due in a chosen date range, with what's still owed on
+// each. Drafts haven't been issued and cancelled invoices are never due, so
+// both are left out.
+function InvoicesDueReport() {
+  const [invoices, setInvoices] = useState<Invoice[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [range, setRange] = useState(() => reportRange('thisYear'));
+  const [sortKey, setSortKey] = useState<InvoiceSortKey>('dueDate');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  useEffect(() => {
+    api
+      .listInvoices()
+      .then(setInvoices)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load the report'));
+  }, []);
+
+  function toggleSort(key: InvoiceSortKey) {
+    if (key === sortKey) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    else {
+      setSortKey(key);
+      setSortDir(key === 'total' || key === 'balance' ? 'desc' : 'asc');
+    }
+  }
+
+  const rows = useMemo(() => {
+    const due = (invoices ?? []).filter(
+      (inv) => inv.status !== 'draft' && inv.status !== 'cancelled' && inDateRange(inv.dueDate, range.from, range.to),
+    );
+    const sign = sortDir === 'asc' ? 1 : -1;
+    const value = (inv: Invoice): string | number => {
+      switch (sortKey) {
+        case 'dueDate':
+          return new Date(inv.dueDate).getTime();
+        case 'invoiceNumber':
+          return inv.invoiceNumber;
+        case 'customer':
+          return customerLabel(inv.customer);
+        case 'total':
+          return inv.total;
+        case 'balance':
+          return invoiceBalanceDue(inv);
+      }
+    };
+    return due.sort((a, b) => {
+      const va = value(a);
+      const vb = value(b);
+      if (typeof va === 'number' && typeof vb === 'number') return sign * (va - vb);
+      return sign * String(va).localeCompare(String(vb), 'en-GB', { numeric: true, sensitivity: 'base' });
+    });
+  }, [invoices, range, sortKey, sortDir]);
+
+  const total = rows.reduce((sum, inv) => sum + inv.total, 0);
+  const paid = rows.reduce((sum, inv) => sum + (inv.amountPaid ?? 0), 0);
+  const balance = rows.reduce((sum, inv) => sum + invoiceBalanceDue(inv), 0);
+
+  return (
+    <div>
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <h2 style={{ marginBottom: 2 }}>Income</h2>
+            <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: 0 }}>{rangeLabel(range)}</p>
+            <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: 0 }}>
+              Invoices due in this period (drafts and cancelled invoices are left out).
+            </p>
+          </div>
+          <ReportDateRangePicker range={range} onChange={setRange} />
+        </div>
+        {error && <div className="error-banner">{error}</div>}
+        {invoices === null && !error && <div className="empty-state">Loading…</div>}
+        {invoices && rows.length === 0 && <div className="empty-state">No invoices due in this period.</div>}
+        {rows.length > 0 && (
+          <div style={{ display: 'flex', gap: 24, marginTop: 10, fontWeight: 600, flexWrap: 'wrap' }}>
+            <div>Invoices — {rows.length}</div>
+            <div>Total — £{total.toFixed(2)}</div>
+            <div>Paid — £{paid.toFixed(2)}</div>
+            <div style={{ color: balance > 0 ? 'var(--error)' : 'var(--accent)' }}>Balance Due — £{balance.toFixed(2)}</div>
+          </div>
+        )}
+      </div>
+
+      {rows.length > 0 && (
+        <div className="card" style={{ padding: 0 }}>
+          <table>
+            <thead>
+              <tr>
+                <SortableTh label="Due Date" sortKey="dueDate" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Invoice" sortKey="invoiceNumber" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Customer" sortKey="customer" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <th>Status</th>
+                <SortableTh label="Total" sortKey="total" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <th>Paid</th>
+                <SortableTh label="Balance Due" sortKey="balance" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((inv) => {
+                const customerId = refId(inv.customer);
+                return (
+                  <tr key={inv._id}>
+                    <td>{new Date(inv.dueDate).toLocaleDateString('en-GB')}</td>
+                    <td>
+                      <Link to={`/invoices?view=${inv._id}`}>{inv.invoiceNumber}</Link>
+                    </td>
+                    <td>
+                      {customerId && typeof inv.customer !== 'string' ? (
+                        <Link to={`/customers/${customerId}`}>{customerLabel(inv.customer)}</Link>
+                      ) : (
+                        customerLabel(inv.customer)
+                      )}
+                    </td>
+                    <td>
+                      <span className={`badge badge-${inv.status}`}>{inv.status}</span>
+                    </td>
+                    <td>£{inv.total.toFixed(2)}</td>
+                    <td>{inv.amountPaid ? `£${inv.amountPaid.toFixed(2)}` : '—'}</td>
+                    <td>£{invoiceBalanceDue(inv).toFixed(2)}</td>
+                  </tr>
+                );
+              })}
+              <tr style={{ fontWeight: 700 }}>
+                <td colSpan={4}>Total</td>
+                <td>£{total.toFixed(2)}</td>
+                <td>£{paid.toFixed(2)}</td>
+                <td>£{balance.toFixed(2)}</td>
               </tr>
             </tbody>
           </table>
