@@ -1126,6 +1126,44 @@ table input:focus {
   font-weight: 700;
 }
 
+/* On/off filter pill (e.g. the Income report's "Drafts") -- same rounded
+   look as the tabs, filled brand blue while switched on. */
+.toggle-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: white;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+.toggle-pill:hover {
+  color: var(--ink);
+}
+.toggle-pill::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+}
+.toggle-pill.active {
+  color: white;
+  background: var(--brand-green);
+  border-color: var(--brand-green);
+  font-weight: 700;
+}
+.toggle-pill.active::before {
+  background: currentColor;
+}
+
 .line-item-row {
   display: grid;
   grid-template-columns: 1fr 70px 100px 32px;

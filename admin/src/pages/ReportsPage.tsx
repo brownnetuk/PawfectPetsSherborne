@@ -536,10 +536,11 @@ function IncomeSummaryByCustomerReport() {
 type InvoiceSortKey = 'dueDate' | 'invoiceNumber' | 'customer' | 'total' | 'balance';
 
 // Every invoice falling due in a chosen date range, with what's still owed on
-// each. Drafts haven't been issued and cancelled invoices are never due, so
-// both are left out.
+// each. Cancelled invoices are never due so they're always left out; drafts
+// haven't been issued yet, so they only show when the Drafts pill is on.
 function InvoicesDueReport() {
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
+  const [includeDrafts, setIncludeDrafts] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [range, setRange] = useState(() => reportRange('thisYear'));
   const [sortKey, setSortKey] = useState<InvoiceSortKey>('dueDate');
@@ -562,7 +563,10 @@ function InvoicesDueReport() {
 
   const rows = useMemo(() => {
     const due = (invoices ?? []).filter(
-      (inv) => inv.status !== 'draft' && inv.status !== 'cancelled' && inDateRange(inv.dueDate, range.from, range.to),
+      (inv) =>
+        inv.status !== 'cancelled' &&
+        (includeDrafts || inv.status !== 'draft') &&
+        inDateRange(inv.dueDate, range.from, range.to),
     );
     const sign = sortDir === 'asc' ? 1 : -1;
     const value = (inv: Invoice): string | number => {
@@ -585,7 +589,7 @@ function InvoicesDueReport() {
       if (typeof va === 'number' && typeof vb === 'number') return sign * (va - vb);
       return sign * String(va).localeCompare(String(vb), 'en-GB', { numeric: true, sensitivity: 'base' });
     });
-  }, [invoices, range, sortKey, sortDir]);
+  }, [invoices, range, includeDrafts, sortKey, sortDir]);
 
   const total = rows.reduce((sum, inv) => sum + inv.total, 0);
   const paid = rows.reduce((sum, inv) => sum + (inv.amountPaid ?? 0), 0);
@@ -599,10 +603,23 @@ function InvoicesDueReport() {
             <h2 style={{ marginBottom: 2 }}>Income</h2>
             <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: 0 }}>{rangeLabel(range)}</p>
             <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: 0 }}>
-              Invoices due in this period (drafts and cancelled invoices are left out).
+              {includeDrafts
+                ? 'Invoices due in this period, including drafts (cancelled invoices are left out).'
+                : 'Invoices due in this period (drafts and cancelled invoices are left out).'}
             </p>
           </div>
-          <ReportDateRangePicker range={range} onChange={setRange} />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className={`toggle-pill${includeDrafts ? ' active' : ''}`}
+              aria-pressed={includeDrafts}
+              title={includeDrafts ? 'Hide draft invoices' : 'Include draft invoices'}
+              onClick={() => setIncludeDrafts((on) => !on)}
+            >
+              Drafts
+            </button>
+            <ReportDateRangePicker range={range} onChange={setRange} />
+          </div>
         </div>
         {error && <div className="error-banner">{error}</div>}
         {invoices === null && !error && <div className="empty-state">Loading…</div>}
