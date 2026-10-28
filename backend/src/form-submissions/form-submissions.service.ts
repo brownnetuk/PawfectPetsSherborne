@@ -643,6 +643,15 @@ export class FormSubmissionsService implements OnModuleInit {
     submission.submittedAt = new Date();
     await submission.save();
 
+    // A booking's pre-check-in submission is created (pending) the moment
+    // the link is sent, so its presence alone can't tell "sent" from
+    // "completed" -- record the completion on the booking itself so its
+    // Progress timeline/status (BoardingBookingsService.computeStages())
+    // can tick the step off. Staff-filled or customer-filled alike.
+    await this.boardingBookingModel
+      .updateOne({ preCheckInSubmission: submission._id }, { preCheckInCompletedAt: submission.submittedAt })
+      .exec();
+
     await this.auditLogService.record(
       customerId,
       AuditEventType.FORM_SUBMITTED,

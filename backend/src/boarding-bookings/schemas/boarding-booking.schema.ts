@@ -98,6 +98,13 @@ export class BoardingBooking extends Document {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: FormSubmission.name })
   preCheckInSubmission?: Types.ObjectId;
 
+  // Set once the customer (or staff) actually submits preCheckInSubmission
+  // (FormSubmissionsService.submit()) -- the submission itself exists from
+  // the moment the link is sent, so this is what marks the Pre-check-in
+  // stage done. Cleared again when a fresh link is (re)sent.
+  @Prop()
+  preCheckInCompletedAt?: Date;
+
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: FormSubmission.name })
   checkInSubmission?: Types.ObjectId;
 
