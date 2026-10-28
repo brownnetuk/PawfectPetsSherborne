@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import DateInput from './DateInput';
 import Modal from './Modal';
-import type { BankAccount, Invoice, PaymentMethod } from '../types';
+import PaymentThankYouPrompt, { canThankCustomer } from './PaymentThankYouPrompt';
+import type { BankAccount, Invoice, Payment, PaymentMethod } from '../types';
 import { bankAccountTypeLabel } from '../utils/bankAccountType';
 
 interface Props {
@@ -24,6 +25,8 @@ export default function RecordPaymentModal({ invoice, onClose, onSaved }: Props)
   const [depositPercentage, setDepositPercentage] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Set once the payment is saved, to swap the form for the thank-you prompt.
+  const [recorded, setRecorded] = useState<{ payment: Payment; invoice: Invoice } | null>(null);
 
   useEffect(() => {
     api.listBankAccounts().then((list) => {
@@ -55,20 +58,31 @@ export default function RecordPaymentModal({ invoice, onClose, onSaved }: Props)
     setSubmitting(true);
     setError(null);
     try {
-      await api.createPayment({
+      const thank = canThankCustomer(invoice);
+      const payment = await api.createPayment({
         invoice: invoice._id,
         date,
         amount: Number(amount),
         charges: charges ? Number(charges) : undefined,
         paymentMethod: paymentMethod || undefined,
         account,
+        skipThankYouEmail: thank,
       });
-      onSaved();
+      if (thank) setRecorded({ payment, invoice });
+      else onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to record this payment');
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (recorded) {
+    return (
+      <Modal title="Send Thank-You Email?" onClose={onSaved}>
+        <PaymentThankYouPrompt payment={recorded.payment} invoice={recorded.invoice} onDone={onSaved} />
+      </Modal>
+    );
   }
 
   return (
