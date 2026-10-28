@@ -139,7 +139,9 @@ interface RichWord {
 function richWords(doc: jsPDF, raw: string, fontSize: number, allBold = false): RichWord[] {
   const words: RichWord[] = [];
   for (const run of parseRichLabelRuns(raw)) {
-    for (const part of run.text.split(/(\s+)/).filter((p) => p.length > 0)) {
+    // A line break is its own zero-width "word", so wrapRichWords() can
+    // honour it rather than flowing it like a space.
+    for (const part of run.text.split(/(\n|[^\S\n]+)/).filter((p) => p.length > 0)) {
       const bold = allBold || run.bold || run.underline;
       setFont(doc, BODY, bold ? 'bold' : 'normal');
       doc.setFontSize(fontSize);
@@ -154,6 +156,12 @@ function wrapRichWords(words: RichWord[], maxWidth: number): RichWord[][] {
   let current: RichWord[] = [];
   let currentWidth = 0;
   for (const word of words) {
+    if (word.text === '\n') {
+      lines.push(current);
+      current = [];
+      currentWidth = 0;
+      continue;
+    }
     const isSpace = /^\s+$/.test(word.text);
     if (isSpace && current.length === 0) continue; // never start a line with a space
     if (currentWidth + word.width > maxWidth && current.length > 0) {
@@ -293,6 +301,86 @@ export function paragraphBlock(doc: jsPDF, text: string, fontSize = 9.5): Block 
       body.draw(doc, INNER_X, y + fontSize, leading, INK);
     },
   };
+}
+
+// "1. ..." or "1) ..." at the start of a line.
+const NUMBERED_LINE = /^(\d+)[.)]\s+(.*)$/;
+
+// Puts each of a line's inline numbered points ("Terms and conditions: 1. ...
+// 2. ... 3. ...", typed without line breaks) on a line of its own -- only
+// when the numbers count up from 1, so a stray "Fig. 2" or "1.5 kg" is left
+// where it is.
+function breakInlineNumbering(line: string): string {
+  const starts: number[] = [];
+  const pattern = /(^|\s+)(\d+)[.)]\s/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(line))) {
+    if (Number(match[2]) === starts.length + 1) starts.push(match.index);
+    pattern.lastIndex = match.index + match[0].length;
+  }
+  if (starts.length < 2) return line;
+  let out = '';
+  let from = 0;
+  for (const start of starts) {
+    out += line.slice(from, start).trimEnd() + (start > 0 ? '\n' : '');
+    from = start;
+  }
+  return (out + line.slice(from).trimStart()).replace(/^\n/, '');
+}
+
+/** One numbered point, its number hanging in the margin beside the wrapped text. */
+function numberedPointBlock(doc: jsPDF, marker: string, text: string, fontSize: number): Block {
+  const leading = fontSize * 1.35;
+  const indent = 16;
+  const body = richText(doc, text, fontSize, INNER_WIDTH - indent);
+  return {
+    height: body.lines * leading + 4,
+    draw(doc, y) {
+      setFont(doc, BODY, 'bold');
+      doc.setFontSize(fontSize);
+      doc.setTextColor(...BLUE);
+      doc.text(marker, INNER_X, y + fontSize);
+      body.draw(doc, INNER_X + indent, y + fontSize, leading, INK);
+    },
+  };
+}
+
+/**
+ * Staff-authored prose (e.g. a form's terms and conditions) as blocks:
+ * blank-line-separated paragraphs, with any numbered points ("1. ...",
+ * whether on their own lines or run together in one) set out as a list.
+ */
+export function proseBlocks(doc: jsPDF, text: string, fontSize = 9.5): Block[] {
+  const blocks: Block[] = [];
+  let paragraph: string[] = [];
+  let inList = false;
+  const endParagraph = () => {
+    if (paragraph.length > 0) blocks.push(paragraphBlock(doc, paragraph.join('\n'), fontSize));
+    paragraph = [];
+  };
+  const endList = () => {
+    if (inList) blocks.push(spacerBlock(4));
+    inList = false;
+  };
+  const lines = text.split('\n').flatMap((line) => breakInlineNumbering(line).split('\n'));
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const point = NUMBERED_LINE.exec(trimmed);
+    if (point) {
+      endParagraph();
+      blocks.push(numberedPointBlock(doc, `${point[1]}.`, point[2], fontSize));
+      inList = true;
+    } else if (!trimmed) {
+      endParagraph();
+      endList();
+    } else {
+      endList();
+      paragraph.push(trimmed);
+    }
+  }
+  endParagraph();
+  endList();
+  return blocks;
 }
 
 /** A blue sub-heading inside a section, wrapping if it's long. */
