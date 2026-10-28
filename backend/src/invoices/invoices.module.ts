@@ -10,6 +10,10 @@ import {
   BusinessInfo,
   BusinessInfoSchema,
 } from '../settings/schemas/business-info.schema';
+import {
+  EmailTemplate,
+  EmailTemplateSchema,
+} from '../settings/schemas/email-template.schema';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SettingsModule } from '../settings/settings.module';
 import { InvoicesController } from './invoices.controller';
@@ -26,6 +30,8 @@ import { Invoice, InvoiceSchema } from './schemas/invoice.schema';
       // both of those already import InvoicesModule the other way round.
       { name: Payment.name, schema: PaymentSchema },
       { name: CreditNote.name, schema: CreditNoteSchema },
+      // For seeding the payment_overdue template in onModuleInit().
+      { name: EmailTemplate.name, schema: EmailTemplateSchema },
     ]),
     SettingsModule,
     AuditLogModule,

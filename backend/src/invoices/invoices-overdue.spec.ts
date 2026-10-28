@@ -1,4 +1,4 @@
-import { overdueCutoff } from './invoices.service';
+import { daysOverdue, overdueCutoff } from './invoices.service';
 
 // An invoice is on time throughout its due date and only becomes overdue the
 // day after -- markOverdue() flips `sent` invoices whose dueDate is at or
@@ -24,5 +24,23 @@ describe('overdueCutoff', () => {
   it('is exactly one day before now', () => {
     const now = new Date('2026-10-24T09:30:00.000Z');
     expect(overdueCutoff(now).toISOString()).toBe('2026-10-23T09:30:00.000Z');
+  });
+});
+
+// The "{{days_overdue}}" placeholder on the payment_overdue reminder email.
+describe('daysOverdue', () => {
+  const dueDate = new Date('2026-10-20T00:00:00.000Z');
+
+  it('is 0 on the due date itself', () => {
+    expect(daysOverdue(dueDate, new Date('2026-10-20T18:00:00.000Z'))).toBe(0);
+  });
+
+  it('is 0 before the due date', () => {
+    expect(daysOverdue(dueDate, new Date('2026-10-15T09:00:00.000Z'))).toBe(0);
+  });
+
+  it('counts calendar days after the due date, regardless of time of day', () => {
+    expect(daysOverdue(dueDate, new Date('2026-10-21T00:00:01.000Z'))).toBe(1);
+    expect(daysOverdue(dueDate, new Date('2026-10-28T23:59:00.000Z'))).toBe(8);
   });
 });

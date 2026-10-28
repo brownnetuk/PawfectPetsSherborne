@@ -643,7 +643,8 @@ export type AuditEventType =
   | 'email_read'
   | 'invoice_read'
   | 'quote_read'
-  | 'deposit_requested';
+  | 'deposit_requested'
+  | 'overdue_reminder_sent';
 
 export interface AuditLogEntry {
   _id: string;
@@ -832,7 +833,8 @@ export type EmailTrigger =
   | 'form_copy'
   | 'booking_confirmation'
   | 'generic'
-  | 'pre_boarding';
+  | 'pre_boarding'
+  | 'payment_overdue';
 
 export interface EmailTemplate {
   trigger: EmailTrigger;

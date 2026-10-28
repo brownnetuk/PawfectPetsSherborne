@@ -526,6 +526,9 @@ export function sendInvoiceEmail(id: string): Promise<Invoice> {
 export function requestDeposit(id: string): Promise<{ depositAmount: number; depositPercentage: number }> {
   return request(`/invoices/${id}/request-deposit`, { method: 'POST' });
 }
+export function sendOverdueReminder(id: string): Promise<{ balanceDue: number; daysOverdue: number }> {
+  return request(`/invoices/${id}/overdue-reminder`, { method: 'POST' });
+}
 
 // --- quotes ---
 export function listQuotes(customerId?: string): Promise<Quote[]> {

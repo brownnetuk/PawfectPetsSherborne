@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -26,7 +27,10 @@ import {
 import { CreditNote } from '../credit-notes/schemas/credit-note.schema';
 import { Payment } from '../payments/schemas/payment.schema';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
-import { EmailTrigger } from '../settings/schemas/email-template.schema';
+import {
+  EmailTemplate,
+  EmailTrigger,
+} from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
 import { NotificationService } from '../notifications/notification.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
@@ -46,8 +50,63 @@ export function overdueCutoff(now: Date = new Date()): Date {
   return new Date(now.getTime() - 24 * 60 * 60 * 1000);
 }
 
+// Whole days between an invoice's due date and `now` (0 while it's still due
+// today or in the future), counted on calendar days so the time of day either
+// was recorded at doesn't matter. Exported for its unit test.
+export function daysOverdue(dueDate: Date, now: Date = new Date()): number {
+  const day = (d: Date) =>
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  return Math.max(
+    0,
+    Math.round((day(now) - day(dueDate)) / (24 * 60 * 60 * 1000)),
+  );
+}
+
+// Seeded as the payment_overdue template on first start (see onModuleInit()),
+// so "Overdue Payment" works out of the box -- staff can still edit it in
+// Settings > Email Templates. Same card styling as the admin's Invoice
+// Template starter.
+const OVERDUE_CARD =
+  'background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;';
+const OVERDUE_ROW = 'padding:5px 0;';
+const DEFAULT_OVERDUE_EMAIL_SUBJECT =
+  'Payment overdue: invoice {{invoice_number}} from {{businessName}}';
+const DEFAULT_OVERDUE_EMAIL_BODY = `<div style="max-width:600px;margin:0 auto;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">
+<div style="background:#0f3a5f;color:#fff;padding:20px 24px;">
+{{logo}}
+<strong style="font-size:1.15rem;">{{businessName}}</strong>
+</div>
+<div style="padding:24px;background:#ffffff;">
+<p style="margin:0 0 16px;">Hi {{customer_name}},</p>
+<p style="margin:0 0 16px;">We hope you and your pets are well. This is a friendly reminder that invoice <strong>{{invoice_number}}</strong> was due for payment on <strong>{{due_date}}</strong> and is now {{days_overdue}} day(s) overdue.</p>
+<p style="margin:0 0 20px;">If you've already paid, thank you, and please ignore this email. Otherwise, we'd be grateful if you could settle the outstanding balance as soon as possible.</p>
+<div style="${OVERDUE_CARD}padding:16px 20px;margin-bottom:20px;">
+<table style="width:100%;border-collapse:collapse;font-size:14px;">
+<tr><td style="${OVERDUE_ROW}color:#6b7280;">Invoice #</td><td style="${OVERDUE_ROW}text-align:right;font-weight:700;">{{invoice_number}}</td></tr>
+<tr><td style="${OVERDUE_ROW}color:#6b7280;">Invoice Date</td><td style="${OVERDUE_ROW}text-align:right;">{{invoice_date}}</td></tr>
+<tr><td style="${OVERDUE_ROW}color:#6b7280;">Due Date</td><td style="${OVERDUE_ROW}text-align:right;">{{due_date}}</td></tr>
+<tr><td style="${OVERDUE_ROW}color:#6b7280;">Invoice Total</td><td style="${OVERDUE_ROW}text-align:right;">£{{invoice_total}}</td></tr>
+<tr><td style="${OVERDUE_ROW}color:#6b7280;">Paid So Far</td><td style="${OVERDUE_ROW}text-align:right;">£{{amount_paid}}</td></tr>
+<tr><td style="padding:8px 0 0;font-weight:700;border-top:1px solid #e5e7eb;">Balance Due</td><td style="padding:8px 0 0;text-align:right;font-weight:700;border-top:1px solid #e5e7eb;color:#b91c1c;">£{{balance_due}}</td></tr>
+</table>
+</div>
+<p style="margin:0 0 24px;"><a href="{{invoice_link}}" style="background:#0f3a5f;color:#ffffff;padding:12px 22px;border-radius:6px;text-decoration:none;font-weight:700;display:inline-block;">View your invoice</a></p>
+{{#if bank_name}}<div style="${OVERDUE_CARD}padding:16px 20px;margin-bottom:20px;">
+<div style="font-weight:700;margin-bottom:8px;">Payment Details</div>
+<table style="width:100%;border-collapse:collapse;font-size:14px;">
+<tr><td style="${OVERDUE_ROW}color:#6b7280;">Bank Name</td><td style="${OVERDUE_ROW}text-align:right;">{{bank_name}}</td></tr>
+<tr><td style="${OVERDUE_ROW}color:#6b7280;">Sort Code</td><td style="${OVERDUE_ROW}text-align:right;">{{sort_code}}</td></tr>
+<tr><td style="${OVERDUE_ROW}color:#6b7280;">Account Number</td><td style="${OVERDUE_ROW}text-align:right;">{{account_number}}</td></tr>
+<tr><td style="${OVERDUE_ROW}color:#6b7280;">Reference</td><td style="${OVERDUE_ROW}text-align:right;">{{invoice_number}}</td></tr>
+</table>
+</div>{{/if}}
+<p style="margin:0 0 16px;">If there's a problem or you'd like to talk about payment, just reply to this email or call us on {{businessTelephone}}.</p>
+<p style="margin:0;">Thanks,<br>{{businessName}}</p>
+</div>
+</div>`;
+
 @Injectable()
-export class InvoicesService {
+export class InvoicesService implements OnModuleInit {
   constructor(
     @InjectModel(Invoice.name) private readonly invoiceModel: Model<Invoice>,
     @InjectModel(BusinessInfo.name)
@@ -58,7 +117,32 @@ export class InvoicesService {
     private readonly settingsService: SettingsService,
     private readonly auditLogService: AuditLogService,
     private readonly notificationService: NotificationService,
+    @InjectModel(EmailTemplate.name)
+    private readonly emailTemplateModel: Model<EmailTemplate>,
   ) {}
+
+  // Seeds the payment_overdue email template once (never overwriting staff
+  // edits) -- a deliberately deleted one isn't recreated until restart.
+  async onModuleInit() {
+    try {
+      await this.emailTemplateModel
+        .updateOne(
+          { trigger: EmailTrigger.PAYMENT_OVERDUE },
+          {
+            $setOnInsert: {
+              trigger: EmailTrigger.PAYMENT_OVERDUE,
+              name: 'Payment Overdue',
+              subject: DEFAULT_OVERDUE_EMAIL_SUBJECT,
+              body: DEFAULT_OVERDUE_EMAIL_BODY,
+            },
+          },
+          { upsert: true },
+        )
+        .exec();
+    } catch {
+      // Not fatal: staff can still set the template up by hand.
+    }
+  }
 
   private calculateTotals(
     lineItems: {
@@ -438,6 +522,93 @@ export class InvoicesService {
     }
 
     return { depositAmount, depositPercentage };
+  }
+
+  /**
+   * Emails an overdue-payment reminder for the outstanding balance on this
+   * invoice, using the payment_overdue template. Tracked the same way as
+   * requestDeposit() -- an audit entry with a "read" pixel -- and leaves the
+   * invoice's status alone.
+   */
+  async sendOverdueReminder(
+    id: string,
+    actor = 'Staff',
+  ): Promise<{ balanceDue: number; daysOverdue: number }> {
+    const invoice = await this.findOne(id);
+    if (
+      invoice.status === InvoiceStatus.PAID ||
+      invoice.status === InvoiceStatus.CANCELLED
+    ) {
+      throw new BadRequestException(
+        `Invoice ${invoice.invoiceNumber} is ${invoice.status}, so there's nothing overdue to chase.`,
+      );
+    }
+    const amountPaid = invoice.amountPaid ?? 0;
+    // Via cents, same as requestDeposit(), so float drift can't leave a
+    // phantom penny outstanding.
+    const balanceDue = Math.round((invoice.total - amountPaid) * 100) / 100;
+    if (balanceDue <= 0) {
+      throw new BadRequestException(
+        `Invoice ${invoice.invoiceNumber} has no outstanding balance.`,
+      );
+    }
+    const customer = invoice.customer as unknown as {
+      _id?: unknown;
+      name?: string;
+      email?: string;
+      address?: string;
+      phoneNumber?: string;
+    };
+    if (!customer?.email) {
+      throw new BadRequestException(
+        'This customer has no email address on file.',
+      );
+    }
+    const business = await this.settingsService.getBusinessInfo();
+    const overdueDays = daysOverdue(invoice.dueDate);
+
+    const entry = await this.auditLogService.record(
+      customer._id as string,
+      AuditEventType.OVERDUE_REMINDER_SENT,
+      'Overdue payment reminder sent',
+      `£${balanceDue.toFixed(2)} outstanding on ${invoice.invoiceNumber} (${overdueDays} day(s) overdue)`,
+      undefined,
+      actor,
+      undefined,
+      'Overdue payment reminder read',
+      id,
+    );
+    const appendHtml = entry
+      ? trackingPixelHtml(
+          `${publicApiUrl()}/audit-log/${(entry._id as { toString(): string }).toString()}/pixel.gif`,
+        )
+      : '';
+
+    await this.settingsService.sendTemplatedEmail(
+      EmailTrigger.PAYMENT_OVERDUE,
+      customer.email,
+      {
+        customer_name: customer.name,
+        customer_address: customer.address,
+        customer_phone: customer.phoneNumber,
+        invoice_number: invoice.invoiceNumber,
+        invoice_date: formatUkDate(invoice.issueDate),
+        due_date: formatUkDate(invoice.dueDate),
+        days_overdue: String(overdueDays),
+        payment_terms: invoice.paymentTerms,
+        invoice_total: invoice.total.toFixed(2),
+        amount_paid: amountPaid.toFixed(2),
+        balance_due: balanceDue.toFixed(2),
+        invoice_link: `${publicFrontendUrl()}/invoices/${id}`,
+        bank_name: business.bankName,
+        sort_code: business.sortCode,
+        account_number: business.accountNumber,
+      },
+      {},
+      appendHtml,
+    );
+
+    return { balanceDue, daysOverdue: overdueDays };
   }
 
   /**
