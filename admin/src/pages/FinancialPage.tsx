@@ -9,6 +9,7 @@ import Modal from '../components/Modal';
 import OtherIncomeModal, { type OtherIncomeDraft } from '../components/OtherIncomeModal';
 import SortableTh from '../components/SortableTh';
 import ViewExpenseModal from '../components/ViewExpenseModal';
+import { ViewOtherIncomeModal, ViewPaymentModal } from '../components/ViewPaymentModal';
 import { CopyIcon, ExportIcon, InvoicesIcon, MailIcon, PencilIcon, TrashIcon } from '../components/icons';
 import { downloadExpensePdf } from '../pdf/expensePdf';
 import { buildReceiptPdf } from '../pdf/receiptPdf';
@@ -114,6 +115,7 @@ function PaymentsCard() {
   const [error, setError] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [showOtherIncome, setShowOtherIncome] = useState(false);
+  const [viewing, setViewing] = useState<PaymentRow | null>(null);
   const [deletingIncome, setDeletingIncome] = useState<OtherIncome | null>(null);
   const [deleting, setDeleting] = useState<Payment | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -305,7 +307,7 @@ function PaymentsCard() {
               if (row.kind === 'otherIncome') {
                 const o = row.income;
                 return (
-                  <tr key={`oi-${o._id}`}>
+                  <tr key={`oi-${o._id}`} onClick={() => setViewing(row)}>
                     <td>{new Date(o.date).toLocaleDateString('en-GB')}</td>
                     <td>
                       {o.receivedFrom}
@@ -320,7 +322,7 @@ function PaymentsCard() {
                     <td>—</td>
                     <td>—</td>
                     <td>{accountLabel(o.account)}</td>
-                    <td>
+                    <td onClick={(ev) => ev.stopPropagation()}>
                       <div style={{ display: 'flex', gap: 2 }}>
                         <button className="icon-btn icon-btn-danger" title="Delete" onClick={() => setDeletingIncome(o)}>
                           <TrashIcon />
@@ -332,7 +334,7 @@ function PaymentsCard() {
               }
               const p = row.payment;
               return (
-                <tr key={p._id}>
+                <tr key={p._id} onClick={() => setViewing(row)}>
                   <td>{new Date(p.date).toLocaleDateString('en-GB')}</td>
                   <td>{invoiceLabel(p.invoice)}</td>
                   <td>{p.paymentId}</td>
@@ -340,7 +342,7 @@ function PaymentsCard() {
                   <td>{p.charges ? `£${p.charges.toFixed(2)}` : '—'}</td>
                   <td>{p.paymentMethod || '—'}</td>
                   <td>{accountLabel(p.account)}</td>
-                  <td>
+                  <td onClick={(ev) => ev.stopPropagation()}>
                     <div style={{ display: 'flex', gap: 2 }}>
                       <button className="icon-btn" title="Send receipt" onClick={() => setSendingReceipt(p)}>
                         <InvoicesIcon />
@@ -358,6 +360,36 @@ function PaymentsCard() {
             })}
           </tbody>
         </table>
+      )}
+
+      {viewing?.kind === 'payment' && (
+        <ViewPaymentModal
+          payment={viewing.payment}
+          onClose={() => setViewing(null)}
+          onSendReceipt={() => {
+            setSendingReceipt(viewing.payment);
+            setViewing(null);
+          }}
+          onSendEmail={() => {
+            setSendingEmail(viewing.payment);
+            setViewing(null);
+          }}
+          onDelete={() => {
+            setDeleting(viewing.payment);
+            setViewing(null);
+          }}
+        />
+      )}
+
+      {viewing?.kind === 'otherIncome' && (
+        <ViewOtherIncomeModal
+          income={viewing.income}
+          onClose={() => setViewing(null)}
+          onDelete={() => {
+            setDeletingIncome(viewing.income);
+            setViewing(null);
+          }}
+        />
       )}
 
       {showNew && (
