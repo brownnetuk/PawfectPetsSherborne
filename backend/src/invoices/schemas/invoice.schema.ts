@@ -5,6 +5,9 @@ import { Customer } from '../../customers/schemas/customer.schema';
 
 export enum InvoiceStatus {
   DRAFT = 'draft',
+  // Queued to be emailed at scheduledSendAt -- see
+  // InvoicesService.sendScheduled(). Becomes SENT once the email goes.
+  SCHEDULED = 'scheduled',
   SENT = 'sent',
   PAID = 'paid',
   OVERDUE = 'overdue',
@@ -155,6 +158,11 @@ export class Invoice extends Document {
   // invoice actually sits in its draft/sent/paid/overdue/cancelled lifecycle.
   @Prop()
   openedAt?: Date;
+
+  // When a SCHEDULED invoice is due to be emailed (Schedule Send in the admin
+  // app). Cleared once it's sent or the schedule is cancelled.
+  @Prop({ index: true })
+  scheduledSendAt?: Date;
 
   @Prop({ type: InvoiceVisitPlanSchema })
   visitPlan?: InvoiceVisitPlan;

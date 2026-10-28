@@ -161,7 +161,7 @@ function ReceivablesCard() {
   today.setHours(0, 0, 0, 0);
 
   const outstanding =
-    invoices?.filter((i) => i.status !== 'draft' && i.status !== 'cancelled' && i.total - (i.amountPaid ?? 0) > 0) ??
+    invoices?.filter((i) => i.status !== 'draft' && i.status !== 'scheduled' && i.status !== 'cancelled' && i.total - (i.amountPaid ?? 0) > 0) ??
     [];
   const current = outstanding.filter((i) => new Date(i.dueDate) >= today);
   const overdue = outstanding.filter((i) => new Date(i.dueDate) < today);

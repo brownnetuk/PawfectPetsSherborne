@@ -61,7 +61,7 @@ export default function DocumentsPage({ kind }: { kind: 'invoices' | 'quotes' })
   useEffect(() => {
     const load =
       kind === 'invoices'
-        ? fetchInvoices().then((list) => list.filter((i) => i.status !== 'draft').map(invoiceRow))
+        ? fetchInvoices().then((list) => list.filter((i) => i.status !== 'draft' && i.status !== 'scheduled').map(invoiceRow))
         : fetchQuotes().then((list) => list.filter((q) => q.status !== 'draft').map(quoteRow));
     load.then(setRows).catch((err: Error) => setError(err.message));
   }, [kind]);

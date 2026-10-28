@@ -6,7 +6,7 @@ export type LeadMode = 'on_lead' | 'off_lead';
 export type NeuteredStatus = 'neutered' | 'spayed' | 'no';
 export type ServiceType = 'boarding' | 'daycare' | 'grooming' | 'walking';
 export type BookingStatus = 'requested' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
-export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+export type InvoiceStatus = 'draft' | 'scheduled' | 'sent' | 'paid' | 'overdue' | 'cancelled';
 export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'declined' | 'expired';
 export type ActivityType = 'note' | 'call' | 'email' | 'task' | 'status_change';
 
@@ -233,6 +233,8 @@ export interface Invoice {
   subject?: string;
   paidAt?: string;
   openedAt?: string;
+  // Set while status is 'scheduled': when Schedule Send will email it.
+  scheduledSendAt?: string;
   amountPaid?: number;
   createdAt: string;
   // Copied from the source quote when an accepted quote converts. An

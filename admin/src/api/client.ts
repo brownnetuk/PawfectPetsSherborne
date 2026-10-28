@@ -523,6 +523,12 @@ export function deleteInvoice(id: string): Promise<void> {
 export function sendInvoiceEmail(id: string): Promise<Invoice> {
   return request(`/invoices/${id}/send`, { method: 'POST' });
 }
+export function scheduleInvoiceSend(id: string, sendAt: string): Promise<Invoice> {
+  return request(`/invoices/${id}/schedule-send`, { method: 'POST', body: JSON.stringify({ sendAt }) });
+}
+export function cancelScheduledInvoiceSend(id: string): Promise<Invoice> {
+  return request(`/invoices/${id}/schedule-send`, { method: 'DELETE' });
+}
 export function requestDeposit(id: string): Promise<{ depositAmount: number; depositPercentage: number }> {
   return request(`/invoices/${id}/request-deposit`, { method: 'POST' });
 }

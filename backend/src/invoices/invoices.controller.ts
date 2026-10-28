@@ -19,6 +19,7 @@ import { transparentGifBuffer } from '../common/tracking-pixel.util';
 import { InvoicesService } from './invoices.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
+import { ScheduleSendDto } from './dto/schedule-send.dto';
 
 @Controller('invoices')
 export class InvoicesController {
@@ -76,6 +77,25 @@ export class InvoicesController {
   @Post(':id/send')
   sendEmail(@Param('id') id: string, @CurrentUser() user: CurrentUserShape) {
     return this.invoicesService.sendEmail(id, user.name);
+  }
+
+  // Schedule Send: queue the invoice to be emailed at a set time (or move an
+  // already scheduled one). DELETE cancels it back to draft.
+  @Post(':id/schedule-send')
+  scheduleSend(
+    @Param('id') id: string,
+    @Body() dto: ScheduleSendDto,
+    @CurrentUser() user: CurrentUserShape,
+  ) {
+    return this.invoicesService.scheduleSend(id, dto, user.name);
+  }
+
+  @Delete(':id/schedule-send')
+  cancelScheduledSend(
+    @Param('id') id: string,
+    @CurrentUser() user: CurrentUserShape,
+  ) {
+    return this.invoicesService.cancelScheduledSend(id, user.name);
   }
 
   @Post(':id/request-deposit')
