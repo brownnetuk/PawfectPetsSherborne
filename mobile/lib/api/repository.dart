@@ -672,6 +672,14 @@ class Repository {
   Future<Invoice> sendInvoiceEmail(String id) async =>
       Invoice.fromJson(await _client.post('/invoices/$id/send', {}));
 
+  /// Schedule Send: queues a draft (or moves an already scheduled) invoice to
+  /// be emailed at [sendAt]; the invoice shows as 'scheduled' until then.
+  Future<Invoice> scheduleInvoiceSend(String id, DateTime sendAt) async => Invoice.fromJson(
+      await _client.post('/invoices/$id/schedule-send', {'sendAt': sendAt.toUtc().toIso8601String()}));
+
+  /// Cancels a scheduled send, putting the invoice back to draft.
+  Future<void> cancelScheduledInvoiceSend(String id) => _client.delete('/invoices/$id/schedule-send');
+
   /// Emails a deposit request to the customer; returns the calculated deposit.
   Future<({double depositAmount, double depositPercentage})> requestDeposit(String id) async {
     final json = await _client.post('/invoices/$id/request-deposit', {});

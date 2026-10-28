@@ -74,6 +74,10 @@ class Invoice {
   final DateTime issueDate;
   final DateTime dueDate;
 
+  /// Set while [status] is 'scheduled': when Schedule Send will email it
+  /// (local time). Cleared once sent or the schedule is cancelled.
+  final DateTime? scheduledSendAt;
+
   Invoice({
     required this.id,
     required this.customer,
@@ -87,7 +91,12 @@ class Invoice {
     this.paymentTerms,
     required this.issueDate,
     required this.dueDate,
+    this.scheduledSendAt,
   });
+
+  /// Only drafts can be scheduled, and a scheduled one moved -- the backend's
+  /// scheduleSend() rule.
+  bool get canScheduleSend => status == 'draft' || status == 'scheduled';
 
   /// Outstanding balance, never negative.
   double get balanceDue => (total - amountPaid).clamp(0, double.infinity);
@@ -112,5 +121,8 @@ class Invoice {
         paymentTerms: json['paymentTerms'] as String?,
         issueDate: DateTime.parse(json['issueDate'] as String),
         dueDate: DateTime.parse(json['dueDate'] as String),
+        scheduledSendAt: json['scheduledSendAt'] == null
+            ? null
+            : DateTime.parse(json['scheduledSendAt'] as String).toLocal(),
       );
 }

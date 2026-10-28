@@ -198,6 +198,8 @@ Color statusColor(String status) {
     case 'pending':
     case 'requested':
     case 'partially_paid':
+    // An invoice queued by Schedule Send: not yet with the customer.
+    case 'scheduled':
       return brandInk;
     case 'cancelled':
       return const Color(0xFFA8243F);
@@ -216,6 +218,7 @@ Color statusBg(String status) {
     case 'pending':
     case 'requested':
     case 'partially_paid':
+    case 'scheduled':
       return brandYellowTint;
     case 'cancelled':
       return brandPinkTint;

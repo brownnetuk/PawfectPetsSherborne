@@ -31,6 +31,44 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Schedule Send row shows the scheduled time and a cancel button once scheduled', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    Widget host({VoidCallback? onSchedule, VoidCallback? onCancel, DateTime? at}) => MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: InvoiceActionBar(
+              enabled: true,
+              onSendEmail: () {},
+              onRecordPayment: () {},
+              onRequestDeposit: () {},
+              onScheduleSend: onSchedule,
+              onCancelScheduledSend: onCancel,
+              scheduledSendAt: at,
+            ),
+          ),
+        );
+
+    // Not a draft: no row at all.
+    await tester.pumpWidget(host());
+    expect(find.text('Schedule Send'), findsNothing);
+
+    // Draft: just the schedule button.
+    await tester.pumpWidget(host(onSchedule: () {}));
+    await tester.pumpAndSettle();
+    expect(find.text('Schedule Send'), findsOneWidget);
+    expect(find.text('Cancel Send'), findsNothing);
+
+    // Scheduled: the time replaces the label and a cancel button appears.
+    var cancelled = false;
+    await tester.pumpWidget(host(onSchedule: () {}, onCancel: () => cancelled = true, at: DateTime(2026, 10, 29, 9)));
+    await tester.pumpAndSettle();
+    expect(find.text('Sends 29 Oct 09:00'), findsOneWidget);
+    await tester.tap(find.text('Cancel Send'));
+    expect(cancelled, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Overdue Payment row only appears when a handler is given', (tester) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
