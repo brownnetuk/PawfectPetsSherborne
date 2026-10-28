@@ -681,6 +681,17 @@ class Repository {
     );
   }
 
+  /// Emails an overdue-payment reminder (the "Payment Overdue" template) for
+  /// the balance still owing; the server rejects paid/cancelled invoices and
+  /// ones with nothing outstanding. Returns what it chased.
+  Future<({double balanceDue, int daysOverdue})> sendOverdueReminder(String id) async {
+    final json = await _client.post('/invoices/$id/overdue-reminder', {});
+    return (
+      balanceDue: (json['balanceDue'] as num?)?.toDouble() ?? 0,
+      daysOverdue: (json['daysOverdue'] as num?)?.toInt() ?? 0,
+    );
+  }
+
   // --- booking observations (care notes on a boarding/day care booking) ---
   Future<List<BookingObservation>> listBookingObservations(String bookingId) async =>
       (await _client.getList('/boarding-bookings/$bookingId/observations'))

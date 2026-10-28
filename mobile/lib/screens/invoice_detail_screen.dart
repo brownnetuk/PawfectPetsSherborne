@@ -9,8 +9,9 @@ import '../widgets/zoomable_pdf.dart';
 import 'record_payment_sheet.dart';
 
 /// Shows a single invoice rendered as a PDF, with a bottom action bar
-/// (Send Email / Record Payment / Request Deposit) in place of the app's
-/// main navigation.
+/// (Send Email / Record Payment / Request Deposit, plus Overdue Payment once
+/// the invoice is overdue with a balance owing) in place of the app's main
+/// navigation.
 class InvoiceDetailScreen extends StatefulWidget {
   final String invoiceId;
   const InvoiceDetailScreen({super.key, required this.invoiceId});
@@ -110,6 +111,33 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     }
   }
 
+  /// Mirrors the admin's "Overdue Payment" action: emails the Payment Overdue
+  /// template for the outstanding balance. Leaves the invoice status alone.
+  Future<void> _sendOverdueReminder() async {
+    final invoice = _invoice!;
+    final repo = context.read<Repository>();
+    final money = NumberFormat.currency(locale: 'en_GB', symbol: '£');
+    final due = DateFormat('d MMM yyyy').format(invoice.dueDate.toLocal());
+    final ok = await _confirm(
+      'Send overdue payment reminder',
+      'Email an overdue payment reminder for ${invoice.invoiceNumber} to ${invoice.customer.name}?\n\n'
+          'Due $due · balance due ${money.format(invoice.balanceDue)}',
+      'Send Reminder',
+    );
+    if (!ok) return;
+    setState(() => _busy = true);
+    try {
+      final result = await repo.sendOverdueReminder(invoice.id);
+      _snack('Reminder sent for ${money.format(result.balanceDue)} '
+          '(${result.daysOverdue} day${result.daysOverdue == 1 ? '' : 's'} overdue)');
+      await _load();
+    } catch (e) {
+      _snack(e is ApiException ? e.message : 'Failed to send the reminder');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _recordPayment() async {
     final saved = await showModalBottomSheet<bool>(
       context: context,
@@ -184,22 +212,33 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     );
   }
 
-  Widget _buildActions() => InvoiceActionBar(
-        enabled: _invoice != null && !_busy,
-        onSendEmail: _sendEmail,
-        onRecordPayment: _recordPayment,
-        onRequestDeposit: _requestDeposit,
-      );
+  Widget _buildActions() {
+    final invoice = _invoice;
+    // Same rule as the admin's Invoices list: only once the invoice has
+    // actually gone overdue (the day after its due date, server-side) and
+    // there's still money owing.
+    final canRemind = invoice != null && invoice.status == 'overdue' && invoice.balanceDue > 0;
+    return InvoiceActionBar(
+      enabled: invoice != null && !_busy,
+      onSendEmail: _sendEmail,
+      onRecordPayment: _recordPayment,
+      onRequestDeposit: _requestDeposit,
+      onOverdueReminder: canRemind ? _sendOverdueReminder : null,
+    );
+  }
 }
 
 /// The invoice detail screen's bottom action bar. The primary action gets a
 /// full-width row and the two email actions share the row below -- three
-/// across is too cramped for these labels at phone widths.
+/// across is too cramped for these labels at phone widths. When
+/// [onOverdueReminder] is given, an "Overdue Payment" row is added beneath.
 class InvoiceActionBar extends StatelessWidget {
   final bool enabled;
   final VoidCallback onSendEmail;
   final VoidCallback onRecordPayment;
   final VoidCallback onRequestDeposit;
+  // Null hides the row (invoice not overdue, or nothing owing).
+  final VoidCallback? onOverdueReminder;
 
   const InvoiceActionBar({
     super.key,
@@ -207,6 +246,7 @@ class InvoiceActionBar extends StatelessWidget {
     required this.onSendEmail,
     required this.onRecordPayment,
     required this.onRequestDeposit,
+    this.onOverdueReminder,
   });
 
   @override
@@ -251,6 +291,21 @@ class InvoiceActionBar extends StatelessWidget {
               ),
             ],
           ),
+          if (onOverdueReminder != null) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: enabled ? onOverdueReminder : null,
+                style: outlinedStyle.copyWith(
+                  foregroundColor: WidgetStatePropertyAll(Colors.orange.shade900),
+                  side: WidgetStatePropertyAll(BorderSide(color: Colors.orange.shade700)),
+                ),
+                icon: const Icon(Icons.notification_important_outlined, size: 18),
+                label: const Text('Overdue Payment'),
+              ),
+            ),
+          ],
         ],
       ),
     );

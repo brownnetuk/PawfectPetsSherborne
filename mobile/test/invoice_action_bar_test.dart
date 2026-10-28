@@ -31,6 +31,34 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Overdue Payment row only appears when a handler is given', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    Widget host(VoidCallback? onOverdue) => MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: InvoiceActionBar(
+              enabled: true,
+              onSendEmail: () {},
+              onRecordPayment: () {},
+              onRequestDeposit: () {},
+              onOverdueReminder: onOverdue,
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(host(null));
+    expect(find.text('Overdue Payment'), findsNothing);
+
+    var tapped = false;
+    await tester.pumpWidget(host(() => tapped = true));
+    await tester.pumpAndSettle();
+    expect(find.text('Overdue Payment'), findsOneWidget);
+    await tester.tap(find.text('Overdue Payment'));
+    expect(tapped, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('disabling greys out all three actions', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
