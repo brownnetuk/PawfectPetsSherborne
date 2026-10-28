@@ -11,7 +11,7 @@ import {
   INNER_WIDTH,
   loadContactLine,
   mutedNoteBlock,
-  paragraphBlock,
+  proseBlocks,
   setFont,
   signatureBlock,
   spacerBlock,
@@ -32,15 +32,17 @@ function plainLabel(text: string): string {
 // or prose (e.g. "I confirm that I have collected Bella..."), which has to
 // wrap as a paragraph instead.
 function fitsOneLine(doc: jsPDF, text: string, font: typeof DISPLAY | typeof BODY, fontSize: number): boolean {
+  if (text.includes('\n')) return false;
   setFont(doc, font, 'bold');
   doc.setFontSize(fontSize);
   return doc.getTextWidth(plainLabel(text)) <= INNER_WIDTH;
 }
 
 // An inline (not section-opening) "display" field: a short one is a
-// sub-heading, anything longer is body text that wraps to the page width.
-function displayBlock(doc: jsPDF, text: string): Block {
-  return fitsOneLine(doc, text, BODY, 10) ? subheadingBlock(doc, text) : paragraphBlock(doc, text);
+// sub-heading, anything longer is body text that wraps to the page width
+// (its numbered points, e.g. terms and conditions, set out as a list).
+function displayBlocks(doc: jsPDF, text: string): Block[] {
+  return fitsOneLine(doc, text, BODY, 10) ? [subheadingBlock(doc, text)] : proseBlocks(doc, text);
 }
 
 function fieldBlock(doc: jsPDF, label: string, value: string): Block {
@@ -94,8 +96,8 @@ function singleFieldBlock(doc: jsPDF, field: FormField, value: unknown): Block {
 // marker inside its "Pet" group. Promoting a *top-level* display field to a
 // full section is buildSections' job below.
 function repetitionBlocks(doc: jsPDF, fields: FormField[], answers: Record<string, unknown>): Block[] {
-  return fields.filter((field) => isFieldVisible(field, answers)).map((field) =>
-    field.type === 'display' ? displayBlock(doc, field.label) : singleFieldBlock(doc, field, answers[field.id]),
+  return fields.filter((field) => isFieldVisible(field, answers)).flatMap((field) =>
+    field.type === 'display' ? displayBlocks(doc, field.label) : [singleFieldBlock(doc, field, answers[field.id])],
   );
 }
 
@@ -175,10 +177,10 @@ function buildSections(
           title = field.label;
         } else {
           title = opening ? formName : '';
-          blocks.push(paragraphBlock(doc, field.label));
+          blocks.push(...proseBlocks(doc, field.label));
         }
       } else {
-        blocks.push(displayBlock(doc, field.label));
+        blocks.push(...displayBlocks(doc, field.label));
       }
       continue;
     }
@@ -236,7 +238,7 @@ export async function buildFormSubmissionPdf(
     }
   });
   if (submission.formDescription && sections.length > 0) {
-    sections[0].blocks.unshift(paragraphBlock(doc, submission.formDescription), spacerBlock(4));
+    sections[0].blocks.unshift(...proseBlocks(doc, submission.formDescription), spacerBlock(4));
   }
   for (const section of sections) {
     if (section.forceNewPage) w.startNewPage();
