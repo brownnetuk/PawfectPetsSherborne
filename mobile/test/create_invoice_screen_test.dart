@@ -9,6 +9,7 @@ import 'package:pawfectpets_staff/models/bank_holiday.dart';
 import 'package:pawfectpets_staff/models/customer.dart';
 import 'package:pawfectpets_staff/models/invoice.dart';
 import 'package:pawfectpets_staff/models/product.dart';
+import 'package:pawfectpets_staff/models/visit_mapping.dart';
 import 'package:pawfectpets_staff/screens/create_invoice_screen.dart';
 
 /// Serves a fixed product catalogue and captures the arguments the screen
@@ -29,6 +30,10 @@ class _FakeRepository extends Repository {
 
   @override
   Future<List<BankHoliday>> listBankHolidays() async => [];
+
+  // No Visits configured, so the travel-line sync has nothing to count.
+  @override
+  Future<VisitMapping> getVisitMapping() async => VisitMapping.fromJson({});
 
   @override
   Future<Customer> getCustomer(String id) async =>

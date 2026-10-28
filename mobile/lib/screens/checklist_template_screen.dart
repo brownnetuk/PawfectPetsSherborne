@@ -67,13 +67,21 @@ class _ChecklistTemplateScreenState extends State<ChecklistTemplateScreen> {
       _error = null;
     });
     try {
-      final created = await context.read<Repository>().createChecklistTemplate(
+      final repo = context.read<Repository>();
+      final created = await repo.createChecklistTemplate(
             category: _category,
             name: name,
             completeByTime: _completeByText,
             items: items,
             autoAssign: _autoAssign,
           );
+      // Same as the admin: so dogs already booked in from today get it too,
+      // not just new bookings. The checklist is saved either way.
+      if (_autoAssign) {
+        try {
+          await repo.syncChecklists(DateTime.now());
+        } catch (_) {}
+      }
       if (mounted) Navigator.of(context).pop(created);
     } catch (e) {
       setState(() {
