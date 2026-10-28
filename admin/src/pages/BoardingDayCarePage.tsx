@@ -2059,7 +2059,7 @@ function BookingDetail({
             <FormRow
               label="Pre-check-in"
               sub={booking.preCheckInSentAt ? `Sent ${new Date(booking.preCheckInSentAt).toLocaleDateString('en-GB')}` : 'Not yet sent'}
-              status={booking.preCheckInSubmission ? 'Completed' : booking.preCheckInSentAt ? 'Sent' : 'Not started'}
+              status={booking.preCheckInCompletedAt ? 'Completed' : booking.preCheckInSentAt ? 'Sent' : 'Not started'}
               onClick={
                 booking.preCheckInSubmission
                   ? () => handleViewSubmission(booking.preCheckInSubmission)
