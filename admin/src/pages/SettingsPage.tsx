@@ -2213,7 +2213,7 @@ export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: 
   {
     value: 'payment_received',
     label: 'Thank You for Payment',
-    description: 'Sent automatically whenever a payment is recorded against an invoice, from either place that can record one.',
+    description: 'Offered after a payment is recorded against an invoice (Record Payment, Add payment, or the staff app) -- staff are asked whether to send it. Also resendable from Financial > Payments.',
   },
   {
     value: 'form',
@@ -2537,10 +2537,12 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
     { key: 'payment_method', hint: 'how the payment was made (e.g. card, bank transfer) -- if recorded' },
     { key: 'due_date', hint: "the invoice's due date" },
     { key: 'total', hint: "the invoice's total amount (no £ sign)" },
+    { key: 'amount_paid', hint: 'everything paid on the invoice so far, including this payment (no £ sign)' },
     {
       key: 'balance_due',
       hint: "remaining balance on the invoice (no £ sign) -- only present if not fully paid; wrap in {{#if balance_due}}...{{/if}}",
     },
+    { key: 'paid_in_full', hint: 'only present once the invoice is fully paid; wrap in {{#if paid_in_full}}...{{/if}}' },
     { key: 'invoice_link', hint: 'link to view this invoice online and download it as a PDF' },
     ...BUSINESS_PLACEHOLDERS,
   ],
@@ -2978,6 +2980,7 @@ function TemplatePreviewModal({
           payment_method: 'card',
           due_date: '28/08/2026',
           total: '75.00',
+          amount_paid: '25.00',
           balance_due: '50.00',
           invoice_link: `${INTAKE_URL}/invoices/sample-id`,
         }

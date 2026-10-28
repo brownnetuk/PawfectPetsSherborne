@@ -34,9 +34,9 @@ export class CreatePaymentDto {
   @IsMongoId()
   account: string;
 
-  // Suppresses create()'s automatic "Thank You" email -- the staff app asks
-  // the staff member first and sends it via POST /payments/:id/send-email
-  // only if they confirm.
+  // Suppresses create()'s automatic "Thank You" email -- the staff app and
+  // the admin's Record Payment / Add payment dialogs ask the staff member
+  // first and send it via POST /payments/:id/send-email only if they confirm.
   @IsOptional()
   @IsBoolean()
   skipThankYouEmail?: boolean;

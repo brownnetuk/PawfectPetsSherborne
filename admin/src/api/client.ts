@@ -836,6 +836,9 @@ export interface PaymentInput {
   charges?: number;
   paymentMethod?: string;
   account: string;
+  // Stops the backend auto-sending the "Thank You" email, so the caller can
+  // ask staff first (see PaymentThankYouPrompt).
+  skipThankYouEmail?: boolean;
 }
 export function createPayment(input: PaymentInput): Promise<Payment> {
   return request('/payments', { method: 'POST', body: JSON.stringify(input) });

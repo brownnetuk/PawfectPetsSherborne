@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -14,14 +19,53 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { Invoice } from '../invoices/schemas/invoice.schema';
 import { InvoicesService } from '../invoices/invoices.service';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
-import { EmailTrigger } from '../settings/schemas/email-template.schema';
+import {
+  EmailTemplate,
+  EmailTrigger,
+} from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { Payment } from './schemas/payment.schema';
 
+// Seeded as the payment_received template on first start (see
+// onModuleInit()), so the "Send a thank-you email?" prompt after recording a
+// payment works out of the box -- staff can still edit it in Settings > Email
+// Templates. Same card styling as the payment_overdue default.
+const THANKS_CARD =
+  'background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;';
+const THANKS_ROW = 'padding:5px 0;';
+const DEFAULT_THANKS_EMAIL_SUBJECT =
+  'Thank you for your payment: invoice {{invoice_number}}';
+const DEFAULT_THANKS_EMAIL_BODY = `<div style="max-width:600px;margin:0 auto;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">
+<div style="background:#0f3a5f;color:#fff;padding:20px 24px;">
+{{logo}}
+<strong style="font-size:1.15rem;">{{businessName}}</strong>
+</div>
+<div style="padding:24px;background:#ffffff;">
+<p style="margin:0 0 16px;">Hi {{customer_name}},</p>
+<p style="margin:0 0 20px;">Thank you for your payment of <strong>£{{amount}}</strong> towards invoice <strong>{{invoice_number}}</strong>. It's been received and recorded on your account.</p>
+<div style="${THANKS_CARD}padding:16px 20px;margin-bottom:20px;">
+<table style="width:100%;border-collapse:collapse;font-size:14px;">
+<tr><td style="${THANKS_ROW}color:#6b7280;">Invoice #</td><td style="${THANKS_ROW}text-align:right;font-weight:700;">{{invoice_number}}</td></tr>
+<tr><td style="${THANKS_ROW}color:#6b7280;">Payment Date</td><td style="${THANKS_ROW}text-align:right;">{{payment_date}}</td></tr>
+{{#if payment_method}}<tr><td style="${THANKS_ROW}color:#6b7280;">Payment Method</td><td style="${THANKS_ROW}text-align:right;">{{payment_method}}</td></tr>{{/if}}
+<tr><td style="${THANKS_ROW}color:#6b7280;">Amount Paid</td><td style="${THANKS_ROW}text-align:right;font-weight:700;">£{{amount}}</td></tr>
+<tr><td style="${THANKS_ROW}color:#6b7280;">Invoice Total</td><td style="${THANKS_ROW}text-align:right;">£{{total}}</td></tr>
+<tr><td style="${THANKS_ROW}color:#6b7280;">Paid So Far</td><td style="${THANKS_ROW}text-align:right;">£{{amount_paid}}</td></tr>
+{{#if balance_due}}<tr><td style="padding:8px 0 0;font-weight:700;border-top:1px solid #e5e7eb;">Balance Remaining</td><td style="padding:8px 0 0;text-align:right;font-weight:700;border-top:1px solid #e5e7eb;">£{{balance_due}}</td></tr>{{/if}}
+{{#if paid_in_full}}<tr><td style="padding:8px 0 0;font-weight:700;border-top:1px solid #e5e7eb;">Balance Remaining</td><td style="padding:8px 0 0;text-align:right;font-weight:700;border-top:1px solid #e5e7eb;color:#15803d;">Paid in full</td></tr>{{/if}}
+</table>
+</div>
+{{#if balance_due}}<p style="margin:0 0 20px;">There's <strong>£{{balance_due}}</strong> left to pay on this invoice, due by {{due_date}}.</p>{{/if}}
+<p style="margin:0 0 24px;"><a href="{{invoice_link}}" style="background:#0f3a5f;color:#ffffff;padding:12px 22px;border-radius:6px;text-decoration:none;font-weight:700;display:inline-block;">View your invoice</a></p>
+<p style="margin:0 0 16px;">If you have any questions, just reply to this email or call us on {{businessTelephone}}.</p>
+<p style="margin:0;">Thanks again,<br>{{businessName}}</p>
+</div>
+</div>`;
+
 @Injectable()
-export class PaymentsService {
+export class PaymentsService implements OnModuleInit {
   constructor(
     @InjectModel(Payment.name) private readonly paymentModel: Model<Payment>,
     @InjectModel(BusinessInfo.name)
@@ -31,7 +75,33 @@ export class PaymentsService {
     private readonly bankAccountsService: BankAccountsService,
     private readonly expensesService: ExpensesService,
     private readonly settingsService: SettingsService,
+    @InjectModel(EmailTemplate.name)
+    private readonly emailTemplateModel: Model<EmailTemplate>,
   ) {}
+
+  // Seeds the payment_received email template once (never overwriting staff
+  // edits) -- same approach as InvoicesService.onModuleInit()'s
+  // payment_overdue seed.
+  async onModuleInit() {
+    try {
+      await this.emailTemplateModel
+        .updateOne(
+          { trigger: EmailTrigger.PAYMENT_RECEIVED },
+          {
+            $setOnInsert: {
+              trigger: EmailTrigger.PAYMENT_RECEIVED,
+              name: 'Thank You for Payment',
+              subject: DEFAULT_THANKS_EMAIL_SUBJECT,
+              body: DEFAULT_THANKS_EMAIL_BODY,
+            },
+          },
+          { upsert: true },
+        )
+        .exec();
+    } catch {
+      // Not fatal: staff can still set the template up by hand.
+    }
+  }
 
   private async nextPaymentId(): Promise<string> {
     const seq = await nextSequenceNumber(
@@ -54,7 +124,9 @@ export class PaymentsService {
       address?: string;
       phoneNumber?: string;
     };
-    const balanceDue = invoice.total - (invoice.amountPaid ?? 0);
+    const amountPaid = invoice.amountPaid ?? 0;
+    // Via cents, so float drift can't leave a phantom "£0.00 left to pay".
+    const balanceDue = Math.round((invoice.total - amountPaid) * 100) / 100;
     return {
       customer_name: customer?.name,
       customer_address: customer?.address,
@@ -64,7 +136,9 @@ export class PaymentsService {
       payment_date: formatUkDate(payment.date),
       due_date: formatUkDate(invoice.dueDate),
       total: invoice.total.toFixed(2),
+      amount_paid: amountPaid.toFixed(2),
       balance_due: balanceDue > 0 ? balanceDue.toFixed(2) : undefined,
+      paid_in_full: balanceDue > 0 ? undefined : 'yes',
       payment_method: payment.paymentMethod,
       invoice_link: `${publicFrontendUrl()}/invoices/${invoice._id}`,
     };

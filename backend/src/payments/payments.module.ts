@@ -8,6 +8,10 @@ import {
   BusinessInfo,
   BusinessInfoSchema,
 } from '../settings/schemas/business-info.schema';
+import {
+  EmailTemplate,
+  EmailTemplateSchema,
+} from '../settings/schemas/email-template.schema';
 import { SettingsModule } from '../settings/settings.module';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
@@ -18,6 +22,8 @@ import { Payment, PaymentSchema } from './schemas/payment.schema';
     MongooseModule.forFeature([
       { name: Payment.name, schema: PaymentSchema },
       { name: BusinessInfo.name, schema: BusinessInfoSchema },
+      // For seeding the payment_received template in onModuleInit().
+      { name: EmailTemplate.name, schema: EmailTemplateSchema },
     ]),
     // Needed so PaymentsService can deduct/reverse a payment's amount against
     // the invoice it's recorded on (see InvoicesService.applyPayment/reversePayment).
