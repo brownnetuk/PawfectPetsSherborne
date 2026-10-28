@@ -8,6 +8,7 @@ import '../models/bank_holiday.dart';
 import '../models/customer.dart';
 import '../models/invoice.dart';
 import '../models/product.dart';
+import '../models/visit_mapping.dart';
 import '../widgets/brand.dart';
 
 /// Everything the form needs, loaded up front.
@@ -17,7 +18,9 @@ class _FormData {
   final Customer customer;
   final List<Animal> pets;
   final List<BankHoliday> bankHolidays;
-  _FormData(this.products, this.terms, this.customer, this.pets, this.bankHolidays);
+  // Which products are Visits (and how many a day) -- drives the travel line.
+  final VisitMapping mapping;
+  _FormData(this.products, this.terms, this.customer, this.pets, this.bankHolidays, this.mapping);
 }
 
 /// Form for raising or editing an invoice against a customer. Line items are
@@ -56,6 +59,10 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   // Stashed from the loaded form data for the travel-line sync.
   Customer? _customer;
   List<Product> _products = [];
+  VisitMapping? _mapping;
+  // The Visit-derived travel count the last sync saw (null before the first
+  // sync), so travel only moves by the change in Visits -- see _syncTravelLine.
+  int? _lastTravelTarget;
 
   @override
   void initState() {
@@ -67,13 +74,15 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       final customer = await repo.getCustomer(widget.customerId);
       final pets = await repo.listAnimals(widget.customerId);
       final bankHolidays = await repo.listBankHolidays();
-      return _FormData(products, terms, customer, pets, bankHolidays);
+      final mapping = await repo.getVisitMapping();
+      return _FormData(products, terms, customer, pets, bankHolidays, mapping);
     }();
     _dataFuture.then((data) async {
       if (!mounted) return;
       _terms = data.terms;
       _customer = data.customer;
       _products = data.products;
+      _mapping = data.mapping;
       if (widget.isEditing) {
         // Fetch the full invoice for authoritative line items, then pre-fill.
         final inv = await repo.getInvoice(widget.invoice!.id);
@@ -152,14 +161,15 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 
   void _addItem() => setState(() => _items.add(_LineItemEntry()));
 
-  /// Keeps a travel-chargeable customer's travel line matching the total
-  /// quantity of the other catalogue products on the form (1 x Visit -> 1 x
-  /// Travel), adding or removing the line as needed -- the staff-app port of
-  /// admin/src/utils/travelLines.ts. Runs on every line change, so manual
-  /// edits to the travel quantity snap back, same as the admin.
+  /// Keeps a travel-chargeable customer's travel line following the Visits
+  /// on the form (1 x Visit -> 1 x Travel, 2 x Visit -> 2 x Travel) -- the
+  /// staff-app port of admin/src/utils/travelLines.ts. When the Visit count
+  /// changes, travel moves by the same amount, so travel added for Walks or
+  /// edited by hand is kept. Opening an existing invoice leaves it as saved.
   void _syncTravelLine() {
     final customer = _customer;
-    if (customer == null || !customer.travelChargeable) return;
+    final mapping = _mapping;
+    if (customer == null || mapping == null || !customer.travelChargeable) return;
     final travelId = customer.travelProductId;
     if (travelId == null || travelId.isEmpty) return;
     Product? found;
@@ -168,21 +178,29 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     }
     if (found == null) return;
     final travel = found;
-    var quantity = 0.0;
+    var target = 0;
     for (final item in _items) {
       final product = item.product;
-      // Synthetic products (id '') were deleted from the catalogue -- like
-      // the admin's name-match, they don't count towards travel.
+      // Synthetic products (id '') were deleted from the catalogue and can't
+      // be matched to a Visit; Walks, Day Care and Boarding don't count.
       if (product == null || product.id.isEmpty || product.id == travel.id) continue;
-      quantity += double.tryParse(item.quantity.text.trim()) ?? 0;
+      final visitCount = mapping.visitCountForProduct(product.id);
+      if (visitCount == null) continue;
+      target += ((double.tryParse(item.quantity.text.trim()) ?? 0) * visitCount).round();
     }
+    final previous = _lastTravelTarget;
+    _lastTravelTarget = target;
+    // First sync on an existing invoice: take its travel line as saved.
+    if (previous == null && widget.isEditing) return;
+    if (previous == target) return;
     final index = _items.indexWhere((i) => i.product?.id == travel.id);
+    final current = index >= 0 ? (double.tryParse(_items[index].quantity.text.trim()) ?? 0) : 0.0;
+    final quantity = previous == null ? target.toDouble() : current + target - previous;
     if (quantity <= 0) {
       if (index >= 0) _items.removeAt(index).dispose();
       return;
     }
     if (index >= 0) {
-      final current = double.tryParse(_items[index].quantity.text.trim()) ?? 0;
       if (current != quantity) _items[index].quantity.text = _trimNum(quantity);
     } else {
       _items.add(_LineItemEntry()

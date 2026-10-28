@@ -681,6 +681,18 @@ class Repository {
     );
   }
 
+  /// Adds auto-assign checklists to days already booked from [from] onwards
+  /// (the admin calls this after saving an auto-assign checklist, so dogs
+  /// booked before it was created still get it). Returns how many bookings
+  /// were checked.
+  Future<int> syncChecklists(DateTime from) async {
+    final day = '${from.year.toString().padLeft(4, '0')}-'
+        '${from.month.toString().padLeft(2, '0')}-'
+        '${from.day.toString().padLeft(2, '0')}';
+    final json = await _client.post('/day-bookings/sync-checklists?from=$day', {});
+    return (json['bookings'] as num?)?.toInt() ?? 0;
+  }
+
   /// Emails an overdue-payment reminder (the "Payment Overdue" template) for
   /// the balance still owing; the server rejects paid/cancelled invoices and
   /// ones with nothing outstanding. Returns what it chased.
