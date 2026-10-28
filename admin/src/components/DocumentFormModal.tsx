@@ -11,7 +11,7 @@ import { ChevronDownIcon } from './icons';
 import { buildVisitPlan, parseYmd as parseVisitYmd } from '../utils/visitPlan';
 import type { VisitCount, VisitDuration } from '../utils/visitPlan';
 import { dayCareProductFor } from '../utils/visitMapping';
-import { travelProductForCustomer, travelQuantityFor, withTravelQuantity } from '../utils/travelLines';
+import { travelProductForCustomer, travelQuantityIn, visitTravelQuantityFor, withTravelQuantity } from '../utils/travelLines';
 import type { Animal, BankHoliday, Customer, Invoice, InvoiceTerm, LineItem, Product, Quote, VisitMapping } from '../types';
 
 function customerId(customer: Invoice['customer'] | Quote['customer']): string {
@@ -514,15 +514,15 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
     api.listAnimals(custId).then(setCustomerPets).catch(() => setCustomerPets([]));
   }, [custId]);
 
-  // Invoices only -- Settings > Customer Defaults > Travel. The travel line's
-  // quantity follows the other products in the Item Table (1 x Visit -> 1 x
-  // Travel, 2 x Visit -> 2 x Travel), added/removed as products come and go.
-  // It only re-syncs when that count actually changes, so opening an existing
-  // invoice leaves it as saved and a hand-edited travel quantity sticks until
-  // the other products change again.
+  // Invoices only -- Settings > Customer Defaults > Travel. The travel line
+  // follows the Visits in the Item Table (1 x Visit -> 1 x Travel, 2 x Visit
+  // -> 2 x Travel): when that count changes, travel moves by the same amount,
+  // so travel added for Walks or edited by hand is kept. Opening an existing
+  // invoice leaves it as saved.
   const travelProduct =
     kind === 'invoice' ? travelProductForCustomer(customers.find((c) => c._id === custId), products) : null;
-  const travelTarget = travelProduct ? travelQuantityFor(lineItems, travelProduct, products) : null;
+  const travelTarget =
+    travelProduct && visitMapping ? visitTravelQuantityFor(lineItems, visitMapping, products) : null;
   const lastTravelTarget = useRef<number | null | undefined>(undefined);
   useEffect(() => {
     if (!travelProduct || travelTarget === null) {
@@ -534,7 +534,13 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
     // First sync for this customer on an existing invoice: take it as saved.
     if (previous === undefined && existing && custId === customerId(existing.customer)) return;
     if (previous === travelTarget) return;
-    setLineItems((prev) => withTravelQuantity(prev, travelProduct, travelTarget));
+    setLineItems((prev) =>
+      withTravelQuantity(
+        prev,
+        travelProduct,
+        previous == null ? travelTarget : travelQuantityIn(prev, travelProduct) + travelTarget - previous,
+      ),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [travelProduct?._id, travelTarget]);
 
