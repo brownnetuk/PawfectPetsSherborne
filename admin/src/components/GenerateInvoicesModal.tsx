@@ -174,6 +174,7 @@ export default function GenerateInvoicesModal({
   const selected = (groups ?? []).filter((g) => included[g.customerId]);
   const toCreate = selected.filter((g) => !matchInvoice[g.customerId]);
   const toMatch = selected.filter((g) => matchInvoice[g.customerId]);
+  const selectedTotal = selected.reduce((sum, g) => sum + g.total, 0);
 
   async function handleConfirm() {
     if (!groups || selected.length === 0) return;
@@ -336,6 +337,21 @@ export default function GenerateInvoicesModal({
                 </div>
               );
             })}
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              padding: '10px 16px',
+              borderTop: '1px solid var(--border)',
+              marginTop: 8,
+            }}
+          >
+            <span style={{ fontWeight: 600 }}>
+              Total ({selected.length} selected)
+            </span>
+            <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>£{selectedTotal.toFixed(2)}</span>
           </div>
           <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
             {[
