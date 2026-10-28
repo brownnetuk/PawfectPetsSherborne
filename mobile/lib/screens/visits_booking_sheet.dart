@@ -220,22 +220,134 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
     return result ?? false;
   }
 
+  /// Invoices a new booking can still be added to: not paid or cancelled,
+  /// and with something left to pay. Newest first. Same rule as the admin's
+  /// BookingInvoicePrompt.
+  List<Invoice> _openInvoices(List<Invoice> invoices, String customerId) {
+    return invoices.where((inv) {
+      if (inv.customer.id != customerId) return false;
+      if (inv.status == 'paid' || inv.status == 'cancelled') return false;
+      return !(inv.amountPaid > 0 && inv.amountPaid >= inv.total);
+    }).toList()
+      ..sort((a, b) => b.issueDate.compareTo(a.issueDate));
+  }
+
+  /// Months between the invoice's issue date and now: negative for earlier
+  /// months, 0 for this month, positive for later months.
+  int _issuedMonthOffset(Invoice inv) {
+    final now = DateTime.now();
+    final issued = inv.issueDate.toLocal();
+    return (issued.year - now.year) * 12 + (issued.month - now.month);
+  }
+
+  /// Folds the new booking's lines into an invoice's existing ones: a line
+  /// for the same item at the same price (and no discount) gains quantity,
+  /// anything else is appended.
+  List<InvoiceLineItem> _mergeLineItems(List<InvoiceLineItem> existing, List<InvoiceLineItem> added) {
+    final merged = [...existing];
+    for (final item in added) {
+      final i = merged.indexWhere((li) =>
+          li.description == item.description && li.unitPrice == item.unitPrice && li.discountPercent == 0);
+      if (i >= 0) {
+        final li = merged[i];
+        merged[i] = InvoiceLineItem(
+          description: li.description,
+          quantity: li.quantity + item.quantity,
+          unitPrice: li.unitPrice,
+        );
+      } else {
+        merged.add(item);
+      }
+    }
+    return merged;
+  }
+
+  /// When the customer already has open invoices: add to one of them
+  /// (grouped as this month, later, earlier), or create a new one. Returns the chosen invoice,
+  /// `null` for a new invoice, or `false` when dismissed.
+  Future<Object?> _pickInvoice(List<Invoice> open) async {
+    final money = NumberFormat.currency(locale: 'en_GB', symbol: '£');
+    final thisMonth = open.where((inv) => _issuedMonthOffset(inv) == 0).toList();
+    // Soonest first.
+    final later = open.where((inv) => _issuedMonthOffset(inv) > 0).toList().reversed.toList();
+    final earlier = open.where((inv) => _issuedMonthOffset(inv) < 0).toList();
+    Widget heading(String text) => Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+          child: Text(text, style: Theme.of(context).textTheme.labelMedium),
+        );
+    Widget option(BuildContext dialogContext, Invoice inv) => SimpleDialogOption(
+          onPressed: () => Navigator.of(dialogContext).pop(inv),
+          child: Text('Add to ${inv.invoiceNumber} · ${_dateFmt.format(inv.issueDate.toLocal())} · '
+              '${money.format(inv.total)} · ${inv.status}'),
+        );
+    final result = await showDialog<Object>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Add to an invoice?'),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+            child: Text(
+              'This customer already has ${open.length == 1 ? 'an open invoice' : '${open.length} open invoices'}. '
+              'Add this booking to ${open.length == 1 ? 'it' : 'one of them'}, or create a new draft?',
+            ),
+          ),
+          if (thisMonth.isNotEmpty) heading('This month'),
+          for (final inv in thisMonth) option(dialogContext, inv),
+          if (later.isNotEmpty) heading('Later months'),
+          for (final inv in later) option(dialogContext, inv),
+          if (earlier.isNotEmpty) heading('Earlier'),
+          for (final inv in earlier) option(dialogContext, inv),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(dialogContext).pop('new'),
+            child: const Text('Create a new draft invoice'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Not now'),
+          ),
+        ],
+      ),
+    );
+    if (result is Invoice) return result;
+    if (result == 'new') return null;
+    return false;
+  }
+
   /// Asked straight after the bookings are created, mirroring the admin's
   /// BookingInvoicePrompt: "Generate an invoice?" Yes raises one draft
   /// invoice from just the rows created (one line per product, travel rows
   /// included since the sheet books them as their own product) and links
-  /// those rows to it so the monthly Generate Invoices run skips them. Then
-  /// offers to email it straight away. Either step declined leaves the
-  /// bookings (and any draft) exactly as they are.
+  /// those rows to it so the monthly Generate Invoices run skips them. If the
+  /// customer already has open invoices, staff can add the rows to one of
+  /// them instead. Then offers to email it straight away. Either
+  /// step declined leaves the bookings (and any draft) exactly as they are.
   Future<void> _offerInvoice(Repository repo, String customerId, List<DayBooking> rows) async {
     final customerName = _ownerOf(customerId)?.name ?? 'the customer';
-    final generate = await _ask(
-      title: 'Generate an invoice?',
-      message: 'Create a draft invoice for this booking now?',
-      noLabel: 'No',
-      yesLabel: 'Yes, create draft',
-    );
-    if (!generate || !mounted) return;
+
+    List<Invoice> open = const [];
+    try {
+      open = _openInvoices(await repo.listInvoices(customerId: customerId), customerId);
+    } catch (_) {
+      // Not being able to look is no reason to block creating a new one.
+    }
+    if (!mounted) return;
+
+    final Invoice? addTo;
+    if (open.isNotEmpty) {
+      final picked = await _pickInvoice(open);
+      if (picked == false || !mounted) return;
+      addTo = picked as Invoice?;
+    } else {
+      addTo = null;
+      final generate = await _ask(
+        title: 'Generate an invoice?',
+        message: 'Create a draft invoice for this booking now?',
+        noLabel: 'No',
+        yesLabel: 'Yes, create draft',
+      );
+      if (!generate || !mounted) return;
+    }
 
     setState(() {
       _busy = true;
@@ -263,31 +375,46 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
       final dates = rows.map((r) => DateTime(r.date.year, r.date.month, r.date.day)).toList()..sort();
       final first = dates.first;
       final last = dates.last;
-      final terms = await repo.listInvoiceTerms();
-      InvoiceTerm? defaultTerm;
-      for (final t in terms) {
-        if (t.isDefault) defaultTerm = t;
-      }
 
-      // Drafted by the server; due on the last date it covers, same as the
-      // monthly run.
-      invoice = await repo.createInvoice(
-        customerId: customerId,
-        lineItems: lineItems,
-        issueDate: DateTime.now(),
-        dueDate: last,
-        paymentTerms: defaultTerm?.text,
-        subject: first == last
-            ? 'Booking for ${_dateFmt.format(first)}'
-            : 'Booking ${_dateFmt.format(first)} – ${_dateFmt.format(last)}',
-      );
+      if (addTo != null) {
+        // Re-read it so lines added since the list loaded aren't lost.
+        final current = await repo.getInvoice(addTo.id);
+        final currentDue = current.dueDate.toLocal();
+        invoice = await repo.updateInvoice(current.id, {
+          'lineItems': _mergeLineItems(current.lineItems, lineItems).map((e) => e.toJson()).toList(),
+          // Still due on the last date it covers, if the new booking runs later.
+          if (last.isAfter(DateTime(currentDue.year, currentDue.month, currentDue.day)))
+            'dueDate': last.toIso8601String(),
+        });
+      } else {
+        final terms = await repo.listInvoiceTerms();
+        InvoiceTerm? defaultTerm;
+        for (final t in terms) {
+          if (t.isDefault) defaultTerm = t;
+        }
+
+        // Drafted by the server; due on the last date it covers, same as the
+        // monthly run.
+        invoice = await repo.createInvoice(
+          customerId: customerId,
+          lineItems: lineItems,
+          issueDate: DateTime.now(),
+          dueDate: last,
+          paymentTerms: defaultTerm?.text,
+          subject: first == last
+              ? 'Booking for ${_dateFmt.format(first)}'
+              : 'Booking ${_dateFmt.format(first)} – ${_dateFmt.format(last)}',
+        );
+      }
       for (final row in rows) {
         await repo.updateDayBooking(row.id, invoiceId: invoice.id);
       }
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _result = '$_result Draft invoice ${invoice.invoiceNumber} created.';
+        _result = addTo != null
+            ? '$_result Added to invoice ${invoice.invoiceNumber}.'
+            : '$_result Draft invoice ${invoice.invoiceNumber} created.';
       });
     } catch (e) {
       if (!mounted) return;
