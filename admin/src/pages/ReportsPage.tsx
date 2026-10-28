@@ -618,7 +618,14 @@ function InvoicesDueReport() {
             >
               Drafts
             </button>
-            <ReportDateRangePicker range={range} onChange={setRange} />
+            <div className="field" style={{ marginBottom: 0, width: 150 }}>
+              <label>Date From</label>
+              <DateInput value={range.from} onChange={(from) => setRange({ ...range, from })} />
+            </div>
+            <div className="field" style={{ marginBottom: 0, width: 150 }}>
+              <label>Date To</label>
+              <DateInput value={range.to} onChange={(to) => setRange({ ...range, to })} />
+            </div>
           </div>
         </div>
         {error && <div className="error-banner">{error}</div>}
