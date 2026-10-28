@@ -123,10 +123,44 @@ export class DayBookingsService {
       const productId = String(product?._id ?? product);
       const category = booking.boardingStay ? 'boarding' : await this.classifyBooking(productId);
       if (!category) return;
-      await this.checklists.autoAssignForDate(booking.date, category, checklistSessionsFor(booking));
+      await this.checklists.autoAssignForDate(booking.date, category, checklistSessionsFor(await this.dayTimes(booking)));
     } catch (err) {
       console.error('Checklist auto-assign failed for day booking (will just be missing, not retried):', err);
     }
+  }
+
+  // A day can be split over several rows of one stay for the same dog (e.g.
+  // a boarding day plus its travel-charge row, which carries no times), so
+  // the drop-off/collection times come from whichever of that day's rows
+  // has them. Otherwise a time-less travel row on an afternoon arrival day
+  // would count the dog as in all day and wrongly add the AM checklist.
+  private async dayTimes(booking: DayBooking): Promise<Parameters<typeof checklistSessionsFor>[0]> {
+    if (!booking.stayId) return booking;
+    const animal = booking.animal as unknown as { _id?: unknown } | undefined;
+    const rows = await this.dayBookingModel
+      .find({ stayId: booking.stayId, animal: animal?._id ?? animal, date: booking.date })
+      .exec();
+    const pick = <K extends keyof Parameters<typeof checklistSessionsFor>[0]>(key: K) =>
+      booking[key] ?? rows.find((r) => r[key])?.[key];
+    return {
+      dropOffPeriod: pick('dropOffPeriod'),
+      dropOffTime: pick('dropOffTime'),
+      collectionPeriod: pick('collectionPeriod'),
+      collectionTime: pick('collectionTime'),
+      pickUpTime: pick('pickUpTime'),
+    };
+  }
+
+  // Adds any auto-assign checklists missing from days that already have
+  // bookings, from `from` onwards -- run after a checklist is set to auto
+  // assign (or its AM/PM/type changes), so dogs booked before that still get
+  // it. Never removes anything, and skips any checklist already on a day.
+  async syncChecklistsFrom(from: string): Promise<{ bookings: number }> {
+    const bookings = await this.dayBookingModel.find({ date: { $gte: toDayStart(from) } }).exec();
+    for (const booking of bookings) {
+      await this.autoAssignChecklists(booking);
+    }
+    return { bookings: bookings.length };
   }
 
   // Turns a boarding stay's start/end datetimes + dog count into the exact set
