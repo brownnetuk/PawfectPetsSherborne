@@ -1358,6 +1358,10 @@ export function createChecklistTemplate(input: ChecklistTemplateInput): Promise<
 export function updateChecklistTemplate(id: string, input: ChecklistTemplateInput): Promise<ChecklistTemplate> {
   return request(`/checklist-templates/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
 }
+// Adds auto-assign checklists to days already booked from `from` onwards.
+export function syncChecklists(from: string): Promise<{ bookings: number }> {
+  return request(`/day-bookings/sync-checklists?from=${from}`, { method: 'POST' });
+}
 export function deleteChecklistTemplate(id: string): Promise<void> {
   return request(`/checklist-templates/${id}`, { method: 'DELETE' });
 }

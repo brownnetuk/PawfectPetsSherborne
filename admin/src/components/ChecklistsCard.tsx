@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import type { ChecklistCategory, ChecklistSession, ChecklistTemplate } from '../types';
+import { dateKey } from '../utils/visitPlan';
 import { TimeReadout } from './DateTimeReadout';
 import Modal from './Modal';
 import { PencilIcon, TrashIcon } from './icons';
@@ -177,6 +178,8 @@ function EditChecklistModal({
       } else {
         await api.createChecklistTemplate(input);
       }
+      // So dogs already booked in from today get it too, not just new bookings.
+      if (autoAssign) await api.syncChecklists(dateKey(new Date()));
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save this checklist');

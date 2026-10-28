@@ -1,4 +1,4 @@
-import { checklistSessionsFor } from '../day-bookings/day-bookings.service';
+import { checklistSessionsFor, DayBookingsService } from '../day-bookings/day-bookings.service';
 import { ChecklistsService } from './checklists.service';
 
 describe('checklistSessionsFor', () => {
@@ -80,5 +80,67 @@ describe('ChecklistsService.autoAssignForDate', () => {
     const { service, saved } = setup(['am', 'all']);
     await service.autoAssignForDate(date, 'boarding', { am: true, pm: true });
     expect(saved).toEqual(['pm', 'legacy']);
+  });
+});
+
+describe('DayBookingsService checklist sync', () => {
+  const arrival = new Date(2026, 9, 28);
+  const middle = new Date(2026, 9, 29);
+  const departure = new Date(2026, 9, 30);
+  // A boarding stay booked in from the admin: one boarding row per day, plus
+  // a time-less travel-charge row on each day.
+  const rows = [
+    { animal: 'rex', stayId: 's1', boardingStay: true, date: arrival, product: 'board', dropOffTime: '15:00' },
+    { animal: 'rex', stayId: 's1', boardingStay: true, date: arrival, product: 'travel' },
+    { animal: 'rex', stayId: 's1', boardingStay: true, date: middle, product: 'board' },
+    { animal: 'rex', stayId: 's1', boardingStay: true, date: middle, product: 'travel' },
+    { animal: 'rex', stayId: 's1', boardingStay: true, date: departure, product: 'board', pickUpTime: '10:00' },
+    { animal: 'rex', stayId: 's1', boardingStay: true, date: departure, product: 'travel' },
+  ];
+
+  function setup() {
+    const calls: { date: Date; category: string; presence: { am: boolean; pm: boolean } }[] = [];
+    const dayBookingModel = {
+      find: jest.fn((query: Record<string, unknown>) => ({
+        exec: () =>
+          Promise.resolve(
+            query.stayId
+              ? rows.filter(
+                  (r) =>
+                    r.stayId === query.stayId &&
+                    r.animal === query.animal &&
+                    r.date.getTime() === (query.date as Date).getTime(),
+                )
+              : rows,
+          ),
+      })),
+    };
+    const checklists = {
+      autoAssignForDate: jest.fn((date: Date, category: string, presence: { am: boolean; pm: boolean }) => {
+        calls.push({ date, category, presence });
+        return Promise.resolve();
+      }),
+    };
+    const service = new DayBookingsService(dayBookingModel as never, null as never, null as never, checklists as never);
+    return { service, calls };
+  }
+
+  it('uses the stay day times for every row of that day, travel rows included', async () => {
+    const { service, calls } = setup();
+    await service.syncChecklistsFrom('2026-10-28');
+    const byDay = (d: Date) => calls.filter((c) => c.date === d).map((c) => c.presence);
+    expect(calls.every((c) => c.category === 'boarding')).toBe(true);
+    expect(byDay(arrival)).toEqual([
+      { am: false, pm: true },
+      { am: false, pm: true },
+    ]);
+    expect(byDay(middle)).toEqual([
+      { am: true, pm: true },
+      { am: true, pm: true },
+    ]);
+    expect(byDay(departure)).toEqual([
+      { am: true, pm: false },
+      { am: true, pm: false },
+    ]);
   });
 });

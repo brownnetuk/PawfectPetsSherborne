@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { DayBookingsService } from './day-bookings.service';
 import { CreateDayBookingDto } from './dto/create-day-booking.dto';
@@ -11,6 +11,18 @@ export class DayBookingsController {
   @Post()
   create(@Body() dto: CreateDayBookingDto) {
     return this.dayBookingsService.create(dto);
+  }
+
+  // Backfills auto-assign checklists onto already-booked days from `from`
+  // onwards -- called by Settings > Checklists after saving an auto-assign
+  // checklist.
+  @RequirePermission('settings.manage')
+  @Post('sync-checklists')
+  syncChecklists(@Query('from') from: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from ?? '')) {
+      throw new BadRequestException('from must be a YYYY-MM-DD date');
+    }
+    return this.dayBookingsService.syncChecklistsFrom(from);
   }
 
   // from/to are the calendar's visible range (inclusive/exclusive, see
