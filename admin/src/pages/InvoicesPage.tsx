@@ -9,12 +9,13 @@ import Modal from '../components/Modal';
 import OverduePaymentModal, { invoiceBalanceDue } from '../components/OverduePaymentModal';
 import RecordPaymentModal from '../components/RecordPaymentModal';
 import RequestDepositModal from '../components/RequestDepositModal';
+import ScheduleSendModal, { canScheduleSend, formatScheduledSend } from '../components/ScheduleSendModal';
 import SendPreviewModal, { customerLabel } from '../components/SendPreviewModal';
 import SortableTh from '../components/SortableTh';
 import { buildInvoicePdf } from '../pdf/invoicePdf';
 import type { BusinessInfo, Invoice, InvoiceStatus, Quote, QuoteStatus } from '../types';
 
-const INVOICE_STATUSES: InvoiceStatus[] = ['draft', 'sent', 'paid', 'overdue', 'cancelled'];
+const INVOICE_STATUSES: InvoiceStatus[] = ['draft', 'scheduled', 'sent', 'paid', 'overdue', 'cancelled'];
 const QUOTE_STATUSES: QuoteStatus[] = ['draft', 'sent', 'accepted', 'declined', 'expired'];
 
 // A partial payment doesn't change the invoice's underlying status (it stays
@@ -162,7 +163,7 @@ function matchesInvoiceFilters(inv: Invoice, f: Filters): boolean {
   const q = f.search.trim().toLowerCase();
   if (q && !inv.invoiceNumber.toLowerCase().includes(q) && !customerLabel(inv.customer).toLowerCase().includes(q)) return false;
   if (f.status === 'outstanding') {
-    if (inv.status === 'cancelled' || inv.status === 'draft' || inv.total - (inv.amountPaid ?? 0) <= 0) return false;
+    if (inv.status === 'cancelled' || inv.status === 'draft' || inv.status === 'scheduled' || inv.total - (inv.amountPaid ?? 0) <= 0) return false;
   } else if (f.status === 'partially_paid') {
     if (!isPartiallyPaid(inv)) return false;
   } else if (f.status && inv.status !== f.status) {
@@ -242,6 +243,10 @@ function InvoicesTab() {
   const [activityOpen, setActivityOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkSendConfirm, setBulkSendConfirm] = useState(false);
+  // The invoice(s) the Schedule Send dialog is open for -- one from a row's
+  // Actions menu, or the selection from the bulk Actions menu.
+  const [scheduling, setScheduling] = useState<Invoice[] | null>(null);
+  const [cancellingScheduleId, setCancellingScheduleId] = useState<string | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -318,6 +323,20 @@ function InvoicesTab() {
         onClick: () => setSendPreview(inv),
         disabled: sendingId === inv._id,
       },
+      // Draft invoices can be scheduled; a scheduled one can be moved to a
+      // new time or cancelled back to draft.
+      ...(canScheduleSend(inv)
+        ? [{ label: inv.status === 'scheduled' ? 'Reschedule Send' : 'Schedule Send', onClick: () => setScheduling([inv]) }]
+        : []),
+      ...(inv.status === 'scheduled'
+        ? [
+            {
+              label: cancellingScheduleId === inv._id ? 'Cancelling…' : 'Cancel Scheduled Send',
+              onClick: () => handleCancelSchedule(inv),
+              disabled: cancellingScheduleId === inv._id,
+            },
+          ]
+        : []),
       { label: 'Payments', onClick: () => setRecordingPayment(inv) },
       { label: 'Request Deposit', onClick: () => setRequestingDeposit(inv) },
       // Only once the invoice has actually gone overdue (the day after its
@@ -345,6 +364,19 @@ function InvoicesTab() {
       setError(err instanceof Error ? err.message : `Failed to send invoice ${inv.invoiceNumber}`);
     } finally {
       setSendingId(null);
+    }
+  }
+
+  async function handleCancelSchedule(inv: Invoice) {
+    setCancellingScheduleId(inv._id);
+    setError(null);
+    try {
+      await api.cancelScheduledInvoiceSend(inv._id);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to cancel the scheduled send for ${inv.invoiceNumber}`);
+    } finally {
+      setCancellingScheduleId(null);
     }
   }
 
@@ -437,6 +469,11 @@ function InvoicesTab() {
                 disabled: selectedInvoices.length === 0 || bulkBusy,
               },
               {
+                label: `Schedule Send${selectedInvoices.length > 0 ? ` (${selectedInvoices.length})` : ''}`,
+                onClick: () => setScheduling(selectedInvoices),
+                disabled: selectedInvoices.length === 0 || bulkBusy,
+              },
+              {
                 label: `Delete${selectedInvoices.length > 0 ? ` (${selectedInvoices.length})` : ''}`,
                 onClick: () => setBulkDeleteConfirm(true),
                 disabled: selectedInvoices.length === 0 || bulkBusy,
@@ -481,6 +518,11 @@ function InvoicesTab() {
                     <span className="badge badge-partially_paid" style={{ marginTop: 4 }}>
                       Partially Paid
                     </span>
+                  )}
+                  {inv.status === 'scheduled' && inv.scheduledSendAt && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: 4 }}>
+                      Sends {formatScheduledSend(inv.scheduledSendAt)}
+                    </div>
                   )}
                 </div>
               ))}
@@ -571,14 +613,15 @@ function InvoicesTab() {
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                       <span className={`badge badge-${inv.status}`}>
                         <select value={inv.status} onChange={(e) => handleStatusChange(inv._id, e.target.value)}>
-                          {INVOICE_STATUSES.map((s) => (
+                          {/* Scheduling needs a time, so it's only offered via Schedule Send. */}
+                          {INVOICE_STATUSES.filter((s) => s !== 'scheduled' || inv.status === 'scheduled').map((s) => (
                             <option key={s} value={s}>
                               {s}
                             </option>
                           ))}
                         </select>
                       </span>
-                      {inv.status !== 'draft' && (
+                      {inv.status !== 'draft' && inv.status !== 'scheduled' && (
                         <span
                           style={{ color: inv.openedAt ? 'var(--brand-green)' : 'var(--muted)', display: 'inline-flex' }}
                           title={inv.openedAt ? `Opened ${new Date(inv.openedAt).toLocaleString()}` : 'Sent, not yet opened'}
@@ -588,6 +631,11 @@ function InvoicesTab() {
                       )}
                     </span>
                     {isPartiallyPaid(inv) && <span className="badge badge-partially_paid">Partially Paid</span>}
+                    {inv.status === 'scheduled' && inv.scheduledSendAt && (
+                      <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginTop: 2 }}>
+                        Sends {formatScheduledSend(inv.scheduledSendAt)}
+                      </div>
+                    )}
                   </td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <ActionsMenu items={[{ label: 'View', onClick: () => handleViewPdf(inv) }, ...invoiceActions(inv)]} />
@@ -681,6 +729,18 @@ function InvoicesTab() {
             </button>
           </div>
         </Modal>
+      )}
+
+      {scheduling && (
+        <ScheduleSendModal
+          invoices={scheduling}
+          onClose={() => setScheduling(null)}
+          onScheduled={() => {
+            setScheduling(null);
+            setSelectedIds(new Set());
+            refresh();
+          }}
+        />
       )}
 
       {bulkSendConfirm && (

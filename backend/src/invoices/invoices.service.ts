@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
@@ -35,6 +36,7 @@ import { SettingsService } from '../settings/settings.service';
 import { NotificationService } from '../notifications/notification.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
+import { ScheduleSendDto } from './dto/schedule-send.dto';
 import { Invoice, InvoiceStatus } from './schemas/invoice.schema';
 import {
   buildInvoicePdfBuffer,
@@ -53,6 +55,20 @@ export function overdueCutoff(now: Date = new Date()): Date {
 // Whole days between an invoice's due date and `now` (0 while it's still due
 // today or in the future), counted on calendar days so the time of day either
 // was recorded at doesn't matter. Exported for its unit test.
+// e.g. "28/10/2026 14:30", in UK time whatever the server's own timezone.
+export function formatUkDateTime(d: Date): string {
+  return d
+    .toLocaleString('en-GB', {
+      timeZone: 'Europe/London',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    .replace(',', '');
+}
+
 export function daysOverdue(dueDate: Date, now: Date = new Date()): number {
   const day = (d: Date) =>
     Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
@@ -107,6 +123,8 @@ const DEFAULT_OVERDUE_EMAIL_BODY = `<div style="max-width:600px;margin:0 auto;bo
 
 @Injectable()
 export class InvoicesService implements OnModuleInit {
+  private readonly logger = new Logger(InvoicesService.name);
+
   constructor(
     @InjectModel(Invoice.name) private readonly invoiceModel: Model<Invoice>,
     @InjectModel(BusinessInfo.name)
@@ -280,7 +298,20 @@ export class InvoicesService implements OnModuleInit {
     // Prior status, to decide whether to notify the customer (see below).
     const prior = await this.invoiceModel.findById(id).select('status').exec();
     const wasSent = prior?.status === InvoiceStatus.SENT;
+    // Scheduling needs a send time, so it goes through scheduleSend() rather
+    // than a plain status change; moving off scheduled drops the send time.
+    if (
+      dto.status === InvoiceStatus.SCHEDULED &&
+      prior?.status !== InvoiceStatus.SCHEDULED
+    ) {
+      throw new BadRequestException(
+        'Use Schedule Send to pick when this invoice should be sent.',
+      );
+    }
     const update: Record<string, unknown> = { ...dto };
+    if (dto.status !== undefined && dto.status !== InvoiceStatus.SCHEDULED) {
+      update.$unset = { scheduledSendAt: 1 };
+    }
     if (dto.lineItems) {
       update.lineItems = dto.lineItems;
       Object.assign(update, this.calculateTotals(dto.lineItems));
@@ -434,11 +465,165 @@ export class InvoicesService implements OnModuleInit {
       id,
     );
     // The customer's portal push fires on create/edit (see InvoicesController),
-    // so emailing doesn't push again here.
-    if (invoice.status === InvoiceStatus.DRAFT) {
+    // so emailing doesn't push again here. Sending a scheduled invoice by hand
+    // (Send, or the customer from the portal) sends it now and drops the
+    // schedule, so the background job doesn't email it a second time.
+    if (
+      invoice.status === InvoiceStatus.DRAFT ||
+      invoice.status === InvoiceStatus.SCHEDULED
+    ) {
+      await this.invoiceModel
+        .updateOne({ _id: id }, { $unset: { scheduledSendAt: 1 } })
+        .exec();
       return this.update(id, { status: InvoiceStatus.SENT }, actor);
     }
     return invoice;
+  }
+
+  /**
+   * Schedule Send: queues a draft (or already scheduled) invoice to be emailed
+   * at `sendAt` by sendScheduled() below. Calling it again on a scheduled
+   * invoice reschedules it.
+   */
+  async scheduleSend(
+    id: string,
+    dto: ScheduleSendDto,
+    actor = 'Staff',
+  ): Promise<Invoice> {
+    const sendAt = new Date(dto.sendAt);
+    if (Number.isNaN(sendAt.getTime()) || sendAt.getTime() <= Date.now()) {
+      throw new BadRequestException('Pick a date and time in the future.');
+    }
+    const invoice = await this.findOne(id);
+    if (
+      invoice.status !== InvoiceStatus.DRAFT &&
+      invoice.status !== InvoiceStatus.SCHEDULED
+    ) {
+      throw new BadRequestException(
+        `Only draft invoices can be scheduled (${invoice.invoiceNumber} is ${invoice.status}).`,
+      );
+    }
+    const customer = invoice.customer as unknown as {
+      _id?: unknown;
+      email?: string;
+    };
+    // Checked now rather than at send time, so staff find out while they're
+    // still looking at it instead of the scheduled send quietly failing later.
+    if (!customer?.email) {
+      throw new BadRequestException(
+        `${invoice.invoiceNumber}: this customer has no email address on file.`,
+      );
+    }
+    const updated = await this.invoiceModel
+      .findByIdAndUpdate(
+        id,
+        { status: InvoiceStatus.SCHEDULED, scheduledSendAt: sendAt },
+        { new: true },
+      )
+      .populate('customer', 'name email address phoneNumber')
+      .exec();
+    await this.auditLogService.record(
+      customer._id as string,
+      AuditEventType.INVOICE_UPDATED,
+      invoice.status === InvoiceStatus.SCHEDULED
+        ? 'Send rescheduled'
+        : 'Send scheduled',
+      `${invoice.invoiceNumber} scheduled to send on ${formatUkDateTime(sendAt)}`,
+      undefined,
+      actor,
+      undefined,
+      undefined,
+      id,
+    );
+    return updated as Invoice;
+  }
+
+  /** Cancels a scheduled send, putting the invoice back to draft. */
+  async cancelScheduledSend(id: string, actor = 'Staff'): Promise<Invoice> {
+    const invoice = await this.invoiceModel
+      .findOneAndUpdate(
+        { _id: id, status: InvoiceStatus.SCHEDULED },
+        {
+          $set: { status: InvoiceStatus.DRAFT },
+          $unset: { scheduledSendAt: 1 },
+        },
+        { new: true },
+      )
+      .populate('customer', 'name email address phoneNumber')
+      .exec();
+    if (!invoice) {
+      throw new BadRequestException('This invoice is not scheduled to send.');
+    }
+    const customerId =
+      (invoice.customer as unknown as { _id?: unknown })?._id ??
+      invoice.customer;
+    await this.auditLogService.record(
+      customerId as string,
+      AuditEventType.INVOICE_UPDATED,
+      'Scheduled send cancelled',
+      `${invoice.invoiceNumber} scheduled send cancelled, back to draft`,
+      undefined,
+      actor,
+      undefined,
+      undefined,
+      id,
+    );
+    return invoice;
+  }
+
+  // Every minute: emails any scheduled invoice whose time has come, via the
+  // same sendEmail() as the Send button, which flips it to sent. Each one is
+  // claimed (scheduled -> draft) with a single atomic update before sending,
+  // so a slow send can't be picked up again by the next tick. If the send
+  // fails it's left as a draft, with an activity entry and a staff
+  // notification saying why, rather than retrying every minute.
+  @Cron(CronExpression.EVERY_MINUTE)
+  async sendScheduled(now: Date = new Date()): Promise<void> {
+    for (;;) {
+      const claimed = await this.invoiceModel
+        .findOneAndUpdate(
+          {
+            status: InvoiceStatus.SCHEDULED,
+            scheduledSendAt: { $lte: now },
+          },
+          {
+            $set: { status: InvoiceStatus.DRAFT },
+            $unset: { scheduledSendAt: 1 },
+          },
+          { sort: { scheduledSendAt: 1 } },
+        )
+        .exec();
+      if (!claimed) return;
+      const id = String(claimed._id);
+      try {
+        await this.sendEmail(id, 'Scheduled send');
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        this.logger.error(
+          `Scheduled send of ${claimed.invoiceNumber} failed: ${reason}`,
+        );
+        await this.auditLogService
+          .record(
+            claimed.customer,
+            AuditEventType.INVOICE_UPDATED,
+            'Scheduled send failed',
+            `${claimed.invoiceNumber} could not be sent (${reason}), back to draft`,
+            undefined,
+            'Scheduled send',
+            undefined,
+            undefined,
+            id,
+          )
+          .catch(() => {});
+        await this.notificationService
+          .dispatch(
+            'Scheduled invoice not sent',
+            `${claimed.invoiceNumber} could not be sent and is back to draft: ${reason}`,
+            'invoiceScheduleFailed',
+          )
+          .catch(() => {});
+      }
+    }
   }
 
   /**

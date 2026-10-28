@@ -1,6 +1,6 @@
 import 'customer.dart';
 
-const invoiceStatuses = ['draft', 'sent', 'paid', 'overdue', 'cancelled'];
+const invoiceStatuses = ['draft', 'scheduled', 'sent', 'paid', 'overdue', 'cancelled'];
 
 /// A reusable payment-terms entry from the admin app's library. Picking one
 /// sets the invoice's payment terms text and (via plusDays/endOfMonth) its due

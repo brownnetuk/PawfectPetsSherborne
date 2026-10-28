@@ -58,7 +58,7 @@ export interface InvoiceRecord {
   subject?: string;
   total: number;
   amountPaid?: number;
-  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  status: 'draft' | 'scheduled' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   issueDate: string;
   dueDate: string;
 }

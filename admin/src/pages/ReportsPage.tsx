@@ -565,7 +565,7 @@ function InvoicesDueReport() {
     const due = (invoices ?? []).filter(
       (inv) =>
         inv.status !== 'cancelled' &&
-        (includeDrafts || inv.status !== 'draft') &&
+        (includeDrafts || (inv.status !== 'draft' && inv.status !== 'scheduled')) &&
         inDateRange(inv.dueDate, range.from, range.to),
     );
     const sign = sortDir === 'asc' ? 1 : -1;
