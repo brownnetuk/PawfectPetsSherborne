@@ -2274,6 +2274,11 @@ export const EMAIL_TRIGGERS: { value: EmailTrigger; label: string; description: 
     label: 'Pre-Boarding Questionnaire',
     description: 'Sent from the Pre-Boarding page when staff choose "Send email" on a pre-boarding form.',
   },
+  {
+    value: 'payment_overdue',
+    label: 'Payment Overdue',
+    description: 'Sent from Invoices & Quotes when staff choose "Overdue Payment" on an unpaid invoice -- a reminder of the outstanding balance.',
+  },
 ];
 
 // Every trigger is edited as raw HTML (RichTextEditor) and sent through as-is
@@ -2457,7 +2462,8 @@ const BUSINESS_PLACEHOLDERS = [
 ];
 
 // Settings > Invoices > Bank Details -- only meaningful for the triggers
-// that ask a customer to pay something (invoice, quote, deposit_request).
+// that ask a customer to pay something (invoice, quote, deposit_request,
+// payment_overdue).
 const BANK_PLACEHOLDERS = [
   { key: 'bank_name', hint: 'bank name (Settings > Invoices > Bank Details)' },
   { key: 'sort_code', hint: 'sort code' },
@@ -2593,6 +2599,21 @@ const TRIGGER_PLACEHOLDERS: Record<EmailTrigger, { key: string; hint: string }[]
     { key: 'pet_names', hint: "the booked pets' names, comma-separated" },
     { key: 'drop_off', hint: 'the drop-off date and time' },
     { key: 'pick_up', hint: 'the pick-up date and time' },
+    ...BUSINESS_PLACEHOLDERS,
+  ],
+  payment_overdue: [
+    { key: 'customer_name', hint: "the customer's name" },
+    ...CUSTOMER_CONTACT_PLACEHOLDERS,
+    { key: 'invoice_number', hint: 'the invoice number' },
+    { key: 'invoice_date', hint: 'the issue date' },
+    { key: 'due_date', hint: 'the invoice due date' },
+    { key: 'days_overdue', hint: 'how many days past the due date it is (0 on the due date itself)' },
+    PAYMENT_TERMS_PLACEHOLDER,
+    { key: 'invoice_total', hint: "the invoice's total amount (no £ sign)" },
+    { key: 'amount_paid', hint: 'how much has been paid so far (no £ sign)' },
+    { key: 'balance_due', hint: 'the outstanding balance (no £ sign)' },
+    { key: 'invoice_link', hint: 'link to view this invoice online and download it as a PDF' },
+    ...BANK_PLACEHOLDERS,
     ...BUSINESS_PLACEHOLDERS,
   ],
   pre_boarding: [
@@ -2895,8 +2916,9 @@ function TemplatePreviewModal({
   const htmlBody = isHtmlBodyTrigger(trigger);
   const isQuote = trigger === 'quote';
   const isDepositRequest = trigger === 'deposit_request';
+  const isPaymentOverdue = trigger === 'payment_overdue';
   const isPaymentReceived = trigger === 'payment_received';
-  const isDocumentTrigger = isQuote || isDepositRequest || trigger === 'invoice';
+  const isDocumentTrigger = isQuote || isDepositRequest || isPaymentOverdue || trigger === 'invoice';
   const sampleContactVars = { customer_address: '1 Example Street, Sherborne, DT9 3AB', customer_phone: '07700 900123' };
   const vars: Record<string, string | undefined> = isDocumentTrigger
     ? {
@@ -2920,6 +2942,17 @@ function TemplatePreviewModal({
               remaining_balance: (sampleSubtotal() * 0.8).toFixed(2),
               invoice_link: `${INTAKE_URL}/invoices/sample-id`,
             }
+          : isPaymentOverdue
+            ? {
+                invoice_number: 'INV-2026-00001',
+                invoice_date: '21/08/2026',
+                due_date: '28/08/2026',
+                days_overdue: '14',
+                invoice_total: sampleSubtotal().toFixed(2),
+                amount_paid: (sampleSubtotal() * 0.2).toFixed(2),
+                balance_due: (sampleSubtotal() * 0.8).toFixed(2),
+                invoice_link: `${INTAKE_URL}/invoices/sample-id`,
+              }
           : isQuote
             ? {
                 quote_number: 'QUO-2026-00001',

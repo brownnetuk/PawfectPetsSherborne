@@ -52,6 +52,11 @@ export enum EmailTrigger {
   // (PreBoardingService.send()) -- seeded with a default template on first
   // start so sending works before staff have set one up.
   PRE_BOARDING = 'pre_boarding',
+  // An overdue-payment reminder sent from an unpaid invoice's "Overdue
+  // Payment" action (POST /invoices/:id/overdue-reminder,
+  // InvoicesService.sendOverdueReminder) -- seeded with a default template on
+  // first start, same as PRE_BOARDING.
+  PAYMENT_OVERDUE = 'payment_overdue',
 }
 
 // One document per trigger (enforced via the unique index below) -- avoids

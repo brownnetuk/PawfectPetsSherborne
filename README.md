@@ -1060,7 +1060,7 @@ The `AuditEventType` enum has these values:
 - **Customer**: `customer_created`, `customer_updated`
 - **Invoice**: `invoice_created`, `invoice_updated`, `invoice_emailed`, `invoice_removed`, `invoice_read`
 - **Quote**: `quote_created`, `quote_updated`, `quote_emailed`, `quote_removed`, `quote_read`
-- **Payment**: `payment_received`, `payment_removed`, `deposit_requested`
+- **Payment**: `payment_received`, `payment_removed`, `deposit_requested`, `overdue_reminder_sent`
 - **Animal**: `animal_created`, `animal_updated`, `animal_removed`
 - **Booking**: `booking_created`, `booking_updated`, `booking_removed`
 - **Credit note**: `credit_note_issued`, `credit_note_removed`
@@ -1318,6 +1318,7 @@ The business placeholders `{{logo}}`, `{{businessName}}`, `{{businessAddress}}`,
 | `payment_received` | Thank You for Payment | `PaymentsService.create` (best-effort, unless `skipThankYouEmail`), `sendReceivedEmail`, `sendReceipt` | `{{customer_name}}`, `{{customer_address}}`, `{{customer_phone}}`, `{{invoice_number}}`, `{{amount}}`, `{{payment_date}}`, `{{due_date}}`, `{{total}}`, `{{balance_due}}` (undefined when fully paid), `{{payment_method}}`, `{{invoice_link}}` | `sendReceipt` attaches the PDF receipt |
 | `form` | Forms | `POST /settings/email/send` (admin `SendFormModal`); `BoardingBookingsService` pre-check-in (`formName = "Pre-check-in (<ref>)"`) | `{{name}}`, `{{link}}` (host swapped to `PUBLIC_INTAKE_URL`), `{{form_name}}` | Pixel → "`<form>` form email read" |
 | `deposit_request` | Request Deposit | `InvoicesService.requestDeposit`, and the full-payment request variant | `{{customer_name}}`, `{{customer_address}}`, `{{customer_phone}}`, `{{invoice_number}}`, `{{invoice_total}}`, `{{due_date}}`, `{{payment_terms}}`, `{{deposit_percentage}}` (`'100'` for full payment), `{{deposit_amount}}`, `{{remaining_balance}}`, `{{invoice_link}}`, `{{bank_name}}`, `{{sort_code}}`, `{{account_number}}` | Pixel on the `deposit_requested` audit entry ("Deposit request read" / "Payment request read") |
+| `payment_overdue` | Payment Overdue | `InvoicesService.sendOverdueReminder` (`POST /invoices/:id/overdue-reminder`); default template seeded by `InvoicesService.onModuleInit` | `{{customer_name}}`, `{{customer_address}}`, `{{customer_phone}}`, `{{invoice_number}}`, `{{invoice_date}}`, `{{due_date}}`, `{{days_overdue}}`, `{{payment_terms}}`, `{{invoice_total}}`, `{{amount_paid}}`, `{{balance_due}}`, `{{invoice_link}}`, `{{bank_name}}`, `{{sort_code}}`, `{{account_number}}` | Pixel on the `overdue_reminder_sent` audit entry ("Overdue payment reminder read") |
 | `portal_login_code` | Portal Login Code | `PortalService.issueCode('login')` | `{{customer_name}}`, `{{code}}` | — |
 | `portal_password_reset` | Portal Password Reset | `PortalService.issueCode('reset')` (public `request-reset`, staff `POST /customers/:id/portal/reset`) | `{{customer_name}}`, `{{code}}` | — |
 | `portal_enabled` | Customer Portal Enabled | `PortalService.setPortalActive` (first enable, best-effort) | `{{customer_name}}` | — |
@@ -1599,6 +1600,7 @@ Both GETs attach `booking: {_id, reference, customerName, petNames}` to each rep
 | DELETE | `/invoices/:id` | JWT + `invoicing.manage` | Delete. **409** if any `Payment` or `CreditNote` references it. |
 | POST | `/invoices/:id/send` | JWT | Emails the `invoice` template. Draft → sent. |
 | POST | `/invoices/:id/request-deposit` | JWT | Emails the `deposit_request` template using `depositPercentage`. Draft → sent. |
+| POST | `/invoices/:id/overdue-reminder` | JWT | Emails the `payment_overdue` template for the outstanding balance (`total − amountPaid`). 400 if paid, cancelled or nothing owed. Status unchanged. Returns `balanceDue`, `daysOverdue`. |
 | GET | `/invoices/:id/public` | **Public** | Customer invoice page data. Same response as `findOne`; the id is the access token. |
 | GET | `/invoices/:id/pixel.gif` | **Public** | 1×1 tracking GIF. Stamps `openedAt` on first load (errors are swallowed). |
 
@@ -4277,6 +4279,7 @@ Generated from `client.ts`, then checked by hand. "Used by" lists the files that
 | `deleteInvoice` | DELETE | `/invoices/:id` | InvoicesPage |
 | `sendInvoiceEmail` | POST | `/invoices/:id/send` | DocumentFormModal, InvoicesPage |
 | `requestDeposit` | POST | `/invoices/:id/request-deposit` | RequestDepositModal |
+| `sendOverdueReminder` | POST | `/invoices/:id/overdue-reminder` | OverduePaymentModal |
 
 ##### Quotes
 
@@ -4761,7 +4764,7 @@ Every page uses the same pattern: local `useState`, a `useEffect` fetch through 
   - Sortable columns: Invoice Number · Customer · Invoice Date · Due Date · Invoice Total · Amount Paid · Remaining Balance · Status. The status is an editable select (`updateInvoiceStatus`).
   - Row checkboxes feed a bulk **Actions** menu with **Send (n)** and **Delete (n)**. Both run *sequentially* in a `for … await` loop and only touch rows the current filters show.
   - **New invoice** opens `DocumentFormModal`.
-  - Each row's Actions menu: **View**, **Edit** (`DocumentFormModal existing`), **Send** (`SendPreviewModal`, then `sendInvoiceEmail`), **Payments** (`RecordPaymentModal`), **Request Deposit** (`RequestDepositModal`) and **Delete**.
+  - Each row's Actions menu: **View**, **Edit** (`DocumentFormModal existing`), **Send** (`SendPreviewModal`, then `sendInvoiceEmail`), **Payments** (`RecordPaymentModal`), **Request Deposit** (`RequestDepositModal`), **Overdue Payment** (`OverduePaymentModal`, only on `overdue` invoices with a balance still owing) and **Delete**.
   - **View** switches to a three-column layout: a compact list, then `InvoiceHtmlView` (shown immediately), then `InvoiceActivityPanel` (`listAuditLogForInvoice`). The **Download** link waits until `buildInvoicePdf(inv, 'invoice', businessInfo)` has finished in the background.
   - `?view=<id>` opens that invoice directly, then the param is dropped from the URL.
 - **Quotes tab.** `listQuotes()`. Columns: Quote · Customer (with a "manual" badge for placeholder customers) · Total · Status (select, `updateQuoteStatus`) · Valid until. Row actions are View (`QuoteHtmlView` plus a PDF via `buildInvoicePdf(q, 'quote')`), Edit, Send (`SendPreviewModal kind="quote"`, then `sendQuoteEmail`) and Delete.

@@ -34,6 +34,7 @@ export enum AuditEventType {
   INVOICE_READ = 'invoice_read',
   QUOTE_READ = 'quote_read',
   DEPOSIT_REQUESTED = 'deposit_requested',
+  OVERDUE_REMINDER_SENT = 'overdue_reminder_sent',
 }
 
 @Schema({ timestamps: true })
