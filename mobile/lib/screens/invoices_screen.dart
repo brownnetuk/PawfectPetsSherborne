@@ -214,6 +214,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                         ('paid', 'Paid'),
                         ('partially_paid', 'Partially Paid'),
                         ('draft', 'Draft'),
+                        ('scheduled', 'Scheduled'),
                         ('overdue', 'Overdue'),
                       ])
                         ChoiceChip(
@@ -295,7 +296,9 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                   child: ListTile(
                     title: Text('${inv.invoiceNumber} · ${inv.customer.name}'),
                     subtitle: Text(
-                      '${money.format(inv.total)} · issued ${dateFmt.format(inv.issueDate)}',
+                      '${money.format(inv.total)} · issued ${dateFmt.format(inv.issueDate)}'
+                      // Schedule Send: when it will go out.
+                      '${inv.scheduledSendAt != null ? ' · sends ${DateFormat('d MMM HH:mm').format(inv.scheduledSendAt!)}' : ''}',
                     ),
                     trailing: inv.isPartiallyPaid
                         ? Column(

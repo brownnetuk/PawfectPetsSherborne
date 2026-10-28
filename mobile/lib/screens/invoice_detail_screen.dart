@@ -153,6 +153,70 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     }
   }
 
+  /// Schedule Send (admin's ScheduleSendModal): pick a date and time, and the
+  /// server emails the invoice then. Defaults to the current schedule when
+  /// moving one, otherwise 9am tomorrow. Only drafts can be scheduled.
+  Future<void> _scheduleSend() async {
+    final invoice = _invoice!;
+    final repo = context.read<Repository>();
+    final now = DateTime.now();
+    final initial = invoice.scheduledSendAt ?? DateTime(now.year, now.month, now.day + 1, 9);
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial.isBefore(now) ? now : initial,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: now.add(const Duration(days: 365)),
+      helpText: 'Send on',
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: initial.hour, minute: initial.minute),
+      helpText: 'Send at',
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
+    );
+    if (time == null || !mounted) return;
+    final sendAt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    if (!sendAt.isAfter(DateTime.now())) {
+      _snack('Pick a date and time in the future.');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await repo.scheduleInvoiceSend(invoice.id, sendAt);
+      _snack('${invoice.invoiceNumber} will be sent ${DateFormat('d MMM yyyy HH:mm').format(sendAt)}');
+      await _load();
+    } catch (e) {
+      _snack(e is ApiException ? e.message : 'Failed to schedule the send');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _cancelScheduledSend() async {
+    final invoice = _invoice!;
+    final repo = context.read<Repository>();
+    final ok = await _confirm(
+      'Cancel scheduled send',
+      '${invoice.invoiceNumber} goes back to a draft and is not emailed.',
+      'Cancel send',
+    );
+    if (!ok) return;
+    setState(() => _busy = true);
+    try {
+      await repo.cancelScheduledInvoiceSend(invoice.id);
+      _snack('Scheduled send cancelled');
+      await _load();
+    } catch (e) {
+      _snack(e is ApiException ? e.message : 'Failed to cancel the scheduled send');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _share() async {
     final repo = context.read<Repository>();
     try {
@@ -218,12 +282,17 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     // actually gone overdue (the day after its due date, server-side) and
     // there's still money owing.
     final canRemind = invoice != null && invoice.status == 'overdue' && invoice.balanceDue > 0;
+    final scheduled = invoice != null && invoice.status == 'scheduled';
     return InvoiceActionBar(
       enabled: invoice != null && !_busy,
       onSendEmail: _sendEmail,
       onRecordPayment: _recordPayment,
       onRequestDeposit: _requestDeposit,
       onOverdueReminder: canRemind ? _sendOverdueReminder : null,
+      // Drafts can be scheduled; a scheduled one moved or cancelled.
+      onScheduleSend: invoice != null && invoice.canScheduleSend ? _scheduleSend : null,
+      onCancelScheduledSend: scheduled ? _cancelScheduledSend : null,
+      scheduledSendAt: scheduled ? invoice.scheduledSendAt : null,
     );
   }
 }
@@ -231,7 +300,9 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
 /// The invoice detail screen's bottom action bar. The primary action gets a
 /// full-width row and the two email actions share the row below -- three
 /// across is too cramped for these labels at phone widths. When
-/// [onOverdueReminder] is given, an "Overdue Payment" row is added beneath.
+/// [onScheduleSend] is given, a "Schedule Send" (or "Reschedule Send", with
+/// the current time and a cancel button when [scheduledSendAt] is set) row is
+/// added; when [onOverdueReminder] is given, an "Overdue Payment" row.
 class InvoiceActionBar extends StatelessWidget {
   final bool enabled;
   final VoidCallback onSendEmail;
@@ -239,6 +310,11 @@ class InvoiceActionBar extends StatelessWidget {
   final VoidCallback onRequestDeposit;
   // Null hides the row (invoice not overdue, or nothing owing).
   final VoidCallback? onOverdueReminder;
+  // Null hides the row (only drafts and already scheduled invoices qualify).
+  final VoidCallback? onScheduleSend;
+  // Set only while the invoice is scheduled.
+  final VoidCallback? onCancelScheduledSend;
+  final DateTime? scheduledSendAt;
 
   const InvoiceActionBar({
     super.key,
@@ -247,6 +323,9 @@ class InvoiceActionBar extends StatelessWidget {
     required this.onRecordPayment,
     required this.onRequestDeposit,
     this.onOverdueReminder,
+    this.onScheduleSend,
+    this.onCancelScheduledSend,
+    this.scheduledSendAt,
   });
 
   @override
@@ -291,6 +370,34 @@ class InvoiceActionBar extends StatelessWidget {
               ),
             ],
           ),
+          if (onScheduleSend != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: enabled ? onScheduleSend : null,
+                    style: outlinedStyle,
+                    icon: const Icon(Icons.schedule_send_outlined, size: 18),
+                    label: Text(scheduledSendAt == null
+                        ? 'Schedule Send'
+                        : 'Sends ${DateFormat('d MMM HH:mm').format(scheduledSendAt!)}'),
+                  ),
+                ),
+                if (onCancelScheduledSend != null) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: enabled ? onCancelScheduledSend : null,
+                      style: outlinedStyle,
+                      icon: const Icon(Icons.cancel_schedule_send_outlined, size: 18),
+                      label: const Text('Cancel Send'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
           if (onOverdueReminder != null) ...[
             const SizedBox(height: 8),
             SizedBox(
