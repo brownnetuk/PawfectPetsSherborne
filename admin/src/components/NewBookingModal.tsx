@@ -147,7 +147,7 @@ export default function NewBookingModal({
   // createDayBooking rather than threading ids through each submit path.
   const createdRows = useRef<DayBooking[]>([]);
   const [invoicePromptRows, setInvoicePromptRows] = useState<DayBooking[] | null>(null);
-  const [invoiceNumber, setInvoiceNumber] = useState<string | null>(null);
+  const [invoiceNote, setInvoiceNote] = useState<string | null>(null);
   // A new booking holds back the parent's onCreated (which may close this
   // modal) until the invoice prompt is answered; edits pass straight through.
   const saved = useRef(false);
@@ -561,7 +561,7 @@ export default function NewBookingModal({
     e.preventDefault();
     setError(null);
     setResult(null);
-    setInvoiceNumber(null);
+    setInvoiceNote(null);
     createdRows.current = [];
     saved.current = false;
 
@@ -597,7 +597,7 @@ export default function NewBookingModal({
             <>
               Created {result.created} booking{result.created === 1 ? '' : 's'}
               {result.skipped > 0 ? `, skipped ${result.skipped} already booked` : ''}.
-              {invoiceNumber && ` Draft invoice ${invoiceNumber} created.`}
+              {invoiceNote && ` ${invoiceNote}`}
             </>
           )}
         </div>
@@ -808,9 +808,13 @@ export default function NewBookingModal({
             setInvoicePromptRows(null);
             onCreatedProp();
           }}
-          onCreated={(invoice) => {
+          onCreated={(invoice, addedToExisting) => {
             setInvoicePromptRows(null);
-            setInvoiceNumber(invoice.invoiceNumber);
+            setInvoiceNote(
+              addedToExisting
+                ? `Added to invoice ${invoice.invoiceNumber}.`
+                : `Draft invoice ${invoice.invoiceNumber} created.`
+            );
             onCreatedProp();
           }}
         />
