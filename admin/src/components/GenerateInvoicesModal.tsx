@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import Modal from './Modal';
 import { ChevronDownIcon } from './icons';
-import type { DayBooking, Invoice, InvoiceTerm, LineItem } from '../types';
-import { applyTravelLine, travelProductForCustomer } from '../utils/travelLines';
+import type { DayBooking, Invoice, InvoiceTerm, LineItem, Product } from '../types';
+import { travelProductForCustomer, travelUnitsForBookings, withTravelQuantity } from '../utils/travelLines';
 
 function lineItemAmount(item: LineItem): number {
   return item.quantity * item.unitPrice * (1 - (item.discountPercent ?? 0) / 100);
@@ -50,12 +50,22 @@ function isFullyPaid(invoice: Invoice): boolean {
   return invoice.status === 'paid' || (invoice.amountPaid ?? 0) >= invoice.total;
 }
 
+function lineItemsTotal(lineItems: LineItem[]): number {
+  return lineItems.reduce((sum, li) => sum + li.quantity * li.unitPrice, 0);
+}
+
 interface CustomerGroup {
   customerId: string;
   customerName: string;
   bookingIds: string[];
-  lineItems: LineItem[];
-  total: number;
+  // Booked products, without any travel line -- see linesFor.
+  baseLineItems: LineItem[];
+  // The customer's travel product, if they're travel-chargeable.
+  travel: Product | null;
+  // Travel always charged for Visits (1 x Visit -> 1, 2 x Visit -> 2).
+  visitTravel: number;
+  // Travel staff can opt into for Walks, by the same one-per-walk rule.
+  walkTravel: number;
   // The customer's latest booked date this month -- the generated invoice
   // falls due on the last day of what it covers.
   lastDate: string;
@@ -84,6 +94,13 @@ export default function GenerateInvoicesModal({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ invoiceCount: number; matchedCount: number } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Per customer: also charge travel for their Walks this month.
+  const [walkTravel, setWalkTravel] = useState<Record<string, boolean>>({});
+
+  function linesFor(g: CustomerGroup): LineItem[] {
+    if (!g.travel) return g.baseLineItems;
+    return withTravelQuantity(g.baseLineItems, g.travel, g.visitTravel + (walkTravel[g.customerId] ? g.walkTravel : 0));
+  }
 
   const monthStart = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
   const monthEndExclusive = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 1);
@@ -95,8 +112,9 @@ export default function GenerateInvoicesModal({
       api.listInvoices(),
       api.listCustomers(),
       api.listProducts(),
+      api.getVisitMapping(),
     ])
-      .then(([bookings, invoices, customers, products]) => {
+      .then(([bookings, invoices, customers, products, mapping]) => {
         // Only what hasn't already been invoiced -- repeat runs this month
         // only pick up newly-added/changed bookings. Placeholder rows (boarding
         // pick-up-day presence markers) are never billed.
@@ -119,19 +137,17 @@ export default function GenerateInvoicesModal({
             if (existing) existing.quantity += b.quantity;
             else byProduct.set(pid, { name, price, quantity: b.quantity });
           }
-          // Travel follows the customer's other products (2 x Visit -> 2 x
-          // Travel) rather than however many travel rows were booked.
-          const lineItems: LineItem[] = applyTravelLine(
-            Array.from(byProduct.values()).map((p) => ({
-              description: p.name,
-              quantity: p.quantity,
-              unitPrice: p.price,
-              discountPercent: 0,
-            })),
-            travelProductForCustomer(customers.find((c) => c._id === cid), products),
-            products,
-          );
-          const total = lineItems.reduce((sum, li) => sum + li.quantity * li.unitPrice, 0);
+          const booked: LineItem[] = Array.from(byProduct.values()).map((p) => ({
+            description: p.name,
+            quantity: p.quantity,
+            unitPrice: p.price,
+            discountPercent: 0,
+          }));
+          // Travel is charged per Visit (2 x Visit -> 2 x Travel), not per
+          // travel row booked -- those also land on Walks, Day Care and
+          // Boarding days. Walk travel is offered per customer below.
+          const travel = travelProductForCustomer(customers.find((c) => c._id === cid), products);
+          const units = travel ? travelUnitsForBookings(custBookings, mapping, travel) : { visits: 0, walks: 0 };
           const lastDate = custBookings
             .map((b) => dateKey(new Date(b.date)))
             .sort()
@@ -155,8 +171,10 @@ export default function GenerateInvoicesModal({
             customerId: cid,
             customerName: customerName(custBookings[0].customer),
             bookingIds: custBookings.map((b) => b._id),
-            lineItems,
-            total,
+            baseLineItems: travel ? withTravelQuantity(booked, travel, 0) : booked,
+            travel,
+            visitTravel: units.visits,
+            walkTravel: units.walks,
             lastDate,
             invoices: custInvoices,
             paidInvoice,
@@ -174,7 +192,7 @@ export default function GenerateInvoicesModal({
   const selected = (groups ?? []).filter((g) => included[g.customerId]);
   const toCreate = selected.filter((g) => !matchInvoice[g.customerId]);
   const toMatch = selected.filter((g) => matchInvoice[g.customerId]);
-  const selectedTotal = selected.reduce((sum, g) => sum + g.total, 0);
+  const selectedTotal = selected.reduce((sum, g) => sum + lineItemsTotal(linesFor(g)), 0);
 
   async function handleConfirm() {
     if (!groups || selected.length === 0) return;
@@ -196,7 +214,7 @@ export default function GenerateInvoicesModal({
         for (const group of toCreate) {
           const invoice = await api.createInvoice({
             customer: group.customerId,
-            lineItems: group.lineItems,
+            lineItems: linesFor(group),
             issueDate,
             dueDate: group.lastDate || dueDate,
             paymentTerms: defaultTerm?.text,
@@ -251,6 +269,7 @@ export default function GenerateInvoicesModal({
             {groups.map((g) => {
               const expanded = expandedId === g.customerId;
               const ticked = !!included[g.customerId];
+              const lineItems = linesFor(g);
               return (
                 <div
                   key={g.customerId}
@@ -279,12 +298,27 @@ export default function GenerateInvoicesModal({
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, overflowWrap: 'anywhere' }}>{g.customerName}</div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
-                          {g.lineItems.length} line item{g.lineItems.length === 1 ? '' : 's'}
+                          {lineItems.length} line item{lineItems.length === 1 ? '' : 's'}
                         </div>
                       </div>
                     </div>
-                    <div style={{ fontWeight: 700, flexShrink: 0 }}>£{g.total.toFixed(2)}</div>
+                    <div style={{ fontWeight: 700, flexShrink: 0 }}>£{lineItemsTotal(lineItems).toFixed(2)}</div>
                   </div>
+                  {g.travel && g.walkTravel > 0 && (
+                    <label
+                      style={{ paddingLeft: 48, marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', cursor: 'pointer' }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!!walkTravel[g.customerId]}
+                        disabled={!ticked}
+                        onChange={(e) => setWalkTravel({ ...walkTravel, [g.customerId]: e.target.checked })}
+                      />
+                      <span>
+                        Add travel for walks too ({g.walkTravel} × {g.travel.name})
+                      </span>
+                    </label>
+                  )}
                   {(g.paidInvoice || g.invoices.length > 0) && (
                     // Indented to line up with the name, under the checkbox and chevron.
                     <div style={{ paddingLeft: 48, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -323,7 +357,7 @@ export default function GenerateInvoicesModal({
                         </tr>
                       </thead>
                       <tbody>
-                        {g.lineItems.map((li, i) => (
+                        {lineItems.map((li, i) => (
                           <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
                             <td style={{ padding: '4px 0' }}>{li.description}</td>
                             <td style={{ padding: '4px 0', textAlign: 'right' }}>{li.quantity}</td>

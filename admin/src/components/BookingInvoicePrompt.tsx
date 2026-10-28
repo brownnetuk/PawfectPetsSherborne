@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import Modal from './Modal';
-import type { DayBooking, Invoice, LineItem } from '../types';
-import { applyTravelLine, travelProductForCustomer } from '../utils/travelLines';
+import type { DayBooking, Invoice, LineItem, Product } from '../types';
+import { travelProductForCustomer, travelUnitsForBookings, withTravelQuantity } from '../utils/travelLines';
+import type { TravelUnits } from '../utils/travelLines';
 
 function productIdOf(product: DayBooking['product']): string {
   return typeof product === 'string' ? product : product._id;
@@ -78,6 +79,11 @@ export default function BookingInvoicePrompt({
   const [openInvoices, setOpenInvoices] = useState<Invoice[] | null>(null);
   // The invoice to add to, or '' to create a new one.
   const [target, setTarget] = useState('');
+  // The customer's travel product and what these bookings would charge for
+  // it, if they're travel-chargeable -- null while loading or not chargeable.
+  const [travel, setTravel] = useState<{ product: Product; units: TravelUnits } | null>(null);
+  // Walks only carry travel when staff tick it.
+  const [walkTravel, setWalkTravel] = useState(false);
 
   // Boarding pick-up-day placeholders are presence markers, never billed.
   const billable = bookings.filter((b) => !b.placeholder);
@@ -95,13 +101,25 @@ export default function BookingInvoicePrompt({
       })
       // Not being able to look is no reason to block creating a new one.
       .catch(() => setOpenInvoices([]));
+    Promise.all([api.listProducts(), api.getCustomer(customerId), api.getVisitMapping()])
+      .then(([products, customer, mapping]) => {
+        const product = travelProductForCustomer(customer, products);
+        if (product) setTravel({ product, units: travelUnitsForBookings(billable, mapping, product) });
+      })
+      // handleGenerate reloads these and reports any failure.
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId]);
 
   async function handleGenerate() {
     setBusy(true);
     setError(null);
     try {
-      const [products, customer] = await Promise.all([api.listProducts(), api.getCustomer(customerId)]);
+      const [products, customer, mapping] = await Promise.all([
+        api.listProducts(),
+        api.getCustomer(customerId),
+        api.getVisitMapping(),
+      ]);
       const productById = new Map(products.map((p) => [p._id, p]));
       const byProduct = new Map<string, LineItem>();
       for (const b of billable) {
@@ -117,8 +135,15 @@ export default function BookingInvoicePrompt({
             discountPercent: 0,
           });
       }
-      // Travel follows the other products' quantity (2 x Visit -> 2 x Travel).
-      const lineItems = applyTravelLine(Array.from(byProduct.values()), travelProductForCustomer(customer, products), products);
+      // Travel is charged per Visit (2 x Visit -> 2 x Travel), plus per Walk
+      // when ticked -- never for Day Care or Boarding, whatever travel rows
+      // were booked alongside them.
+      let lineItems = Array.from(byProduct.values());
+      const travelProduct = travelProductForCustomer(customer, products);
+      if (travelProduct) {
+        const units = travelUnitsForBookings(billable, mapping, travelProduct);
+        lineItems = withTravelQuantity(lineItems, travelProduct, units.visits + (walkTravel ? units.walks : 0));
+      }
 
       const dates = billable.map((b) => dateKey(new Date(b.date))).sort();
       const first = dates[0];
@@ -220,6 +245,14 @@ export default function BookingInvoicePrompt({
         </>
       ) : (
         <p>Create a draft invoice for this booking now? You can review and send it from Invoices.</p>
+      )}
+      {travel && travel.units.walks > 0 && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', margin: '8px 0' }}>
+          <input type="checkbox" checked={walkTravel} onChange={(e) => setWalkTravel(e.target.checked)} disabled={busy} />
+          <span>
+            Add travel for walks ({travel.units.walks} × {travel.product.name})
+          </span>
+        </label>
       )}
       <div className="modal-actions">
         <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
