@@ -9,6 +9,7 @@ import '../models/day_booking.dart';
 import '../models/invoice.dart';
 import '../models/product.dart';
 import '../models/visit_mapping.dart';
+import '../utils/travel_lines.dart';
 import '../utils/visit_plan.dart';
 
 /// Books "Visits" across a date range, mirroring the admin New Booking modal:
@@ -316,8 +317,9 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
 
   /// Asked straight after the bookings are created, mirroring the admin's
   /// BookingInvoicePrompt: "Generate an invoice?" Yes raises one draft
-  /// invoice from just the rows created (one line per product, travel rows
-  /// included since the sheet books them as their own product) and links
+  /// invoice from just the rows created (one line per product; booked travel
+  /// rows are dropped and travel is charged per Visit instead, plus per Walk
+  /// if staff say yes) and links
   /// those rows to it so the monthly Generate Invoices run skips them. If the
   /// customer already has open invoices, staff can add the rows to one of
   /// them instead. Then offers to email it straight away. Either
@@ -349,6 +351,21 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
       if (!generate || !mounted) return;
     }
 
+    // Travel is charged per Visit (2 x Visit -> 2 x Travel), plus per Walk
+    // only when staff say so -- never from the travel rows booked alongside.
+    final travel = travelProductForCustomer(_ownerOf(customerId), widget.products);
+    final units = travel == null ? const TravelUnits() : travelUnitsForBookings(rows, widget.visitMapping, travel);
+    var walkTravel = false;
+    if (travel != null && units.walks > 0) {
+      walkTravel = await _ask(
+        title: 'Travel for walks?',
+        message: 'Add travel for the walks too (${units.walks} × ${travel.name})?',
+        noLabel: 'No',
+        yesLabel: 'Add travel',
+      );
+      if (!mounted) return;
+    }
+
     setState(() {
       _busy = true;
       _error = null;
@@ -368,9 +385,12 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
             ? (name: name, price: price, qty: row.quantity)
             : (name: existing.name, price: existing.price, qty: existing.qty + row.quantity);
       }
-      final lineItems = byProduct.values
+      var lineItems = byProduct.values
           .map((p) => InvoiceLineItem(description: p.name, quantity: p.qty.toDouble(), unitPrice: p.price))
           .toList();
+      if (travel != null) {
+        lineItems = withTravelQuantity(lineItems, travel, units.visits + (walkTravel ? units.walks : 0));
+      }
 
       final dates = rows.map((r) => DateTime(r.date.year, r.date.month, r.date.day)).toList()..sort();
       final first = dates.first;
