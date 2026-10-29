@@ -620,6 +620,7 @@ export class InvoicesService implements OnModuleInit {
             'Scheduled invoice not sent',
             `${claimed.invoiceNumber} could not be sent and is back to draft: ${reason}`,
             'invoiceScheduleFailed',
+            { kind: 'invoice', id },
           )
           .catch(() => {});
       }
@@ -890,7 +891,11 @@ export class InvoicesService implements OnModuleInit {
       undefined,
       invoice._id,
     );
-    await this.notificationService.notifyInvoiceRead(invoice.invoiceNumber);
+    await this.notificationService.notifyInvoiceRead(
+      invoice.invoiceNumber,
+      undefined,
+      String(invoice._id),
+    );
   }
 
   /** Adds a recorded payment's amount to amountPaid, flipping status to paid once it covers the total. */

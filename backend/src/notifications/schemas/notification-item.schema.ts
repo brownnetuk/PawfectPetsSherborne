@@ -15,6 +15,17 @@ export class NotificationItem extends Document {
   @Prop()
   type?: string;
 
+  // What the notification is about, so the staff app can open it directly
+  // from a push or the bell: `linkKind` names the screen ('invoice',
+  // 'invoices', 'quote', 'customer', 'message', 'checklist',
+  // 'boardingBooking') and `linkId` the record (or a filter, e.g. 'overdue'
+  // for 'invoices'). Both unset for notifications with nowhere to go.
+  @Prop()
+  linkKind?: string;
+
+  @Prop()
+  linkId?: string;
+
   @Prop({ default: false, index: true })
   read: boolean;
 }

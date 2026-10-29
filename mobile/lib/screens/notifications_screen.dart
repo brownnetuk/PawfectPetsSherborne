@@ -47,6 +47,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  static IconData _iconFor(NotificationItem n) {
+    switch (n.link?.kind ?? n.type) {
+      case 'preCheckInCompleted':
+      case 'boardingBooking':
+        return Icons.assignment_turned_in_outlined;
+      case 'invoice':
+      case 'invoices':
+        return Icons.receipt_long_outlined;
+      case 'quote':
+        return Icons.request_quote_outlined;
+      case 'message':
+        return Icons.chat_bubble_outline;
+      case 'checklist':
+        return Icons.checklist_outlined;
+      case 'customer':
+        return Icons.person_outline;
+      default:
+        return Icons.notifications_outlined;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -72,15 +93,29 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, i) {
         final n = _items[i];
+        final link = n.link;
         return ListTile(
           tileColor: n.read ? null : brandBlueTint,
-          leading: Icon(
-            n.type == 'preCheckInCompleted' ? Icons.assignment_turned_in_outlined : Icons.notifications_outlined,
-            color: brandBlue,
-          ),
+          leading: Icon(_iconFor(n), color: brandBlue),
           title: Text(n.title, style: TextStyle(fontWeight: n.read ? FontWeight.w500 : FontWeight.w700)),
           subtitle: Text(n.body),
-          trailing: Text(timeFmt.format(n.createdAt), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          trailing: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(timeFmt.format(n.createdAt), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              if (link != null) Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade500),
+            ],
+          ),
+          // Open what it's about (invoice, message, checklist, ...): leave
+          // this list first so the target doesn't stack on top of it.
+          onTap: link == null
+              ? null
+              : () {
+                  final push = context.read<PushService>();
+                  Navigator.of(context).pop();
+                  push.openLink(link);
+                },
         );
       },
     );

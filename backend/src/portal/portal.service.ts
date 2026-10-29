@@ -339,6 +339,7 @@ export class PortalService {
           ? `${who} deleted their app account and asked for their personal data to be erased.`
           : `${who} deleted their app account.`,
         'portalAccountDeleted',
+        { kind: 'customer', id: String(customer._id) },
       );
     } catch (err) {
       console.error('Failed to notify staff of app account deletion:', err);
@@ -674,7 +675,7 @@ export class PortalService {
       'Customer (portal)',
     );
     const updated = await this.getProfile(customerId, portalUserId);
-    await this.notifications.notifyCustomerUpdated(updated.name);
+    await this.notifications.notifyCustomerUpdated(updated.name, customerId);
     return updated;
   }
 
@@ -726,6 +727,7 @@ export class PortalService {
       'Quote accepted',
       `${quote.customer && (quote.customer as any).name ? (quote.customer as any).name : 'A customer'} accepted a quote in the portal.`,
       'quoteAccepted',
+      { kind: 'quote', id },
     );
     return result;
   }
@@ -738,6 +740,7 @@ export class PortalService {
       'Quote declined',
       `${quote.customer && (quote.customer as any).name ? (quote.customer as any).name : 'A customer'} declined a quote in the portal.`,
       'quoteDeclined',
+      { kind: 'quote', id },
     );
     return result;
   }
@@ -771,6 +774,7 @@ export class PortalService {
       await this.customerName(customerId),
       animal.name,
       'added',
+      customerId,
     );
     return animal;
   }
@@ -783,6 +787,7 @@ export class PortalService {
       await this.customerName(customerId),
       animal.name,
       'updated',
+      customerId,
     );
     return animal;
   }

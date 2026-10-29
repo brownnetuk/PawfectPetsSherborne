@@ -165,7 +165,10 @@ export class MessagesService {
     // wrote it, and the account it belongs to when those differ.
     const preview = body.length > 80 ? `${body.slice(0, 80)}…` : body;
     const who = portalUser ? `${senderName} (${customer.name})` : customer.name;
-    await this.notifications.dispatch('New message', `${who}: ${preview}`, 'message');
+    await this.notifications.dispatch('New message', `${who}: ${preview}`, 'message', {
+      kind: 'message',
+      id: customerId,
+    });
     return message;
   }
 }

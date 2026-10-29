@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../api/repository.dart';
+import '../models/notification_item.dart';
 
 /// Bridges the native APNs registration (see ios/Runner/AppDelegate.swift) to
 /// the backend: [start] asks iOS to request notification permission and
@@ -11,6 +12,10 @@ import '../api/repository.dart';
 /// Also owns the app icon badge (the red count on the icon): it mirrors the
 /// feed's unread count, which the server also sends with each push, and is
 /// re-synced whenever notifications are read or the app comes to the front.
+///
+/// Tapping a push hands its payload here: the feed item is marked read and
+/// [onNotificationTap] is told where it leads (a [NotificationLink], or null
+/// for one with nowhere to go, which opens the notifications list).
 class PushService {
   static const _channel = MethodChannel('pawfectpets/push');
   final Repository _repository;
@@ -19,10 +24,13 @@ class PushService {
   /// Unread notifications, for the bell's red dot inside the app.
   final ValueNotifier<int> unreadCount = ValueNotifier(0);
 
-  /// Called when staff tap a push notification, to open the notifications
-  /// list. Set by the home shell once it's on screen.
-  VoidCallback? onOpenNotifications;
+  /// Called when staff tap a push notification (or a row in the notifications
+  /// list) with where it leads. Set by the home shell once it's on screen,
+  /// which routes it to the right tab and screen.
+  void Function(NotificationLink? link)? onNotificationTap;
+  // A tap that arrived before the home shell was ready to route it.
   bool _pendingOpen = false;
+  NotificationLink? _pendingLink;
 
   PushService(this._repository) {
     _channel.setMethodCallHandler(_handle);
@@ -37,7 +45,7 @@ class PushService {
         await _channel.invokeMethod('start');
         // A tap that launched the app from cold arrives before this Dart
         // handler is listening, so native holds it until we ask.
-        final tapped = await _channel.invokeMethod<String>('takeLaunchTap');
+        final tapped = await _channel.invokeMethod<dynamic>('takeLaunchTap');
         if (tapped != null) await _onTap(tapped);
       } catch (_) {
         // No native handler (e.g. a non-iOS platform) — nothing to do.
@@ -77,12 +85,17 @@ class PushService {
     await _setBadge(0);
   }
 
-  /// Opens the notifications list if one was requested before the home shell
-  /// was ready to show it.
+  /// Opens what a notification links to (used by the notifications list's
+  /// rows); a no-op until the home shell has registered its router.
+  void openLink(NotificationLink link) => _deliver(link);
+
+  /// Routes a tap that arrived before the home shell was ready to handle it.
   void consumePendingOpen() {
-    if (_pendingOpen && onOpenNotifications != null) {
+    if (_pendingOpen && onNotificationTap != null) {
       _pendingOpen = false;
-      onOpenNotifications!();
+      final link = _pendingLink;
+      _pendingLink = null;
+      onNotificationTap!(link);
     }
   }
 
@@ -92,13 +105,28 @@ class PushService {
     } catch (_) {}
   }
 
-  Future<void> _onTap(String notificationId) async {
-    if (notificationId.isNotEmpty) await markRead(notificationId);
-    if (onOpenNotifications != null) {
-      onOpenNotifications!();
+  void _deliver(NotificationLink? link) {
+    if (onNotificationTap != null) {
+      onNotificationTap!(link);
     } else {
       _pendingOpen = true;
+      _pendingLink = link;
     }
+  }
+
+  /// The payload is the push's custom keys (notificationId, type, linkKind,
+  /// linkId) as a map; older native code sent just the feed id as a string.
+  Future<void> _onTap(dynamic payload) async {
+    String notificationId = '';
+    NotificationLink? link;
+    if (payload is Map) {
+      notificationId = payload['notificationId']?.toString() ?? '';
+      link = NotificationLink.fromParts(payload['linkKind'], payload['linkId']);
+    } else if (payload is String) {
+      notificationId = payload;
+    }
+    if (notificationId.isNotEmpty) await markRead(notificationId);
+    _deliver(link);
   }
 
   Future<dynamic> _handle(MethodCall call) async {
@@ -113,7 +141,7 @@ class PushService {
         }
       }
     } else if (call.method == 'onNotificationTap') {
-      await _onTap(call.arguments as String? ?? '');
+      await _onTap(call.arguments);
     }
     return null;
   }

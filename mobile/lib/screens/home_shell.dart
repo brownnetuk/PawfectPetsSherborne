@@ -1,13 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../api/repository.dart';
+import '../models/boarding_booking.dart';
+import '../models/checklist.dart';
+import '../models/notification_item.dart';
 import '../services/push_service.dart';
 import '../state/auth_provider.dart';
+import 'boarding_bookings_screen.dart';
 import 'boarding_screen.dart';
 import 'bookings_screen.dart';
 import 'business_screen.dart';
+import 'checklist_detail_screen.dart';
+import 'checklists_screen.dart';
+import 'customer_detail_screen.dart';
 import 'customers_screen.dart';
+import 'invoice_detail_screen.dart';
+import 'invoices_screen.dart';
 import 'messages_screen.dart';
 import 'notifications_screen.dart';
+import 'quote_detail_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -37,11 +48,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     super.initState();
     // Now that a staff member is logged in, ask iOS for notification
     // permission and register this device for appointment-reminder pushes.
-    // Tapping a push opens the notifications list on the current tab.
+    // Tapping a push opens what it's about (see _openFromNotification).
     _push = context.read<PushService>();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _push.onOpenNotifications = _openNotifications;
+      _push.onNotificationTap = _openFromNotification;
       _push.start();
       _push.consumePendingOpen();
     });
@@ -52,8 +63,87 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _push.onOpenNotifications = null;
+    _push.onNotificationTap = null;
     super.dispose();
+  }
+
+  // Tab indexes, matching _screens / the NavigationBar below.
+  static const _customersTab = 0;
+  static const _businessTab = 1;
+  static const _boardingTab = 3;
+  static const _messagesTab = 4;
+
+  /// Switches to [tab] and pushes [screen] on that tab's own navigator. A tab
+  /// visited for the first time only gets its Navigator on the next frame, so
+  /// the push waits for that.
+  void _pushOnTab(int tab, Widget screen) {
+    setState(() {
+      _index = tab;
+      _visited.add(tab);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _navigatorKeys[tab].currentState?.push(MaterialPageRoute(builder: (_) => screen));
+    });
+  }
+
+  /// Opens the screen a notification is about: the invoice that was read,
+  /// the customer whose message arrived, the checklist that's due, ... A
+  /// notification with no link (or one we can't resolve) opens the
+  /// notifications list, as before.
+  Future<void> _openFromNotification(NotificationLink? link) async {
+    if (link == null) {
+      _openNotifications();
+      return;
+    }
+    final repo = context.read<Repository>();
+    switch (link.kind) {
+      case 'invoice':
+        _pushOnTab(_businessTab, InvoiceDetailScreen(invoiceId: link.id));
+      case 'invoices':
+        // e.g. 'overdue': the list pre-filtered to the invoices in question.
+        _pushOnTab(_businessTab, InvoicesScreen(initialStatusFilter: link.id));
+      case 'quote':
+        _pushOnTab(_businessTab, QuoteDetailScreen(quoteId: link.id));
+      case 'customer':
+        _pushOnTab(_customersTab, CustomerDetailScreen(customerId: link.id));
+      case 'message':
+        // The thread needs the customer's name for its title; fall back to a
+        // generic one rather than not opening it.
+        var name = 'Customer';
+        try {
+          name = (await repo.getCustomer(link.id)).name;
+        } catch (_) {}
+        if (!mounted) return;
+        _pushOnTab(_messagesTab, MessageThreadScreen(customerId: link.id, customerName: name));
+      case 'checklist':
+        // Reminders are only ever for today's checklists, so look it up in
+        // today's assignments; if it's gone, show the checklists list.
+        ChecklistAssignment? found;
+        try {
+          final now = DateTime.now();
+          final start = DateTime(now.year, now.month, now.day);
+          final today = await repo.listChecklistAssignments(from: start, to: start.add(const Duration(days: 1)));
+          for (final a in today) {
+            if (a.id == link.id) found = a;
+          }
+        } catch (_) {}
+        if (!mounted) return;
+        _pushOnTab(_boardingTab, found != null ? ChecklistDetailScreen(assignment: found) : const ChecklistsScreen());
+      case 'boardingBooking':
+        BoardingBookingWithStatus? found;
+        try {
+          for (final item in await repo.listBoardingBookings()) {
+            if (item.booking.id == link.id) found = item;
+          }
+        } catch (_) {}
+        if (!mounted) return;
+        _pushOnTab(
+          _boardingTab,
+          found != null ? BoardingBookingDetailScreen(item: found) : const BoardingBookingsScreen(),
+        );
+      default:
+        _openNotifications();
+    }
   }
 
   // Back in the foreground: notifications may have been read elsewhere (or

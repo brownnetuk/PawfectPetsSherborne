@@ -678,9 +678,14 @@ export class FormSubmissionsService implements OnModuleInit {
           preCheckInBooking.reference,
           customerName,
           petNames,
+          String(preCheckInBooking._id),
         );
       } else {
-        await this.notificationService.notifyFormSubmitted(submission.formName, customerName);
+        await this.notificationService.notifyFormSubmitted(
+          submission.formName,
+          customerName,
+          customerId ? String(customerId) : undefined,
+        );
       }
     }
 

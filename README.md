@@ -977,7 +977,7 @@ Enums:
 
 #### `NotificationItem` (`src/notifications/schemas/notification-item.schema.ts`)
 
-`title (required)`, `body (required)`, `type?: String`, `read: Boolean (default false, **indexed**)`.
+`title (required)`, `body (required)`, `type?: String`, `linkKind?: String`, `linkId?: String`, `read: Boolean (default false, **indexed**)`. `linkKind`/`linkId` say what the notification is about so the staff app can open it from a tap (`NotificationService.dispatch(title, body, type, link?)` stores them and sends them in the push payload): `invoice` (invoice id: invoice read, scheduled send failed), `invoices` (`overdue`: the list filtered), `quote` (accepted/declined), `customer` (activated, details/pet updated, form submitted, appointment reminder, app account deleted), `message` (customer id), `checklist` (assignment id, due-soon reminder), `boardingBooking` (pre-check-in completed). Unset for the daily digest and the staff-training / risk-assessment / policy reminders. `notification-links.spec.ts`.
 
 #### `NotificationSettings` (`src/notifications/schemas/notification-settings.schema.ts`), singleton
 
@@ -6484,7 +6484,8 @@ flowchart TD
 
 | File | What it shows | Actions → endpoints |
 |---|---|---|
-| `home_shell.dart` | 5-tab shell; `LogoutAction` | `PushService.start()` → (iOS) `POST /push/register` |
+| `home_shell.dart` | 5-tab shell; `LogoutAction`; `NotificationsAction` bell. Routes notification taps (`_openFromNotification`): switches tab and pushes the invoice / invoice list / quote / customer / message thread / checklist / boarding booking the notification links to, or the notifications list when it has no link | `PushService.start()` → (iOS) `POST /push/register`; link lookups `GET /customers/:id`, `GET /checklist-assignments?from&to` (today), `GET /boarding-bookings` |
+| `notifications_screen.dart` | The staff notification feed (same list as the admin bell); opening it marks everything read. Rows with a link show a chevron and open what they're about (via `PushService.openLink`, popping the list first); icon per link kind | `GET /notifications`, `POST /notifications/read` |
 | `login_screen.dart` | Staff sign-in | `POST /auth/login`; biometric re-login; Disconnect device |
 | `scan_qr_screen.dart` | QR provisioning, manual URL entry | Stores base URL → `GET /auth/me` if a token exists |
 | `settings_screen.dart` | Settings hub with one tile, "Notifications — Choose which push notifications are sent" | Pushes `NotificationSettingsScreen` |
@@ -6592,6 +6593,7 @@ flowchart TD
   - Native → Dart: `onToken(hexString)`. The token is hex-encoded from `deviceToken` bytes. If the Dart channel isn't ready yet it is buffered in `pendingToken` and delivered from `didInitializeImplicitFlutterEngine`.
 - `start()` is guarded by `_started`, so it runs once per process. On non-iOS platforms (no native handler) the error is swallowed.
 - `onToken` → `Repository.registerPushToken(token)` → `POST /push/register {token, platform:'ios'}`. Errors are swallowed. The comment says the token "is re-sent on the next start()/token callback", but `_started` stops a second `start()` in the same process.
+- **Tapping a notification opens what it's about.** Native → Dart `onNotificationTap({notificationId, type, linkKind, linkId})` (the push's custom keys as a string map; a cold-launch tap is held in `pendingTap` until Dart calls `takeLaunchTap`). `PushService._onTap` marks the feed item read, builds a `NotificationLink` from `linkKind`/`linkId`, and calls `onNotificationTap(link)`, which `HomeShell` sets to `_openFromNotification` (a tap before the shell is ready is kept and replayed by `consumePendingOpen()`). The router switches tab and pushes on that tab's navigator (`_pushOnTab`): `invoice` → Business / `InvoiceDetailScreen`; `invoices` → Business / `InvoicesScreen(initialStatusFilter: id)`; `quote` → Business / `QuoteDetailScreen`; `customer` → Customers / `CustomerDetailScreen`; `message` → Messages / `MessageThreadScreen` (customer name fetched, "Customer" if that fails); `checklist` → Boarding / `ChecklistDetailScreen` (found among today's assignments, else `ChecklistsScreen`); `boardingBooking` → Boarding / `BoardingBookingDetailScreen` (found in `listBoardingBookings`, else `BoardingBookingsScreen`). No link or an unknown kind opens `NotificationsScreen` as before. Rows in `NotificationsScreen` with a link show a chevron and do the same via `PushService.openLink` after popping the list.
 - The foreground presentation delegate shows a `.banner` and `.sound`.
 - `Runner.entitlements`: `aps-environment = development`.
 - **Android has no push implementation**: no FCM and no channel handler in `MainActivity.kt`.
