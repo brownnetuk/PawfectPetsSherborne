@@ -196,6 +196,23 @@ export default function NewBookingModal({
     }
   }
 
+  // The invoice the booking being edited is on, if any.
+  async function invoiceOfEditedBooking(): Promise<string | null> {
+    const invoiceIdOf = (b: DayBooking) => (!b.invoice ? null : typeof b.invoice === 'string' ? b.invoice : b.invoice._id);
+    const stayId = service === 'boarding' ? editingStayId : service === 'daycare' ? editingDayCareStayId : undefined;
+    if (stayId) {
+      const rows = await api.getBoardingStay(stayId);
+      return rows.map(invoiceIdOf).find((id) => !!id) ?? null;
+    }
+    if (initial && initial.editEntries.length > 0) {
+      const ids = new Set(initial.editEntries.map((e) => e.bookingId));
+      const dates = initial.editEntries.map((e) => e.date).sort();
+      const rows = await api.listDayBookings(dates[0], dateKey(addDays(parseYmd(dates[dates.length - 1]), 1)));
+      return rows.filter((b) => ids.has(b._id)).map(invoiceIdOf).find((id) => !!id) ?? null;
+    }
+    return null;
+  }
+
   // Finds an owner's travel product (if chargeable) so every service type
   // can auto-add it alongside the main product, same as the day panel's own
   // maybeAddTravel on BookingsPage.
@@ -574,9 +591,34 @@ export default function NewBookingModal({
       return;
     }
 
+    // Editing a booking that's already invoiced: the rows this edit books
+    // (a deleted-and-rebooked stay, or extra visit days) go back on the same
+    // invoice -- read first, since a stay edit deletes the old rows. While
+    // that invoice is unsent its lines follow the edit (backend
+    // DayBookingsService.attachToInvoice/removeStay); once sent, the rows are
+    // just re-linked so they aren't billed a second time.
+    let editInvoiceId: string | null = null;
+    try {
+      editInvoiceId = await invoiceOfEditedBooking();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load this booking');
+      return;
+    }
+
     if (service === 'daycare') await submitDayCare();
     else if (service === 'boarding') await submitBoarding();
     else await submitVisits();
+
+    if (isEditing && saved.current && editInvoiceId) {
+      const rebooked = createdRows.current.filter((b) => !b.placeholder).map((b) => b._id);
+      if (rebooked.length > 0) {
+        try {
+          await api.attachDayBookingsToInvoice(rebooked, editInvoiceId);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Saved, but failed to update the invoice');
+        }
+      }
+    }
 
     if (isEditing || !saved.current) return;
     if (createdRows.current.some((b) => !b.placeholder)) setInvoicePromptRows(createdRows.current);

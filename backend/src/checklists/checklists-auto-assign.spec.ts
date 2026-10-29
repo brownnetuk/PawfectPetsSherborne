@@ -121,7 +121,16 @@ describe('DayBookingsService checklist sync', () => {
         return Promise.resolve();
       }),
     };
-    const service = new DayBookingsService(dayBookingModel as never, null as never, null as never, checklists as never);
+    const service = new DayBookingsService(
+      dayBookingModel as never,
+      null as never,
+      null as never,
+      checklists as never,
+      null as never,
+      null as never,
+      null as never,
+      null as never,
+    );
     return { service, calls };
   }
 

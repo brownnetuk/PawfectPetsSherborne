@@ -4,9 +4,14 @@ import { randomUUID } from 'crypto';
 import { Model } from 'mongoose';
 import { Animal } from '../animals/schemas/animal.schema';
 import { ChecklistsService } from '../checklists/checklists.service';
+import { Customer } from '../customers/schemas/customer.schema';
+import { InvoicesService } from '../invoices/invoices.service';
+import { Invoice, InvoiceStatus } from '../invoices/schemas/invoice.schema';
+import { Product } from '../products/schemas/product.schema';
 import { VisitMapping } from '../settings/schemas/visit-mapping.schema';
 import { CreateDayBookingDto } from './dto/create-day-booking.dto';
 import { UpdateDayBookingDto } from './dto/update-day-booking.dto';
+import { BookedSide, syncBookedLines, SyncLine, TravelContext } from './invoice-line-sync.util';
 import { DayBooking } from './schemas/day-booking.schema';
 
 export interface DayCareStayPlan {
@@ -24,6 +29,14 @@ export interface BoardingStayPlan {
   dropOffTime: string;
   endDate: string;
   pickUpTime: string;
+}
+
+// One booking's change, as replayed onto its invoice's lines: what it was
+// before (null when it's being added) and after (null when it's deleted).
+type InvoiceLineBooking = Pick<DayBooking, 'product' | 'quantity' | 'placeholder' | 'boardingStay'>;
+interface InvoiceLineChange {
+  from: InvoiceLineBooking | null;
+  to: InvoiceLineBooking | null;
 }
 
 export type BoardingLineKind = 'boarding' | 'halfDay';
@@ -85,7 +98,100 @@ export class DayBookingsService {
     @InjectModel(Animal.name) private readonly animalModel: Model<Animal>,
     @InjectModel(VisitMapping.name) private readonly visitMappingModel: Model<VisitMapping>,
     private readonly checklists: ChecklistsService,
+    @InjectModel(Product.name) private readonly productModel: Model<Product>,
+    @InjectModel(Customer.name) private readonly customerModel: Model<Customer>,
+    @InjectModel(Invoice.name) private readonly invoiceModel: Model<Invoice>,
+    private readonly invoices: InvoicesService,
   ) {}
+
+  // Replays changes to bookings on an invoice (a 30 minute walk made 60
+  // minutes, a quantity change, a booking deleted, or a stay rebooked and
+  // re-attached -- see attachToInvoice) onto its lines -- but only while the
+  // invoice is still Draft or Scheduled. Once it's been sent the customer has
+  // it, so it's left for staff to amend. Travel rows aren't synced
+  // themselves: the travel line is recounted from the Visits/Walks around it
+  // (see syncBookedLines). A change whose old product has no line to come off
+  // is skipped. All the changes land in one invoice update. Best-effort, like
+  // the checklist auto-assign -- the booking change itself has already saved.
+  private async syncInvoiceLines(invoiceId: unknown, changes: InvoiceLineChange[]): Promise<void> {
+    try {
+      if (!invoiceId || changes.length === 0) return;
+      const invoice = await this.invoiceModel.findById(invoiceId).exec();
+      if (!invoice || ![InvoiceStatus.DRAFT, InvoiceStatus.SCHEDULED].includes(invoice.status)) return;
+
+      const idOf = (product: unknown) => String((product as { _id?: unknown })?._id ?? product);
+      const customer = await this.customerModel.findById(invoice.customer).select('travelChargeable travelProduct').exec();
+      const travelId = customer?.travelChargeable && customer.travelProduct ? String(customer.travelProduct) : null;
+
+      const mapping = await this.visitMappingModel.findOne().exec();
+      const ids = (keys: string[]) =>
+        new Set(keys.map((k) => (mapping as unknown as Record<string, unknown>)?.[k]).filter(Boolean).map(String));
+      const slots = (visits: 'one' | 'two') =>
+        ['', '30Min', '40Min'].flatMap((d) =>
+          ['Weekday', 'Weekend', 'BankHoliday'].map((t) => `${visits}Visit${d}${t}Product`),
+        );
+      const oneVisit = ids(slots('one'));
+      const twoVisit = ids(slots('two'));
+      const noTravel = ids([
+        'dayCareHalfDayProduct',
+        'dayCareFullDayProduct',
+        'dayCareSecondDogHalfDayProduct',
+        'dayCareSecondDogFullDayProduct',
+        'boardingPerDayProduct',
+        'boardingSecondDogPerDayProduct',
+        'boardingHalfDayProduct',
+        'boardingSecondDogHalfDayProduct',
+      ]);
+
+      const changedIds = changes.flatMap((c) => [c.from, c.to]).filter((b) => !!b).map((b) => idOf(b.product));
+      const productIds = [...changedIds, travelId, ...oneVisit, ...twoVisit].filter((id): id is string => !!id);
+      const products = await this.productModel.find({ _id: { $in: productIds } }).select('name price').exec();
+      const byId = new Map(products.map((p) => [String(p._id), { name: p.name, price: p.price }]));
+      const travelProduct = travelId ? byId.get(travelId) : undefined;
+      const travel: TravelContext | null = travelProduct
+        ? {
+            product: travelProduct,
+            visitCountByName: new Map(
+              [
+                ...[...oneVisit].map((id) => [byId.get(id)?.name, 1] as const),
+                ...[...twoVisit].map((id) => [byId.get(id)?.name, 2] as const),
+              ].filter((e): e is [string, 1 | 2] => !!e[0]),
+            ),
+          }
+        : null;
+
+      const side = (booking: InvoiceLineChange['from']): BookedSide | null | undefined => {
+        if (!booking) return null;
+        const pid = idOf(booking.product);
+        const product = byId.get(pid);
+        if (!product) return undefined;
+        const visitCount =
+          oneVisit.has(pid) ? 1 : twoVisit.has(pid) ? 2 : noTravel.has(pid) || booking.boardingStay ? 0 : null;
+        return { product, quantity: booking.quantity, visitCount };
+      };
+
+      let lines: SyncLine[] = invoice.lineItems.map((l) => ({
+        description: l.description,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        discountPercent: l.discountPercent,
+      }));
+      let changed = false;
+      for (const change of changes) {
+        if ([change.from, change.to].some((b) => b && (b.placeholder || idOf(b.product) === travelId))) continue;
+        const from = side(change.from);
+        const to = side(change.to);
+        if (from === undefined || to === undefined || (!from && !to)) continue;
+        const next = syncBookedLines(lines, from, to, travel);
+        if (!next) continue;
+        lines = next;
+        changed = true;
+      }
+      if (changed) await this.invoices.update(String(invoice._id), { lineItems: lines }, 'System');
+    } catch (err) {
+      console.error('Invoice line sync failed for day bookings (invoice left as it was):', err);
+    }
+  }
 
   // Boarding vs Day Care, purely from which VisitMapping product slot a
   // booking's product fills -- there's no stored category on Product itself,
@@ -401,6 +507,7 @@ export class DayBookingsService {
   }
 
   async update(id: string, dto: UpdateDayBookingDto): Promise<DayBooking> {
+    const before = await this.dayBookingModel.findById(id).exec();
     const update: Record<string, unknown> = { ...dto };
     if (dto.date) update.date = toDayStart(dto.date);
     const dayBooking = await this.dayBookingModel
@@ -417,6 +524,17 @@ export class DayBookingsService {
     // A moved date or changed drop-off/collection time can mean a day (or
     // half of one) that now needs its checklist.
     await this.autoAssignChecklists(dayBooking);
+    // A product/quantity change on a booking that's already on an unsent
+    // invoice. Not when the patch is what links it to an invoice (Generate
+    // Invoice does that after building the lines from the booking).
+    if (
+      before?.invoice &&
+      dto.invoice === undefined &&
+      ((dto.product !== undefined && dto.product !== String(before.product)) ||
+        (dto.quantity !== undefined && dto.quantity !== before.quantity))
+    ) {
+      await this.syncInvoiceLines(before.invoice, [{ from: before, to: dayBooking }]);
+    }
     return dayBooking;
   }
 
@@ -425,6 +543,7 @@ export class DayBookingsService {
     if (!result) {
       throw new NotFoundException(`Day booking ${id} not found`);
     }
+    await this.syncInvoiceLines(result.invoice, [{ from: result, to: null }]);
   }
 
   // Every row of one boarding stay (see stayId), so the admin can load a stay
@@ -451,8 +570,38 @@ export class DayBookingsService {
 
   // Deletes a whole boarding stay in one go -- used when editing a stay
   // (delete then recreate) and to remove it cleanly rather than row by row.
-  async removeStay(stayId: string): Promise<{ deleted: number }> {
+  // `syncInvoice` takes the stay's rows off its unsent invoice too (the
+  // admin's delete/edit); off for BoardingBookingsService, which deletes or
+  // rebuilds the invoice itself.
+  async removeStay(stayId: string, { syncInvoice = false } = {}): Promise<{ deleted: number }> {
+    const rows = syncInvoice ? await this.dayBookingModel.find({ stayId }).exec() : [];
     const result = await this.dayBookingModel.deleteMany({ stayId }).exec();
+    const byInvoice = new Map<string, InvoiceLineChange[]>();
+    for (const row of rows) {
+      if (!row.invoice) continue;
+      const key = String(row.invoice);
+      byInvoice.set(key, [...(byInvoice.get(key) ?? []), { from: row, to: null }]);
+    }
+    for (const [invoiceId, changes] of byInvoice) await this.syncInvoiceLines(invoiceId, changes);
     return { deleted: result.deletedCount ?? 0 };
+  }
+
+  // Links freshly booked rows to an existing invoice and, if it's still
+  // Draft or Scheduled, adds them to its lines -- used when an invoiced
+  // booking is edited in New Booking (a stay is deleted and rebooked, a visit
+  // range is extended), so the edit lands on the same invoice instead of
+  // leaving the new rows to be billed again. Only rows not already on an
+  // invoice, and only the invoice's own customer's.
+  async attachToInvoice(bookingIds: string[], invoiceId: string): Promise<{ attached: number }> {
+    const invoice = await this.invoiceModel.findById(invoiceId).select('customer').exec();
+    if (!invoice) throw new NotFoundException(`Invoice ${invoiceId} not found`);
+    const rows = await this.dayBookingModel
+      .find({ _id: { $in: bookingIds }, invoice: null, customer: invoice.customer })
+      .exec();
+    const billable = rows.filter((r) => !r.placeholder);
+    if (billable.length === 0) return { attached: 0 };
+    await this.dayBookingModel.updateMany({ _id: { $in: billable.map((r) => r._id) } }, { invoice: invoiceId }).exec();
+    await this.syncInvoiceLines(invoiceId, billable.map((row) => ({ from: null, to: row })));
+    return { attached: billable.length };
   }
 }

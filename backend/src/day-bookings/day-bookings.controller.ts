@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { DayBookingsService } from './day-bookings.service';
+import { AttachInvoiceDto } from './dto/attach-invoice.dto';
 import { CreateDayBookingDto } from './dto/create-day-booking.dto';
 import { UpdateDayBookingDto } from './dto/update-day-booking.dto';
 
@@ -57,11 +58,19 @@ export class DayBookingsController {
     return this.dayBookingsService.findStay(stayId);
   }
 
-  // Deletes a whole boarding stay (used by the admin's edit = delete + recreate).
+  // Deletes a whole boarding stay (used by the admin's edit = delete +
+  // recreate), taking it off its invoice's lines if that's still unsent.
   @RequirePermission('bookings.manage')
   @Delete('stay/:stayId')
   removeStay(@Param('stayId') stayId: string) {
-    return this.dayBookingsService.removeStay(stayId);
+    return this.dayBookingsService.removeStay(stayId, { syncInvoice: true });
+  }
+
+  // Puts an edited booking's rebooked rows back on the invoice it was on.
+  @RequirePermission('bookings.manage')
+  @Post('attach-invoice')
+  attachInvoice(@Body() dto: AttachInvoiceDto) {
+    return this.dayBookingsService.attachToInvoice(dto.bookingIds, dto.invoice);
   }
 
   @Patch(':id')
