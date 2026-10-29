@@ -14,7 +14,10 @@ import 'select_customer_screen.dart';
 import '../theme.dart';
 
 class InvoicesScreen extends StatefulWidget {
-  const InvoicesScreen({super.key});
+  /// Pre-selects a status chip, e.g. 'overdue' when opened from an "Invoice
+  /// overdue" notification. Null shows every status.
+  final String? initialStatusFilter;
+  const InvoicesScreen({super.key, this.initialStatusFilter});
 
   @override
   State<InvoicesScreen> createState() => _InvoicesScreenState();
@@ -30,6 +33,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   @override
   void initState() {
     super.initState();
+    _statusFilter = widget.initialStatusFilter;
     _load();
   }
 

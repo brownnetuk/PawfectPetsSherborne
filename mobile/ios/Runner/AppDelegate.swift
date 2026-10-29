@@ -5,14 +5,24 @@ import UserNotifications
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   // Channel to Dart for push: native -> Dart delivers the APNs device token
-  // ("onToken") and taps on a notification ("onNotificationTap", with its
-  // feed id); Dart -> native asks us to request permission + register
-  // ("start"), set the app icon badge ("setBadge"), and hands over a tap that
-  // launched the app before Dart was listening ("takeLaunchTap"). Set up
-  // defensively so nothing here can block app launch.
+  // ("onToken") and taps on a notification ("onNotificationTap", with the
+  // push's data: feed id, type and the link to what it's about); Dart ->
+  // native asks us to request permission + register ("start"), set the app
+  // icon badge ("setBadge"), and hands over a tap that launched the app
+  // before Dart was listening ("takeLaunchTap"). Set up defensively so
+  // nothing here can block app launch.
   private var pushChannel: FlutterMethodChannel?
   private var pendingToken: String?
-  private var pendingTap: String?
+  private var pendingTap: [String: String]?
+
+  // The custom keys the backend puts in the push payload, as strings.
+  private func tapPayload(from userInfo: [AnyHashable: Any]) -> [String: String] {
+    var out: [String: String] = [:]
+    for key in ["notificationId", "type", "linkKind", "linkId"] {
+      if let value = userInfo[key] { out[key] = "\(value)" }
+    }
+    return out
+  }
 
   override func application(
     _ application: UIApplication,
@@ -103,18 +113,19 @@ import UserNotifications
     completionHandler([.banner, .list, .sound, .badge])
   }
 
-  // Staff tapped a notification: tell Dart which feed item it was so it's
-  // marked read (clearing/decrementing the badge) and the list opens. If Dart
-  // isn't listening yet (cold launch), keep it for "takeLaunchTap".
+  // Staff tapped a notification: tell Dart which feed item it was (so it's
+  // marked read, clearing/decrementing the badge) and what it links to (so
+  // the right screen opens). If Dart isn't listening yet (cold launch), keep
+  // it for "takeLaunchTap".
   override func userNotificationCenter(
     _ center: UNUserNotificationCenter,
     didReceive response: UNNotificationResponse,
     withCompletionHandler completionHandler: @escaping () -> Void
   ) {
-    let id = response.notification.request.content.userInfo["notificationId"] as? String ?? ""
-    pendingTap = id
+    let payload = tapPayload(from: response.notification.request.content.userInfo)
+    pendingTap = payload
     if let channel = pushChannel {
-      channel.invokeMethod("onNotificationTap", arguments: id) { [weak self] result in
+      channel.invokeMethod("onNotificationTap", arguments: payload) { [weak self] result in
         let handled = !(result is FlutterError) && (result as? NSObject) !== FlutterMethodNotImplemented
         if handled { self?.pendingTap = nil }
       }

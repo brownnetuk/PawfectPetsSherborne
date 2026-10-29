@@ -70,13 +70,17 @@ export class AppointmentsService {
     for (const appt of candidates) {
       const start = this.startAt(appt);
       if (start > now && start <= horizon) {
-        const who = (appt.customer as unknown as { name?: string })?.name ?? 'a customer';
+        const customer = appt.customer as unknown as { _id?: unknown; name?: string } | undefined;
+        const who = customer?.name ?? 'a customer';
         const timeLabel = appt.time;
         try {
           await this.notifications.dispatch(
             `Appointment in ${lead}`,
             `${who} at ${timeLabel}${appt.reason ? ' — ' + appt.reason : ''}`,
             'appointment',
+            // The app has no appointment screen of its own; the customer's
+            // record is the closest useful place.
+            customer?._id ? { kind: 'customer', id: String(customer._id) } : undefined,
           );
           appt.reminderSentAt = new Date();
           await appt.save();

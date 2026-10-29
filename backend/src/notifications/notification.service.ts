@@ -11,6 +11,23 @@ import { CustomerNotificationsService } from '../customer-notifications/customer
 import { NotificationSettingsService } from './notification-settings.service';
 import { NotificationItem } from './schemas/notification-item.schema';
 
+// Where a notification leads when tapped in the staff app (see the staff
+// app's HomeShell router): a record id, or for 'invoices' a list filter such
+// as 'overdue'. Stored on the feed item and carried in the push payload as
+// `linkKind` / `linkId`.
+export type NotificationLinkKind =
+  | 'invoice'
+  | 'invoices'
+  | 'quote'
+  | 'customer'
+  | 'message'
+  | 'checklist'
+  | 'boardingBooking';
+export interface NotificationLink {
+  kind: NotificationLinkKind;
+  id: string;
+}
+
 // Turns app events into push notifications, gated by NotificationSettings.
 // Other modules call the notify* helpers; the daily digest runs on a cron.
 @Injectable()
@@ -29,12 +46,20 @@ export class NotificationService {
 
   // Records the notification in the admin feed and pushes it to phones. Every
   // notification goes through here so the two stay in sync. The push carries
-  // the feed item's id (so tapping it can mark that one read) and sets the
-  // app icon's red badge to the unread count, which stays until it's read.
-  async dispatch(title: string, body: string, type: string): Promise<void> {
-    const item = await this.itemModel.create({ title, body, type });
+  // the feed item's id (so tapping it can mark that one read), the optional
+  // link (so tapping it can open the invoice / message / checklist it's
+  // about), and sets the app icon's red badge to the unread count, which
+  // stays until it's read.
+  async dispatch(title: string, body: string, type: string, link?: NotificationLink): Promise<void> {
+    const linkFields = link ? { linkKind: link.kind, linkId: link.id } : {};
+    const item = await this.itemModel.create({ title, body, type, ...linkFields });
     const badge = await this.unreadCount();
-    await this.push.sendToAll(title, body, { type, notificationId: String(item._id) }, badge);
+    await this.push.sendToAll(
+      title,
+      body,
+      { type, notificationId: String(item._id), ...linkFields },
+      badge,
+    );
   }
 
   // --- feed (admin notification centre) ---
@@ -68,19 +93,30 @@ export class NotificationService {
     await this.push.setBadgeOnAll(await this.unreadCount());
   }
 
-  async notifyCustomerActivated(name: string): Promise<void> {
-    const s = await this.settings.get();
-    if (!s.customerActivated) return;
-    await this.dispatch('Customer activated', `${name} is now Active`, 'customerActivated');
+  // Links a notification to a customer's record when we know who it's about.
+  private customerLink(customerId?: string): NotificationLink | undefined {
+    return customerId ? { kind: 'customer', id: String(customerId) } : undefined;
   }
 
-  async notifyCustomerUpdated(name?: string): Promise<void> {
+  async notifyCustomerActivated(name: string, customerId?: string): Promise<void> {
+    const s = await this.settings.get();
+    if (!s.customerActivated) return;
+    await this.dispatch(
+      'Customer activated',
+      `${name} is now Active`,
+      'customerActivated',
+      this.customerLink(customerId),
+    );
+  }
+
+  async notifyCustomerUpdated(name?: string, customerId?: string): Promise<void> {
     const s = await this.settings.get();
     if (!s.customerUpdated) return;
     await this.dispatch(
       'Customer updated their details',
       `${name || 'A customer'} edited their details in the portal.`,
       'customerUpdated',
+      this.customerLink(customerId),
     );
   }
 
@@ -88,6 +124,7 @@ export class NotificationService {
     customerName: string | undefined,
     petName: string | undefined,
     event: 'added' | 'updated',
+    customerId?: string,
   ): Promise<void> {
     const s = await this.settings.get();
     if (!s.customerPetUpdated) return;
@@ -97,16 +134,18 @@ export class NotificationService {
       event === 'added' ? 'Pet added' : 'Pet updated',
       event === 'added' ? `${who} added ${pet} in the portal.` : `${who} updated ${pet} in the portal.`,
       event === 'added' ? 'petAdded' : 'petUpdated',
+      this.customerLink(customerId),
     );
   }
 
-  async notifyFormSubmitted(formName: string, customerName?: string): Promise<void> {
+  async notifyFormSubmitted(formName: string, customerName?: string, customerId?: string): Promise<void> {
     const s = await this.settings.get();
     if (!s.formSubmitted) return;
     await this.dispatch(
       'Form submitted',
       `${customerName || 'A customer'} submitted "${formName}".`,
       'formSubmitted',
+      this.customerLink(customerId),
     );
   }
 
@@ -118,6 +157,7 @@ export class NotificationService {
     reference: string,
     customerName?: string,
     petNames: string[] = [],
+    bookingId?: string,
   ): Promise<void> {
     const s = await this.settings.get();
     if (s.preCheckInCompleted === false) return;
@@ -127,6 +167,7 @@ export class NotificationService {
       'Pre-check-in completed',
       `${who} completed the pre-check-in form${pets} (${reference}).`,
       'preCheckInCompleted',
+      bookingId ? { kind: 'boardingBooking', id: String(bookingId) } : undefined,
     );
   }
 
@@ -138,27 +179,40 @@ export class NotificationService {
       'Invoice overdue',
       count === 1 ? 'An invoice is now overdue' : `${count} invoices are now overdue`,
       'invoicesOverdue',
+      // Several may have flipped at once, so open the list filtered to them.
+      { kind: 'invoices', id: 'overdue' },
     );
   }
 
   // A day's checklist is due in about an hour and still has unticked items.
   // `checklistReminders` defaults on, including for a settings document saved
   // before the toggle existed (hence `!== false`, not a truthy check).
-  async notifyChecklistDue(name: string, completeByTime: string, remaining: number): Promise<void> {
+  async notifyChecklistDue(
+    name: string,
+    completeByTime: string,
+    remaining: number,
+    assignmentId?: string,
+  ): Promise<void> {
     const s = await this.settings.get();
     if (s.checklistReminders === false) return;
     await this.dispatch(
       'Checklist due soon',
       `"${name}" is due by ${completeByTime} and still has ${remaining} item${remaining === 1 ? '' : 's'} to tick off.`,
       'checklistDue',
+      assignmentId ? { kind: 'checklist', id: String(assignmentId) } : undefined,
     );
   }
 
-  async notifyInvoiceRead(invoiceNumber: string, customerName?: string): Promise<void> {
+  async notifyInvoiceRead(invoiceNumber: string, customerName?: string, invoiceId?: string): Promise<void> {
     const s = await this.settings.get();
     if (!s.invoicesRead) return;
     const body = customerName ? `${customerName} opened ${invoiceNumber}` : `${invoiceNumber} was opened`;
-    await this.dispatch('Invoice read', body, 'invoiceRead');
+    await this.dispatch(
+      'Invoice read',
+      body,
+      'invoiceRead',
+      invoiceId ? { kind: 'invoice', id: String(invoiceId) } : undefined,
+    );
   }
 
   // Pushes a customer (their portal app) about a new or edited invoice/quote.

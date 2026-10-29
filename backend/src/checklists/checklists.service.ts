@@ -87,7 +87,12 @@ export class ChecklistsService {
       const remaining = assignment.items.filter((_, i) => !assignment.completed[i]).length;
       try {
         if (remaining > 0) {
-          await this.notifications.notifyChecklistDue(assignment.name, assignment.completeByTime!, remaining);
+          await this.notifications.notifyChecklistDue(
+            assignment.name,
+            assignment.completeByTime!,
+            remaining,
+            String(assignment._id),
+          );
         }
         await this.assignmentModel.updateOne({ _id: assignment._id }, { reminderSentAt: now }).exec();
       } catch (err) {

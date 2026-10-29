@@ -382,7 +382,7 @@ export class CustomersService {
     }
     // Push when a lead becomes a real customer (Pending -> Active).
     if (status === CustomerStatus.ACTIVE && before.status === CustomerStatus.PENDING) {
-      await this.notificationService.notifyCustomerActivated(customer.name);
+      await this.notificationService.notifyCustomerActivated(customer.name, String(customer._id));
     }
     // Specifically the "Request Update" action (CustomerDetailPage) landing
     // here -- not every status change is audit-worthy, but staff asking a
