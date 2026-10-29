@@ -4,9 +4,14 @@ import { randomUUID } from 'crypto';
 import { Model } from 'mongoose';
 import { Animal } from '../animals/schemas/animal.schema';
 import { ChecklistsService } from '../checklists/checklists.service';
+import { Customer } from '../customers/schemas/customer.schema';
+import { InvoicesService } from '../invoices/invoices.service';
+import { Invoice, InvoiceStatus } from '../invoices/schemas/invoice.schema';
+import { Product } from '../products/schemas/product.schema';
 import { VisitMapping } from '../settings/schemas/visit-mapping.schema';
 import { CreateDayBookingDto } from './dto/create-day-booking.dto';
 import { UpdateDayBookingDto } from './dto/update-day-booking.dto';
+import { BookedSide, syncBookedLines, TravelContext } from './invoice-line-sync.util';
 import { DayBooking } from './schemas/day-booking.schema';
 
 export interface DayCareStayPlan {
@@ -85,7 +90,90 @@ export class DayBookingsService {
     @InjectModel(Animal.name) private readonly animalModel: Model<Animal>,
     @InjectModel(VisitMapping.name) private readonly visitMappingModel: Model<VisitMapping>,
     private readonly checklists: ChecklistsService,
+    @InjectModel(Product.name) private readonly productModel: Model<Product>,
+    @InjectModel(Customer.name) private readonly customerModel: Model<Customer>,
+    @InjectModel(Invoice.name) private readonly invoiceModel: Model<Invoice>,
+    private readonly invoices: InvoicesService,
   ) {}
+
+  // Replays a change to an already-invoiced booking (a 30 minute walk made 60
+  // minutes, a quantity change, or the booking deleted) onto its invoice's
+  // lines -- but only while the invoice is still Draft or Scheduled. Once
+  // it's been sent the customer has it, so it's left for staff to amend.
+  // Travel rows aren't synced themselves: the travel line is recounted from
+  // the Visits/Walks around it (see syncBookedLines). Best-effort, like the
+  // checklist auto-assign -- the booking change itself has already saved.
+  private async syncInvoiceLines(
+    before: DayBooking,
+    after: { product: unknown; quantity: number } | null,
+  ): Promise<void> {
+    try {
+      if (!before.invoice || before.placeholder) return;
+      const invoice = await this.invoiceModel.findById(before.invoice).exec();
+      if (!invoice || ![InvoiceStatus.DRAFT, InvoiceStatus.SCHEDULED].includes(invoice.status)) return;
+
+      const fromId = String(before.product);
+      const toId = after ? String((after.product as { _id?: unknown })?._id ?? after.product) : null;
+      const customer = await this.customerModel.findById(before.customer).select('travelChargeable travelProduct').exec();
+      const travelId = customer?.travelChargeable && customer.travelProduct ? String(customer.travelProduct) : null;
+      if (travelId && (fromId === travelId || toId === travelId)) return;
+
+      const mapping = await this.visitMappingModel.findOne().exec();
+      const ids = (keys: string[]) =>
+        new Set(keys.map((k) => (mapping as unknown as Record<string, unknown>)?.[k]).filter(Boolean).map(String));
+      const slots = (visits: 'one' | 'two') =>
+        ['', '30Min', '40Min'].flatMap((d) =>
+          ['Weekday', 'Weekend', 'BankHoliday'].map((t) => `${visits}Visit${d}${t}Product`),
+        );
+      const oneVisit = ids(slots('one'));
+      const twoVisit = ids(slots('two'));
+      const noTravel = ids([
+        'dayCareHalfDayProduct',
+        'dayCareFullDayProduct',
+        'dayCareSecondDogHalfDayProduct',
+        'dayCareSecondDogFullDayProduct',
+        'boardingPerDayProduct',
+        'boardingSecondDogPerDayProduct',
+        'boardingHalfDayProduct',
+        'boardingSecondDogHalfDayProduct',
+      ]);
+      const visitCount = (id: string) =>
+        oneVisit.has(id) ? 1 : twoVisit.has(id) ? 2 : noTravel.has(id) || before.boardingStay ? 0 : null;
+
+      const productIds = [fromId, toId, travelId, ...oneVisit, ...twoVisit].filter((id): id is string => !!id);
+      const products = await this.productModel.find({ _id: { $in: productIds } }).select('name price').exec();
+      const byId = new Map(products.map((p) => [String(p._id), { name: p.name, price: p.price }]));
+      const fromProduct = byId.get(fromId);
+      const toProduct = toId ? byId.get(toId) : undefined;
+      if (!fromProduct || (toId && !toProduct)) return;
+
+      const from: BookedSide = { product: fromProduct, quantity: before.quantity, visitCount: visitCount(fromId) };
+      const to: BookedSide | null =
+        after && toProduct && toId ? { product: toProduct, quantity: after.quantity, visitCount: visitCount(toId) } : null;
+      const travelProduct = travelId ? byId.get(travelId) : undefined;
+      const travel: TravelContext | null = travelProduct
+        ? {
+            product: travelProduct,
+            visitCountByName: new Map([
+              ...[...oneVisit].map((id) => [byId.get(id)?.name, 1] as const),
+              ...[...twoVisit].map((id) => [byId.get(id)?.name, 2] as const),
+            ].filter((e): e is [string, 1 | 2] => !!e[0])),
+          }
+        : null;
+
+      const lines = invoice.lineItems.map((l) => ({
+        description: l.description,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        discountPercent: l.discountPercent,
+      }));
+      const next = syncBookedLines(lines, from, to, travel);
+      if (!next) return;
+      await this.invoices.update(String(invoice._id), { lineItems: next }, 'System');
+    } catch (err) {
+      console.error('Invoice line sync failed for day booking (invoice left as it was):', err);
+    }
+  }
 
   // Boarding vs Day Care, purely from which VisitMapping product slot a
   // booking's product fills -- there's no stored category on Product itself,
@@ -401,6 +489,7 @@ export class DayBookingsService {
   }
 
   async update(id: string, dto: UpdateDayBookingDto): Promise<DayBooking> {
+    const before = await this.dayBookingModel.findById(id).exec();
     const update: Record<string, unknown> = { ...dto };
     if (dto.date) update.date = toDayStart(dto.date);
     const dayBooking = await this.dayBookingModel
@@ -417,6 +506,17 @@ export class DayBookingsService {
     // A moved date or changed drop-off/collection time can mean a day (or
     // half of one) that now needs its checklist.
     await this.autoAssignChecklists(dayBooking);
+    // A product/quantity change on a booking that's already on an unsent
+    // invoice. Not when the patch is what links it to an invoice (Generate
+    // Invoice does that after building the lines from the booking).
+    if (
+      before?.invoice &&
+      dto.invoice === undefined &&
+      ((dto.product !== undefined && dto.product !== String(before.product)) ||
+        (dto.quantity !== undefined && dto.quantity !== before.quantity))
+    ) {
+      await this.syncInvoiceLines(before, dayBooking);
+    }
     return dayBooking;
   }
 
@@ -425,6 +525,7 @@ export class DayBookingsService {
     if (!result) {
       throw new NotFoundException(`Day booking ${id} not found`);
     }
+    await this.syncInvoiceLines(result, null);
   }
 
   // Every row of one boarding stay (see stayId), so the admin can load a stay
