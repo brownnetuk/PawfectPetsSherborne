@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import DateInput from './DateInput';
+import InvoicePaidPrompt, { isInvoicePaid } from './InvoicePaidPrompt';
 import Modal from './Modal';
 import PaymentThankYouPrompt, { canThankCustomer } from './PaymentThankYouPrompt';
 import type { BankAccount, Invoice, Payment, PaymentMethod } from '../types';
@@ -36,6 +37,10 @@ export default function AddPaymentModal({ onClose, onSaved, initialInvoiceId }: 
   const [submitting, setSubmitting] = useState(false);
   // Set once the payment is saved, to swap the form for the thank-you prompt.
   const [recorded, setRecorded] = useState<{ payment: Payment; invoice: Invoice } | null>(null);
+  // The dropdown only lists invoices with a balance, so the only way to land
+  // on a paid one is being opened for it (initialInvoiceId, e.g. from a
+  // booking's Invoice card). That gets an "are you sure?" first.
+  const [paidPrompt, setPaidPrompt] = useState<Invoice | null>(null);
 
   // Same £-via-cents rounding InvoicesService.requestDeposit() uses server-side,
   // against the invoice's total (not its remaining balance) -- matches what
@@ -47,10 +52,15 @@ export default function AddPaymentModal({ onClose, onSaved, initialInvoiceId }: 
   useEffect(() => {
     api.listInvoices().then((list) => {
       const withBalance = list.filter((inv) => inv.status !== 'cancelled' && inv.total - (inv.amountPaid ?? 0) > 0);
+      const initial = initialInvoiceId ? list.find((inv) => inv._id === initialInvoiceId) : undefined;
+      // Keep the pre-selected invoice in the list even when it's already paid,
+      // so the selection shows -- after the paid prompt has been answered.
+      if (initial && !withBalance.some((inv) => inv._id === initial._id)) withBalance.unshift(initial);
       setInvoices(withBalance);
-      if (initialInvoiceId) {
-        const invoice = withBalance.find((inv) => inv._id === initialInvoiceId);
-        if (invoice) setAmount((invoice.total - (invoice.amountPaid ?? 0)).toFixed(2));
+      if (initial) {
+        const balance = initial.total - (initial.amountPaid ?? 0);
+        setAmount(balance > 0 ? balance.toFixed(2) : '');
+        if (isInvoicePaid(initial)) setPaidPrompt(initial);
       }
     });
     api.listBankAccounts().then((list) => {
@@ -126,6 +136,10 @@ export default function AddPaymentModal({ onClose, onSaved, initialInvoiceId }: 
     );
   }
 
+  if (paidPrompt) {
+    return <InvoicePaidPrompt invoice={paidPrompt} onCancel={onClose} onConfirm={() => setPaidPrompt(null)} />;
+  }
+
   return (
     <Modal title="Add payment" onClose={onClose}>
       {error && <div className="error-banner">{error}</div>}
@@ -140,7 +154,8 @@ export default function AddPaymentModal({ onClose, onSaved, initialInvoiceId }: 
               const balanceDue = inv.total - (inv.amountPaid ?? 0);
               return (
                 <option key={inv._id} value={inv._id}>
-                  {inv.invoiceNumber} — {customerName(inv.customer)} — £{balanceDue.toFixed(2)} due
+                  {inv.invoiceNumber} — {customerName(inv.customer)} —{' '}
+                  {balanceDue > 0 ? `£${balanceDue.toFixed(2)} due` : 'paid'}
                 </option>
               );
             })}
