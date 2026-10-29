@@ -106,4 +106,21 @@ describe('syncBookedLines', () => {
     const side = (p: typeof dayCare): BookedSide => ({ product: p, quantity: 1, visitCount: 0 });
     expect(syncBookedLines([line(dayCare, 1)], side(dayCare), side(halfDay), travel)).toEqual([line(halfDay, 1)]);
   });
+
+  it('adds a rebooked day care day before the travel line', () => {
+    const dayCare = { name: 'Day Care - Full Day', price: 30 };
+    const side: BookedSide = { product: dayCare, quantity: 1, visitCount: 0 };
+    expect(syncBookedLines([line(visit, 1), line(travelProduct, 1)], null, side, travel)).toEqual([
+      line(visit, 1),
+      line(dayCare, 1),
+      line(travelProduct, 1),
+    ]);
+  });
+
+  it('adds visit travel for an added visit day', () => {
+    expect(syncBookedLines([line(visit, 2), line(travelProduct, 2)], null, visits(visit, 1), travel)).toEqual([
+      line(visit, 3),
+      line(travelProduct, 3),
+    ]);
+  });
 });

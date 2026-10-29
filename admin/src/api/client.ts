@@ -462,6 +462,11 @@ export function getBoardingStay(stayId: string): Promise<DayBooking[]> {
 export function deleteStay(stayId: string): Promise<{ deleted: number }> {
   return request(`/day-bookings/stay/${stayId}`, { method: 'DELETE' });
 }
+// Puts an edited booking's rebooked rows back on the invoice it was on (and
+// on its lines too, while that invoice is unsent).
+export function attachDayBookingsToInvoice(bookingIds: string[], invoice: string): Promise<{ attached: number }> {
+  return request('/day-bookings/attach-invoice', { method: 'POST', body: JSON.stringify({ bookingIds, invoice }) });
+}
 export function updateDayBooking(
   id: string,
   input: Partial<Omit<DayBookingInput, 'animal'>>,

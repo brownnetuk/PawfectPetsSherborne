@@ -52,15 +52,16 @@ function addToLine(lines: SyncLine[], product: SyncProduct, quantity: number, at
 // Returns the updated lines, or null when the invoice can't be matched to
 // the booking (no line for the old product, or fewer on it than the booking
 // had -- e.g. it was edited by hand), in which case it's left alone.
-// `to` null means the booking was deleted.
+// `from` null means the booking is being added to the invoice, `to` null
+// that it was deleted.
 export function syncBookedLines(
   lines: SyncLine[],
-  from: BookedSide,
+  from: BookedSide | null,
   to: BookedSide | null,
   travel: TravelContext | null,
 ): SyncLine[] | null {
-  const fromIdx = lines.findIndex((l) => l.description === from.product.name);
-  if (fromIdx < 0 || lines[fromIdx].quantity < from.quantity) return null;
+  const fromIdx = from ? lines.findIndex((l) => l.description === from.product.name) : -1;
+  if (from && (fromIdx < 0 || lines[fromIdx].quantity < from.quantity)) return null;
 
   // Read before any change: does the travel line cover more than its Visits?
   const travelBefore = travel ? (lines.find((l) => l.description === travel.product.name)?.quantity ?? 0) : 0;
@@ -69,12 +70,20 @@ export function syncBookedLines(
     : 0;
   const hasWalkTravel = travelBefore > visitTravelBefore;
 
-  const fromLine = lines[fromIdx];
-  let next: SyncLine[] = lines.map((l, i) => (i === fromIdx ? { ...l, quantity: l.quantity - from.quantity } : l));
-  if (to) next = addToLine(next, to.product, to.quantity, fromIdx + 1, fromLine.discountPercent ?? 0);
+  let next = lines;
+  if (from) {
+    next = next.map((l, i) => (i === fromIdx ? { ...l, quantity: l.quantity - from.quantity } : l));
+  }
+  if (to) {
+    // A changed booking's new line goes straight after the one it came off,
+    // with that line's discount; an added one goes before any travel line.
+    const travelIdx = travel ? next.findIndex((l) => l.description === travel.product.name) : -1;
+    const at = from ? fromIdx + 1 : travelIdx >= 0 ? travelIdx : next.length;
+    next = addToLine(next, to.product, to.quantity, at, from ? (lines[fromIdx].discountPercent ?? 0) : 0);
+  }
   // addToLine only ever inserts after fromIdx, so it still points at the old
   // product's line -- dropped once nothing's left on it.
-  next = next.filter((l, i) => i !== fromIdx || l.quantity > 0);
+  if (from) next = next.filter((l, i) => i !== fromIdx || l.quantity > 0);
 
   if (travel && travelBefore > 0) {
     const before = travelUnits(from);
