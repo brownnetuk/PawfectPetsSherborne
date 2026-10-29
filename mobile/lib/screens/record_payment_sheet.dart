@@ -8,6 +8,36 @@ import '../models/expense.dart';
 import '../models/invoice.dart';
 import '../services/sumup_service.dart';
 
+/// Asked before the payment sheet opens for an invoice that's already paid
+/// (the admin's InvoicePaidPrompt): "Invoice already paid -- make another
+/// payment?" Returns true to go ahead; true straight away when the invoice
+/// still has a balance.
+Future<bool> confirmPaymentOnPaidInvoice(BuildContext context, Invoice invoice) async {
+  if (!invoice.isPaid) return true;
+  final money = NumberFormat.currency(locale: 'en_GB', symbol: '£');
+  final received = invoice.amountPaid > 0
+      ? ' (${money.format(invoice.amountPaid)} received against ${money.format(invoice.total)})'
+      : '';
+  final result = await showDialog<bool>(
+    context: context,
+    // Popped with the dialog's own context: this may be called from inside a
+    // tab's nested navigator, where the screen context targets the wrong one.
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Invoice already paid'),
+      content: Text('Invoice ${invoice.invoiceNumber} has already been paid$received.\n\n'
+          'Do you want to record another payment against it anyway?'),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+        FilledButton(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: const Text('Make another payment'),
+        ),
+      ],
+    ),
+  );
+  return result ?? false;
+}
+
 /// Bottom sheet for recording a payment against an invoice. Pops `true` when a
 /// payment is saved. Shared by the invoice detail screen and the invoice list.
 class RecordPaymentSheet extends StatefulWidget {
