@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import DateInput from './DateInput';
+import InvoicePaidPrompt, { isInvoicePaid } from './InvoicePaidPrompt';
 import Modal from './Modal';
 import PaymentThankYouPrompt, { canThankCustomer } from './PaymentThankYouPrompt';
 import type { BankAccount, Invoice, Payment, PaymentMethod } from '../types';
@@ -27,6 +28,8 @@ export default function RecordPaymentModal({ invoice, onClose, onSaved }: Props)
   const [submitting, setSubmitting] = useState(false);
   // Set once the payment is saved, to swap the form for the thank-you prompt.
   const [recorded, setRecorded] = useState<{ payment: Payment; invoice: Invoice } | null>(null);
+  // An already-paid invoice gets an "are you sure?" before the form.
+  const [paidConfirmed, setPaidConfirmed] = useState(() => !isInvoicePaid(invoice));
 
   useEffect(() => {
     api.listBankAccounts().then((list) => {
@@ -83,6 +86,10 @@ export default function RecordPaymentModal({ invoice, onClose, onSaved }: Props)
         <PaymentThankYouPrompt payment={recorded.payment} invoice={recorded.invoice} onDone={onSaved} />
       </Modal>
     );
+  }
+
+  if (!paidConfirmed) {
+    return <InvoicePaidPrompt invoice={invoice} onCancel={onClose} onConfirm={() => setPaidConfirmed(true)} />;
   }
 
   return (

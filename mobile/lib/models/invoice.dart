@@ -101,6 +101,10 @@ class Invoice {
   /// Outstanding balance, never negative.
   double get balanceDue => (total - amountPaid).clamp(0, double.infinity);
 
+  /// Nothing left to pay: marked paid, or payments already cover the total
+  /// (the admin's isInvoicePaid). Recording another payment asks first.
+  bool get isPaid => status == 'paid' || (total > 0 && amountPaid >= total);
+
   /// A partial payment doesn't change the stored status (it stays 'sent'
   /// until fully covered -- see the backend's applyPayment()), so "partially
   /// paid" is derived for display, same as the admin's badge.

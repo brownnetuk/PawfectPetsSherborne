@@ -139,6 +139,8 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   }
 
   Future<void> _recordPayment() async {
+    // A paid invoice asks "make another payment?" before the sheet opens.
+    if (!await confirmPaymentOnPaidInvoice(context, _invoice!) || !mounted) return;
     final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
