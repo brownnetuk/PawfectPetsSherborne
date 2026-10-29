@@ -25,6 +25,8 @@ import { FormSubmission, FormSubmissionStatus } from '../form-submissions/schema
 import { FormsService } from '../forms/forms.service';
 import { Invoice, InvoiceStatus } from '../invoices/schemas/invoice.schema';
 import { InvoicesService } from '../invoices/invoices.service';
+import { InvoiceTerm } from '../invoice-terms/schemas/invoice-term.schema';
+import { bookingDueDate } from '../invoice-terms/term-due-date';
 import { Payment } from '../payments/schemas/payment.schema';
 import { PaymentsService } from '../payments/payments.service';
 import { Quote } from '../quotes/schemas/quote.schema';
@@ -173,6 +175,9 @@ export class BoardingBookingsService {
     private readonly paymentModel: Model<Payment>,
     @InjectModel(CreditNote.name)
     private readonly creditNoteModel: Model<CreditNote>,
+    // Read-only: the default payment term, for a new booking's invoice due date.
+    @InjectModel(InvoiceTerm.name)
+    private readonly invoiceTermModel: Model<InvoiceTerm>,
     private readonly dayBookingsService: DayBookingsService,
     private readonly invoicesService: InvoicesService,
     private readonly paymentsService: PaymentsService,
@@ -380,13 +385,17 @@ export class BoardingBookingsService {
     if (lineItems.length === 0) {
       throw new BadRequestException('No priced products resolved for this booking -- check Settings > Bookings.');
     }
-    const issueDate = new Date().toISOString().slice(0, 10);
+    const today = new Date();
+    const issueDate = today.toISOString().slice(0, 10);
+    // Due on the stay's last day, unless the default payment term gives a
+    // later date (e.g. a stay booked in after it happened).
+    const defaultTerm = await this.invoiceTermModel.findOne({ isDefault: true }).exec();
     const invoice = await this.invoicesService.create(
       {
         customer: customerId,
         lineItems,
         issueDate,
-        dueDate: endDate,
+        dueDate: bookingDueDate(today, defaultTerm, endDate),
         dayCarePlan:
           dto.type === 'dayCare'
             ? {

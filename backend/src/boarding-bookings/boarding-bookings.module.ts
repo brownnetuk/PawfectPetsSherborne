@@ -11,6 +11,7 @@ import {
   FormSubmissionSchema,
 } from '../form-submissions/schemas/form-submission.schema';
 import { FormsModule } from '../forms/forms.module';
+import { InvoiceTerm, InvoiceTermSchema } from '../invoice-terms/schemas/invoice-term.schema';
 import { InvoicesModule } from '../invoices/invoices.module';
 import { Payment, PaymentSchema } from '../payments/schemas/payment.schema';
 import { PaymentsModule } from '../payments/payments.module';
@@ -57,6 +58,9 @@ import {
       // CreditNotesModule below.
       { name: Payment.name, schema: PaymentSchema },
       { name: CreditNote.name, schema: CreditNoteSchema },
+      // Read-only, for the default payment term a new booking's invoice due
+      // date is checked against -- same "declare your own copy" convention.
+      { name: InvoiceTerm.name, schema: InvoiceTermSchema },
     ]),
     // For DayBookingsService.createDayCareStay()/createBoardingStay() --
     // the single place both this module and QuotesModule now build a stay's

@@ -28,6 +28,7 @@ import {
 } from '../common/tracking-pixel.util';
 import { Customer, CustomerStatus } from '../customers/schemas/customer.schema';
 import { InvoiceTerm } from '../invoice-terms/schemas/invoice-term.schema';
+import { bookingDueDate } from '../invoice-terms/term-due-date';
 import { Invoice } from '../invoices/schemas/invoice.schema';
 import { InvoicesService } from '../invoices/invoices.service';
 import { NotificationService } from '../notifications/notification.service';
@@ -336,21 +337,13 @@ export class QuotesService {
   // Mirrors DocumentFormModal.tsx's calculateDueDate() (admin frontend) --
   // there's no term picker on the public quote page, so this uses whichever
   // term staff have marked as default the same way the "New Invoice" form
-  // pre-selects it, falling back to a plain 14 days if none is set.
-  private async computeDefaultDueDate(issueDate: Date): Promise<string> {
+  // pre-selects it, falling back to a plain 14 days if none is set. Given a
+  // booking's last day, the invoice falls due on that instead when it's later.
+  private async computeDefaultDueDate(issueDate: Date, lastBookedDate?: string): Promise<string> {
     const defaultTerm = await this.invoiceTermModel.findOne({ isDefault: true }).exec();
-    if (defaultTerm?.endOfMonth) {
-      const lastDay = new Date(issueDate.getFullYear(), issueDate.getMonth() + 1, 0);
-      const dow = lastDay.getDay(); // 0 = Sunday, 6 = Saturday
-      if (dow === 0) lastDay.setDate(lastDay.getDate() - 2);
-      else if (dow === 6) lastDay.setDate(lastDay.getDate() - 1);
-      return lastDay.toISOString().slice(0, 10);
-    }
-    const days = defaultTerm?.plusDays ?? 14;
-    const due = new Date(issueDate);
-    due.setDate(due.getDate() + days);
-    return due.toISOString().slice(0, 10);
+    return bookingDueDate(issueDate, defaultTerm, lastBookedDate);
   }
+
 
   /**
    * Turns an accepted quote's persisted Visits section into real DayBookings
@@ -492,13 +485,13 @@ export class QuotesService {
     }
     const issueDate = new Date();
     // A quote carrying a visit/day-care/boarding plan is billed for the stay
-    // itself, so the invoice falls due on the booking's last day; anything
-    // else uses the default payment term.
-    const dueDate =
-      updated.visitPlan?.endDate ??
-      updated.dayCarePlan?.date ??
-      updated.boardingPlan?.endDate ??
-      (await this.computeDefaultDueDate(issueDate));
+    // itself, so the invoice falls due on the booking's last day (unless the
+    // default payment term gives a later date); anything else just uses the
+    // default payment term.
+    const dueDate = await this.computeDefaultDueDate(
+      issueDate,
+      updated.visitPlan?.endDate ?? updated.dayCarePlan?.date ?? updated.boardingPlan?.endDate,
+    );
     const invoice = await this.invoicesService.create(
       {
         customer: (customer._id as { toString(): string }).toString(),
