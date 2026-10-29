@@ -4,6 +4,7 @@ import Modal from './Modal';
 import { ChevronDownIcon } from './icons';
 import type { DayBooking, Invoice, InvoiceTerm, LineItem, Product } from '../types';
 import { travelProductForCustomer, travelUnitsForBookings, withTravelQuantity } from '../utils/travelLines';
+import { bookingInvoiceDueDate } from '../utils/invoiceDueDate';
 
 function lineItemAmount(item: LineItem): number {
   return item.quantity * item.unitPrice * (1 - (item.discountPercent ?? 0) / 100);
@@ -17,18 +18,6 @@ function dateKey(date: Date): string {
 }
 function formatYmd(d: Date): string {
   return dateKey(d);
-}
-function lastWorkingDayOfMonth(date: Date): Date {
-  const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-  const dow = lastDay.getDay();
-  if (dow === 0) lastDay.setDate(lastDay.getDate() - 2);
-  else if (dow === 6) lastDay.setDate(lastDay.getDate() - 1);
-  return lastDay;
-}
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
 }
 function customerId(customer: DayBooking['customer']): string {
   return typeof customer === 'string' ? customer : customer._id;
@@ -67,7 +56,7 @@ interface CustomerGroup {
   // Travel staff can opt into for Walks, by the same one-per-walk rule.
   walkTravel: number;
   // The customer's latest booked date this month -- the generated invoice
-  // falls due on the last day of what it covers.
+  // falls due on it, unless the payment term gives a later date.
   lastDate: string;
   // This customer's non-cancelled invoices, offered for matching instead of
   // creating a new one.
@@ -204,19 +193,15 @@ export default function GenerateInvoicesModal({
       if (toCreate.length > 0) {
         const terms = await api.listInvoiceTerms();
         const defaultTerm = terms.find((t: InvoiceTerm) => t.isDefault);
-        const issueDate = formatYmd(new Date());
-        // Fallback only -- each invoice normally falls due on the last date
-        // of the bookings it covers.
-        let dueDate = issueDate;
-        if (defaultTerm?.endOfMonth) dueDate = formatYmd(lastWorkingDayOfMonth(new Date()));
-        else if (typeof defaultTerm?.plusDays === 'number') dueDate = formatYmd(addDays(new Date(), defaultTerm.plusDays));
+        const today = new Date();
+        const issueDate = formatYmd(today);
 
         for (const group of toCreate) {
           const invoice = await api.createInvoice({
             customer: group.customerId,
             lineItems: linesFor(group),
             issueDate,
-            dueDate: group.lastDate || dueDate,
+            dueDate: bookingInvoiceDueDate(today, defaultTerm, group.lastDate),
             paymentTerms: defaultTerm?.text,
             subject: `Bookings for ${monthLabel}`,
           });

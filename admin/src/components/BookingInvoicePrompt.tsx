@@ -4,6 +4,7 @@ import Modal from './Modal';
 import type { DayBooking, Invoice, LineItem, Product } from '../types';
 import { travelProductForCustomer, travelUnitsForBookings, withTravelQuantity } from '../utils/travelLines';
 import type { TravelUnits } from '../utils/travelLines';
+import { bookingInvoiceDueDate } from '../utils/invoiceDueDate';
 
 function productIdOf(product: DayBooking['product']): string {
   return typeof product === 'string' ? product : product._id;
@@ -168,8 +169,9 @@ export default function BookingInvoicePrompt({
           customer: customerId,
           lineItems,
           issueDate: dateKey(new Date()),
-          // Same as the monthly run: due on the last date the invoice covers.
-          dueDate: last,
+          // Same as the monthly run: due on the last date the invoice covers,
+          // or by the payment term if that's later.
+          dueDate: bookingInvoiceDueDate(new Date(), defaultTerm, last),
           paymentTerms: defaultTerm?.text,
           subject: first === last ? `Booking for ${formatDay(first)}` : `Booking ${formatDay(first)} – ${formatDay(last)}`,
         });
