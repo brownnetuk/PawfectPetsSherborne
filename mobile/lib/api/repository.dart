@@ -234,6 +234,14 @@ class Repository {
           .map((e) => AuditLogEntry.fromJson(e))
           .toList();
 
+  /// Everything recorded against one invoice (created, sent, read, deposit
+  /// requested, payments, reminders, schedule changes), newest first -- the
+  /// same query the admin's InvoiceActivityPanel uses.
+  Future<List<AuditLogEntry>> listInvoiceActivity(String invoiceId) async =>
+      (await _client.getList('/audit-log', query: {'invoice': invoiceId}))
+          .map((e) => AuditLogEntry.fromJson(e))
+          .toList();
+
   Future<String?> getAlarmInstructions(String id) async {
     final json = await _client.get('/customers/$id/alarm-instructions');
     return json['instructions'] as String?;

@@ -6,12 +6,13 @@ import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/invoice.dart';
 import '../widgets/zoomable_pdf.dart';
+import 'invoice_activity_screen.dart';
 import 'record_payment_sheet.dart';
 
 /// Shows a single invoice rendered as a PDF, with a bottom action bar
-/// (Send Email / Record Payment / Request Deposit, plus Overdue Payment once
-/// the invoice is overdue with a balance owing) in place of the app's main
-/// navigation.
+/// (Activity / Record Payment, Send Email / Request Deposit, plus Overdue
+/// Payment once the invoice is overdue with a balance owing) in place of the
+/// app's main navigation.
 class InvoiceDetailScreen extends StatefulWidget {
   final String invoiceId;
   const InvoiceDetailScreen({super.key, required this.invoiceId});
@@ -287,6 +288,11 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     final scheduled = invoice != null && invoice.status == 'scheduled';
     return InvoiceActionBar(
       enabled: invoice != null && !_busy,
+      onActivity: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => InvoiceActivityScreen(invoiceId: widget.invoiceId, invoiceNumber: invoice!.invoiceNumber),
+        ),
+      ),
       onSendEmail: _sendEmail,
       onRecordPayment: _recordPayment,
       onRequestDeposit: _requestDeposit,
@@ -299,14 +305,16 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   }
 }
 
-/// The invoice detail screen's bottom action bar. The primary action gets a
-/// full-width row and the two email actions share the row below -- three
-/// across is too cramped for these labels at phone widths. When
-/// [onScheduleSend] is given, a "Schedule Send" (or "Reschedule Send", with
-/// the current time and a cancel button when [scheduledSendAt] is set) row is
-/// added; when [onOverdueReminder] is given, an "Overdue Payment" row.
+/// The invoice detail screen's bottom action bar. The top row is Activity
+/// (the invoice's audit trail) beside the green Record Payment; the two email
+/// actions share the row below -- three across is too cramped for these
+/// labels at phone widths. When [onScheduleSend] is given, a "Schedule Send"
+/// (or "Reschedule Send", with the current time and a cancel button when
+/// [scheduledSendAt] is set) row is added; when [onOverdueReminder] is given,
+/// an "Overdue Payment" row.
 class InvoiceActionBar extends StatelessWidget {
   final bool enabled;
+  final VoidCallback onActivity;
   final VoidCallback onSendEmail;
   final VoidCallback onRecordPayment;
   final VoidCallback onRequestDeposit;
@@ -321,6 +329,7 @@ class InvoiceActionBar extends StatelessWidget {
   const InvoiceActionBar({
     super.key,
     required this.enabled,
+    required this.onActivity,
     required this.onSendEmail,
     required this.onRecordPayment,
     required this.onRequestDeposit,
@@ -341,14 +350,32 @@ class InvoiceActionBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: enabled ? onRecordPayment : null,
-              style: ElevatedButton.styleFrom(minimumSize: const Size(0, 48)),
-              icon: const Icon(Icons.payments_outlined, size: 20),
-              label: const Text('Record Payment'),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: enabled ? onActivity : null,
+                  style: outlinedStyle.copyWith(minimumSize: const WidgetStatePropertyAll(Size(0, 48))),
+                  icon: const Icon(Icons.history, size: 20),
+                  label: const Text('Activity'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: enabled ? onRecordPayment : null,
+                  // Green: the "money in" action, distinct from the blue outlines.
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(0, 48),
+                    backgroundColor: Colors.green.shade700,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.green.shade200,
+                  ),
+                  icon: const Icon(Icons.payments_outlined, size: 20),
+                  label: const Text('Record Payment'),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Row(
