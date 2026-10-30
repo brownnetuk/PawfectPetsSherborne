@@ -70,8 +70,23 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   // Tab indexes, matching _screens / the NavigationBar below.
   static const _customersTab = 0;
   static const _businessTab = 1;
+  static const _bookingsTab = 2;
   static const _boardingTab = 3;
   static const _messagesTab = 4;
+
+  /// Shows the bookings calendar on [day]: switches to the Bookings tab,
+  /// backs its stack out to the calendar, and asks it to jump (see
+  /// `PushService.requestedBookingsDay`).
+  void _showBookingsDay(DateTime day) {
+    setState(() {
+      _index = _bookingsTab;
+      _visited.add(_bookingsTab);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _navigatorKeys[_bookingsTab].currentState?.popUntil((route) => route.isFirst);
+      _push.requestedBookingsDay.value = day;
+    });
+  }
 
   /// Switches to [tab] and pushes [screen] on that tab's own navigator. A tab
   /// visited for the first time only gets its Navigator on the next frame, so
@@ -104,6 +119,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         _pushOnTab(_businessTab, InvoicesScreen(initialStatusFilter: link.id));
       case 'quote':
         _pushOnTab(_businessTab, QuoteDetailScreen(quoteId: link.id));
+      case 'bookingsDay':
+        // "Today's schedule": the calendar on that day (id is YYYY-MM-DD).
+        final day = DateTime.tryParse(link.id);
+        if (day == null) {
+          _openNotifications();
+        } else {
+          _showBookingsDay(DateTime(day.year, day.month, day.day));
+        }
       case 'customer':
         _pushOnTab(_customersTab, CustomerDetailScreen(customerId: link.id));
       case 'message':

@@ -11,6 +11,7 @@ import '../models/customer.dart';
 import '../models/day_booking.dart';
 import '../models/product.dart';
 import '../models/visit_mapping.dart';
+import '../services/push_service.dart';
 import '../utils/product_availability.dart';
 import 'add_appointment_sheet.dart';
 import 'generate_invoices_sheet.dart';
@@ -85,10 +86,37 @@ class _BookingsScreenState extends State<BookingsScreen> {
   // Monday of the week containing [_day] (weekday: Mon=1..Sun=7).
   DateTime get _weekStart => DateTime(_day.year, _day.month, _day.day - (_day.weekday - 1));
 
+  late final PushService _push;
+
   @override
   void initState() {
     super.initState();
+    // A "Today's schedule" notification asks the calendar to show a day (via
+    // the HomeShell). Honour one that's already waiting, and any that arrive
+    // while this screen is alive.
+    _push = context.read<PushService>();
+    final requested = _push.requestedBookingsDay.value;
+    if (requested != null) {
+      _day = _dateOnly(requested);
+      _view = _BookingView.day;
+      _push.requestedBookingsDay.value = null;
+    }
+    _push.requestedBookingsDay.addListener(_onRequestedDay);
     _future = _load();
+  }
+
+  @override
+  void dispose() {
+    _push.requestedBookingsDay.removeListener(_onRequestedDay);
+    super.dispose();
+  }
+
+  void _onRequestedDay() {
+    final day = _push.requestedBookingsDay.value;
+    if (day == null || !mounted) return;
+    // Clearing it re-fires this listener with null, which returns above.
+    _push.requestedBookingsDay.value = null;
+    _openDay(day);
   }
 
   Future<_DayData> _load() async {
