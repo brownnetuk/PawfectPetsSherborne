@@ -32,6 +32,12 @@ class PushService {
   bool _pendingOpen = false;
   NotificationLink? _pendingLink;
 
+  /// A day the bookings calendar should jump to (a "Today's schedule"
+  /// notification). The HomeShell sets it after switching to the Bookings
+  /// tab; `BookingsScreen` listens, jumps, and clears it. Kept here because
+  /// the calendar is the tab's long-lived root screen, not something pushed.
+  final ValueNotifier<DateTime?> requestedBookingsDay = ValueNotifier(null);
+
   PushService(this._repository) {
     _channel.setMethodCallHandler(_handle);
   }

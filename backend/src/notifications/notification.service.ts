@@ -22,7 +22,9 @@ export type NotificationLinkKind =
   | 'customer'
   | 'message'
   | 'checklist'
-  | 'boardingBooking';
+  | 'boardingBooking'
+  // id is a YYYY-MM-DD day: the bookings calendar on that day.
+  | 'bookingsDay';
 export interface NotificationLink {
   kind: NotificationLinkKind;
   id: string;
@@ -268,11 +270,13 @@ export class NotificationService {
     );
   }
 
-  // Splits today's DayBookings into visits, day care and boarding using the
-  // VisitMapping product slots (Product has no stored category), and names
+  // Splits today's DayBookings into visits, walks, day care and boarding using
+  // the VisitMapping product slots (Product has no stored category), and names
   // each group's pets by species, e.g. "1 visit (3 cats)". A two-visit
-  // product counts as 2 visits. Rows on any other product (travel, extras)
-  // aren't a booking of their own and are skipped.
+  // product counts as 2 visits. Anything not mapped is a walk -- the same rule
+  // as the apps' calendars -- except a customer's travel-charge row (not a
+  // booking of its own; needs `customer.travelProduct` populated) and a
+  // boarding stay's pick-up-day placeholder.
   private digestBookingParts(dayBookings: DayBooking[], mapping: VisitMapping | null): string[] {
     const ids = (...products: (Types.ObjectId | undefined)[]) =>
       new Set(products.filter((p): p is Types.ObjectId => !!p).map(String));
@@ -312,26 +316,35 @@ export class NotificationService {
     );
 
     let visits = 0;
+    let walks = 0;
     const pets = {
       visit: new Map<string, string>(),
+      walk: new Map<string, string>(),
       dayCare: new Map<string, string>(),
       boarding: new Map<string, string>(),
     };
     for (const b of dayBookings) {
+      if (b.placeholder) continue;
       const product = String(b.product);
+      const travelProduct = (b.customer as unknown as { travelProduct?: unknown } | null)?.travelProduct;
+      if (travelProduct && String(travelProduct) === product) continue;
       let group: keyof typeof pets;
       if (oneVisit.has(product) || twoVisit.has(product)) {
         group = 'visit';
         visits += twoVisit.has(product) ? 2 : 1;
       } else if (dayCare.has(product)) group = 'dayCare';
-      else if (boarding.has(product)) group = 'boarding';
-      else continue;
+      else if (boarding.has(product) || b.boardingStay) group = 'boarding';
+      else {
+        group = 'walk';
+        walks += b.quantity || 1;
+      }
       for (const a of [b.animal, ...(b.additionalAnimals ?? [])] as unknown as (Animal | null)[]) {
         if (a) pets[group].set(String(a._id), a.species);
       }
     }
 
     const parts: string[] = [];
+    if (walks > 0) parts.push(`${walks} walk${walks === 1 ? '' : 's'} (${this.speciesSummary(pets.walk)})`);
     if (visits > 0) parts.push(`${visits} visit${visits === 1 ? '' : 's'} (${this.speciesSummary(pets.visit)})`);
     if (pets.dayCare.size > 0) parts.push(`day care for ${this.speciesSummary(pets.dayCare)}`);
     if (pets.boarding.size > 0) parts.push(`boarding for ${this.speciesSummary(pets.boarding)}`);
@@ -382,6 +395,8 @@ export class NotificationService {
       .find({ date: { $gte: dayStart, $lt: dayEnd } })
       .populate('animal', 'species')
       .populate('additionalAnimals', 'species')
+      // So a customer's travel-charge row can be told apart from a walk.
+      .populate('customer', 'travelProduct')
       .exec();
     const mapping = await this.visitMappingModel.findOne().exec();
     const appointments = await this.appointmentModel
@@ -390,7 +405,10 @@ export class NotificationService {
 
     const parts = this.digestBookingParts(dayBookings, mapping);
     parts.push(`${appointments} appointment${appointments === 1 ? '' : 's'}`);
-    await this.dispatch("Today's schedule", `${this.joinList(parts)} today.`, 'dailyDigest');
+    await this.dispatch("Today's schedule", `${this.joinList(parts)} today.`, 'dailyDigest', {
+      kind: 'bookingsDay',
+      id: todayKey,
+    });
     await this.settings.markDigestSent(todayKey);
     this.logger.log(`Daily digest sent for ${todayKey}`);
   }
