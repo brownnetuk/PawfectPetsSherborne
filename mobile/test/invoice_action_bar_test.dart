@@ -15,6 +15,7 @@ void main() {
         home: Scaffold(
           bottomNavigationBar: InvoiceActionBar(
             enabled: true,
+            onActivity: () {},
             onSendEmail: () {},
             onRecordPayment: () {},
             onRequestDeposit: () {},
@@ -25,9 +26,13 @@ void main() {
     // A RenderFlex overflow would throw here and fail the test.
     await tester.pumpAndSettle();
 
+    expect(find.text('Activity'), findsOneWidget);
     expect(find.text('Record Payment'), findsOneWidget);
     expect(find.text('Send Email'), findsOneWidget);
     expect(find.text('Request Deposit'), findsOneWidget);
+    // Activity and Record Payment share the top row, Activity on the left.
+    expect(tester.getCenter(find.text('Activity')).dx, lessThan(tester.getCenter(find.text('Record Payment')).dx));
+    expect(tester.getCenter(find.text('Activity')).dy, closeTo(tester.getCenter(find.text('Record Payment')).dy, 1));
     expect(tester.takeException(), isNull);
   });
 
@@ -39,6 +44,7 @@ void main() {
           home: Scaffold(
             bottomNavigationBar: InvoiceActionBar(
               enabled: true,
+              onActivity: () {},
               onSendEmail: () {},
               onRecordPayment: () {},
               onRequestDeposit: () {},
@@ -77,6 +83,7 @@ void main() {
           home: Scaffold(
             bottomNavigationBar: InvoiceActionBar(
               enabled: true,
+              onActivity: () {},
               onSendEmail: () {},
               onRecordPayment: () {},
               onRequestDeposit: () {},
@@ -103,6 +110,7 @@ void main() {
         home: Scaffold(
           bottomNavigationBar: InvoiceActionBar(
             enabled: false,
+            onActivity: () {},
             onSendEmail: () {},
             onRecordPayment: () {},
             onRequestDeposit: () {},
