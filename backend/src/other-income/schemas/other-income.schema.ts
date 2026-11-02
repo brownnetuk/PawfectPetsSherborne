@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { BankAccount } from '../../bank-accounts/schemas/bank-account.schema';
+import { Expense } from '../../expenses/schemas/expense.schema';
 
 // Money received that isn't against an invoice -- a supplier refund, bank
 // interest and the like. Credits `account` the same way a Payment does, but
@@ -22,6 +23,11 @@ export class OtherIncome extends Document {
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: BankAccount.name, required: true })
   account: Types.ObjectId;
+
+  // The expense this refunds, when recorded from an expense's Refund button.
+  // Its presence is what marks that expense as refunded (watermark, [R]).
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Expense.name, index: true })
+  expense?: Types.ObjectId;
 }
 
 export const OtherIncomeSchema = SchemaFactory.createForClass(OtherIncome);

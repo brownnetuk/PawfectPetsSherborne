@@ -934,6 +934,29 @@ table input:focus {
   animation: modalIn 0.16s ease;
 }
 
+/* ViewExpenseModal on a refunded expense: "Refunded" across the panel, bottom
+   left to top right. Click-through, so the buttons underneath still work. */
+.modal.refunded-watermark {
+  position: relative;
+}
+
+.modal.refunded-watermark::after {
+  content: 'Refunded';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-35deg);
+  font-family: var(--font-display);
+  font-size: 5.5rem;
+  letter-spacing: 0.04em;
+  color: var(--action);
+  opacity: 0.16;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
+}
+
 .modal.modal-wide {
   max-width: 680px;
 }
