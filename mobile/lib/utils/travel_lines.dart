@@ -65,7 +65,12 @@ TravelUnits travelUnitsForBookings(Iterable<DayBooking> bookings, VisitMapping m
 List<InvoiceLineItem> withTravelQuantity(List<InvoiceLineItem> lineItems, Product travel, int quantity) {
   final index = lineItems.indexWhere((li) => li.description == travel.name);
   if (quantity <= 0) {
-    return index < 0 ? lineItems : [...lineItems]..removeAt(index);
+    // Nothing to remove when there's no travel line. (Written as two
+    // statements on purpose: `a ? b : c..removeAt(i)` cascades on the whole
+    // conditional, so with no travel line it called removeAt(-1) and threw,
+    // which broke Generate Invoices for every travel-chargeable customer.)
+    if (index < 0) return lineItems;
+    return [...lineItems]..removeAt(index);
   }
   final line = InvoiceLineItem(description: travel.name, quantity: quantity.toDouble(), unitPrice: travel.price);
   if (index < 0) return [...lineItems, line];

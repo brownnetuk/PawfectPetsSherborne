@@ -6667,7 +6667,7 @@ sequenceDiagram
 | `animal_detail_screen_test.dart` | "shows the full pet record across its sections" |
 | `create_invoice_screen_test.dart` | `_FakeRepository extends Repository`: submits the selected product as a line item; will not submit without a product; shows a message when no products are configured |
 | `invoice_action_bar_test.dart` | `InvoiceActionBar` lays out its actions without overflow at phone width, with Activity to the left of Record Payment on the same row; the Schedule Send row is hidden without a handler, shows "Schedule Send" for a draft and "Sends d MMM HH:mm" + a tappable Cancel Send once scheduled; the Overdue Payment row only appears when a handler is passed and is tappable; disabling greys out all actions |
-| `travel_lines_test.dart` | `travelUnitsForBookings` counts 1/2 per Visit day and 1 per Walk, ignoring booked travel rows, Day Care, Boarding (incl. half days and stay rows) and placeholders; `withTravelQuantity` adds at the end, replaces in place, removes at 0 |
+| `travel_lines_test.dart` | `travelUnitsForBookings` counts 1/2 per Visit day and 1 per Walk, ignoring booked travel rows, Day Care, Boarding (incl. half days and stay rows) and placeholders; `withTravelQuantity` adds at the end, replaces in place, removes at 0, and is a no-op at 0 with no travel line (the 1.0.126-1.0.131 RangeError that broke Generate Invoices) |
 | `paid_invoice_prompt_test.dart` | `Invoice.isPaid` cases; `confirmPaymentOnPaidInvoice` returns true without a dialog for an unpaid invoice, and for a paid one shows "Invoice already paid" with the amounts, Cancel → false, Make another payment → true |
 | `new_customer_test.dart` | New customer button creates a lead from first/last name + email; rejects an invalid email |
 

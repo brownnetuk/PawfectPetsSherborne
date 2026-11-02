@@ -64,6 +64,13 @@ void main() {
     final removed = withTravelQuantity(base, travel, 0);
     expect(removed.map((l) => l.description), ['Walk', 'Visit']);
 
+    // Zero travel with no travel line present must be a no-op (this threw a
+    // RangeError in 1.0.126-1.0.131, breaking Generate Invoices for any
+    // travel-chargeable customer whose month had no travel row).
+    final untouched = withTravelQuantity(removed, travel, 0);
+    expect(untouched.map((l) => l.description), ['Walk', 'Visit']);
+    expect(removed.length, 2, reason: 'the input list must not be mutated');
+
     final added = withTravelQuantity(removed, travel, 2);
     expect(added.last.description, 'Travel');
     expect(added.last.quantity, 2);
