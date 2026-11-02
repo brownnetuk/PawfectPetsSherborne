@@ -1,5 +1,5 @@
 import type { jsPDF } from 'jspdf';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, StandardFonts, degrees, rgb } from 'pdf-lib';
 import {
   BODY,
   BrandPdfWriter,
@@ -7,6 +7,7 @@ import {
   INNER_X,
   MARGIN,
   PAGE_HEIGHT,
+  PINK,
   RULE,
   fieldRowBlock,
   loadContactLine,
@@ -88,6 +89,40 @@ function rows(doc: jsPDF, pairs: [string, string][]): Block[] {
   return pairs.map(([label, value]) => fieldRowBlock(doc, label, value, width));
 }
 
+/**
+ * Stamps "Refunded" faintly across every page, bottom left to top right,
+ * angled to each page's own diagonal so appended receipts (any size or
+ * orientation) get it too.
+ */
+async function watermarkRefunded(pdf: PDFDocument): Promise<void> {
+  const font = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const text = 'REFUNDED';
+  const [r, g, b] = PINK;
+  for (const page of pdf.getPages()) {
+    const { width, height } = page.getSize();
+    const angle = Math.atan2(height, width);
+    const diagonal = Math.hypot(width, height);
+    // Spans ~60% of the diagonal, whatever the page size.
+    const size = (diagonal * 0.6) / font.widthOfTextAtSize(text, 1);
+    const textWidth = font.widthOfTextAtSize(text, size);
+    const capHeight = font.heightAtSize(size, { descender: false });
+    // drawText anchors at the baseline's left end, so step back from the
+    // page centre by half the text along, and half its height across, the
+    // rotated baseline.
+    const x = width / 2 - (textWidth / 2) * Math.cos(angle) + (capHeight / 2) * Math.sin(angle);
+    const y = height / 2 - (textWidth / 2) * Math.sin(angle) - (capHeight / 2) * Math.cos(angle);
+    page.drawText(text, {
+      x,
+      y,
+      size,
+      font,
+      color: rgb(r / 255, g / 255, b / 255),
+      opacity: 0.15,
+      rotate: degrees((angle * 180) / Math.PI),
+    });
+  }
+}
+
 /** Builds the expense PDF, with its receipt appended, as raw PDF bytes. */
 export async function buildExpensePdf(expense: Expense): Promise<Uint8Array> {
   const w = new BrandPdfWriter();
@@ -133,9 +168,13 @@ export async function buildExpensePdf(expense: Expense): Promise<Uint8Array> {
 
   w.finish(await loadContactLine());
   const ours = new Uint8Array(doc.output('arraybuffer'));
-  if (!receiptIsPdf) return ours;
+  if (!receiptIsPdf && !expense.refunded) return ours;
 
   const merged = await PDFDocument.load(ours);
+  if (!receiptIsPdf) {
+    await watermarkRefunded(merged);
+    return merged.save();
+  }
   let attached: PDFDocument;
   try {
     attached = await PDFDocument.load(await dataUriToBlob(receipt).arrayBuffer(), { ignoreEncryption: true });
@@ -144,6 +183,7 @@ export async function buildExpensePdf(expense: Expense): Promise<Uint8Array> {
   }
   const pages = await merged.copyPages(attached, attached.getPageIndices());
   pages.forEach((page) => merged.addPage(page));
+  if (expense.refunded) await watermarkRefunded(merged);
   return merged.save();
 }
 

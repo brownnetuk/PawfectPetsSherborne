@@ -501,6 +501,7 @@ function refundDraft(e: Expense): OtherIncomeDraft {
     description: `Refund: ${what}${e.reference ? ` (${e.reference})` : ''}`,
     amount: e.amount,
     account: typeof e.account === 'string' ? e.account : e.account?._id,
+    expense: e._id,
   };
 }
 
@@ -620,7 +621,14 @@ function ExpensesCard() {
                 <td>{e.category}</td>
                 <td>{expenseAccountLabel(e.account)}</td>
                 <td>{e.description || '—'}</td>
-                <td>£{e.amount.toFixed(2)}</td>
+                <td>
+                  £{e.amount.toFixed(2)}
+                  {e.refunded && (
+                    <strong style={{ marginLeft: 6 }} title="Refunded">
+                      [R]
+                    </strong>
+                  )}
+                </td>
                 <td>
                   {e.receipt ? (
                     <span style={{ color: 'var(--brand-green)', fontWeight: 700 }} title="Has an attachment">
@@ -677,7 +685,10 @@ function ExpensesCard() {
           title="Refund"
           initial={refundDraft(refunding)}
           onClose={() => setRefunding(null)}
-          onSaved={() => setRefunding(null)}
+          onSaved={() => {
+            setRefunding(null);
+            refresh();
+          }}
         />
       )}
 

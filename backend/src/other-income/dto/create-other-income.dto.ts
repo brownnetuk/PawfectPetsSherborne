@@ -28,4 +28,9 @@ export class CreateOtherIncomeDto {
 
   @IsMongoId()
   account: string;
+
+  // Set when this is a refund of an expense (the expense's Refund button).
+  @IsOptional()
+  @IsMongoId()
+  expense?: string;
 }

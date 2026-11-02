@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { BankAccountsModule } from '../bank-accounts/bank-accounts.module';
 import { BusinessInfo, BusinessInfoSchema } from '../settings/schemas/business-info.schema';
+import { OtherIncome, OtherIncomeSchema } from '../other-income/schemas/other-income.schema';
 import { SettingsModule } from '../settings/settings.module';
 import { ExpensesController } from './expenses.controller';
 import { ExpensesService } from './expenses.service';
@@ -15,6 +16,9 @@ import { Expense, ExpenseSchema } from './schemas/expense.schema';
       // rather than importing it from SettingsModule, same "declare your own
       // copy" convention RiskAssessmentsModule/PoliciesModule use.
       { name: BusinessInfo.name, schema: BusinessInfoSchema },
+      // Read-only, to flag expenses that have a refund recorded against them,
+      // plus the one-off linking of refunds recorded before that link existed.
+      { name: OtherIncome.name, schema: OtherIncomeSchema },
     ]),
     BankAccountsModule,
     // For sendReceiptEmail()'s SettingsService.sendDirectEmail() call.

@@ -877,6 +877,8 @@ export interface OtherIncomeInput {
   description?: string;
   amount: number;
   account: string;
+  // The expense being refunded, when recorded from its Refund button.
+  expense?: string;
 }
 export function createOtherIncome(input: OtherIncomeInput): Promise<OtherIncome> {
   return request('/other-income', { method: 'POST', body: JSON.stringify(input) });

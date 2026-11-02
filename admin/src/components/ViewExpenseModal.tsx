@@ -35,7 +35,11 @@ function PdfReceipt({ dataUri }: { dataUri: string }) {
 export default function ViewExpenseModal({ expense, onClose, onEdit, onRefund, onEmail }: Props) {
   const receiptName = expenseReceiptName(expense);
   return (
-    <Modal title={expense.description || expense.category} onClose={onClose}>
+    <Modal
+      title={expense.description || expense.category}
+      onClose={onClose}
+      className={expense.refunded ? 'refunded-watermark' : undefined}
+    >
       <dl className="kv-grid">
         <dt>Expense ID</dt>
         <dd>{expense.expenseId || '—'}</dd>

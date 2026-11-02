@@ -319,6 +319,8 @@ export interface OtherIncome {
   description?: string;
   amount: number;
   account: { _id: string; name: string; type: BankAccountType } | string | null;
+  // The expense this refunds, if recorded from its Refund button.
+  expense?: string;
   createdAt: string;
 }
 
@@ -392,6 +394,8 @@ export interface Expense {
   // Date-Payee-Amount.ext, e.g. 08-10-2026-Amazon-9.99.pdf. Missing on
   // receipts attached before renaming existed, or from the mobile app.
   receiptName?: string;
+  // True once a refund (Other Income linked to this expense) is recorded.
+  refunded?: boolean;
   createdAt: string;
 }
 

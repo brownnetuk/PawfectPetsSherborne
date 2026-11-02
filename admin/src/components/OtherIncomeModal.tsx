@@ -10,6 +10,8 @@ export interface OtherIncomeDraft {
   description?: string;
   amount?: number;
   account?: string;
+  // The expense being refunded -- not shown, just saved as the link.
+  expense?: string;
 }
 
 interface Props {
@@ -52,6 +54,7 @@ export default function OtherIncomeModal({ initial, title = 'Other Income', onCl
         description: description.trim() || undefined,
         amount: Number(amount),
         account,
+        expense: initial?.expense,
       });
       onSaved();
     } catch (err) {

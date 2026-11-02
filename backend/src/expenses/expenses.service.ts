@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { BankAccountsService } from '../bank-accounts/bank-accounts.service';
 import { nextSequenceNumber } from '../common/document-number.util';
 import { escapeHtml } from '../common/html.util';
+import { OtherIncome } from '../other-income/schemas/other-income.schema';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { SettingsService } from '../settings/settings.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
@@ -11,11 +12,16 @@ import { SendExpenseEmailDto } from './dto/send-expense-email.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { Expense } from './schemas/expense.schema';
 
+// What the list/detail endpoints return: the expense plus whether a refund
+// (an Other Income entry linked to it) has been recorded against it.
+export type ExpenseWithRefund = ReturnType<Expense['toObject']> & { refunded: boolean };
+
 @Injectable()
 export class ExpensesService implements OnModuleInit {
   constructor(
     @InjectModel(Expense.name) private readonly expenseModel: Model<Expense>,
     @InjectModel(BusinessInfo.name) private readonly businessInfoModel: Model<BusinessInfo>,
+    @InjectModel(OtherIncome.name) private readonly otherIncomeModel: Model<OtherIncome>,
     private readonly bankAccountsService: BankAccountsService,
     private readonly settingsService: SettingsService,
   ) {}
@@ -23,6 +29,52 @@ export class ExpensesService implements OnModuleInit {
   onModuleInit() {
     // Fire-and-forget -- boot must never wait on it.
     void this.assignMissingExpenseIds();
+    void this.linkExistingRefunds();
+  }
+
+  /**
+   * Refunds recorded from an expense's Refund button before Other Income
+   * carried an `expense` link only have the prefilled text to go on: received
+   * from the payee, described "Refund: <description or category> (<ref>)".
+   * Links each one whose text points at exactly one expense dated on or
+   * before it, so those expenses show as refunded too. Idempotent: only
+   * unlinked "Refund: " entries are looked at.
+   */
+  private async linkExistingRefunds(): Promise<void> {
+    try {
+      const unlinked = await this.otherIncomeModel
+        .find({ expense: null, description: /^Refund: / })
+        .select('_id date receivedFrom description')
+        .exec();
+      let linked = 0;
+      for (const income of unlinked) {
+        const candidates = await this.expenseModel
+          .find({ payee: income.receivedFrom, date: { $lte: income.date } })
+          .select('_id description category reference')
+          .exec();
+        const matches = candidates.filter((e) => refundDescription(e) === income.description);
+        if (matches.length !== 1) continue;
+        await this.otherIncomeModel
+          .updateOne({ _id: income._id, expense: null }, { $set: { expense: matches[0]._id } })
+          .exec();
+        linked++;
+      }
+      if (linked > 0) {
+        console.log(`Expenses: linked ${linked} existing refund(s) to their expense.`);
+      }
+    } catch (err) {
+      console.error('Linking existing refunds failed (will retry next boot):', err);
+    }
+  }
+
+  /** Adds `refunded` to each expense: true when any Other Income links to it. */
+  private async withRefundFlags(expenses: Expense[]): Promise<ExpenseWithRefund[]> {
+    if (expenses.length === 0) return [];
+    const refundedIds = await this.otherIncomeModel
+      .distinct('expense', { expense: { $in: expenses.map((e) => e._id as Types.ObjectId) } })
+      .exec();
+    const refunded = new Set(refundedIds.map(String));
+    return expenses.map((e) => ({ ...e.toObject(), refunded: refunded.has(String(e._id)) }));
   }
 
   private async nextExpenseId(): Promise<string> {
@@ -64,7 +116,7 @@ export class ExpensesService implements OnModuleInit {
     return created;
   }
 
-  findAll(from?: string, to?: string): Promise<Expense[]> {
+  async findAll(from?: string, to?: string): Promise<ExpenseWithRefund[]> {
     const filter: Record<string, unknown> = {};
     if (from || to) {
       filter.date = {
@@ -72,21 +124,23 @@ export class ExpensesService implements OnModuleInit {
         ...(to ? { $lte: new Date(to) } : {}),
       };
     }
-    return this.expenseModel
+    const expenses = await this.expenseModel
       .find(filter)
       .sort({ date: -1 })
       .populate('account', 'name type')
       .exec();
+    return this.withRefundFlags(expenses);
   }
 
-  async findOne(id: string): Promise<Expense> {
+  async findOne(id: string): Promise<ExpenseWithRefund> {
     // Populated like findAll() so the staff app's detail view can show the
     // "Paid from" account name, not just an id.
     const expense = await this.expenseModel.findById(id).populate('account', 'name type').exec();
     if (!expense) {
       throw new NotFoundException(`Expense ${id} not found`);
     }
-    return expense;
+    const [withFlag] = await this.withRefundFlags([expense]);
+    return withFlag;
   }
 
   // Reverts the old amount from whichever account it was debited against (if
@@ -161,4 +215,10 @@ function receiptFileName(expense: Expense): string {
     ? new Date(expense.date).toISOString().slice(0, 10).split('-').reverse().join('-')
     : 'undated';
   return `${date}-${safePart(expense.payee ?? '') || 'No-payee'}-${expense.amount.toFixed(2)}.${ext}`;
+}
+
+// The description the admin app's Refund button prefills (refundDraft() in
+// FinancialPage.tsx) -- used to recognise refunds recorded before the link.
+function refundDescription(e: Pick<Expense, 'description' | 'category' | 'reference'>): string {
+  return `Refund: ${e.description || e.category}${e.reference ? ` (${e.reference})` : ''}`;
 }
