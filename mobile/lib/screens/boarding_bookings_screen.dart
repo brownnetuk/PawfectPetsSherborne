@@ -2,12 +2,15 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import '../api/api_client.dart';
 import '../api/repository.dart';
 import '../models/animal.dart';
 import '../models/boarding_booking.dart';
 import '../models/customer.dart';
+import '../models/invoice.dart';
+import '../utils/booking_confirmation_pdf.dart';
 import 'customer_forms_screen.dart';
 import 'form_fill_screen.dart';
 import 'invoice_detail_screen.dart';
@@ -287,19 +290,225 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
   bool _sendingPreCheckIn = false;
   bool _startingCheck = false;
   bool _requestingPayment = false;
+  bool _sendingConfirmation = false;
   bool _loadingDetails = false;
   DateTime? _preCheckInSentAt;
+  DateTime? _confirmationSentAt;
   String? _paymentRequestType;
 
   // Fetched on first tap of a dog/customer name, then reused.
   List<Animal>? _animals;
   Customer? _customer;
 
+  bool get _busy => _openingForm || _sendingPreCheckIn || _startingCheck || _requestingPayment || _sendingConfirmation;
+
   @override
   void initState() {
     super.initState();
     _preCheckInSentAt = widget.item.booking.preCheckInSentAt;
+    _confirmationSentAt = widget.item.booking.confirmationSentAt;
     _paymentRequestType = widget.item.booking.paymentRequestType;
+  }
+
+  /// The grouped action menus (Financial / Administration / Boarding): a
+  /// bottom sheet of the options that apply right now. Each option pops the
+  /// sheet, then runs.
+  Future<void> _showMenu(String title, List<Widget> tiles) async {
+    final action = await showModalBottomSheet<VoidCallback>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+              ),
+            ),
+            ...tiles,
+          ],
+        ),
+      ),
+    );
+    if (action != null && mounted) action();
+  }
+
+  /// A menu row that pops the sheet with its action (run by [_showMenu]).
+  Widget _menuTile(BuildContext sheetContext, IconData icon, String title, VoidCallback action, {String? subtitle}) =>
+      ListTile(
+        leading: Icon(icon),
+        title: Text(title),
+        subtitle: subtitle == null ? null : Text(subtitle),
+        onTap: () => Navigator.of(sheetContext).pop(action),
+      );
+
+  String _sentLabel(DateTime at) => 'Sent ${DateFormat('d MMM yyyy').format(at.toLocal())}';
+
+  /// Financial: payment request and the invoice.
+  Future<void> _financialMenu() {
+    final b = widget.item.booking;
+    return _showMenu('Financial', [
+      Builder(builder: (sheetContext) {
+        if (b.invoiceId == null) {
+          return const ListTile(
+            leading: Icon(Icons.receipt_long_outlined),
+            title: Text('Not yet invoiced'),
+            subtitle: Text('Request payment and View invoice appear once the booking has an invoice.'),
+            enabled: false,
+          );
+        }
+        return Column(mainAxisSize: MainAxisSize.min, children: [
+          // One-shot, same as the admin: only while no request (deposit or
+          // full) has been emailed yet.
+          if (_paymentRequestType == null)
+            _menuTile(sheetContext, Icons.request_quote_outlined, 'Request payment', _requestPayment,
+                subtitle: 'Email a deposit or full-amount request'),
+          _menuTile(
+            sheetContext,
+            Icons.receipt_long_outlined,
+            'View invoice',
+            () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => InvoiceDetailScreen(invoiceId: b.invoiceId!)),
+            ),
+            subtitle: b.invoiceNumber,
+          ),
+        ]);
+      }),
+    ]);
+  }
+
+  /// Administration: the pre-check-in form and the booking confirmation.
+  Future<void> _administrationMenu() {
+    final b = widget.item.booking;
+    return _showMenu('Administration', [
+      Builder(builder: (sheetContext) {
+        return Column(mainAxisSize: MainAxisSize.min, children: [
+          // Same gating as the admin's "Send now": only once invoiced, and
+          // only until the customer has completed it (then View takes over).
+          if (b.preCheckInSubmission == null && b.invoiceId != null)
+            _menuTile(
+              sheetContext,
+              Icons.send_outlined,
+              _preCheckInSentAt != null ? 'Re-send pre-check-in form' : 'Send pre-check-in form',
+              _sendPreCheckIn,
+              subtitle: _preCheckInSentAt != null ? _sentLabel(_preCheckInSentAt!) : 'Email the customer a fill-in link',
+            ),
+          if (b.preCheckInSubmission != null)
+            _menuTile(sheetContext, Icons.assignment_turned_in_outlined, 'View pre-check-in form',
+                () => _openForm(b.preCheckInSubmission!)),
+          _menuTile(
+            sheetContext,
+            Icons.mark_email_read_outlined,
+            _confirmationSentAt != null ? 'Re-send booking confirmation' : 'Send booking confirmation',
+            _sendConfirmation,
+            subtitle: _confirmationSentAt != null
+                ? _sentLabel(_confirmationSentAt!)
+                : 'Email the confirmation PDF to ${b.customerEmail.isEmpty ? 'the customer' : b.customerEmail}',
+          ),
+        ]);
+      }),
+    ]);
+  }
+
+  /// Boarding: arrival / departure and the day-to-day observations.
+  Future<void> _boardingMenu() {
+    final b = widget.item.booking;
+    return _showMenu('Boarding', [
+      Builder(builder: (sheetContext) {
+        return Column(mainAxisSize: MainAxisSize.min, children: [
+          if (b.checkInSubmission == null || b.checkOutSubmission == null)
+            _menuTile(sheetContext, Icons.swap_horiz_outlined, 'Arrive / Depart', _arriveDepart,
+                subtitle: 'Check in or check out'),
+          if (b.checkInSubmission != null)
+            _menuTile(sheetContext, Icons.login_outlined, 'View check-in form', () => _openForm(b.checkInSubmission!)),
+          if (b.checkOutSubmission != null)
+            _menuTile(sheetContext, Icons.logout_outlined, 'View check-out form', () => _openForm(b.checkOutSubmission!)),
+          _menuTile(
+            sheetContext,
+            Icons.visibility_outlined,
+            'Observations',
+            () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ObservationsScreen(bookingId: b.id, bookingReference: b.reference),
+              ),
+            ),
+            subtitle: 'Care notes and photos for this stay',
+          ),
+        ]);
+      }),
+    ]);
+  }
+
+  /// Builds the Booking Confirmation PDF on the device (the admin's
+  /// BookingConfirmationModal), offers a preview, and emails it to the
+  /// customer with the "Booking Confirmation" template.
+  Future<void> _sendConfirmation() async {
+    if (_sendingConfirmation) return;
+    final b = widget.item.booking;
+    final repo = context.read<Repository>();
+    setState(() => _sendingConfirmation = true);
+    try {
+      final business = await repo.getBusinessForConfirmation();
+      final logo = await repo.getBusinessLogo();
+      Invoice? invoice;
+      if (b.invoiceId != null) {
+        try {
+          invoice = await repo.getInvoice(b.invoiceId!);
+        } catch (_) {
+          // Shown as "Not yet invoiced" rather than blocking the send.
+        }
+      }
+      final bytes = await buildBookingConfirmationPdf(booking: b, invoice: invoice, business: business, logoBytes: logo);
+      final fileName = 'Booking Confirmation - ${b.reference}.pdf';
+      if (!mounted) return;
+
+      // Preview re-opens the question afterwards, so staff can look then send.
+      while (true) {
+        final choice = await showDialog<String>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Send booking confirmation'),
+            content: Text(
+              'Email the booking confirmation for ${b.reference} to ${b.customerEmail.isEmpty ? b.customerName : b.customerEmail}?'
+              '${_confirmationSentAt != null ? '\n\nLast sent ${DateFormat('d MMM yyyy').format(_confirmationSentAt!.toLocal())}.' : ''}',
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+              TextButton(onPressed: () => Navigator.of(dialogContext).pop('preview'), child: const Text('Preview')),
+              FilledButton(onPressed: () => Navigator.of(dialogContext).pop('send'), child: const Text('Send')),
+            ],
+          ),
+        );
+        if (!mounted) return;
+        if (choice == 'preview') {
+          await Printing.layoutPdf(onLayout: (_) async => bytes, name: fileName);
+          if (!mounted) return;
+          continue;
+        }
+        if (choice != 'send') return;
+        break;
+      }
+
+      await repo.sendBoardingConfirmation(
+        b.id,
+        dataUri: 'data:application/pdf;base64,${base64Encode(bytes)}',
+        fileName: fileName,
+      );
+      if (!mounted) return;
+      setState(() => _confirmationSentAt = DateTime.now());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Booking confirmation emailed to ${b.customerEmail.isEmpty ? b.customerName : b.customerEmail}.')),
+      );
+    } catch (e) {
+      if (mounted) {
+        final message = e is ApiException ? e.message : 'Failed to send the booking confirmation';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
+    } finally {
+      if (mounted) setState(() => _sendingConfirmation = false);
+    }
   }
 
   /// Prompts Deposit vs Full amount, then emails the payment request for the
@@ -406,13 +615,23 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
     }
   }
 
-  Widget _actionButton(IconData icon, String label, VoidCallback onPressed) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: OutlinedButton.icon(
-        onPressed: _openingForm || _sendingPreCheckIn || _startingCheck || _requestingPayment ? null : onPressed,
-        icon: Icon(icon, size: 18),
-        label: Text(label),
+  /// One of the three group buttons (icon over label, three across).
+  Widget _groupButton(IconData icon, String label, VoidCallback onPressed, {String? busyLabel}) {
+    return Expanded(
+      child: OutlinedButton(
+        onPressed: _busy ? null : onPressed,
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 22),
+            const SizedBox(height: 4),
+            Text(busyLabel ?? label, style: const TextStyle(fontSize: 12.5), textAlign: TextAlign.center),
+          ],
+        ),
       ),
     );
   }
@@ -564,65 +783,35 @@ class _BoardingBookingDetailScreenState extends State<BoardingBookingDetailScree
           _row('Pick up', b.pickUpTime.isEmpty ? '—' : b.pickUpTime),
           _invoicedRow(b),
           if ((b.notes ?? '').trim().isNotEmpty) _row('Notes', b.notes!),
-          ...[
-            const SizedBox(height: 8),
-            // One-shot, same as the admin: only while invoiced and no request
-            // (deposit or full) has been emailed yet.
-            if (b.invoiceId != null && _paymentRequestType == null)
-              _actionButton(
-                Icons.request_quote_outlined,
-                _requestingPayment ? 'Sending…' : 'Request payment',
-                _requestPayment,
+          const SizedBox(height: 12),
+          // Three groups of actions, each opening a sheet of what applies:
+          // Financial (request payment, invoice), Administration (pre-check-in
+          // form, booking confirmation), Boarding (arrive/depart, forms,
+          // observations). A busy label shows which one is mid-flight.
+          Row(
+            children: [
+              _groupButton(
+                Icons.account_balance_wallet_outlined,
+                'Financial',
+                _financialMenu,
+                busyLabel: _requestingPayment ? 'Sending…' : null,
               ),
-            if (b.invoiceId != null)
-              _actionButton(
-                Icons.receipt_long_outlined,
-                'View invoice',
-                () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => InvoiceDetailScreen(invoiceId: b.invoiceId!)),
-                ),
+              const SizedBox(width: 10),
+              _groupButton(
+                Icons.folder_shared_outlined,
+                'Administration',
+                _administrationMenu,
+                busyLabel: _sendingPreCheckIn || _sendingConfirmation ? 'Sending…' : null,
               ),
-            // Same gating as the admin's "Send now": only once invoiced, and
-            // only until the customer has completed it (then View takes over).
-            if (b.preCheckInSubmission == null && b.invoiceId != null) ...[
-              _actionButton(
-                Icons.send_outlined,
-                _sendingPreCheckIn
-                    ? 'Sending…'
-                    : _preCheckInSentAt != null
-                        ? 'Re-send pre-check-in form'
-                        : 'Send pre-check-in form',
-                _sendPreCheckIn,
+              const SizedBox(width: 10),
+              _groupButton(
+                Icons.hotel_outlined,
+                'Boarding',
+                _boardingMenu,
+                busyLabel: _startingCheck || _openingForm ? 'Opening…' : null,
               ),
-              if (_preCheckInSentAt != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    'Sent ${DateFormat('d MMM yyyy').format(_preCheckInSentAt!.toLocal())}',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                  ),
-                ),
             ],
-            if (b.preCheckInSubmission != null)
-              _actionButton(Icons.assignment_turned_in_outlined, 'View pre-check-in form',
-                  () => _openForm(b.preCheckInSubmission!)),
-            _actionButton(
-              Icons.visibility_outlined,
-              'Observations',
-              () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ObservationsScreen(bookingId: b.id, bookingReference: b.reference),
-                ),
-              ),
-            ),
-            if (b.checkInSubmission == null || b.checkOutSubmission == null)
-              _actionButton(Icons.swap_horiz_outlined, _startingCheck ? 'Preparing…' : 'Arrive / Depart',
-                  _arriveDepart),
-            if (b.checkInSubmission != null)
-              _actionButton(Icons.login_outlined, 'View check-in form', () => _openForm(b.checkInSubmission!)),
-            if (b.checkOutSubmission != null)
-              _actionButton(Icons.logout_outlined, 'View check-out form', () => _openForm(b.checkOutSubmission!)),
-          ],
+          ),
         ],
       ),
     );

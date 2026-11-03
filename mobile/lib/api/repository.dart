@@ -632,6 +632,42 @@ class Repository {
   /// customer/pet records.
   Future<void> sendBoardingPreCheckIn(String id) => _client.post('/boarding-bookings/$id/send-pre-check-in', {});
 
+  /// Emails the customer the Booking Confirmation PDF (built on the device,
+  /// see utils/booking_confirmation_pdf.dart) with the "Booking Confirmation"
+  /// email template, and stamps `confirmationSentAt` -- the admin's
+  /// BookingConfirmationModal "Send by Email".
+  Future<void> sendBoardingConfirmation(String id, {required String dataUri, required String fileName}) =>
+      _client.post('/boarding-bookings/$id/send-confirmation', {
+        'attachmentData': dataUri,
+        'attachmentName': fileName,
+      });
+
+  /// Business Info fields the Booking Confirmation PDF needs (contact line,
+  /// address, and the Settings > Boarding information/terms rich text).
+  Future<
+      ({
+        String name,
+        String telephone,
+        String email,
+        String address,
+        String website,
+        String bookingInformation,
+        String bookingTerms,
+      })> getBusinessForConfirmation() async {
+    final json = await _client.get('/settings/business');
+    String s(String key) => (json[key] as String? ?? '').trim();
+    final town = [s('town'), s('postcode')].where((v) => v.isNotEmpty).join(' ');
+    return (
+      name: json['name'] as String? ?? 'PawfectPets Sherborne',
+      telephone: s('telephone'),
+      email: s('email'),
+      address: [s('address'), town].where((v) => v.isNotEmpty).join(', '),
+      website: s('website'),
+      bookingInformation: s('bookingInformation'),
+      bookingTerms: s('bookingTerms'),
+    );
+  }
+
   /// The product breakdown for a boarding stay (whole 24h boarding days plus a
   /// leftover half day), resolved to the products configured in Settings >
   /// Bookings > Boarding -- the same endpoint the admin's New Booking modal

@@ -34,6 +34,9 @@ class BoardingBooking {
   /// never sent).
   final DateTime? preCheckInSentAt;
 
+  /// When the Booking Confirmation PDF was last emailed (null = never).
+  final DateTime? confirmationSentAt;
+
   // Completed workflow forms, by form-submission id -- set once the customer
   // (pre-check-in) or staff (check in/out) have filled each in.
   final String? preCheckInSubmission;
@@ -61,6 +64,7 @@ class BoardingBooking {
     this.invoiceNumber,
     this.paymentRequestType,
     this.preCheckInSentAt,
+    this.confirmationSentAt,
     this.preCheckInSubmission,
     this.checkInSubmission,
     this.checkOutSubmission,
@@ -98,6 +102,8 @@ class BoardingBooking {
       paymentRequestType: json['paymentRequestType'] as String?,
       preCheckInSentAt:
           json['preCheckInSentAt'] != null ? DateTime.tryParse(json['preCheckInSentAt'] as String) : null,
+      confirmationSentAt:
+          json['confirmationSentAt'] != null ? DateTime.tryParse(json['confirmationSentAt'] as String) : null,
       preCheckInSubmission: json['preCheckInSubmission'] as String?,
       checkInSubmission: json['checkInSubmission'] as String?,
       checkOutSubmission: json['checkOutSubmission'] as String?,
