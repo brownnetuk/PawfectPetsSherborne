@@ -20,7 +20,6 @@ export const PAGE_WIDTH = 595.28; // A4, points
 export const PAGE_HEIGHT = 841.89;
 export const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 const FOOTER_HEIGHT = 22;
-const CONTENT_BOTTOM = PAGE_HEIGHT - MARGIN - FOOTER_HEIGHT;
 
 // Section cards are padded on both sides; every block draws inside them.
 export const CARD_PAD = 14;
@@ -526,9 +525,28 @@ const HEADING_SIZE = 12;
 const HEADING_LEADING = 15;
 
 export class BrandPdfWriter {
-  doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  doc: jsPDF;
   y = MARGIN;
   private logo: string | null = null;
+  // Page geometry for this document: the module constants above for the
+  // usual A4 portrait, swapped round for landscape (wide tables, e.g. the
+  // Check In / Check Out report). Blocks drawn into a landscape writer must
+  // use these, not the portrait INNER_WIDTH constant (INNER_X is the same either way).
+  readonly pageWidth: number;
+  readonly pageHeight: number;
+  readonly contentWidth: number;
+  readonly innerWidth: number;
+  private readonly contentBottom: number;
+
+  constructor({ orientation = 'portrait' }: { orientation?: 'portrait' | 'landscape' } = {}) {
+    this.doc = new jsPDF({ unit: 'pt', format: 'a4', orientation });
+    const landscape = orientation === 'landscape';
+    this.pageWidth = landscape ? PAGE_HEIGHT : PAGE_WIDTH;
+    this.pageHeight = landscape ? PAGE_WIDTH : PAGE_HEIGHT;
+    this.contentWidth = this.pageWidth - MARGIN * 2;
+    this.innerWidth = this.contentWidth - CARD_PAD * 2;
+    this.contentBottom = this.pageHeight - MARGIN - FOOTER_HEIGHT;
+  }
 
   /** Loads the logo and fonts; call before anything else. */
   async init() {
@@ -541,7 +559,7 @@ export class BrandPdfWriter {
     const doc = this.doc;
     const top = MARGIN;
     doc.setFillColor(...BLUE);
-    doc.roundedRect(MARGIN, top, CONTENT_WIDTH, HEADER_HEIGHT, 10, 10, 'F');
+    doc.roundedRect(MARGIN, top, this.contentWidth, HEADER_HEIGHT, 10, 10, 'F');
 
     const cy = top + HEADER_HEIGHT / 2;
     const badgeR = 27;
@@ -557,7 +575,7 @@ export class BrandPdfWriter {
     }
 
     // Right-hand badge first, so the title knows how much room it has.
-    let rightEdge = MARGIN + CONTENT_WIDTH - 16;
+    let rightEdge = MARGIN + this.contentWidth - 16;
     if (badge) {
       setFont(doc, DISPLAY);
       doc.setFontSize(11.5);
@@ -639,14 +657,14 @@ export class BrandPdfWriter {
     const doc = this.doc;
     setFont(doc, DISPLAY);
     doc.setFontSize(HEADING_SIZE);
-    const titleLines = title ? (doc.splitTextToSize(title, INNER_WIDTH) as string[]) : [];
+    const titleLines = title ? (doc.splitTextToSize(title, this.innerWidth) as string[]) : [];
     const headingHeight = titleLines.length > 0 ? CARD_TOP_PAD + titleLines.length * HEADING_LEADING + 8 : CARD_TOP_PAD - 4;
     const firstBlock = blocks[0]?.height ?? 0;
     const total = headingHeight + blocks.reduce((sum, b) => sum + b.height, 0) + CARD_BOTTOM_PAD;
 
     if (this.y > MARGIN) this.y += SECTION_GAP;
-    const fitsFreshPage = total <= CONTENT_BOTTOM - MARGIN;
-    if (this.y > MARGIN && ((total > CONTENT_BOTTOM - this.y && fitsFreshPage) || headingHeight + firstBlock > CONTENT_BOTTOM - this.y)) {
+    const fitsFreshPage = total <= this.contentBottom - MARGIN;
+    if (this.y > MARGIN && ((total > this.contentBottom - this.y && fitsFreshPage) || headingHeight + firstBlock > this.contentBottom - this.y)) {
       this.newPage();
     }
 
@@ -659,7 +677,7 @@ export class BrandPdfWriter {
     let page = startPage;
     const placed: { block: Block; page: number; y: number }[] = [];
     for (const block of blocks) {
-      if (cursor + block.height + CARD_BOTTOM_PAD > CONTENT_BOTTOM && cursor > MARGIN + CARD_TOP_PAD) {
+      if (cursor + block.height + CARD_BOTTOM_PAD > this.contentBottom && cursor > MARGIN + CARD_TOP_PAD) {
         segments[segments.length - 1].bottom = cursor + CARD_BOTTOM_PAD;
         this.newPage();
         page = doc.getNumberOfPages();
@@ -675,7 +693,7 @@ export class BrandPdfWriter {
       for (const seg of segments) {
         doc.setPage(seg.page);
         doc.setFillColor(...CREAM);
-        doc.roundedRect(MARGIN, seg.top, CONTENT_WIDTH, seg.bottom - seg.top, 9, 9, 'F');
+        doc.roundedRect(MARGIN, seg.top, this.contentWidth, seg.bottom - seg.top, 9, 9, 'F');
       }
     }
 
@@ -708,17 +726,17 @@ export class BrandPdfWriter {
       const bandH = 30;
       // The band may dip into the footer's top margin rather than be
       // stranded alone on a page of its own.
-      if (this.y + SECTION_GAP + bandH > PAGE_HEIGHT - MARGIN - 8) this.newPage();
+      if (this.y + SECTION_GAP + bandH > this.pageHeight - MARGIN - 8) this.newPage();
       const top = this.y > MARGIN ? this.y + SECTION_GAP : this.y;
       doc.setFillColor(...PINK);
-      doc.roundedRect(MARGIN, top, CONTENT_WIDTH, bandH, 9, 9, 'F');
+      doc.roundedRect(MARGIN, top, this.contentWidth, bandH, 9, 9, 'F');
       doc.setTextColor(...WHITE);
       setFont(doc, BODY, 'bold');
       doc.setFontSize(10);
       doc.text('Questions? Just get in touch', MARGIN + 16, top + 19);
       setFont(doc, BODY, 'normal');
       doc.setFontSize(8.5);
-      doc.text(contact, MARGIN + CONTENT_WIDTH - 16, top + 19, { align: 'right' });
+      doc.text(contact, MARGIN + this.contentWidth - 16, top + 19, { align: 'right' });
       this.y = top + bandH;
     }
 
@@ -729,9 +747,9 @@ export class BrandPdfWriter {
       setFont(doc, BODY, 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(...MUTED);
-      const y = PAGE_HEIGHT - MARGIN + 6;
+      const y = this.pageHeight - MARGIN + 6;
       doc.text(generated, MARGIN, y);
-      doc.text(`Page ${i} of ${total}`, MARGIN + CONTENT_WIDTH, y, { align: 'right' });
+      doc.text(`Page ${i} of ${total}`, MARGIN + this.contentWidth, y, { align: 'right' });
     }
   }
 }

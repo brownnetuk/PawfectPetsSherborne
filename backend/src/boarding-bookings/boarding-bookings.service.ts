@@ -33,6 +33,8 @@ import { Quote } from '../quotes/schemas/quote.schema';
 import { BusinessInfo } from '../settings/schemas/business-info.schema';
 import { EmailTrigger } from '../settings/schemas/email-template.schema';
 import { SettingsService } from '../settings/settings.service';
+import { escapeHtml } from '../common/html.util';
+import { SendCheckInOutReportDto } from './dto/send-check-in-out-report.dto';
 import { BookingObservationsService } from './booking-observations.service';
 import { AmendBoardingBookingDatesDto } from './dto/amend-boarding-booking-dates.dto';
 import { CreateBoardingBookingDto } from './dto/create-boarding-booking.dto';
@@ -729,6 +731,17 @@ export class BoardingBookingsService {
       actor,
     );
     await this.boardingBookingModel.updateOne({ _id: booking._id }, { confirmationSentAt: new Date() }).exec();
+  }
+
+  // Bookings > Check In / Check Out > Export > Email: sends the report PDF
+  // the admin app just built to whoever was typed in (the business's own
+  // address by default) -- same shape as ExpensesService.sendReceiptEmail.
+  async sendCheckInOutReport(dto: SendCheckInOutReportDto): Promise<void> {
+    const html = (dto.message ?? '').split(/\r?\n/).map(escapeHtml).join('<br/>');
+    await this.settingsService.sendDirectEmail(dto.to, dto.subject, `<p>${html}</p>`, {
+      data: dto.attachmentData,
+      name: dto.attachmentName,
+    });
   }
 
   // Hourly look-ahead scan: no existing @Cron in this codebase looks more

@@ -1510,6 +1510,7 @@ This section covers the NestJS modules under `backend/src/` that handle scheduli
 | POST | `/boarding-bookings/:id/request-payment` | JWT | `{type:'deposit'\|'full'}` → `InvoicesService.requestDeposit()` or `requestFullPayment()`, then sets `paymentRequestType`. |
 | POST | `/boarding-bookings/:id/send-pre-check-in` | JWT | Creates a pre-filled pre-check-in `FormSubmission` and emails the form link. |
 | POST | `/boarding-bookings/:id/send-confirmation` | JWT | Emails the client-built Booking Confirmation PDF (`attachmentData` base64 data URI, `attachmentName`). |
+| POST | `/boarding-bookings/check-in-out-report/send-email` | JWT | Emails the client-built Check In / Check Out report PDF (Check In / Check Out tab > Export > Email) to `{to}` with `{subject, message?, attachmentData, attachmentName}`. |
 | POST | `/boarding-bookings/:id/check-in` | JWT | Body `{submission}` records `checkInSubmission`, `checkInAt=now` and `checkInBy=staff name`. |
 | POST | `/boarding-bookings/:id/check-out` | JWT | Body `{submission}` records `checkOutSubmission`, `checkOutAt` and `checkOutBy`. |
 | DELETE | `/boarding-bookings/:id?deleteAll=true` | JWT + `bookings.manage` | Deletes the invoice, then the stay rows, observations and booking. With `deleteAll=true` it first removes every payment and credit note against the invoice through their own services. |

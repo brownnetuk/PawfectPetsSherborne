@@ -629,6 +629,17 @@ export function sendBoardingBookingConfirmation(id: string, attachmentData: stri
     body: JSON.stringify({ attachmentData, attachmentName }),
   });
 }
+// Bookings > Check In / Check Out > Export > Email: the report PDF built
+// client-side (checkInOutReportPdf.ts), sent to whoever is typed in.
+export function sendCheckInOutReportEmail(input: {
+  to: string;
+  subject: string;
+  message: string;
+  attachmentData: string;
+  attachmentName: string;
+}): Promise<void> {
+  return request('/boarding-bookings/check-in-out-report/send-email', { method: 'POST', body: JSON.stringify(input) });
+}
 export function recordBoardingBookingCheckIn(id: string, submissionId: string): Promise<BoardingBooking> {
   return request(`/boarding-bookings/${id}/check-in`, { method: 'POST', body: JSON.stringify({ submission: submissionId }) });
 }

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import BookingConfirmationModal from '../components/BookingConfirmationModal';
+import ActionsMenu from '../components/ActionsMenu';
+import CheckInOutExportModal from '../components/CheckInOutExportModal';
 import { useAuth } from '../auth/AuthContext';
 import AddPaymentModal from '../components/AddPaymentModal';
 import AmendBoardingBookingDatesModal from '../components/AmendBoardingBookingDatesModal';
@@ -2270,6 +2272,8 @@ function CheckInOutTab({
   const [sortKey, setSortKey] = useState<CheckInOutSortKey>('dropOff');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [viewSubmission, setViewSubmission] = useState<FormSubmissionRecord | null>(null);
+  const [exportMode, setExportMode] = useState<'pdf' | 'email' | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -2400,16 +2404,26 @@ function CheckInOutTab({
             </button>
           ))}
         </div>
-        <div className="field" style={{ minWidth: 220, maxWidth: 320, flexGrow: 1, marginBottom: 0 }}>
-          <input
-            type="text"
-            placeholder="Search reference, customer or dog…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexGrow: 1, justifyContent: 'flex-end', minWidth: 0 }}>
+          <ActionsMenu
+            label="Export"
+            items={[
+              { label: 'Export to PDF', onClick: () => setExportMode('pdf'), disabled: !items },
+              { label: 'Email', onClick: () => setExportMode('email'), disabled: !items },
+            ]}
           />
+          <div className="field" style={{ minWidth: 220, maxWidth: 320, flexGrow: 1, marginBottom: 0 }}>
+            <input
+              type="text"
+              placeholder="Search reference, customer or dog…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
       </div>
       {error && <div className="error-banner">{error}</div>}
+      {notice && <div className="success-banner">{notice}</div>}
       <div className="card">
         {!items ? (
           <div className="empty-state">Loading…</div>
@@ -2459,6 +2473,17 @@ function CheckInOutTab({
         )}
       </div>
       {viewSubmission && <ViewFormSubmissionModal submission={viewSubmission} onClose={() => setViewSubmission(null)} />}
+      {exportMode && items && (
+        <CheckInOutExportModal
+          mode={exportMode}
+          items={items}
+          onClose={() => setExportMode(null)}
+          onDone={(message) => {
+            setExportMode(null);
+            setNotice(message);
+          }}
+        />
+      )}
     </div>
   );
 }
