@@ -10,6 +10,8 @@ five applications that all talk to one NestJS + MongoDB API.
 > setup-focused README of its own ([`backend/`](backend/README.md), [`frontend/`](frontend/README.md),
 > [`admin/`](admin/README.md), [`mobile/`](mobile/README.md), [`mobile-portal/`](mobile-portal/README.md)),
 > and there is a prioritised security review in [`docs/security-review.md`](docs/security-review.md).
+> For a shorter, feature-led guide see the [GitHub wiki](https://github.com/brownnetuk/PawfectPetsSherborne/wiki),
+> published from [`docs/wiki/`](docs/wiki/).
 
 ## Table of contents
 
@@ -315,7 +317,8 @@ flowchart LR
     Portainer -->|git pull + docker compose up<br/>pull_policy: build| Stack[Rebuilt backend / admin / frontend]
 ```
 
-There is no GitHub Actions CI in this repo (`.github/` does not exist): tests and lint run locally only.
+There is no GitHub Actions CI for tests or builds: tests and lint run locally only. The only workflow is
+`.github/workflows/publish-wiki.yml`, which publishes `docs/wiki/` to the repository's GitHub wiki.
 
 ### Keeping it updated
 
