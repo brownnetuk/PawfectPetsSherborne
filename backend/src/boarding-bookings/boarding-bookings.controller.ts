@@ -7,6 +7,7 @@ import { AmendBoardingBookingDatesDto } from './dto/amend-boarding-booking-dates
 import { CreateBoardingBookingDto } from './dto/create-boarding-booking.dto';
 import { RequestPaymentDto } from './dto/request-payment.dto';
 import { SendBookingConfirmationDto } from './dto/send-booking-confirmation.dto';
+import { SendCheckInOutReportDto } from './dto/send-check-in-out-report.dto';
 import { SetBoardingBookingArchivedDto } from './dto/set-boarding-booking-archived.dto';
 import { SetBoardingBookingStatusDto } from './dto/set-boarding-booking-status.dto';
 
@@ -33,6 +34,13 @@ export class BoardingBookingsController {
     const booking = await this.boardingBookingsService.findOne(id);
     await this.boardingBookingsService.backfillConfirmationSent(booking);
     return this.boardingBookingsService.withStatus(booking);
+  }
+
+  // Declared ahead of the :id routes so "check-in-out-report" is never
+  // read as a booking id.
+  @Post('check-in-out-report/send-email')
+  sendCheckInOutReport(@Body() dto: SendCheckInOutReportDto) {
+    return this.boardingBookingsService.sendCheckInOutReport(dto);
   }
 
   @Post()
