@@ -40,7 +40,7 @@ export default function FinancialPage() {
       </div>
 
       <div className="tabs">
-        {(['snapshot', 'payments', 'expenses', 'creditNotes', 'bankTransfers', 'bankAccounts', 'uploads'] as Tab[]).map((t) => (
+        {(['snapshot', 'bankAccounts', 'payments', 'expenses', 'creditNotes', 'bankTransfers', 'uploads'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {TAB_LABELS[t]}
           </button>
