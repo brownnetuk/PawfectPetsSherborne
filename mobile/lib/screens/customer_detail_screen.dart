@@ -11,6 +11,7 @@ import '../widgets/status_badge.dart';
 import 'animal_detail_screen.dart';
 import 'customer_activity_screen.dart';
 import 'customer_defaults_screen.dart';
+import 'customer_finance_screen.dart';
 import 'customer_forms_screen.dart';
 import 'customer_notes_screen.dart';
 import 'edit_customer_screen.dart';
@@ -153,6 +154,20 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                             );
                             if (saved == true && mounted) setState(_load);
                           },
+                        ),
+                        // Every invoice and quote raised for this customer.
+                        IconButton(
+                          icon: const Icon(Icons.receipt_long_outlined, size: 20),
+                          visualDensity: VisualDensity.compact,
+                          tooltip: 'Invoices & quotes',
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => CustomerFinanceScreen(
+                                customerId: customer.id,
+                                customerName: customer.name,
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),
