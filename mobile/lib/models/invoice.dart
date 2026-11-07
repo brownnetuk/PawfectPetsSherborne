@@ -110,6 +110,12 @@ class Invoice {
   /// paid" is derived for display, same as the admin's badge.
   bool get isPartiallyPaid => status == 'sent' && amountPaid > 0 && amountPaid < total;
 
+  /// With the customer and still carrying a balance: not a draft, not queued,
+  /// not cancelled, and payments don't yet cover the total -- the admin's
+  /// "Outstanding (balance due)" filter.
+  bool get isOutstanding =>
+      status != 'draft' && status != 'scheduled' && status != 'cancelled' && total - amountPaid > 0;
+
   factory Invoice.fromJson(Map<String, dynamic> json) => Invoice(
         id: json['_id'] as String,
         customer: CustomerRef.fromDynamic(json['customer']),
