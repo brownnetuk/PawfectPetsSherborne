@@ -216,12 +216,18 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                   child: Wrap(
                     spacing: 8,
                     children: [
+                      // Every stored status plus the admin's two derived
+                      // filters (Outstanding, Partially Paid) -- same list as
+                      // the admin's Invoices status dropdown.
                       for (final f in const [
-                        ('paid', 'Paid'),
-                        ('partially_paid', 'Partially Paid'),
+                        ('outstanding', 'Outstanding'),
                         ('draft', 'Draft'),
                         ('scheduled', 'Scheduled'),
+                        ('sent', 'Sent'),
+                        ('partially_paid', 'Partially Paid'),
+                        ('paid', 'Paid'),
                         ('overdue', 'Overdue'),
+                        ('cancelled', 'Cancelled'),
                       ])
                         ChoiceChip(
                           label: Text(f.$2),
@@ -266,6 +272,8 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
               // invoice stays 'sent' until fully covered -- same as the admin).
               if (_statusFilter == 'partially_paid') {
                 if (!inv.isPartiallyPaid) return false;
+              } else if (_statusFilter == 'outstanding') {
+                if (!inv.isOutstanding) return false;
               } else if (_statusFilter != null && inv.status != _statusFilter) {
                 return false;
               }
