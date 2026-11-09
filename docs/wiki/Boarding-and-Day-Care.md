@@ -44,4 +44,4 @@ Before a first stay, staff send an owner the pre-boarding form (**Pre-Boarding >
 
 ## Pricing
 
-Day care and boarding prices come from the products mapped in **Settings > Bookings**: half day, full day, per day and the 2nd-dog rates. Travel is added automatically for customers with chargeable travel.
+Day care and boarding prices come from the products mapped in **Settings > Bookings**: half day, full day, per day and the 2nd-dog rates.

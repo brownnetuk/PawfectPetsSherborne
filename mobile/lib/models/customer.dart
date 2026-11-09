@@ -74,7 +74,11 @@ class Customer {
   // calendar: the dog's default product, whether travel is chargeable and its
   // product, and which weekdays this customer's dogs are regularly booked.
   final String? defaultProductId;
+  /// Travel Chargeable for Visits.
   final bool travelChargeable;
+
+  /// Travel Chargeable for Walks.
+  final bool travelChargeableWalks;
   final String? travelProductId;
   final List<String> regularDays;
   final bool portalActive;
@@ -97,6 +101,7 @@ class Customer {
     this.security,
     this.defaultProductId,
     this.travelChargeable = false,
+    this.travelChargeableWalks = false,
     this.travelProductId,
     this.regularDays = const [],
     this.portalActive = false,
@@ -123,6 +128,7 @@ class Customer {
           json['security'] != null ? Security.fromJson(json['security'] as Map<String, dynamic>) : null,
       defaultProductId: idOrNull(json['defaultProduct']),
       travelChargeable: json['travelChargeable'] as bool? ?? false,
+      travelChargeableWalks: json['travelChargeableWalks'] as bool? ?? false,
       travelProductId: idOrNull(json['travelProduct']),
       regularDays:
           (json['regularDays'] as List<dynamic>?)?.map((e) => e as String).toList() ?? const [],

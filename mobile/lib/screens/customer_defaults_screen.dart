@@ -31,6 +31,8 @@ class _CustomerDefaultsScreenState extends State<CustomerDefaultsScreen> {
   late Future<List<Product>> _productsFuture;
   late String? _defaultProductId = widget.customer.defaultProductId;
   late bool _travelChargeable = widget.customer.travelChargeable;
+  late bool _travelChargeableWalks = widget.customer.travelChargeableWalks;
+  bool get _anyTravel => _travelChargeable || _travelChargeableWalks;
   late String? _travelProductId = widget.customer.travelProductId;
   late final Set<String> _regularDays = {...widget.customer.regularDays};
   late bool _portalActive = widget.customer.portalActive;
@@ -48,7 +50,7 @@ class _CustomerDefaultsScreenState extends State<CustomerDefaultsScreen> {
   }
 
   Future<void> _save() async {
-    if (_travelChargeable && (_travelProductId == null || _travelProductId!.isEmpty)) {
+    if (_anyTravel && (_travelProductId == null || _travelProductId!.isEmpty)) {
       _snack('Choose a travel product, or turn travel charging off.');
       return;
     }
@@ -58,7 +60,8 @@ class _CustomerDefaultsScreenState extends State<CustomerDefaultsScreen> {
             widget.customer.id,
             defaultProduct: (_defaultProductId?.isEmpty ?? true) ? null : _defaultProductId,
             travelChargeable: _travelChargeable,
-            travelProduct: _travelChargeable ? _travelProductId : null,
+            travelChargeableWalks: _travelChargeableWalks,
+            travelProduct: _anyTravel ? _travelProductId : null,
             regularDays: _regularDays.toList(),
           );
       if (mounted) _snack('Defaults saved.');
@@ -179,16 +182,23 @@ class _CustomerDefaultsScreenState extends State<CustomerDefaultsScreen> {
               ),
               _sectionTitle(
                 'Travel',
-                'When chargeable, one line of the chosen product is added automatically to every new invoice for this customer.',
+                'The chosen product is added to invoices: one for each Visit (two for 2 x Visit) and/or one for each dog walk.',
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
-                title: const Text('Travel is chargeable'),
+                title: const Text('Travel Chargeable for Visits'),
                 value: _travelChargeable,
                 onChanged: (v) => setState(() => _travelChargeable = v),
               ),
-              if (_travelChargeable)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text('Travel Chargeable for Walks'),
+                value: _travelChargeableWalks,
+                onChanged: (v) => setState(() => _travelChargeableWalks = v),
+              ),
+              if (_anyTravel)
                 _productDropdown(
                   products: products,
                   value: _travelProductId,

@@ -5,13 +5,12 @@ const walk60 = { name: '60 Minute Walk', price: 20 };
 const visit = { name: '1 x Visit', price: 15 };
 const twoVisits = { name: '2 x Visit', price: 28 };
 const travelProduct = { name: 'Travel', price: 3 };
-const travel: TravelContext = {
-  product: travelProduct,
-  visitCountByName: new Map([
-    [visit.name, 1],
-    [twoVisits.name, 2],
-  ]),
-};
+// Travel Chargeable for Visits only.
+const travel: TravelContext = { product: travelProduct, visits: true, walks: false };
+// Travel Chargeable for Visits and Walks.
+const travelWithWalks: TravelContext = { ...travel, walks: true };
+// Travel Chargeable for Walks only.
+const walksOnly: TravelContext = { ...travel, visits: false, walks: true };
 
 const line = (p: { name: string; price: number }, quantity: number, discountPercent = 0) => ({
   description: p.name,
@@ -58,16 +57,38 @@ describe('syncBookedLines', () => {
     expect(syncBookedLines([line(walk60, 3)], walk(walk30), walk(walk60), null)).toBeNull();
   });
 
-  it('leaves walk-only travel alone when walk travel was not ticked', () => {
-    // 2 visits -> 2 travel: no walk travel on this invoice.
+  it('leaves travel alone for a walk when the customer only pays travel on visits', () => {
+    // 2 visits -> 2 travel.
     const lines = [line(visit, 2), line(walk30, 1), line(travelProduct, 2)];
     expect(syncBookedLines(lines, walk(walk30), null, travel)).toEqual([line(visit, 2), line(travelProduct, 2)]);
   });
 
-  it('takes walk travel off with the walk when walk travel was ticked', () => {
+  it('takes walk travel off with the walk when the customer pays travel on walks', () => {
     // 2 visits + 1 walk -> 3 travel.
     const lines = [line(visit, 2), line(walk30, 1), line(travelProduct, 3)];
-    expect(syncBookedLines(lines, walk(walk30), null, travel)).toEqual([line(visit, 2), line(travelProduct, 2)]);
+    expect(syncBookedLines(lines, walk(walk30), null, travelWithWalks)).toEqual([
+      line(visit, 2),
+      line(travelProduct, 2),
+    ]);
+  });
+
+  it('adds one travel per walk added when the customer pays travel on walks', () => {
+    expect(syncBookedLines([line(walk30, 1), line(travelProduct, 1)], null, walk(walk30, 2), walksOnly)).toEqual([
+      line(walk30, 3),
+      line(travelProduct, 3),
+    ]);
+  });
+
+  it('starts a travel line for a walk on an invoice with none', () => {
+    expect(syncBookedLines([], null, walk(walk30), walksOnly)).toEqual([line(walk30, 1), line(travelProduct, 1)]);
+  });
+
+  it('adds no travel for a visit when the customer only pays travel on walks', () => {
+    expect(syncBookedLines([line(walk30, 1), line(travelProduct, 1)], null, visits(visit, 1), walksOnly)).toEqual([
+      line(walk30, 1),
+      line(visit, 1),
+      line(travelProduct, 1),
+    ]);
   });
 
   it('keeps walk travel the same when only the walk length changes', () => {

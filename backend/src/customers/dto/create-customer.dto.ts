@@ -209,6 +209,10 @@ export class CreateCustomerDto {
   travelChargeable?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  travelChargeableWalks?: boolean;
+
+  @IsOptional()
   @ValidateIf((_, v) => v !== null)
   @IsMongoId()
   travelProduct?: string | null;

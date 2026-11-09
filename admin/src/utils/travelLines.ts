@@ -1,13 +1,28 @@
 import type { Customer, DayBooking, LineItem, Product, VisitMapping } from '../types';
 import { visitCountForProduct } from './visitMapping';
 
-// Settings > Customer Defaults > Travel: a travel-chargeable customer pays
-// travel on Visits only -- one per 1 x Visit, two per 2 x Visit (per day).
-// Walks can carry travel too, by the same rule (one per walk), but only when
-// staff opt in. Boarding and Day Care never do.
+// Customer Defaults > Travel has two settings sharing one travel product:
+// Travel Chargeable for Visits (`travelChargeable`) -- one per 1 x Visit, two
+// per 2 x Visit (per day) -- and Travel Chargeable for Walks
+// (`travelChargeableWalks`) -- one per dog walk, so 2 x Walk -> 2 x Travel.
+// Boarding and Day Care never carry travel.
+export function chargesVisitTravel(customer: Customer | undefined): boolean {
+  return !!customer?.travelChargeable && !!customer.travelProduct;
+}
+
+export function chargesWalkTravel(customer: Customer | undefined): boolean {
+  return !!customer?.travelChargeableWalks && !!customer.travelProduct;
+}
+
+// The customer's travel product, if either setting is on.
 export function travelProductForCustomer(customer: Customer | undefined, products: Product[]): Product | null {
-  if (!customer?.travelChargeable || !customer.travelProduct) return null;
-  return products.find((p) => p._id === customer.travelProduct) ?? null;
+  if (!chargesVisitTravel(customer) && !chargesWalkTravel(customer)) return null;
+  return products.find((p) => p._id === customer!.travelProduct) ?? null;
+}
+
+// How many travel lines the customer pays for these units.
+export function travelQuantityForCustomer(customer: Customer | undefined, units: TravelUnits): number {
+  return (chargesVisitTravel(customer) ? units.visits : 0) + (chargesWalkTravel(customer) ? units.walks : 0);
 }
 
 function productIdOf(product: DayBooking['product']): string {
@@ -50,15 +65,25 @@ export function travelUnitsForBookings(bookings: DayBooking[], mapping: VisitMap
   return units;
 }
 
-// The same Visit count from an invoice's Item Table, matching lines to
-// products by name (Walks aren't counted -- they're opt-in at generation).
-export function visitTravelQuantityFor(lineItems: LineItem[], mapping: VisitMapping, products: Product[]): number {
+// The same counts from an invoice's Item Table, matching lines to products
+// by name. Lines that aren't a catalogue product are left out.
+export function travelUnitsForLineItems(
+  lineItems: LineItem[],
+  mapping: VisitMapping,
+  products: Product[],
+  travel: Product,
+): TravelUnits {
   const productByName = new Map(products.map((p) => [p.name, p]));
-  return lineItems.reduce((sum, item) => {
+  const units: TravelUnits = { visits: 0, walks: 0 };
+  for (const item of lineItems) {
     const product = productByName.get(item.description);
-    const visitCount = product ? visitCountForProduct(mapping, product._id) : null;
-    return sum + (visitCount ? (Number(item.quantity) || 0) * visitCount : 0);
-  }, 0);
+    if (!product || product._id === travel._id || isBoardingOrDayCareProduct(mapping, product._id)) continue;
+    const quantity = Number(item.quantity) || 0;
+    const visitCount = visitCountForProduct(mapping, product._id);
+    if (visitCount) units.visits += quantity * visitCount;
+    else units.walks += quantity;
+  }
+  return units;
 }
 
 export function travelQuantityIn(lineItems: LineItem[], travel: Product): number {

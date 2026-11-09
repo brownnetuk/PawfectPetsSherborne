@@ -2593,7 +2593,9 @@ function TravelCard({
   products: Product[] | null;
   onChange: () => void;
 }) {
-  const [chargeable, setChargeable] = useState(customer.travelChargeable ?? false);
+  const [visitsChargeable, setVisitsChargeable] = useState(customer.travelChargeable ?? false);
+  const [walksChargeable, setWalksChargeable] = useState(customer.travelChargeableWalks ?? false);
+  const chargeable = visitsChargeable || walksChargeable;
   const [productId, setProductId] = useState(customer.travelProduct ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -2609,7 +2611,8 @@ function TravelCard({
     setSaved(false);
     try {
       await api.updateCustomer(customer._id, {
-        travelChargeable: chargeable,
+        travelChargeable: visitsChargeable,
+        travelChargeableWalks: walksChargeable,
         travelProduct: chargeable ? productId : null,
       });
       setSaved(true);
@@ -2625,19 +2628,28 @@ function TravelCard({
     <div className="card">
       <h2>Travel</h2>
       <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
-        When chargeable, one line item of the chosen product is added automatically every time a
-        new invoice is created for this customer.
+        The chosen travel product is added to this customer's invoices: one for each Visit (two
+        for 2 x Visit) and/or one for each dog walk, depending on what's ticked.
       </p>
       {error && <div className="error-banner">{error}</div>}
       <div className="field">
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
           <input
             type="checkbox"
-            checked={chargeable}
-            onChange={(e) => setChargeable(e.target.checked)}
+            checked={visitsChargeable}
+            onChange={(e) => setVisitsChargeable(e.target.checked)}
             style={{ width: 'auto' }}
           />
-          Is travel chargeable for this customer?
+          Travel Chargeable for Visits
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400, marginTop: 8 }}>
+          <input
+            type="checkbox"
+            checked={walksChargeable}
+            onChange={(e) => setWalksChargeable(e.target.checked)}
+            style={{ width: 'auto' }}
+          />
+          Travel Chargeable for Walks
         </label>
       </div>
       {chargeable && (

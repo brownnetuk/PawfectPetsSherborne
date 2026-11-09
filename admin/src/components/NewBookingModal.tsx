@@ -9,6 +9,7 @@ import { addDays, buildVisitPlan, dateKey, parseYmd } from '../utils/visitPlan';
 import type { VisitCount, VisitDuration, VisitTime } from '../utils/visitPlan';
 import { annualLeaveOn, rangeOverlapsAnnualLeave } from '../utils/annualLeave';
 import { dayCareProductFor, isVisitProduct } from '../utils/visitMapping';
+import { chargesVisitTravel } from '../utils/travelLines';
 import type { Animal, AnnualLeave, Customer, DayBooking } from '../types';
 
 type Service = 'visits' | 'daycare' | 'boarding';
@@ -213,13 +214,14 @@ export default function NewBookingModal({
     return null;
   }
 
-  // Finds an owner's travel product (if chargeable) so every service type
-  // can auto-add it alongside the main product, same as the day panel's own
-  // maybeAddTravel on BookingsPage.
+  // Finds an owner's travel product when they're Travel Chargeable for
+  // Visits, so Visits can auto-add it alongside the main product, same as the
+  // day panel's own maybeAddTravel on BookingsPage. Day Care and Boarding
+  // never carry travel.
   function travelProductFor(animalIdVal: string): string | null {
     const animal = animals.find((a) => a._id === animalIdVal);
     const owner = animal ? customers.find((c) => c._id === animal.customer) : undefined;
-    return owner?.travelChargeable ? (owner.travelProduct ?? null) : null;
+    return chargesVisitTravel(owner) ? (owner!.travelProduct ?? null) : null;
   }
 
   async function submitVisits() {
@@ -456,11 +458,6 @@ export default function NewBookingModal({
           stayId,
         });
         created++;
-        const travelProductId = travelProductFor(id);
-        if (travelProductId && travelProductId !== productId) {
-          await api.createDayBooking({ animal: id, date: dateKey(date), product: travelProductId, quantity: 1, stayId });
-          created++;
-        }
       }
 
       setResult({ created, updated: 0, deleted: 0, skipped });
@@ -550,19 +547,6 @@ export default function NewBookingModal({
           stayId,
         });
         created++;
-        // No travel charge on a presence-only pick-up-day placeholder.
-        const travelProductId = line.placeholder ? null : travelProductFor(id);
-        if (travelProductId && travelProductId !== line.productId) {
-          await api.createDayBooking({
-            animal: id,
-            date: dateKey(date),
-            product: travelProductId,
-            quantity: 1,
-            boardingStay: true,
-            stayId,
-          });
-          created++;
-        }
       }
 
       setResult({ created, updated: 0, deleted: 0, skipped });

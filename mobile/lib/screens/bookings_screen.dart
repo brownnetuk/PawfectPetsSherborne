@@ -13,6 +13,7 @@ import '../models/product.dart';
 import '../models/visit_mapping.dart';
 import '../services/push_service.dart';
 import '../utils/product_availability.dart';
+import '../utils/travel_lines.dart';
 import 'add_appointment_sheet.dart';
 import 'generate_invoices_sheet.dart';
 import 'home_shell.dart';
@@ -232,23 +233,33 @@ class _BookingsScreenState extends State<BookingsScreen> {
     return (_products != null && _products!.isNotEmpty) ? _products!.first.id : '';
   }
 
-  /// Mirrors the admin travel-line auto-add: if travel is chargeable for the
-  /// dog's owner and configured, add it as its own entry unless it's the main
-  /// product just booked or already present for this dog today.
+  /// Mirrors the admin travel-line auto-add (Customer Defaults > Travel):
+  /// adds the owner's travel product as its own entry alongside what was just
+  /// booked -- for a Visit when they're Travel Chargeable for Visits (once per
+  /// dog per day), and for a Walk when they're Travel Chargeable for Walks
+  /// (one per walk, so 2 x Walk -> 2 x Travel). Never for Day Care or Boarding.
   Future<void> _maybeAddTravel(
     Repository repo,
     String animalId,
     String? customerId,
     String mainProductId,
+    int quantity,
     List<DayBooking> current,
   ) async {
     final owner = customerId == null ? null : _ownerOf(customerId);
     final travelId = owner?.travelProductId;
-    if (owner == null || !owner.travelChargeable || travelId == null || travelId.isEmpty) return;
-    if (travelId == mainProductId) return;
-    final hasTravel = current.any((b) => b.animalId == animalId && b.productId == travelId);
-    if (hasTravel) return;
-    await repo.createDayBooking(animalId: animalId, date: _day, productId: travelId, quantity: 1);
+    if (owner == null || travelId == null || travelId.isEmpty || travelId == mainProductId) return;
+    if (_visitMapping.isDayCareProduct(mainProductId) || _visitMapping.isBoardingProduct(mainProductId)) return;
+    final isVisit = _visitMapping.isVisitProduct(mainProductId);
+    if (isVisit ? !chargesVisitTravel(owner) : !chargesWalkTravel(owner)) return;
+    final existing = current.where((b) => b.animalId == animalId && b.productId == travelId).firstOrNull;
+    if (existing != null) {
+      if (!isVisit && (existing.invoiceId == null || existing.invoiceId!.isEmpty)) {
+        await repo.updateDayBooking(existing.id, quantity: existing.quantity + quantity);
+      }
+      return;
+    }
+    await repo.createDayBooking(animalId: animalId, date: _day, productId: travelId, quantity: isVisit ? 1 : quantity);
   }
 
   Future<void> _quickAdd(AnimalRef animal, List<DayBooking> current) async {
@@ -265,7 +276,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final repo = context.read<Repository>();
     try {
       await repo.createDayBooking(animalId: animal.id, date: _day, productId: mainProduct, quantity: 1);
-      await _maybeAddTravel(repo, animal.id, animal.customerId, mainProduct, current);
+      await _maybeAddTravel(repo, animal.id, animal.customerId, mainProduct, 1, current);
       _reload();
     } catch (e) {
       _snack(e is ApiException ? e.message : 'Failed to add this dog');
@@ -400,7 +411,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         productId: result.productId,
         quantity: result.quantity,
       );
-      await _maybeAddTravel(repo, result.animalId, result.customerId, result.productId, current);
+      await _maybeAddTravel(repo, result.animalId, result.customerId, result.productId, result.quantity, current);
       _reload();
     } catch (e) {
       _snack(e is ApiException ? e.message : 'Failed to add this dog');

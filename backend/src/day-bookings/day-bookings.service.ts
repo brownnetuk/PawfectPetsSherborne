@@ -120,8 +120,13 @@ export class DayBookingsService {
       if (!invoice || ![InvoiceStatus.DRAFT, InvoiceStatus.SCHEDULED].includes(invoice.status)) return;
 
       const idOf = (product: unknown) => String((product as { _id?: unknown })?._id ?? product);
-      const customer = await this.customerModel.findById(invoice.customer).select('travelChargeable travelProduct').exec();
-      const travelId = customer?.travelChargeable && customer.travelProduct ? String(customer.travelProduct) : null;
+      const customer = await this.customerModel
+        .findById(invoice.customer)
+        .select('travelChargeable travelChargeableWalks travelProduct')
+        .exec();
+      const visitTravel = !!customer?.travelChargeable;
+      const walkTravel = !!customer?.travelChargeableWalks;
+      const travelId = (visitTravel || walkTravel) && customer?.travelProduct ? String(customer.travelProduct) : null;
 
       const mapping = await this.visitMappingModel.findOne().exec();
       const ids = (keys: string[]) =>
@@ -144,20 +149,12 @@ export class DayBookingsService {
       ]);
 
       const changedIds = changes.flatMap((c) => [c.from, c.to]).filter((b) => !!b).map((b) => idOf(b.product));
-      const productIds = [...changedIds, travelId, ...oneVisit, ...twoVisit].filter((id): id is string => !!id);
+      const productIds = [...changedIds, travelId].filter((id): id is string => !!id);
       const products = await this.productModel.find({ _id: { $in: productIds } }).select('name price').exec();
       const byId = new Map(products.map((p) => [String(p._id), { name: p.name, price: p.price }]));
       const travelProduct = travelId ? byId.get(travelId) : undefined;
       const travel: TravelContext | null = travelProduct
-        ? {
-            product: travelProduct,
-            visitCountByName: new Map(
-              [
-                ...[...oneVisit].map((id) => [byId.get(id)?.name, 1] as const),
-                ...[...twoVisit].map((id) => [byId.get(id)?.name, 2] as const),
-              ].filter((e): e is [string, 1 | 2] => !!e[0]),
-            ),
-          }
+        ? { product: travelProduct, visits: visitTravel, walks: walkTravel }
         : null;
 
       const side = (booking: InvoiceLineChange['from']): BookedSide | null | undefined => {

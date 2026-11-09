@@ -1,11 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pawfectpets_staff/models/customer.dart';
 import 'package:pawfectpets_staff/models/day_booking.dart';
 import 'package:pawfectpets_staff/models/invoice.dart';
 import 'package:pawfectpets_staff/models/product.dart';
 import 'package:pawfectpets_staff/models/visit_mapping.dart';
 import 'package:pawfectpets_staff/utils/travel_lines.dart';
 
-// Travel is charged per Visit (1 or 2 a day), opt-in per Walk, and never for
+// Travel is charged per Visit (1 or 2 a day) and/or per Walk, as the
+// customer's Travel settings say, and never for
 // Day Care, Boarding or the travel rows booked alongside them -- the staff
 // port of admin/src/utils/travelLines.ts.
 void main() {
@@ -39,7 +41,7 @@ void main() {
     final units = travelUnitsForBookings([
       booking('visit1', quantity: 2), // 2 days of one visit -> 2
       booking('visit2'), // one day of two visits -> 2
-      booking('walk', quantity: 3), // walks -> 3 (opt-in)
+      booking('walk', quantity: 3), // walks -> 3
       booking('travel', quantity: 4), // booked travel rows never count
       booking('daycare'),
       booking('boarding'),
@@ -76,5 +78,26 @@ void main() {
     expect(added.last.quantity, 2);
     expect(added.last.unitPrice, 3);
     expect(lineItemsTotal(added), 2 * 12 + 1 * 10 + 2 * 3);
+  });
+
+  test('charges travel for visits and/or walks as the customer is set up', () {
+    Customer customer({bool visits = false, bool walks = false, String? product = 'travel'}) => Customer(
+          id: 'c1',
+          name: 'Jane',
+          email: 'jane@example.com',
+          status: 'active',
+          travelChargeable: visits,
+          travelChargeableWalks: walks,
+          travelProductId: product,
+        );
+    const units = TravelUnits(visits: 4, walks: 3);
+    expect(travelQuantityForCustomer(customer(visits: true), units), 4);
+    expect(travelQuantityForCustomer(customer(walks: true), units), 3);
+    expect(travelQuantityForCustomer(customer(visits: true, walks: true), units), 7);
+    expect(travelQuantityForCustomer(customer(), units), 0);
+    expect(travelQuantityForCustomer(customer(walks: true, product: null), units), 0);
+
+    expect(travelProductForCustomer(customer(walks: true), [travel])?.id, 'travel');
+    expect(travelProductForCustomer(customer(), [travel]), isNull);
   });
 }

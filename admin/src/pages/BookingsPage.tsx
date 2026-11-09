@@ -8,6 +8,7 @@ import ProductAvailabilityWarningModal from '../components/ProductAvailabilityWa
 import { PlusCircleIcon, TrashIcon } from '../components/icons';
 import { annualLeaveOn } from '../utils/annualLeave';
 import { availabilityMismatch } from '../utils/productAvailability';
+import { chargesVisitTravel, chargesWalkTravel } from '../utils/travelLines';
 import {
   isBoardingProduct,
   isDayCareProduct,
@@ -844,20 +845,34 @@ function DayDetailPanel({
     return owner?.defaultProduct || (products[0]?._id ?? '');
   }
 
-  // Mirrors the travel-line auto-add on new invoices (Customer Defaults > Travel):
-  // if travel is chargeable for this dog's owner, add it as its own entry
-  // alongside whatever was just booked, unless it's already the entry just
-  // added or already present for this dog on this day.
-  async function maybeAddTravel(petId: string, custId: string | undefined, mainProductId: string) {
+  // Mirrors the travel line on invoices (Customer Defaults > Travel): adds the
+  // owner's travel product as its own entry alongside what was just booked --
+  // for a Visit when they're Travel Chargeable for Visits (once per dog per
+  // day), and for a Walk when they're Travel Chargeable for Walks (one per
+  // walk, so 2 x Walk -> 2 x Travel). Never for Day Care or Boarding.
+  async function maybeAddTravel(petId: string, custId: string | undefined, mainProductId: string, quantity: number) {
     const owner = custId ? ownerOf(custId) : undefined;
-    if (!owner?.travelChargeable || !owner.travelProduct || owner.travelProduct === mainProductId) return;
+    if (!owner?.travelProduct || owner.travelProduct === mainProductId || !visitMapping) return;
+    if (isDayCareProduct(visitMapping, mainProductId) || isBoardingProduct(visitMapping, mainProductId)) return;
+    const isVisit = isVisitProduct(visitMapping, mainProductId);
+    if (isVisit ? !chargesVisitTravel(owner) : !chargesWalkTravel(owner)) return;
     const travelProduct = products.find((p) => p._id === owner.travelProduct);
     if (!travelProduct) return;
-    const alreadyHasTravel = dayBookings.some(
+    const existingTravel = dayBookings.find(
       (b) => animalId(b.animal) === petId && productId(b.product) === travelProduct._id,
     );
-    if (alreadyHasTravel) return;
-    await api.createDayBooking({ animal: petId, date: dateKey(date), product: travelProduct._id, quantity: 1 });
+    if (existingTravel) {
+      if (!isVisit && !existingTravel.invoice) {
+        await api.updateDayBooking(existingTravel._id, { quantity: existingTravel.quantity + quantity });
+      }
+      return;
+    }
+    await api.createDayBooking({
+      animal: petId,
+      date: dateKey(date),
+      product: travelProduct._id,
+      quantity: isVisit ? 1 : quantity,
+    });
   }
 
   function handlePickAnimal(id: string) {
@@ -886,7 +901,7 @@ function DayDetailPanel({
     try {
       await api.createDayBooking({ animal: addAnimalId, date: dateKey(date), product: addProductId, quantity: addQuantity });
       const animal = animals.find((a) => a._id === addAnimalId);
-      await maybeAddTravel(addAnimalId, animal?.customer, addProductId);
+      await maybeAddTravel(addAnimalId, animal?.customer, addProductId, addQuantity);
       setAddAnimalId('');
       setAddProductId('');
       setAddQuantity(1);
@@ -919,7 +934,7 @@ function DayDetailPanel({
         product: mainProduct,
         quantity: 1,
       });
-      await maybeAddTravel(animal._id, animal.customer, mainProduct);
+      await maybeAddTravel(animal._id, animal.customer, mainProduct, 1);
       onChange();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add this dog');
