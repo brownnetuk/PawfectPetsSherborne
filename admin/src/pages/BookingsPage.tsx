@@ -8,6 +8,7 @@ import ProductAvailabilityWarningModal from '../components/ProductAvailabilityWa
 import { PlusCircleIcon, TrashIcon } from '../components/icons';
 import { annualLeaveOn } from '../utils/annualLeave';
 import { availabilityMismatch } from '../utils/productAvailability';
+import { dayRevenue } from '../utils/dayRevenue';
 import { chargesVisitTravel, chargesWalkTravel } from '../utils/travelLines';
 import {
   isBoardingProduct,
@@ -833,6 +834,9 @@ function DayDetailPanel({
       )
     : [];
 
+  // The whole day's revenue, whichever service filters are on.
+  const revenue = dayRevenue(dayBookings, customers, products, visitMapping);
+
   const weekdayKey = WEEKDAY_KEYS[date.getDay()];
   const recommended = animals.filter((a) => {
     if (a.species !== 'dog') return false;
@@ -988,9 +992,17 @@ function DayDetailPanel({
   return (
     <div className="card" style={{ width: 360, flexShrink: 0, position: 'sticky', top: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <h2 style={{ margin: 0, fontSize: '1.05rem' }}>
-          {date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-        </h2>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.05rem' }}>
+            {date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </h2>
+          <div
+            style={{ marginTop: 4, fontSize: '0.85rem', color: 'var(--muted)' }}
+            title="Booked services at product prices, plus travel per each customer's Travel settings"
+          >
+            Revenue: <strong style={{ color: 'var(--ink)' }}>£{revenue.toFixed(2)}</strong>
+          </div>
+        </div>
         <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
           ✕
         </button>
