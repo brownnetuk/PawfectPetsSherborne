@@ -8,6 +8,7 @@ The **Calendar** (admin `/bookings`, staff app **Bookings** tab) shows walks, vi
 - Filter with the pills: Walks, Visits, Day Care, Boarding, Appointments.
 - Each day shows up to 3 entries and "+N more". A ✓ means it's been invoiced. Annual leave days are crossed out.
 - Click a day to open the day panel:
+  - **Revenue** under the date: the value of everything booked that day (walks, visits, day care, boarding), each at its product price × quantity, plus travel worked out from each customer's Travel settings for Visits and Walks, the same way Generate Invoice counts it. Boarding pick-up-day markers aren't counted, and the figure covers the whole day whichever filter pills are on.
   - Walks, Visits, Day Care, Boarding and Appointments for that day, editable inline.
   - **Recommended**: customers whose regular days include this weekday, with a quick-add button.
   - **Add Dog**: pick a dog, a product and a quantity.
