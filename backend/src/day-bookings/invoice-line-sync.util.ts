@@ -4,8 +4,9 @@
 // booking change is replayed onto the lines by product name: take the old
 // product's quantity off its line and put the new product's on. Travel is
 // recounted the same way the generators count it (admin
-// utils/travelLines.ts): one per Visit (two per 2 x Visit), plus one per Walk
-// only if this invoice was generated with walk travel ticked.
+// utils/travelLines.ts): one per Visit (two per 2 x Visit) when the customer
+// is Travel Chargeable for Visits, and one per Walk when they're Travel
+// Chargeable for Walks.
 
 export interface SyncLine {
   description: string;
@@ -30,9 +31,9 @@ export interface BookedSide {
 
 export interface TravelContext {
   product: SyncProduct;
-  // How many visits each line's product counts for, by line description --
-  // for working out whether the travel line also covers Walks.
-  visitCountByName: Map<string, number>;
+  // The customer's two Travel settings (Customer Defaults > Travel).
+  visits: boolean;
+  walks: boolean;
 }
 
 function travelUnits(side: BookedSide | null): { visits: number; walks: number } {
@@ -63,12 +64,7 @@ export function syncBookedLines(
   const fromIdx = from ? lines.findIndex((l) => l.description === from.product.name) : -1;
   if (from && (fromIdx < 0 || lines[fromIdx].quantity < from.quantity)) return null;
 
-  // Read before any change: does the travel line cover more than its Visits?
   const travelBefore = travel ? (lines.find((l) => l.description === travel.product.name)?.quantity ?? 0) : 0;
-  const visitTravelBefore = travel
-    ? lines.reduce((sum, l) => sum + l.quantity * (travel.visitCountByName.get(l.description) ?? 0), 0)
-    : 0;
-  const hasWalkTravel = travelBefore > visitTravelBefore;
 
   let next = lines;
   if (from) {
@@ -85,21 +81,19 @@ export function syncBookedLines(
   // product's line -- dropped once nothing's left on it.
   if (from) next = next.filter((l, i) => i !== fromIdx || l.quantity > 0);
 
-  if (travel && travelBefore > 0) {
+  if (travel) {
     const before = travelUnits(from);
     const after = travelUnits(to);
-    const delta = after.visits - before.visits + (hasWalkTravel ? after.walks - before.walks : 0);
-    if (delta !== 0) {
+    const delta =
+      (travel.visits ? after.visits - before.visits : 0) + (travel.walks ? after.walks - before.walks : 0);
+    if (delta !== 0 && travelBefore > 0) {
       const travelQty = Math.max(0, travelBefore + delta);
       next = next
         .map((l) => (l.description === travel.product.name ? { ...l, quantity: travelQty } : l))
         .filter((l) => l.description !== travel.product.name || l.quantity > 0);
+    } else if (delta > 0) {
+      next = addToLine(next, travel.product, delta, next.length);
     }
-  } else if (travel) {
-    // No travel on the invoice yet: only Visits add it (Walk travel is
-    // opt-in at generation, so it isn't started here).
-    const delta = travelUnits(to).visits - travelUnits(from).visits;
-    if (delta > 0) next = addToLine(next, travel.product, delta, next.length);
   }
   return next;
 }

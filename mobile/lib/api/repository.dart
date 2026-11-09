@@ -210,12 +210,14 @@ class Repository {
     String id, {
     required String? defaultProduct,
     required bool travelChargeable,
+    required bool travelChargeableWalks,
     required String? travelProduct,
     required List<String> regularDays,
   }) async =>
       Customer.fromJson(await _client.patch('/customers/$id', {
         'defaultProduct': defaultProduct,
         'travelChargeable': travelChargeable,
+        'travelChargeableWalks': travelChargeableWalks,
         'travelProduct': travelProduct,
         'regularDays': regularDays,
       }));

@@ -6,23 +6,35 @@ import '../models/visit_mapping.dart';
 
 /// Staff-app port of admin/src/utils/travelLines.ts.
 ///
-/// Settings > Customer Defaults > Travel: a travel-chargeable customer pays
-/// travel on Visits only -- one per 1 x Visit, two per 2 x Visit (per day).
-/// Walks can carry travel too, by the same one-per-walk rule, but only when
-/// staff opt in at invoicing time. Day Care and Boarding never do, whatever
-/// travel rows were booked alongside them.
+/// Customer Defaults > Travel has two settings sharing one travel product:
+/// Travel Chargeable for Visits (`travelChargeable`) -- one per 1 x Visit, two
+/// per 2 x Visit (per day) -- and Travel Chargeable for Walks
+/// (`travelChargeableWalks`) -- one per dog walk. Day Care and Boarding never
+/// carry travel, whatever travel rows were booked alongside them.
 
-/// The customer's travel product, when they're travel-chargeable and it's
+bool _hasTravelProduct(Customer customer) =>
+    customer.travelProductId != null && customer.travelProductId!.isNotEmpty;
+
+bool chargesVisitTravel(Customer? customer) =>
+    customer != null && customer.travelChargeable && _hasTravelProduct(customer);
+
+bool chargesWalkTravel(Customer? customer) =>
+    customer != null && customer.travelChargeableWalks && _hasTravelProduct(customer);
+
+/// The customer's travel product, when either travel setting is on and it's
 /// still in the catalogue.
 Product? travelProductForCustomer(Customer? customer, Iterable<Product> products) {
-  if (customer == null || !customer.travelChargeable) return null;
-  final id = customer.travelProductId;
-  if (id == null || id.isEmpty) return null;
+  if (!chargesVisitTravel(customer) && !chargesWalkTravel(customer)) return null;
+  final id = customer!.travelProductId;
   for (final p in products) {
     if (p.id == id) return p;
   }
   return null;
 }
+
+/// How many travel lines the customer pays for [units].
+int travelQuantityForCustomer(Customer? customer, TravelUnits units) =>
+    (chargesVisitTravel(customer) ? units.visits : 0) + (chargesWalkTravel(customer) ? units.walks : 0);
 
 /// How much travel a set of bookings would charge, counted from the bookings
 /// themselves (booked travel rows are ignored).
@@ -36,7 +48,8 @@ class TravelUnits {
   const TravelUnits({this.visits = 0, this.walks = 0});
 }
 
-bool _isBoardingOrDayCare(VisitMapping mapping, String productId) =>
+/// Day Care and Boarding products, which never carry travel.
+bool isBoardingOrDayCareProduct(VisitMapping mapping, String productId) =>
     mapping.isDayCareProduct(productId) ||
     mapping.isBoardingProduct(productId) ||
     productId == mapping.boardingHalfDay ||
@@ -48,7 +61,7 @@ TravelUnits travelUnitsForBookings(Iterable<DayBooking> bookings, VisitMapping m
   for (final b in bookings) {
     if (b.placeholder || b.boardingStay) continue;
     final pid = b.productId;
-    if (pid == travel.id || _isBoardingOrDayCare(mapping, pid)) continue;
+    if (pid == travel.id || isBoardingOrDayCareProduct(mapping, pid)) continue;
     final visitCount = mapping.visitCountForProduct(pid);
     if (visitCount != null) {
       visits += b.quantity * visitCount;

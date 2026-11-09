@@ -17,18 +17,16 @@ class _CustomerGroup {
   final List<String> bookingIds;
 
   /// Booked products with any travel rows stripped out -- travel is charged
-  /// per Visit (and optionally per Walk), not per travel row booked. See
+  /// per Visit and/or per Walk, not per travel row booked. See
   /// `_linesFor`.
   final List<InvoiceLineItem> baseLineItems;
 
   /// The customer's travel product, when they're travel-chargeable.
   final Product? travel;
 
-  /// Travel always charged for Visits (1 x Visit -> 1, 2 x Visit -> 2).
-  final int visitTravel;
-
-  /// Travel staff can opt into for Walks, one per walk.
-  final int walkTravel;
+  /// Travel charged for Visits (1 x Visit -> 1, 2 x Visit -> 2) and/or Walks
+  /// (one each), as the customer's Travel settings say.
+  final int travelQuantity;
 
   /// The customer's latest booked date this month -- the generated invoice
   /// falls due on the last day of what it covers.
@@ -39,8 +37,7 @@ class _CustomerGroup {
     required this.bookingIds,
     required this.baseLineItems,
     required this.travel,
-    required this.visitTravel,
-    required this.walkTravel,
+    required this.travelQuantity,
     required this.lastDate,
   });
 }
@@ -74,18 +71,14 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
   /// Customers whose invoice will be created -- all of them by default.
   final Set<String> _selectedIds = {};
 
-  /// Customers whose Walks this month should carry travel too (opt-in).
-  final Set<String> _walkTravelIds = {};
-
   List<_CustomerGroup> get _selected => _groups.where((g) => _selectedIds.contains(g.customerId)).toList();
 
-  /// The lines the invoice would be created with right now: the booked
-  /// products plus travel for Visits, and for Walks when ticked.
+  /// The lines the invoice will be created with: the booked products plus
+  /// the customer's travel.
   List<InvoiceLineItem> _linesFor(_CustomerGroup g) {
     final travel = g.travel;
     if (travel == null) return g.baseLineItems;
-    final walks = _walkTravelIds.contains(g.customerId) ? g.walkTravel : 0;
-    return withTravelQuantity(g.baseLineItems, travel, g.visitTravel + walks);
+    return withTravelQuantity(g.baseLineItems, travel, g.travelQuantity);
   }
 
   double get _selectedTotal => _selected.fold<double>(0, (s, g) => s + lineItemsTotal(_linesFor(g)));
@@ -132,11 +125,14 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
         final booked = byProduct.values
             .map((p) => InvoiceLineItem(description: p.name, quantity: p.qty.toDouble(), unitPrice: p.price))
             .toList();
-        // Travel is charged per Visit (2 x Visit -> 2 x Travel), not per
-        // travel row booked -- those also land on Walks, Day Care and
-        // Boarding days. Walk travel is offered per customer in the tile.
-        final travel = travelProductForCustomer(customers[cid], products);
-        final units = travel == null ? const TravelUnits() : travelUnitsForBookings(custBookings, mapping, travel);
+        // Travel is counted from the Visits (2 x Visit -> 2 x Travel) and/or
+        // Walks (one each) the customer is chargeable for, not from travel
+        // rows booked -- older ones also sit on Day Care and Boarding days.
+        final customer = customers[cid];
+        final travel = travelProductForCustomer(customer, products);
+        final travelQuantity = travel == null
+            ? 0
+            : travelQuantityForCustomer(customer, travelUnitsForBookings(custBookings, mapping, travel));
         final lastDate = custBookings.map((b) => b.date).reduce((a, b) => a.isAfter(b) ? a : b);
         groups.add(_CustomerGroup(
           customerId: cid,
@@ -144,8 +140,7 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
           bookingIds: custBookings.map((b) => b.id).toList(),
           baseLineItems: travel == null ? booked : withTravelQuantity(booked, travel, 0),
           travel: travel,
-          visitTravel: units.visits,
-          walkTravel: units.walks,
+          travelQuantity: travelQuantity,
           lastDate: lastDate,
         ));
       });
@@ -312,7 +307,6 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
     final expanded = _expandedId == g.customerId;
     final selected = _selectedIds.contains(g.customerId);
     final lineItems = _linesFor(g);
-    final travel = g.travel;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -351,25 +345,6 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
               ],
             ),
           ),
-          // Walks only carry travel when staff tick it (Visits always do).
-          if (travel != null && g.walkTravel > 0)
-            CheckboxListTile(
-              dense: true,
-              contentPadding: const EdgeInsets.only(left: 44, right: 12),
-              controlAffinity: ListTileControlAffinity.leading,
-              value: _walkTravelIds.contains(g.customerId),
-              onChanged: _busy || !selected
-                  ? null
-                  : (v) => setState(() {
-                        if (v == true) {
-                          _walkTravelIds.add(g.customerId);
-                        } else {
-                          _walkTravelIds.remove(g.customerId);
-                        }
-                      }),
-              title: Text('Add travel for walks too (${g.walkTravel} × ${travel.name})',
-                  style: const TextStyle(fontSize: 13)),
-            ),
           if (expanded)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),

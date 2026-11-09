@@ -9,6 +9,7 @@ import '../models/customer.dart';
 import '../models/invoice.dart';
 import '../models/product.dart';
 import '../models/visit_mapping.dart';
+import '../utils/travel_lines.dart';
 import '../widgets/brand.dart';
 
 /// Everything the form needs, loaded up front.
@@ -161,33 +162,35 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 
   void _addItem() => setState(() => _items.add(_LineItemEntry()));
 
-  /// Keeps a travel-chargeable customer's travel line following the Visits
-  /// on the form (1 x Visit -> 1 x Travel, 2 x Visit -> 2 x Travel) -- the
-  /// staff-app port of admin/src/utils/travelLines.ts. When the Visit count
-  /// changes, travel moves by the same amount, so travel added for Walks or
-  /// edited by hand is kept. Opening an existing invoice leaves it as saved.
+  /// Keeps a customer's travel line following the Visits (1 x Visit -> 1 x
+  /// Travel, 2 x Visit -> 2 x Travel) and/or Walks (one each) on the form,
+  /// whichever they're Travel Chargeable for -- the staff-app port of
+  /// admin/src/utils/travelLines.ts. When that count changes, travel moves by
+  /// the same amount, so travel edited by hand is kept. Opening an existing
+  /// invoice leaves it as saved.
   void _syncTravelLine() {
     final customer = _customer;
     final mapping = _mapping;
-    if (customer == null || mapping == null || !customer.travelChargeable) return;
-    final travelId = customer.travelProductId;
-    if (travelId == null || travelId.isEmpty) return;
-    Product? found;
-    for (final p in _products) {
-      if (p.id == travelId) found = p;
-    }
-    if (found == null) return;
-    final travel = found;
-    var target = 0;
+    if (mapping == null) return;
+    final travel = travelProductForCustomer(customer, _products);
+    if (travel == null) return;
+    var visits = 0.0;
+    var walks = 0.0;
     for (final item in _items) {
       final product = item.product;
       // Synthetic products (id '') were deleted from the catalogue and can't
-      // be matched to a Visit; Walks, Day Care and Boarding don't count.
+      // be matched; Day Care and Boarding never count.
       if (product == null || product.id.isEmpty || product.id == travel.id) continue;
+      if (isBoardingOrDayCareProduct(mapping, product.id)) continue;
+      final quantity = double.tryParse(item.quantity.text.trim()) ?? 0;
       final visitCount = mapping.visitCountForProduct(product.id);
-      if (visitCount == null) continue;
-      target += ((double.tryParse(item.quantity.text.trim()) ?? 0) * visitCount).round();
+      if (visitCount != null) {
+        visits += quantity * visitCount;
+      } else {
+        walks += quantity;
+      }
     }
+    final target = travelQuantityForCustomer(customer, TravelUnits(visits: visits.round(), walks: walks.round()));
     final previous = _lastTravelTarget;
     _lastTravelTarget = target;
     // First sync on an existing invoice: take its travel line as saved.

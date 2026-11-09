@@ -3,7 +3,12 @@ import * as api from '../api/client';
 import Modal from './Modal';
 import { ChevronDownIcon } from './icons';
 import type { DayBooking, Invoice, InvoiceTerm, LineItem, Product } from '../types';
-import { travelProductForCustomer, travelUnitsForBookings, withTravelQuantity } from '../utils/travelLines';
+import {
+  travelProductForCustomer,
+  travelQuantityForCustomer,
+  travelUnitsForBookings,
+  withTravelQuantity,
+} from '../utils/travelLines';
 import { bookingInvoiceDueDate } from '../utils/invoiceDueDate';
 
 function lineItemAmount(item: LineItem): number {
@@ -51,10 +56,9 @@ interface CustomerGroup {
   baseLineItems: LineItem[];
   // The customer's travel product, if they're travel-chargeable.
   travel: Product | null;
-  // Travel always charged for Visits (1 x Visit -> 1, 2 x Visit -> 2).
-  visitTravel: number;
-  // Travel staff can opt into for Walks, by the same one-per-walk rule.
-  walkTravel: number;
+  // Travel charged for Visits (1 x Visit -> 1, 2 x Visit -> 2) and/or Walks
+  // (one each), as the customer's Travel settings say.
+  travelQuantity: number;
   // The customer's latest booked date this month -- the generated invoice
   // falls due on it, unless the payment term gives a later date.
   lastDate: string;
@@ -83,12 +87,10 @@ export default function GenerateInvoicesModal({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ invoiceCount: number; matchedCount: number } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  // Per customer: also charge travel for their Walks this month.
-  const [walkTravel, setWalkTravel] = useState<Record<string, boolean>>({});
 
   function linesFor(g: CustomerGroup): LineItem[] {
     if (!g.travel) return g.baseLineItems;
-    return withTravelQuantity(g.baseLineItems, g.travel, g.visitTravel + (walkTravel[g.customerId] ? g.walkTravel : 0));
+    return withTravelQuantity(g.baseLineItems, g.travel, g.travelQuantity);
   }
 
   const monthStart = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
@@ -132,11 +134,14 @@ export default function GenerateInvoicesModal({
             unitPrice: p.price,
             discountPercent: 0,
           }));
-          // Travel is charged per Visit (2 x Visit -> 2 x Travel), not per
-          // travel row booked -- those also land on Walks, Day Care and
-          // Boarding days. Walk travel is offered per customer below.
-          const travel = travelProductForCustomer(customers.find((c) => c._id === cid), products);
-          const units = travel ? travelUnitsForBookings(custBookings, mapping, travel) : { visits: 0, walks: 0 };
+          // Travel is counted from the Visits (2 x Visit -> 2 x Travel) and/or
+          // Walks (one each) the customer is chargeable for, not from travel
+          // rows booked -- older ones also sit on Day Care and Boarding days.
+          const customer = customers.find((c) => c._id === cid);
+          const travel = travelProductForCustomer(customer, products);
+          const travelQuantity = travel
+            ? travelQuantityForCustomer(customer, travelUnitsForBookings(custBookings, mapping, travel))
+            : 0;
           const lastDate = custBookings
             .map((b) => dateKey(new Date(b.date)))
             .sort()
@@ -162,8 +167,7 @@ export default function GenerateInvoicesModal({
             bookingIds: custBookings.map((b) => b._id),
             baseLineItems: travel ? withTravelQuantity(booked, travel, 0) : booked,
             travel,
-            visitTravel: units.visits,
-            walkTravel: units.walks,
+            travelQuantity,
             lastDate,
             invoices: custInvoices,
             paidInvoice,
@@ -289,21 +293,6 @@ export default function GenerateInvoicesModal({
                     </div>
                     <div style={{ fontWeight: 700, flexShrink: 0 }}>£{lineItemsTotal(lineItems).toFixed(2)}</div>
                   </div>
-                  {g.travel && g.walkTravel > 0 && (
-                    <label
-                      style={{ paddingLeft: 48, marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', cursor: 'pointer' }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={!!walkTravel[g.customerId]}
-                        disabled={!ticked}
-                        onChange={(e) => setWalkTravel({ ...walkTravel, [g.customerId]: e.target.checked })}
-                      />
-                      <span>
-                        Add travel for walks too ({g.walkTravel} × {g.travel.name})
-                      </span>
-                    </label>
-                  )}
                   {(g.paidInvoice || g.invoices.length > 0) && (
                     // Indented to line up with the name, under the checkbox and chevron.
                     <div style={{ paddingLeft: 48, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>

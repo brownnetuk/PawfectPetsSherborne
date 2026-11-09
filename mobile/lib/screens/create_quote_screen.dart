@@ -10,6 +10,7 @@ import '../models/invoice.dart';
 import '../models/product.dart';
 import '../models/quote.dart';
 import '../models/visit_mapping.dart';
+import '../utils/travel_lines.dart';
 import '../utils/visit_plan.dart';
 import '../widgets/brand.dart';
 
@@ -227,15 +228,8 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
   /// edits to the travel quantity snap back, same as the admin.
   void _syncTravelLine() {
     final customer = _customer;
-    if (customer == null || !customer.travelChargeable) return;
-    final travelId = customer.travelProductId;
-    if (travelId == null || travelId.isEmpty) return;
-    Product? found;
-    for (final p in _products) {
-      if (p.id == travelId) found = p;
-    }
-    if (found == null) return;
-    final travel = found;
+    final travel = travelProductForCustomer(customer, _products);
+    if (travel == null) return;
     var quantity = 0.0;
     for (final item in _items) {
       final product = item.product;

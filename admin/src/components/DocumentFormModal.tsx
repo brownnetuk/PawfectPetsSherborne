@@ -11,7 +11,13 @@ import { ChevronDownIcon } from './icons';
 import { buildVisitPlan, parseYmd as parseVisitYmd } from '../utils/visitPlan';
 import type { VisitCount, VisitDuration } from '../utils/visitPlan';
 import { dayCareProductFor } from '../utils/visitMapping';
-import { travelProductForCustomer, travelQuantityIn, visitTravelQuantityFor, withTravelQuantity } from '../utils/travelLines';
+import {
+  travelProductForCustomer,
+  travelQuantityForCustomer,
+  travelQuantityIn,
+  travelUnitsForLineItems,
+  withTravelQuantity,
+} from '../utils/travelLines';
 import type { Animal, BankHoliday, Customer, Invoice, InvoiceTerm, LineItem, Product, Quote, VisitMapping } from '../types';
 
 function customerId(customer: Invoice['customer'] | Quote['customer']): string {
@@ -514,15 +520,17 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
     api.listAnimals(custId).then(setCustomerPets).catch(() => setCustomerPets([]));
   }, [custId]);
 
-  // Invoices only -- Settings > Customer Defaults > Travel. The travel line
-  // follows the Visits in the Item Table (1 x Visit -> 1 x Travel, 2 x Visit
-  // -> 2 x Travel): when that count changes, travel moves by the same amount,
-  // so travel added for Walks or edited by hand is kept. Opening an existing
-  // invoice leaves it as saved.
-  const travelProduct =
-    kind === 'invoice' ? travelProductForCustomer(customers.find((c) => c._id === custId), products) : null;
+  // Invoices only -- Customer Defaults > Travel. The travel line follows the
+  // Visits (1 x Visit -> 1 x Travel, 2 x Visit -> 2 x Travel) and/or Walks
+  // (one each) in the Item Table, whichever the customer is chargeable for:
+  // when that count changes, travel moves by the same amount, so travel
+  // edited by hand is kept. Opening an existing invoice leaves it as saved.
+  const travelCustomer = customers.find((c) => c._id === custId);
+  const travelProduct = kind === 'invoice' ? travelProductForCustomer(travelCustomer, products) : null;
   const travelTarget =
-    travelProduct && visitMapping ? visitTravelQuantityFor(lineItems, visitMapping, products) : null;
+    travelProduct && visitMapping
+      ? travelQuantityForCustomer(travelCustomer, travelUnitsForLineItems(lineItems, visitMapping, products, travelProduct))
+      : null;
   const lastTravelTarget = useRef<number | null | undefined>(undefined);
   useEffect(() => {
     if (!travelProduct || travelTarget === null) {

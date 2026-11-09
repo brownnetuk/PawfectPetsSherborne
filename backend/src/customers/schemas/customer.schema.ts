@@ -298,8 +298,15 @@ export class Customer extends Document {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
   defaultProduct?: Types.ObjectId;
 
+  // Travel Chargeable for Visits (the original flag, so existing customers
+  // keep it): one travel line per Visit.
   @Prop({ default: false })
   travelChargeable?: boolean;
+
+  // Travel Chargeable for Walks: one travel line per dog walk. Shares
+  // travelProduct with Visits.
+  @Prop({ default: false })
+  travelChargeableWalks?: boolean;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name })
   travelProduct?: Types.ObjectId;

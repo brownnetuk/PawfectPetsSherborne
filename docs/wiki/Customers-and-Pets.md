@@ -16,7 +16,18 @@ What's stored on a customer:
 - Emergency vet and the signed alternative vet care authorisation.
 - Security: keys provided, the alarm / key-safe code (encrypted; only staff with `customers.viewSecurity` can reveal it), further information.
 - The signed agreement: name, signature, date, and the terms version and document date at the time of signing.
-- **Customer Defaults**: default product, whether travel is chargeable and its product, regular days (used for "Recommended" on the calendar and for income projections), and app access.
+- **Customer Defaults**: default product, travel charging (see below), regular days (used for "Recommended" on the calendar and for income projections), and app access.
+
+### Travel
+
+The **Travel** card on Customer Defaults has two settings that share one travel product:
+
+| Setting | What it adds to invoices |
+|---|---|
+| **Travel Chargeable for Visits** | One travel line per visit: 1 x Visit adds 1 x Travel, 2 x Visit adds 2 x Travel. |
+| **Travel Chargeable for Walks** | One travel line per dog walk: 1 x Walk adds 1 x Travel, 2 x Walk adds 2 x Travel. |
+
+Tick either or both. Day care and boarding never carry travel. Travel is counted from the bookings when invoices are generated, and kept in step when a booking on a draft or scheduled invoice changes.
 
 Every change is written to the customer's **Activity** tab (the audit log). **Notes** is for the team's own CRM entries: notes, calls, emails and tasks, with image attachments.
 

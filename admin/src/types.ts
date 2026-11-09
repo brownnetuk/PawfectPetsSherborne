@@ -84,7 +84,10 @@ export interface Customer {
     termsDocumentDate?: string;
   };
   defaultProduct?: string | null;
+  // Travel Chargeable for Visits.
   travelChargeable?: boolean;
+  // Travel Chargeable for Walks.
+  travelChargeableWalks?: boolean;
   travelProduct?: string | null;
   regularDays?: string[];
   portalActive?: boolean;

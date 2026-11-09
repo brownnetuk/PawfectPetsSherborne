@@ -155,7 +155,7 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
       final otherIds = ids.sublist(1);
       final animal = widget.animals.where((a) => a.id == primaryId).firstOrNull;
       final owner = animal == null ? null : _ownerOf(animal.customerId);
-      final travelId = (owner?.travelChargeable ?? false) ? owner?.travelProductId : null;
+      final travelId = chargesVisitTravel(owner) ? owner?.travelProductId : null;
 
       // Every row created this time round -- what the invoice prompt bills.
       final createdRows = <DayBooking>[];
@@ -351,20 +351,14 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
       if (!generate || !mounted) return;
     }
 
-    // Travel is charged per Visit (2 x Visit -> 2 x Travel), plus per Walk
-    // only when staff say so -- never from the travel rows booked alongside.
-    final travel = travelProductForCustomer(_ownerOf(customerId), widget.products);
-    final units = travel == null ? const TravelUnits() : travelUnitsForBookings(rows, widget.visitMapping, travel);
-    var walkTravel = false;
-    if (travel != null && units.walks > 0) {
-      walkTravel = await _ask(
-        title: 'Travel for walks?',
-        message: 'Add travel for the walks too (${units.walks} × ${travel.name})?',
-        noLabel: 'No',
-        yesLabel: 'Add travel',
-      );
-      if (!mounted) return;
-    }
+    // Travel is charged per Visit (2 x Visit -> 2 x Travel) and/or per Walk,
+    // as the customer's Travel settings say -- never from the travel rows
+    // booked alongside.
+    final owner = _ownerOf(customerId);
+    final travel = travelProductForCustomer(owner, widget.products);
+    final travelQuantity = travel == null
+        ? 0
+        : travelQuantityForCustomer(owner, travelUnitsForBookings(rows, widget.visitMapping, travel));
 
     setState(() {
       _busy = true;
@@ -389,7 +383,7 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
           .map((p) => InvoiceLineItem(description: p.name, quantity: p.qty.toDouble(), unitPrice: p.price))
           .toList();
       if (travel != null) {
-        lineItems = withTravelQuantity(lineItems, travel, units.visits + (walkTravel ? units.walks : 0));
+        lineItems = withTravelQuantity(lineItems, travel, travelQuantity);
       }
 
       final dates = rows.map((r) => DateTime(r.date.year, r.date.month, r.date.day)).toList()..sort();
