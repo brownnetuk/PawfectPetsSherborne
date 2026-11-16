@@ -178,7 +178,8 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
             animalId: primaryId,
             date: entry.date,
             productId: travelId,
-            quantity: 1,
+            // One travel per visit: 2 x Visit (AM & PM) -> 2 x Travel.
+            quantity: widget.visitMapping.visitCountForProduct(entry.productId) ?? 1,
           ));
         }
       }
