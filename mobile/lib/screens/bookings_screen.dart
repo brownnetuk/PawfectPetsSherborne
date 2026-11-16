@@ -235,8 +235,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
   /// Mirrors the admin travel-line auto-add (Customer Defaults > Travel):
   /// adds the owner's travel product as its own entry alongside what was just
-  /// booked -- for a Visit when they're Travel Chargeable for Visits (once per
-  /// dog per day), and for a Walk when they're Travel Chargeable for Walks
+  /// booked -- for a Visit when they're Travel Chargeable for Visits (one per
+  /// visit, so 2 x Visit -> 2 x Travel; once per dog per day), and for a Walk when they're Travel Chargeable for Walks
   /// (one per walk, so 2 x Walk -> 2 x Travel). Never for Day Care or Boarding.
   Future<void> _maybeAddTravel(
     Repository repo,
@@ -259,7 +259,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
       }
       return;
     }
-    await repo.createDayBooking(animalId: animalId, date: _day, productId: travelId, quantity: isVisit ? 1 : quantity);
+    await repo.createDayBooking(animalId: animalId, date: _day, productId: travelId,
+        quantity: isVisit ? (_visitMapping.visitCountForProduct(mainProductId) ?? 1) * quantity : quantity);
   }
 
   Future<void> _quickAdd(AnimalRef animal, List<DayBooking> current) async {

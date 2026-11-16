@@ -851,8 +851,8 @@ function DayDetailPanel({
 
   // Mirrors the travel line on invoices (Customer Defaults > Travel): adds the
   // owner's travel product as its own entry alongside what was just booked --
-  // for a Visit when they're Travel Chargeable for Visits (once per dog per
-  // day), and for a Walk when they're Travel Chargeable for Walks (one per
+  // for a Visit when they're Travel Chargeable for Visits (one per visit, so
+  // 2 x Visit -> 2 x Travel; once per dog per day), and for a Walk when they're Travel Chargeable for Walks (one per
   // walk, so 2 x Walk -> 2 x Travel). Never for Day Care or Boarding.
   async function maybeAddTravel(petId: string, custId: string | undefined, mainProductId: string, quantity: number) {
     const owner = custId ? ownerOf(custId) : undefined;
@@ -875,7 +875,7 @@ function DayDetailPanel({
       animal: petId,
       date: dateKey(date),
       product: travelProduct._id,
-      quantity: isVisit ? 1 : quantity,
+      quantity: isVisit ? (visitCountForProduct(visitMapping, mainProductId) ?? 1) * quantity : quantity,
     });
   }
 

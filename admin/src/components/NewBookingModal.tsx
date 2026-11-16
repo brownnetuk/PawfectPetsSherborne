@@ -8,7 +8,7 @@ import Modal from './Modal';
 import { addDays, buildVisitPlan, dateKey, parseYmd } from '../utils/visitPlan';
 import type { VisitCount, VisitDuration, VisitTime } from '../utils/visitPlan';
 import { annualLeaveOn, rangeOverlapsAnnualLeave } from '../utils/annualLeave';
-import { dayCareProductFor, isVisitProduct } from '../utils/visitMapping';
+import { dayCareProductFor, isVisitProduct, visitCountForProduct } from '../utils/visitMapping';
 import { chargesVisitTravel } from '../utils/travelLines';
 import type { Animal, AnnualLeave, Customer, DayBooking } from '../types';
 
@@ -285,6 +285,20 @@ export default function NewBookingModal({
       const otherIds = animalIds.filter((id) => id !== primaryId);
       const selected = new Set(animalIds);
       const travelProductId = travelProductFor(primaryId);
+      // One travel per visit: a 2 x Visit (AM & PM) day carries 2 x Travel.
+      const travelQuantityFor = (pid: string) => visitCountForProduct(mapping, pid) ?? 1;
+      // The day's own uninvoiced travel row for the booking's pet, if any.
+      const travelRowOn = (key: string) =>
+        travelProductId
+          ? existing.find(
+              (t) =>
+                !removed.has(t._id) &&
+                !t.invoice &&
+                animalId(t.animal) === primaryId &&
+                dateKey(new Date(t.date)) === key &&
+                productIdOf(t.product) === travelProductId,
+            )
+          : undefined;
 
       let created = 0;
       let updated = 0;
@@ -374,6 +388,13 @@ export default function NewBookingModal({
             await api.updateDayBooking(editRow._id, patch);
             updated++;
           }
+          // Keep the day's travel in step when 1 x Visit becomes 2 x Visit
+          // (or back).
+          const travelRow = travelRowOn(key);
+          if (travelRow && travelRow.quantity !== travelQuantityFor(productId)) {
+            await api.updateDayBooking(travelRow._id, { quantity: travelQuantityFor(productId) });
+            updated++;
+          }
           continue;
         }
 
@@ -394,7 +415,12 @@ export default function NewBookingModal({
             productIdOf(t.product) === travelProductId,
         );
         if (travelProductId && travelProductId !== productId && !hasTravel) {
-          await api.createDayBooking({ animal: primaryId, date: key, product: travelProductId, quantity: 1 });
+          await api.createDayBooking({
+            animal: primaryId,
+            date: key,
+            product: travelProductId,
+            quantity: travelQuantityFor(productId),
+          });
           created++;
         }
       }
