@@ -97,6 +97,12 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
               onTap: () => Navigator.of(context).pop('payment'),
             ),
             ListTile(
+              leading: const Icon(Icons.swap_horiz),
+              title: const Text('Update Status'),
+              subtitle: Text('Currently ${inv.status.replaceAll('_', ' ')}'),
+              onTap: () => Navigator.of(context).pop('status'),
+            ),
+            ListTile(
               leading: Icon(Icons.delete_outline, color: Colors.red.shade600),
               title: Text('Delete', style: TextStyle(color: Colors.red.shade700)),
               onTap: () => Navigator.of(context).pop('delete'),
@@ -111,10 +117,86 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
         await _editInvoice(inv);
       case 'payment':
         await _recordPayment(inv);
+      case 'status':
+        await _updateStatus(inv);
       case 'delete':
         await _deleteInvoice(inv);
     }
     return false;
+  }
+
+  /// Update Status: pick a new status for the invoice, then PATCH it. Mirrors
+  /// the admin's status dropdown. Scheduled isn't offered -- the server only
+  /// accepts it through Schedule Send, which needs a send time.
+  Future<void> _updateStatus(Invoice inv) async {
+    final choices = invoiceStatuses.where((s) => s != 'scheduled').toList();
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('${inv.invoiceNumber} · update status', style: const TextStyle(fontWeight: FontWeight.w600)),
+              ),
+            ),
+            for (final s in choices)
+              ListTile(
+                leading: Icon(
+                  s == inv.status ? Icons.radio_button_checked : Icons.radio_button_off,
+                  color: statusColor(s),
+                ),
+                title: Text(s[0].toUpperCase() + s.substring(1)),
+                trailing: StatusBadge(status: s),
+                enabled: s != inv.status,
+                onTap: () => Navigator.of(sheetContext).pop(s),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || picked == inv.status || !mounted) return;
+
+    // Paid and cancelled have knock-on effects, so ask first.
+    if (picked == 'paid' || picked == 'cancelled') {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(picked == 'paid' ? 'Mark as paid?' : 'Cancel invoice?'),
+          content: Text(
+            picked == 'paid'
+                ? 'This marks ${inv.invoiceNumber} as paid without recording a payment. '
+                    'Use Record Payment instead if money was received.'
+                : 'This cancels ${inv.invoiceNumber}. It stays on the list and can be set back to another status.',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Back')),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(picked == 'paid' ? 'Mark as paid' : 'Cancel invoice'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
+
+    try {
+      await context.read<Repository>().updateInvoice(inv.id, {'status': picked});
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('${inv.invoiceNumber} is now ${picked.replaceAll('_', ' ')}')));
+        _refresh();
+      }
+    } catch (e) {
+      if (mounted) {
+        final message = e is ApiException ? e.message : 'Failed to update status';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      }
+    }
   }
 
   Future<void> _editInvoice(Invoice inv) async {
@@ -211,10 +293,14 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                   onChanged: (v) => setState(() => _search = v.toLowerCase()),
                 ),
                 const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Wrap(
-                    spacing: 8,
+                // One scrolling row (as the calendar's type filters): eight
+                // chips wrapped onto three lines and the last one ran out of
+                // the fixed-height header into the list.
+                SizedBox(
+                  height: 40,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: EdgeInsets.zero,
                     children: [
                       // Every stored status plus the admin's two derived
                       // filters (Outstanding, Partially Paid) -- same list as
@@ -229,10 +315,13 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                         ('overdue', 'Overdue'),
                         ('cancelled', 'Cancelled'),
                       ])
-                        ChoiceChip(
-                          label: Text(f.$2),
-                          selected: _statusFilter == f.$1,
-                          onSelected: (v) => setState(() => _statusFilter = v ? f.$1 : null),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(f.$2),
+                            selected: _statusFilter == f.$1,
+                            onSelected: (v) => setState(() => _statusFilter = v ? f.$1 : null),
+                          ),
                         ),
                     ],
                   ),
