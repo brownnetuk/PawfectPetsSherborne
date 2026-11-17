@@ -28,18 +28,31 @@ class _FormData {
 /// chosen from the product catalogue and payment terms from the admin app's
 /// library. When [invoice] is set the form edits that invoice (PATCH); else it
 /// creates a new one (POST) and the server assigns the number and totals.
+///
+/// A new invoice can be pre-filled from a booking ([initialLineItems],
+/// [initialSubject], [initialDueDate]) -- the calendar's Booking summary does
+/// this so staff review the lines before creating the draft.
 class CreateInvoiceScreen extends StatefulWidget {
   final String customerId;
   final String customerName;
   final Invoice? invoice;
+  final List<InvoiceLineItem>? initialLineItems;
+  final String? initialSubject;
+  final DateTime? initialDueDate;
   const CreateInvoiceScreen({
     super.key,
     required this.customerId,
     required this.customerName,
     this.invoice,
+    this.initialLineItems,
+    this.initialSubject,
+    this.initialDueDate,
   });
 
   bool get isEditing => invoice != null;
+
+  /// A new invoice started from a booking's rows.
+  bool get isPrefilled => !isEditing && initialLineItems != null && initialLineItems!.isNotEmpty;
 
   @override
   State<CreateInvoiceScreen> createState() => _CreateInvoiceScreenState();
@@ -100,6 +113,14 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         setState(() {
           _selectedTerm = def;
           if (def != null) _applyTermDueDate(def);
+          if (widget.isPrefilled) {
+            _subjectController.text = widget.initialSubject ?? '';
+            _prefillLineItems(widget.initialLineItems!, data.products);
+            // A booking is due on the last date it covers, same as the
+            // Visits sheet and the monthly run -- the chosen terms only
+            // apply when the booking doesn't say otherwise.
+            if (widget.initialDueDate != null) _dueDate = widget.initialDueDate!;
+          }
         });
       }
     }).catchError((_) {});
@@ -123,13 +144,17 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       _terms = [..._terms, term];
     }
     _selectedTerm = term;
+    _prefillLineItems(inv.lineItems, catalogue);
+  }
 
-    // Line items: match each to a catalogue product by name, else synthesise one.
+  /// Replaces the form's line items with [lineItems], matching each to a
+  /// catalogue product by name and synthesising one when it's no longer listed.
+  void _prefillLineItems(List<InvoiceLineItem> lineItems, List<Product> catalogue) {
     for (final e in _items) {
       e.dispose();
     }
     _items.clear();
-    for (final li in inv.lineItems) {
+    for (final li in lineItems) {
       Product? product;
       for (final p in catalogue) {
         if (p.name == li.description) {
@@ -193,8 +218,9 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     final target = travelQuantityForCustomer(customer, TravelUnits(visits: visits.round(), walks: walks.round()));
     final previous = _lastTravelTarget;
     _lastTravelTarget = target;
-    // First sync on an existing invoice: take its travel line as saved.
-    if (previous == null && widget.isEditing) return;
+    // First sync on an existing invoice, or one pre-filled from a booking:
+    // take its travel line as given (the booking already priced travel).
+    if (previous == null && (widget.isEditing || widget.isPrefilled)) return;
     if (previous == target) return;
     final index = _items.indexWhere((i) => i.product?.id == travel.id);
     final current = index >= 0 ? (double.tryParse(_items[index].quantity.text.trim()) ?? 0) : 0.0;

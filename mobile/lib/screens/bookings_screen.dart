@@ -15,6 +15,7 @@ import '../services/push_service.dart';
 import '../utils/product_availability.dart';
 import '../utils/travel_lines.dart';
 import 'add_appointment_sheet.dart';
+import 'booking_summary_sheet.dart';
 import 'generate_invoices_sheet.dart';
 import 'home_shell.dart';
 import 'visits_booking_sheet.dart';
@@ -424,7 +425,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final changed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _EditEntrySheet(booking: booking, products: products, bankHolidays: _bankHolidays),
+      builder: (_) => _EditEntrySheet(
+        booking: booking,
+        products: products,
+        bankHolidays: _bankHolidays,
+        visitMapping: _visitMapping,
+        owner: _ownerOf(booking.customerId),
+      ),
     );
     if (changed == true) _reload();
   }
@@ -1122,7 +1129,17 @@ class _EditEntrySheet extends StatefulWidget {
   final DayBooking booking;
   final List<Product> products;
   final List<BankHoliday> bankHolidays;
-  const _EditEntrySheet({required this.booking, required this.products, required this.bankHolidays});
+  // For the Booking summary: service classification and the owner's travel
+  // settings when raising an invoice from it.
+  final VisitMapping visitMapping;
+  final Customer? owner;
+  const _EditEntrySheet({
+    required this.booking,
+    required this.products,
+    required this.bankHolidays,
+    required this.visitMapping,
+    required this.owner,
+  });
 
   @override
   State<_EditEntrySheet> createState() => _EditEntrySheetState();
@@ -1209,6 +1226,23 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
     }
   }
 
+  /// Shows the whole booking this entry is part of (every date and item) with
+  /// a Create Invoice action. If an invoice was raised, closes this sheet too
+  /// so the calendar reloads and shows the rows as invoiced.
+  Future<void> _showBooking() async {
+    final invoiced = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => BookingSummarySheet(
+        entry: widget.booking,
+        owner: widget.owner,
+        products: widget.products,
+        visitMapping: widget.visitMapping,
+      ),
+    );
+    if (invoiced == true && mounted) Navigator.of(context).pop(true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
@@ -1250,6 +1284,11 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
                   label: Text('Remove', style: TextStyle(color: Colors.red.shade600)),
                 ),
                 const Spacer(),
+                OutlinedButton(
+                  onPressed: _busy ? null : _showBooking,
+                  child: const Text('Booking'),
+                ),
+                const SizedBox(width: 8),
                 ElevatedButton(
                   onPressed: _busy ? null : _save,
                   child: Text(_busy ? 'Saving…' : 'Save'),

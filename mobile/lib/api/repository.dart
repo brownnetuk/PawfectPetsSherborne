@@ -391,6 +391,18 @@ class Repository {
   /// removing any day of a boarding booking -- the stay goes as a unit.
   Future<void> deleteStay(String stayId) => _client.delete('/day-bookings/stay/$stayId');
 
+  /// Every row of one boarding stay (boarding days, attached day care and the
+  /// pick-up placeholder), oldest first -- the calendar's Booking summary.
+  Future<List<DayBooking>> listStay(String stayId) async =>
+      (await _client.getList('/day-bookings/stay/$stayId')).map((e) => DayBooking.fromJson(e)).toList();
+
+  /// Every day booking for one customer, oldest first. Used to find the run
+  /// of days a walk/visit entry belongs to (those rows carry no stayId).
+  Future<List<DayBooking>> listCustomerDayBookings(String customerId) async =>
+      (await _client.getList('/day-bookings/by-customer/$customerId'))
+          .map((e) => DayBooking.fromJson(e))
+          .toList();
+
   /// The Settings > Bookings > Visits product mapping (visit count × day-type).
   Future<VisitMapping> getVisitMapping() async =>
       _visitMappingCache ??= VisitMapping.fromJson(await _client.get('/settings/visits'));
