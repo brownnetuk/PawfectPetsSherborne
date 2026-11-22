@@ -11,7 +11,9 @@ import '../models/visit_mapping.dart';
 import '../theme.dart';
 import '../utils/travel_lines.dart';
 import '../widgets/brand.dart';
+import '../widgets/status_badge.dart';
 import 'create_invoice_screen.dart';
+import 'invoice_detail_screen.dart';
 
 /// The whole booking a calendar entry belongs to: every date and item on it,
 /// with a Create Invoice action for the rows not yet invoiced.
@@ -43,8 +45,11 @@ class _BookingSummarySheetState extends State<BookingSummarySheet> {
   final _money = NumberFormat.currency(locale: 'en_GB', symbol: '£');
   final _dayFmt = DateFormat('EEE d MMM');
   final _dateFmt = DateFormat('d MMM yyyy');
-  late final Future<List<DayBooking>> _future = _load();
+  late Future<List<DayBooking>> _future = _load();
   bool _busy = false;
+  // The invoices the rows are linked to, by id, for their number and status.
+  // An id missing here failed to load (the link still opens it).
+  final Map<String, Invoice> _invoices = {};
 
   static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
@@ -54,7 +59,41 @@ class _BookingSummarySheetState extends State<BookingSummarySheet> {
   static List<DayBooking> _billable(List<DayBooking> rows) =>
       rows.where((r) => !r.placeholder && !_isInvoiced(r)).toList();
 
+  /// Distinct invoice ids the rows are linked to, in date order.
+  static List<String> _invoiceIds(List<DayBooking> rows) {
+    final ids = <String>[];
+    for (final r in rows) {
+      if (_isInvoiced(r) && !ids.contains(r.invoiceId)) ids.add(r.invoiceId!);
+    }
+    return ids;
+  }
+
+  /// "Paid", "Partially paid", "Sent", ... for the header pill and button.
+  static String _statusLabel(Invoice inv) {
+    if (inv.isPartiallyPaid) return 'Partially paid';
+    final s = inv.status.replaceAll('_', ' ');
+    return s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+  }
+
+  static String _statusKey(Invoice inv) => inv.isPartiallyPaid ? 'partially_paid' : inv.status;
+
   Future<List<DayBooking>> _load() async {
+    final repo = context.read<Repository>();
+    final rows = await _loadRows();
+    // Fetch each linked invoice for its number and status. One failing to
+    // load shouldn't hide the booking, so it's just left out of the map.
+    _invoices.clear();
+    for (final id in _invoiceIds(rows)) {
+      try {
+        _invoices[id] = await repo.getInvoice(id);
+      } catch (_) {
+        // Shown as "View invoice" without a number or status.
+      }
+    }
+    return rows;
+  }
+
+  Future<List<DayBooking>> _loadRows() async {
     final repo = context.read<Repository>();
     final entry = widget.entry;
     if (entry.stayId != null && entry.stayId!.isNotEmpty) {
@@ -166,6 +205,44 @@ class _BookingSummarySheetState extends State<BookingSummarySheet> {
     navigator.pop(true);
   }
 
+  /// Opens the invoice, then reloads: a payment or status change on it
+  /// should show here straight away.
+  Future<void> _openInvoice(String id) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => InvoiceDetailScreen(invoiceId: id)),
+    );
+    if (mounted) setState(() => _future = _load());
+  }
+
+  /// The booking's rows are on more than one invoice: pick which to open.
+  Future<void> _pickInvoice(List<String> ids) async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Open invoice', style: TextStyle(fontWeight: FontWeight.w600)),
+              ),
+            ),
+            for (final id in ids)
+              ListTile(
+                leading: const Icon(Icons.receipt_long_outlined),
+                title: Text(_invoices[id]?.invoiceNumber ?? 'Invoice'),
+                trailing: _invoices[id] == null ? null : StatusBadge(status: _statusKey(_invoices[id]!)),
+                onTap: () => Navigator.of(sheetContext).pop(id),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null && mounted) await _openInvoice(picked);
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
@@ -178,6 +255,38 @@ class _BookingSummarySheetState extends State<BookingSummarySheet> {
           final rows = snapshot.data ?? const <DayBooking>[];
           final billable = _billable(rows);
           final allInvoiced = !loading && rows.isNotEmpty && billable.isEmpty;
+          final invoiceIds = _invoiceIds(rows);
+          // Bottom-right action: Create Invoice while anything is unbilled;
+          // once it's all invoiced, a link to the invoice with its status.
+          final Widget action;
+          if (allInvoiced && invoiceIds.isNotEmpty) {
+            final single = invoiceIds.length == 1 ? _invoices[invoiceIds.first] : null;
+            final String label;
+            if (invoiceIds.length > 1) {
+              label = '${invoiceIds.length} invoices';
+            } else if (single != null) {
+              label = '${single.invoiceNumber} · ${_statusLabel(single)}';
+            } else {
+              label = 'View invoice';
+            }
+            action = ElevatedButton.icon(
+              onPressed: _busy
+                  ? null
+                  : () => invoiceIds.length == 1 ? _openInvoice(invoiceIds.first) : _pickInvoice(invoiceIds),
+              icon: const Icon(Icons.receipt_long_outlined, size: 18),
+              label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+            );
+          } else {
+            action = ElevatedButton.icon(
+              onPressed: loading || _busy || billable.isEmpty ? null : () => _createInvoice(rows),
+              icon: Icon(allInvoiced ? Icons.check_circle_outline : Icons.request_quote_outlined, size: 18),
+              label: Text(
+                _busy ? 'Linking…' : (allInvoiced ? 'Invoiced' : 'Create Invoice'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            );
+          }
           final Widget body;
           if (loading) {
             body = const Padding(
@@ -224,18 +333,7 @@ class _BookingSummarySheetState extends State<BookingSummarySheet> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton.icon(
-                      onPressed: loading || _busy || billable.isEmpty ? null : () => _createInvoice(rows),
-                      icon: Icon(allInvoiced ? Icons.check_circle_outline : Icons.request_quote_outlined, size: 18),
-                      label: Text(
-                        _busy ? 'Linking…' : (allInvoiced ? 'Invoiced' : 'Create Invoice'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
+                  Expanded(flex: 2, child: action),
                 ],
               ),
             ],
@@ -262,12 +360,23 @@ class _BookingSummarySheetState extends State<BookingSummarySheet> {
     if (rows != null && rows.isNotEmpty) {
       final chargeable = rows.where((r) => !r.placeholder).toList();
       final invoiced = chargeable.where(_isInvoiced).length;
+      final ids = _invoiceIds(rows);
+      final single = ids.length == 1 ? _invoices[ids.first] : null;
       if (invoiced == 0) {
         pill = _pill('Not invoiced', background: brandYellowTint, foreground: brandInk);
-      } else if (invoiced == chargeable.length) {
-        pill = _pill('Invoiced', background: brandBlueTint, foreground: brandBlue, icon: Icons.check_circle);
-      } else {
+      } else if (invoiced < chargeable.length) {
         pill = _pill('Partly invoiced', background: brandBlueTint, foreground: brandBlue);
+      } else if (single != null) {
+        // Fully invoiced on one invoice: show that invoice's status.
+        final key = _statusKey(single);
+        pill = _pill(
+          _statusLabel(single),
+          background: statusBg(key),
+          foreground: statusColor(key),
+          icon: single.isPaid ? Icons.check_circle : null,
+        );
+      } else {
+        pill = _pill('Invoiced', background: brandBlueTint, foreground: brandBlue, icon: Icons.check_circle);
       }
     }
     return Row(
@@ -400,6 +509,18 @@ class _BookingSummarySheetState extends State<BookingSummarySheet> {
                     trailing: travelQuantity == 0 ? null : _money.format(travelTotal),
                   ),
                 ],
+                // The invoice(s) the rows are on: number, status, tap to open.
+                for (final id in _invoiceIds(rows)) ...[
+                  const SizedBox(height: 8),
+                  _summaryRow(
+                    Icons.receipt_long_outlined,
+                    _invoices[id]?.invoiceNumber ?? 'Invoice',
+                    trailingWidget: _invoices[id] == null
+                        ? const Icon(Icons.chevron_right, size: 18, color: brandMuted)
+                        : StatusBadge(status: _statusKey(_invoices[id]!)),
+                    onTap: () => _openInvoice(id),
+                  ),
+                ],
               ],
             ),
           ),
@@ -431,17 +552,44 @@ class _BookingSummarySheetState extends State<BookingSummarySheet> {
     );
   }
 
-  Widget _summaryRow(IconData icon, String label, {String? trailing}) => Row(
-        children: [
-          Icon(icon, size: 16, color: brandBlue),
-          const SizedBox(width: 10),
-          Expanded(child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
-          if (trailing != null) ...[
-            const SizedBox(width: 8),
-            Text(trailing, style: const TextStyle(fontSize: 13, color: brandMuted, fontWeight: FontWeight.w600)),
-          ],
+  Widget _summaryRow(
+    IconData icon,
+    String label, {
+    String? trailing,
+    Widget? trailingWidget,
+    VoidCallback? onTap,
+  }) {
+    final row = Row(
+      children: [
+        Icon(icon, size: 16, color: brandBlue),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              // Tappable rows read as links.
+              color: onTap != null ? brandBlue : null,
+              decoration: onTap != null ? TextDecoration.underline : null,
+              decorationColor: brandBlue,
+            ),
+          ),
+        ),
+        if (trailingWidget != null) ...[const SizedBox(width: 8), trailingWidget],
+        if (trailing != null) ...[
+          const SizedBox(width: 8),
+          Text(trailing, style: const TextStyle(fontSize: 13, color: brandMuted, fontWeight: FontWeight.w600)),
         ],
-      );
+      ],
+    );
+    if (onTap == null) return row;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: row),
+    );
+  }
 
   /// One day's items: the date and the day's subtotal in the header, then a
   /// row per item with its price and quantity in a fixed right-hand column so
