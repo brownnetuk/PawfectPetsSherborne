@@ -15,6 +15,7 @@ import '../services/push_service.dart';
 import '../utils/product_availability.dart';
 import '../utils/travel_lines.dart';
 import 'add_appointment_sheet.dart';
+import 'appointment_detail_sheet.dart';
 import 'booking_summary_sheet.dart';
 import 'generate_invoices_sheet.dart';
 import 'home_shell.dart';
@@ -333,6 +334,17 @@ class _BookingsScreenState extends State<BookingsScreen> {
       builder: (_) => AddAppointmentSheet(customers: _customers ?? const [], date: _day),
     );
     if (saved == true) _reload();
+  }
+
+  /// Tapping an appointment: what it's for, when, and the customer's address
+  /// and phone number. Its Delete hands back here for the usual confirm.
+  Future<void> _showAppointment(Appointment a) async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => AppointmentDetailSheet(appointment: a, customer: _ownerOf(a.customerId)),
+    );
+    if (result == 'delete' && mounted) await _confirmDeleteAppointment(a);
   }
 
   Future<void> _confirmDeleteAppointment(Appointment a) async {
@@ -940,6 +952,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         ),
         overflow: TextOverflow.ellipsis,
       ),
+      onTap: () => _showAppointment(a),
       trailing: IconButton(
         icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade400),
         visualDensity: VisualDensity.compact,
