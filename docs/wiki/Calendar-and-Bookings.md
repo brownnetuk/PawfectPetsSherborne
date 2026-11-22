@@ -17,7 +17,7 @@ The **Calendar** (admin `/bookings`, staff app **Bookings** tab) shows walks, vi
 
 | Button | What it creates |
 | --- | --- |
-| New Booking | Visits over a date range (1 or 2 visits a day, with visit length), day care or boarding |
+| New Booking | Visits over a date range (1 or 2 visits a day, with visit length; separate first-day and end-day counts, or just visits per day when the start and end date are the same), day care or boarding |
 | Add Appointment | A staff appointment with a reminder push before it |
 | Generate Invoice | One invoice per customer for the month's uninvoiced bookings (see below) |
 

@@ -122,6 +122,9 @@ export default function NewBookingModal({
   const [endDate, setEndDate] = useState(initial?.endDate ?? '');
   const [visitsLastDay, setVisitsLastDay] = useState<VisitCount>(initial?.visitsLastDay ?? '1');
   const [amPmLastDay, setAmPmLastDay] = useState<VisitTime>(initial?.amPmLastDay ?? 'AM');
+  // A same-day Visits booking has no separate first/end day -- the form
+  // hides those counts and books "How Many Visits per Day" on that one day.
+  const sameDayVisits = !!startDate && startDate === endDate;
   // Day Care -- single day, same-day drop off/collection.
   const [dayCareDate, setDayCareDate] = useState(dayCareInitial?.date ?? '');
   const [dropOffPeriod, setDropOffPeriod] = useState<VisitTime>(dayCareInitial?.dropOffPeriod ?? 'AM');
@@ -250,8 +253,8 @@ export default function NewBookingModal({
         start,
         end,
         visitsPerDay,
-        visitsFirstDay,
-        visitsLastDay,
+        sameDayVisits ? visitsPerDay : visitsFirstDay,
+        sameDayVisits ? visitsPerDay : visitsLastDay,
         visitDuration,
         mapping,
         bankHolidays,
@@ -714,20 +717,22 @@ export default function NewBookingModal({
                 <label style={ROW_LABEL_STYLE}>Start Date</label>
                 <DateInput value={startDate} onChange={setStartDate} required />
               </div>
-              <div className="field">
-                <label style={ROW_LABEL_STYLE}>Visits on First Date</label>
-                <select value={visitsFirstDay} onChange={(e) => setVisitsFirstDay(e.target.value as VisitCount)}>
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                </select>
-              </div>
+              {!sameDayVisits && (
+                <div className="field">
+                  <label style={ROW_LABEL_STYLE}>Visits on First Date</label>
+                  <select value={visitsFirstDay} onChange={(e) => setVisitsFirstDay(e.target.value as VisitCount)}>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                  </select>
+                </div>
+              )}
               <div className="field">
                 <label style={ROW_LABEL_STYLE}>AM/PM</label>
                 <select
                   value={amPmFirstDay}
                   onChange={(e) => setAmPmFirstDay(e.target.value as VisitTime)}
-                  disabled={visitsFirstDay === '2'}
-                  title={visitsFirstDay === '2' ? 'A 2-visit day always covers both AM and PM' : undefined}
+                  disabled={(sameDayVisits ? visitsPerDay : visitsFirstDay) === '2'}
+                  title={(sameDayVisits ? visitsPerDay : visitsFirstDay) === '2' ? 'A 2-visit day always covers both AM and PM' : undefined}
                 >
                   <option value="AM">AM</option>
                   <option value="PM">PM</option>
@@ -739,25 +744,29 @@ export default function NewBookingModal({
                 <label style={ROW_LABEL_STYLE}>End Date</label>
                 <DateInput value={endDate} onChange={setEndDate} required />
               </div>
-              <div className="field">
-                <label style={ROW_LABEL_STYLE}>Visits on End Date</label>
-                <select value={visitsLastDay} onChange={(e) => setVisitsLastDay(e.target.value as VisitCount)}>
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                </select>
-              </div>
-              <div className="field">
-                <label style={ROW_LABEL_STYLE}>AM/PM</label>
-                <select
-                  value={amPmLastDay}
-                  onChange={(e) => setAmPmLastDay(e.target.value as VisitTime)}
-                  disabled={visitsLastDay === '2'}
-                  title={visitsLastDay === '2' ? 'A 2-visit day always covers both AM and PM' : undefined}
-                >
-                  <option value="AM">AM</option>
-                  <option value="PM">PM</option>
-                </select>
-              </div>
+              {!sameDayVisits && (
+                <>
+                  <div className="field">
+                    <label style={ROW_LABEL_STYLE}>Visits on End Date</label>
+                    <select value={visitsLastDay} onChange={(e) => setVisitsLastDay(e.target.value as VisitCount)}>
+                      <option value="1">1</option>
+                      <option value="2">2</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label style={ROW_LABEL_STYLE}>AM/PM</label>
+                    <select
+                      value={amPmLastDay}
+                      onChange={(e) => setAmPmLastDay(e.target.value as VisitTime)}
+                      disabled={visitsLastDay === '2'}
+                      title={visitsLastDay === '2' ? 'A 2-visit day always covers both AM and PM' : undefined}
+                    >
+                      <option value="AM">AM</option>
+                      <option value="PM">PM</option>
+                    </select>
+                  </div>
+                </>
+              )}
             </div>
           </>
         )}

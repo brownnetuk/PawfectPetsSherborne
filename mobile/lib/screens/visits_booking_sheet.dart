@@ -57,6 +57,11 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
 
   final _dateFmt = DateFormat('d MMM yyyy');
 
+  // A same-day booking has no separate first/end day -- the sheet hides those
+  // counts and books "How many visits per day" on that one day.
+  bool get _sameDay =>
+      _startDate != null && _endDate != null && DateUtils.isSameDay(_startDate, _endDate);
+
   static String _ymd(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
@@ -119,8 +124,8 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
       start: start,
       end: end,
       visitsPerDay: _visitsPerDay,
-      visitsFirstDay: _visitsFirstDay,
-      visitsLastDay: _visitsLastDay,
+      visitsFirstDay: _sameDay ? _visitsPerDay : _visitsFirstDay,
+      visitsLastDay: _sameDay ? _visitsPerDay : _visitsLastDay,
       mapping: widget.visitMapping,
       bankHolidays: widget.bankHolidays,
       duration: _visitDuration,
@@ -565,20 +570,27 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
               Row(
                 children: [
                   Expanded(child: _dateField('Start date', _startDate, () => _pickDate(isStart: true))),
+                  if (!_sameDay) ...[
+                    const SizedBox(width: 12),
+                    Expanded(child: _visitsDropdown('Visits, first day', _visitsFirstDay, (v) => setState(() => _visitsFirstDay = v))),
+                  ],
                   const SizedBox(width: 12),
-                  Expanded(child: _visitsDropdown('Visits, first day', _visitsFirstDay, (v) => setState(() => _visitsFirstDay = v))),
-                  const SizedBox(width: 12),
-                  Expanded(child: _amPmDropdown('AM/PM', _amPmFirstDay, _visitsFirstDay, (v) => setState(() => _amPmFirstDay = v))),
+                  Expanded(
+                    child: _amPmDropdown('AM/PM', _amPmFirstDay, _sameDay ? _visitsPerDay : _visitsFirstDay,
+                        (v) => setState(() => _amPmFirstDay = v)),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(child: _dateField('End date', _endDate, () => _pickDate(isStart: false))),
-                  const SizedBox(width: 12),
-                  Expanded(child: _visitsDropdown('Visits, end day', _visitsLastDay, (v) => setState(() => _visitsLastDay = v))),
-                  const SizedBox(width: 12),
-                  Expanded(child: _amPmDropdown('AM/PM', _amPmLastDay, _visitsLastDay, (v) => setState(() => _amPmLastDay = v))),
+                  if (!_sameDay) ...[
+                    const SizedBox(width: 12),
+                    Expanded(child: _visitsDropdown('Visits, end day', _visitsLastDay, (v) => setState(() => _visitsLastDay = v))),
+                    const SizedBox(width: 12),
+                    Expanded(child: _amPmDropdown('AM/PM', _amPmLastDay, _visitsLastDay, (v) => setState(() => _amPmLastDay = v))),
+                  ],
                 ],
               ),
               const SizedBox(height: 20),
