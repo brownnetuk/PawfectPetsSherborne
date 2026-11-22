@@ -44,6 +44,7 @@ import {
 } from '../types';
 import { annualLeaveOn } from '../utils/annualLeave';
 import { addDays, dateKey } from '../utils/visitPlan';
+import { bookingUnitPrice, customersById } from '../utils/customerPricing';
 
 // How many dogs can be in each of the 4 sections at once, across the whole
 // business (not per product/animal) -- flagged on the Occupancy tab once a
@@ -65,9 +66,6 @@ function productId(product: DayBooking['product']): string {
 }
 function productLabel(product: DayBooking['product']): string {
   return typeof product === 'string' ? product : product.name;
-}
-function productPrice(product: DayBooking['product']): number {
-  return typeof product === 'string' ? 0 : product.price;
 }
 function animalId(animal: DayBooking['animal']): string {
   return typeof animal === 'string' ? animal : animal._id;
@@ -304,7 +302,7 @@ export default function BoardingDayCarePage() {
       </div>
       {editError && <div className="error-banner">{editError}</div>}
       {tab === 'dashboard' && (
-        <DashboardTab mapping={mapping} refreshSignal={refreshSignal} onNavigateToBooking={handleNavigateToBooking} {...editHandlers} />
+        <DashboardTab mapping={mapping} customers={customers} refreshSignal={refreshSignal} onNavigateToBooking={handleNavigateToBooking} {...editHandlers} />
       )}
       {tab === 'preBoarding' && <PreBoardingPage embedded />}
       {tab === 'occupancy' && <OccupancyTab mapping={mapping} />}
@@ -349,12 +347,14 @@ export default function BoardingDayCarePage() {
 
 function DashboardTab({
   mapping,
+  customers,
   refreshSignal,
   onEdit,
   onDelete,
   onNavigateToBooking,
 }: {
   mapping: VisitMapping | null;
+  customers: Customer[];
   refreshSignal: number;
   onNavigateToBooking: (bookingId: string, autoStage?: 'checkIn' | 'checkOut') => void;
 } & StayEditHandlers) {
@@ -406,11 +406,12 @@ function DashboardTab({
   // This calendar month's projected income, split by Boarding vs Day Care --
   // "projected" because it includes every booking for the month regardless
   // of whether it's already happened or is still upcoming, priced at each
-  // row's own product price x quantity (a placeholder row prices at 0 since
+  // row's own product price x quantity (the customer's Pricing Override where set) (a placeholder row prices at 0 since
   // sectionsFor() already excludes it, matching it never being invoiced).
   const monthIncome = useMemo(() => {
     const result = { boarding: 0, dayCare: 0 };
     if (!dayBookings || !mapping) return result;
+    const customerById = customersById(customers);
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
     for (const b of dayBookings) {
@@ -418,13 +419,13 @@ function DashboardTab({
       if (date < monthStart || date > monthEnd) continue;
       const sections = sectionsFor(mapping, b);
       if (sections.length === 0) continue;
-      const amount = productPrice(b.product) * b.quantity;
+      const amount = bookingUnitPrice(b, customerById) * b.quantity;
       if (sections.includes('overnight')) result.boarding += amount;
       else result.dayCare += amount;
     }
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayBookings, mapping]);
+  }, [dayBookings, mapping, customers]);
 
   // Arrivals/departures only apply to an actual boarding stay (one with an
   // overnight row) -- a Day Care booking's stayId groups a single day whose
@@ -557,7 +558,7 @@ function DashboardTab({
         </div>
       )}
 
-      <UpcomingBookings refreshSignal={refreshSignal} onNavigateToBooking={onNavigateToBooking} />
+      <UpcomingBookings customers={customers} refreshSignal={refreshSignal} onNavigateToBooking={onNavigateToBooking} />
     </div>
   );
 }
@@ -579,9 +580,11 @@ type UpcomingSortKey = 'reference' | 'name' | 'from' | 'to' | 'amount' | 'daysTo
 // projected-income tiles above), shown in muted italics so it reads as an
 // estimate rather than a billed figure.
 function UpcomingBookings({
+  customers,
   refreshSignal,
   onNavigateToBooking,
 }: {
+  customers: Customer[];
   refreshSignal: number;
   onNavigateToBooking: (bookingId: string, autoStage?: 'checkIn' | 'checkOut') => void;
 }) {
@@ -617,9 +620,10 @@ function UpcomingBookings({
         const lastEnd = needEstimate.reduce((max, { booking }) => (booking.endDate > max ? booking.endDate : max), '');
         const rows = await api.listDayBookings(dateKey(new Date()), dateKey(addDays(new Date(lastEnd), 2)));
         const totals = new Map<string, number>();
+        const customerById = customersById(customers);
         for (const r of rows) {
           if (!r.stayId || r.placeholder) continue;
-          totals.set(r.stayId, (totals.get(r.stayId) ?? 0) + productPrice(r.product) * r.quantity);
+          totals.set(r.stayId, (totals.get(r.stayId) ?? 0) + bookingUnitPrice(r, customerById) * r.quantity);
         }
         if (!cancelled) setEstimates(totals);
       })
@@ -627,7 +631,7 @@ function UpcomingBookings({
     return () => {
       cancelled = true;
     };
-  }, [refreshSignal]);
+  }, [refreshSignal, customers]);
 
   function amountOf({ booking, invoice }: BoardingBookingWithStatus): number | undefined {
     if (invoice) return invoice.total;

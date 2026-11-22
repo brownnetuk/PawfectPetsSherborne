@@ -10,6 +10,7 @@ import '../models/finance_report.dart';
 import '../models/invoice.dart';
 import '../models/product.dart';
 import '../models/visit_mapping.dart';
+import '../utils/customer_pricing.dart';
 
 typedef _ProjectedIncome = ({double walks, double boarding, double dayCare});
 
@@ -88,14 +89,17 @@ class _SnapshotScreenState extends State<SnapshotScreen> {
     List<Product> products,
     DateTime now,
   ) {
+    // Each row at its customer's Pricing Override, where they have one.
+    final customerById = {for (final c in customers) c.id: c};
     var boarding = 0.0, dayCare = 0.0;
     for (final b in rows) {
       final sections = _sectionsFor(mapping, b);
       if (sections.isEmpty) continue;
+      final total = bookingLineTotal(customerById[b.customerId], b);
       if (sections.contains('overnight')) {
-        boarding += b.lineTotal;
+        boarding += total;
       } else {
-        dayCare += b.lineTotal;
+        dayCare += total;
       }
     }
 
@@ -123,8 +127,9 @@ class _SnapshotScreenState extends State<SnapshotScreen> {
     var walks = 0.0;
     for (final c in customers) {
       if (c.status != 'active' || c.defaultProductId == null || c.regularDays.isEmpty) continue;
-      final price = priceById[c.defaultProductId];
-      if (price == null) continue;
+      final standard = priceById[c.defaultProductId];
+      if (standard == null) continue;
+      final price = customerPriceFor(c, c.defaultProductId!, standard);
       var occurrences = 0;
       for (final day in c.regularDays) {
         final weekday = weekdayIndex[day];

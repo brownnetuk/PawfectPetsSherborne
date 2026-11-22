@@ -81,6 +81,10 @@ class Customer {
   final bool travelChargeableWalks;
   final String? travelProductId;
   final List<String> regularDays;
+
+  /// Customer Defaults > Pricing Override: product id -> this customer's
+  /// unit price (see utils/customer_pricing.dart).
+  final Map<String, double> pricingOverrides;
   final bool portalActive;
 
   /// The original response JSON. The display fields above are computed
@@ -104,6 +108,7 @@ class Customer {
     this.travelChargeableWalks = false,
     this.travelProductId,
     this.regularDays = const [],
+    this.pricingOverrides = const {},
     this.portalActive = false,
     this.raw = const {},
   });
@@ -132,6 +137,11 @@ class Customer {
       travelProductId: idOrNull(json['travelProduct']),
       regularDays:
           (json['regularDays'] as List<dynamic>?)?.map((e) => e as String).toList() ?? const [],
+      pricingOverrides: {
+        for (final o in (json['pricingOverrides'] as List<dynamic>? ?? const []))
+          if (o is Map<String, dynamic> && idOrNull(o['product']) != null && o['price'] is num)
+            idOrNull(o['product'])!: (o['price'] as num).toDouble(),
+      },
       portalActive: json['portalActive'] as bool? ?? false,
       raw: json,
     );

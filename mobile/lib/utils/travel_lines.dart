@@ -3,6 +3,7 @@ import '../models/day_booking.dart';
 import '../models/invoice.dart';
 import '../models/product.dart';
 import '../models/visit_mapping.dart';
+import 'customer_pricing.dart';
 
 /// Staff-app port of admin/src/utils/travelLines.ts.
 ///
@@ -22,12 +23,12 @@ bool chargesWalkTravel(Customer? customer) =>
     customer != null && customer.travelChargeableWalks && _hasTravelProduct(customer);
 
 /// The customer's travel product, when either travel setting is on and it's
-/// still in the catalogue.
+/// still in the catalogue -- priced at their Pricing Override, if any.
 Product? travelProductForCustomer(Customer? customer, Iterable<Product> products) {
   if (!chargesVisitTravel(customer) && !chargesWalkTravel(customer)) return null;
   final id = customer!.travelProductId;
   for (final p in products) {
-    if (p.id == id) return p;
+    if (p.id == id) return pricedForCustomer(customer, p);
   }
   return null;
 }

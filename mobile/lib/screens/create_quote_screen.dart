@@ -10,6 +10,7 @@ import '../models/invoice.dart';
 import '../models/product.dart';
 import '../models/quote.dart';
 import '../models/visit_mapping.dart';
+import '../utils/customer_pricing.dart';
 import '../utils/travel_lines.dart';
 import '../utils/visit_plan.dart';
 import '../widgets/brand.dart';
@@ -131,7 +132,6 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
     super.initState();
     final repo = context.read<Repository>();
     _dataFuture = () async {
-      final products = await repo.listProducts();
       final terms = await repo.listInvoiceTerms();
       Customer? customer;
       var pets = <Animal>[];
@@ -139,6 +139,9 @@ class _CreateQuoteScreenState extends State<CreateQuoteScreen> {
         customer = await repo.getCustomer(widget.customerId!);
         pets = await repo.listAnimals(widget.customerId!);
       }
+      // Priced for this customer: any Pricing Override replaces the standard
+      // price for every line picked here.
+      final products = productsForCustomer(customer, await repo.listProducts());
       final bankHolidays = await repo.listBankHolidays();
       final visitMapping = await repo.getVisitMapping();
       return _FormData(products, terms, customer, pets, bankHolidays, visitMapping);

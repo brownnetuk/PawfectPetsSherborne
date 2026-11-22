@@ -9,6 +9,7 @@ import '../models/day_booking.dart';
 import '../models/invoice.dart';
 import '../models/product.dart';
 import '../models/visit_mapping.dart';
+import '../utils/customer_pricing.dart';
 import '../utils/travel_lines.dart';
 import '../utils/visit_plan.dart';
 
@@ -379,7 +380,7 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
       for (final row in rows) {
         final product = catalogue[row.productId];
         final name = product?.name ?? (row.productName.isNotEmpty ? row.productName : 'Booking');
-        final price = product?.price ?? row.productPrice;
+        final price = customerPriceFor(owner, row.productId, product?.price ?? row.productPrice);
         final existing = byProduct[row.productId];
         byProduct[row.productId] = existing == null
             ? (name: name, price: price, qty: row.quantity)

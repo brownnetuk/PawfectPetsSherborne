@@ -9,6 +9,7 @@ import '../models/customer.dart';
 import '../models/invoice.dart';
 import '../models/product.dart';
 import '../models/visit_mapping.dart';
+import '../utils/customer_pricing.dart';
 import '../utils/travel_lines.dart';
 import '../widgets/brand.dart';
 
@@ -83,9 +84,11 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     super.initState();
     final repo = context.read<Repository>();
     _dataFuture = () async {
-      final products = await repo.listProducts();
       final terms = await repo.listInvoiceTerms();
       final customer = await repo.getCustomer(widget.customerId);
+      // Priced for this customer: any Pricing Override replaces the standard
+      // price for every line picked or prefilled here.
+      final products = productsForCustomer(customer, await repo.listProducts());
       final pets = await repo.listAnimals(widget.customerId);
       final bankHolidays = await repo.listBankHolidays();
       final mapping = await repo.getVisitMapping();

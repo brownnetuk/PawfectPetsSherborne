@@ -9,6 +9,7 @@ import '../models/invoice.dart';
 import '../models/product.dart';
 import '../models/visit_mapping.dart';
 import '../theme.dart';
+import '../utils/customer_pricing.dart';
 import '../utils/travel_lines.dart';
 import '../widgets/brand.dart';
 import '../widgets/status_badge.dart';
@@ -145,7 +146,7 @@ class _BookingSummarySheetState extends State<BookingSummarySheet> {
     for (final row in rows) {
       final product = catalogue[row.productId];
       final name = product?.name ?? (row.productName.isNotEmpty ? row.productName : 'Booking');
-      final price = product?.price ?? row.productPrice;
+      final price = customerPriceFor(widget.owner, row.productId, product?.price ?? row.productPrice);
       final existing = byProduct[row.productId];
       byProduct[row.productId] = existing == null
           ? (name: name, price: price, qty: row.quantity)
@@ -432,8 +433,8 @@ class _BookingSummarySheetState extends State<BookingSummarySheet> {
       lines.add(_Line(
         name: b.placeholder ? 'Pick-up (no charge)' : (b.productName.isEmpty ? '(product)' : b.productName),
         quantity: b.quantity,
-        unitPrice: b.productPrice,
-        total: b.lineTotal,
+        unitPrice: bookingUnitPrice(widget.owner, b),
+        total: bookingLineTotal(widget.owner, b),
         invoiced: !b.placeholder && _isInvoiced(b),
         placeholder: b.placeholder,
       ));

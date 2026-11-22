@@ -33,7 +33,9 @@ Tick either or both. Day care and boarding never carry travel. Travel is counted
 
 The **Pricing Override** card on Customer Defaults gives a customer their own price for a product. Press **+**, pick the product and enter the customer's price. Overrides can be edited or removed from the list, and each product can have one override per customer.
 
-Whenever that product goes onto the customer's invoices or quotes in the admin dashboard, the override price is used instead of the product's standard price. That covers lines added by hand in the Item Table, the Visits / Day Care / Boarding builders, the travel line, **Generate Invoice**, a booking's invoice prompt, invoices raised for a new or changed boarding/day care booking, and lines kept in step on a draft or scheduled invoice. Existing invoices and quotes aren't repriced when an override is added, changed or removed. The staff app doesn't use overrides yet.
+Whenever that product goes onto the customer's invoices or quotes in the admin dashboard, the override price is used instead of the product's standard price. That covers lines added by hand in the Item Table, the Visits / Day Care / Boarding builders, the travel line, **Generate Invoice**, a booking's invoice prompt, invoices raised for a new or changed boarding/day care booking, and lines kept in step on a draft or scheduled invoice. Existing invoices and quotes aren't repriced when an override is added, changed or removed.
+
+The staff app uses overrides the same way: new invoices and quotes, the Visits sheet, the booking summary, the travel line and Generate Invoices. Revenue figures use them too: the admin's Financial Snapshot (Expected Revenue and the projected cash flow), the Boarding & Day Care projected income and upcoming stay estimates, the calendar's day totals, and the staff app's Snapshot screen. Overrides are set in the admin dashboard.
 
 Every change is written to the customer's **Activity** tab (the audit log). **Notes** is for the team's own CRM entries: notes, calls, emails and tasks, with image attachments.
 
