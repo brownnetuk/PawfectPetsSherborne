@@ -10,6 +10,7 @@ import {
   withTravelQuantity,
 } from '../utils/travelLines';
 import { bookingInvoiceDueDate } from '../utils/invoiceDueDate';
+import { customerPrice } from '../utils/customerPricing';
 
 function lineItemAmount(item: LineItem): number {
   return item.quantity * item.unitPrice * (1 - (item.discountPercent ?? 0) / 100);
@@ -119,11 +120,14 @@ export default function GenerateInvoicesModal({
         }
         const built: CustomerGroup[] = [];
         for (const [cid, { bookings: custBookings }] of byCustomer) {
+          const customer = customers.find((c) => c._id === cid);
           const byProduct = new Map<string, { name: string; price: number; quantity: number }>();
           for (const b of custBookings) {
             const pid = productId(b.product);
             const name = typeof b.product === 'string' ? b.product : b.product.name;
-            const price = typeof b.product === 'string' ? 0 : b.product.price;
+            // The customer's Pricing Override, if any, over the standard price.
+            const standard = typeof b.product === 'string' ? 0 : b.product.price;
+            const price = customerPrice(customer, { _id: pid, price: standard });
             const existing = byProduct.get(pid);
             if (existing) existing.quantity += b.quantity;
             else byProduct.set(pid, { name, price, quantity: b.quantity });
@@ -137,7 +141,6 @@ export default function GenerateInvoicesModal({
           // Travel is counted from the Visits (2 x Visit -> 2 x Travel) and/or
           // Walks (one each) the customer is chargeable for, not from travel
           // rows booked -- older ones also sit on Day Care and Boarding days.
-          const customer = customers.find((c) => c._id === cid);
           const travel = travelProductForCustomer(customer, products);
           const travelQuantity = travel
             ? travelQuantityForCustomer(customer, travelUnitsForBookings(custBookings, mapping, travel))

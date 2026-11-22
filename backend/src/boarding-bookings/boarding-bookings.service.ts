@@ -39,6 +39,7 @@ import { BookingObservationsService } from './booking-observations.service';
 import { AmendBoardingBookingDatesDto } from './dto/amend-boarding-booking-dates.dto';
 import { CreateBoardingBookingDto } from './dto/create-boarding-booking.dto';
 import { BookingStatusLabel, BoardingBooking } from './schemas/boarding-booking.schema';
+import { overridePrice } from '../customers/pricing-override.util';
 
 export interface BoardingBookingStage {
   key:
@@ -205,7 +206,13 @@ export class BoardingBookingsService {
   // line items -- used only for a direct (no-quote) booking, where there's no
   // quote line-items to copy from the way QuotesService's acceptAndConvert()
   // has for a quote-originated one.
-  private buildLineItems(bookings: DayBooking[]) {
+  // Prices honour the customer's Pricing Overrides (Customer Defaults).
+  private async buildLineItems(bookings: DayBooking[]) {
+    const customerId = bookings[0]?.customer;
+    const customer = customerId
+      ? await this.customerModel.findById(this.idOf(customerId)).select('pricingOverrides').lean().exec()
+      : null;
+    const overrides = customer?.pricingOverrides;
     const groups = new Map<string, { description: string; unitPrice: number; quantity: number }>();
     for (const b of bookings) {
       if (b.placeholder) continue;
@@ -214,7 +221,7 @@ export class BoardingBookingsService {
       if (!id) continue;
       const existing = groups.get(id);
       if (existing) existing.quantity += b.quantity ?? 1;
-      else groups.set(id, { description: product?.name ?? 'Booking', unitPrice: product?.price ?? 0, quantity: b.quantity ?? 1 });
+      else groups.set(id, { description: product?.name ?? 'Booking', unitPrice: overridePrice(overrides, id, product?.price ?? 0), quantity: b.quantity ?? 1 });
     }
     return [...groups.values()];
   }
@@ -383,7 +390,7 @@ export class BoardingBookingsService {
       throw new BadRequestException('Nothing could be booked for these dates.');
     }
     const customerId = String(bookings[0].customer);
-    const lineItems = this.buildLineItems(bookings);
+    const lineItems = await this.buildLineItems(bookings);
     if (lineItems.length === 0) {
       throw new BadRequestException('No priced products resolved for this booking -- check Settings > Bookings.');
     }
@@ -557,7 +564,7 @@ export class BoardingBookingsService {
     // adopt it as this booking's new stayId rather than trying to force the
     // old value back onto the new rows.
     const newStayId = bookings[0]?.stayId as unknown as string;
-    const lineItems = this.buildLineItems(bookings);
+    const lineItems = await this.buildLineItems(bookings);
     if (lineItems.length === 0) {
       throw new BadRequestException('No priced products resolved for the new dates -- check Settings > Bookings.');
     }

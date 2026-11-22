@@ -30,7 +30,7 @@ The header has the status badge (click to change it) and an **Actions** menu: Se
 
 | Tab | Contents |
 | --- | --- |
-| Customer Defaults | Mobile app access (with additional people), default product, travel charging, regular days |
+| Customer Defaults | Mobile app access (with additional people), default product, travel charging, pricing overrides, regular days |
 | Overview | Client details, emergency contact, emergency vet, security (alarm / key-safe code behind **Reveal**), agreement |
 | Pets | Each pet, with view, edit, copy or move to another customer, delete |
 | Bookings | This customer's bookings, grouped by stay |

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as api from '../api/client';
 import DateInput from './DateInput';
 import { TimeReadout } from './DateTimeReadout';
@@ -18,6 +18,7 @@ import {
   travelUnitsForLineItems,
   withTravelQuantity,
 } from '../utils/travelLines';
+import { customerPrice } from '../utils/customerPricing';
 import type { Animal, BankHoliday, Customer, Invoice, InvoiceTerm, LineItem, Product, Quote, VisitMapping } from '../types';
 
 function customerId(customer: Invoice['customer'] | Quote['customer']): string {
@@ -389,7 +390,7 @@ interface Props {
 
 export default function DocumentFormModal({ kind, existing, presetCustomerId, presetManualCustomer, onClose, onSaved }: Props) {
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [standardProducts, setProducts] = useState<Product[]>([]);
   const [terms, setTerms] = useState<InvoiceTerm[]>([]);
   const [bankHolidays, setBankHolidays] = useState<BankHoliday[]>([]);
   const [visitMapping, setVisitMapping] = useState<VisitMapping | null>(null);
@@ -450,6 +451,14 @@ export default function DocumentFormModal({ kind, existing, presetCustomerId, pr
   const [boardingSaving, setBoardingSaving] = useState(false);
 
   const [custId, setCustId] = useState(existing ? customerId(existing.customer) : presetCustomerId ?? '');
+  // Products as this customer pays for them: any Customer Defaults > Pricing
+  // Override replaces the standard price, so every line added below (the
+  // Item Table, Visits/Day Care/Boarding and travel) and the picker use it.
+  const pricingCustomer = customers.find((c) => c._id === custId);
+  const products = useMemo(
+    () => standardProducts.map((p) => ({ ...p, price: customerPrice(pricingCustomer, p) })),
+    [standardProducts, pricingCustomer],
+  );
   const [lineItems, setLineItems] = useState<LineItem[]>(
     existing ? existing.lineItems.map((li) => ({ ...li })) : [{ description: '', quantity: 1, unitPrice: 0, discountPercent: 0 }],
   );

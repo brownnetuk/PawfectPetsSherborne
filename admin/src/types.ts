@@ -90,7 +90,14 @@ export interface Customer {
   travelChargeableWalks?: boolean;
   travelProduct?: string | null;
   regularDays?: string[];
+  // Customer Defaults > Pricing Override (see utils/customerPricing.ts).
+  pricingOverrides?: PricingOverride[];
   portalActive?: boolean;
+}
+
+export interface PricingOverride {
+  product: string;
+  price: number;
 }
 
 export const WEEKDAYS = [

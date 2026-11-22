@@ -1,4 +1,5 @@
 import type { Customer, DayBooking, LineItem, Product, VisitMapping } from '../types';
+import { customerPrice } from './customerPricing';
 import { visitCountForProduct } from './visitMapping';
 
 // Customer Defaults > Travel has two settings sharing one travel product:
@@ -14,10 +15,12 @@ export function chargesWalkTravel(customer: Customer | undefined): boolean {
   return !!customer?.travelChargeableWalks && !!customer.travelProduct;
 }
 
-// The customer's travel product, if either setting is on.
+// The customer's travel product, if either setting is on -- priced at their
+// Pricing Override for it, if they have one.
 export function travelProductForCustomer(customer: Customer | undefined, products: Product[]): Product | null {
   if (!chargesVisitTravel(customer) && !chargesWalkTravel(customer)) return null;
-  return products.find((p) => p._id === customer!.travelProduct) ?? null;
+  const product = products.find((p) => p._id === customer!.travelProduct);
+  return product ? { ...product, price: customerPrice(customer, product) } : null;
 }
 
 // How many travel lines the customer pays for these units.

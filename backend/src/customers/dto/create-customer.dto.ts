@@ -6,10 +6,12 @@ import {
   IsIn,
   IsMongoId,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   ValidateIf,
   ValidateNested,
+  Min,
 } from 'class-validator';
 
 export const WEEKDAYS = [
@@ -21,6 +23,15 @@ export const WEEKDAYS = [
   'saturday',
   'sunday',
 ] as const;
+
+export class PricingOverrideDto {
+  @IsMongoId()
+  product: string;
+
+  @IsNumber()
+  @Min(0)
+  price: number;
+}
 
 export class EmergencyContactDto {
   @IsBoolean()
@@ -221,4 +232,11 @@ export class CreateCustomerDto {
   @IsArray()
   @IsIn(WEEKDAYS, { each: true })
   regularDays?: string[];
+
+  // Replaces the whole list. One entry per product.
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PricingOverrideDto)
+  pricingOverrides?: PricingOverrideDto[];
 }

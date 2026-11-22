@@ -205,6 +205,19 @@ export class PortalCredentials {
 }
 const PortalCredentialsSchema = SchemaFactory.createForClass(PortalCredentials);
 
+// Customer Defaults > Pricing Override: a per-customer unit price for one
+// product, used in place of the product's standard price whenever that
+// product goes onto this customer's invoices or quotes.
+@Schema({ _id: false })
+export class PricingOverride {
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Product.name, required: true })
+  product: Types.ObjectId;
+
+  @Prop({ required: true, min: 0 })
+  price: number;
+}
+const PricingOverrideSchema = SchemaFactory.createForClass(PricingOverride);
+
 // An additional person staff have given access to this customer's account in
 // the app/web portal (Customer Defaults > Mobile App Access > "Add additional
 // access"). They see exactly what the customer sees, but sign in with their own
@@ -313,6 +326,9 @@ export class Customer extends Document {
 
   @Prop({ type: [String], default: [] })
   regularDays?: string[];
+
+  @Prop({ type: [PricingOverrideSchema], default: [] })
+  pricingOverrides?: PricingOverride[];
 
   // Customer app (portal) access. `portalActive` is toggled by staff (Customer
   // Defaults > Customer Portal) and is safe to expose; credentials live in the
