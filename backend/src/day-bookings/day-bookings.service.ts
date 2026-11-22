@@ -13,6 +13,7 @@ import { CreateDayBookingDto } from './dto/create-day-booking.dto';
 import { UpdateDayBookingDto } from './dto/update-day-booking.dto';
 import { BookedSide, syncBookedLines, SyncLine, TravelContext } from './invoice-line-sync.util';
 import { DayBooking } from './schemas/day-booking.schema';
+import { overridePrice } from '../customers/pricing-override.util';
 
 export interface DayCareStayPlan {
   animals: string[];
@@ -122,7 +123,7 @@ export class DayBookingsService {
       const idOf = (product: unknown) => String((product as { _id?: unknown })?._id ?? product);
       const customer = await this.customerModel
         .findById(invoice.customer)
-        .select('travelChargeable travelChargeableWalks travelProduct')
+        .select('travelChargeable travelChargeableWalks travelProduct pricingOverrides')
         .exec();
       const visitTravel = !!customer?.travelChargeable;
       const walkTravel = !!customer?.travelChargeableWalks;
@@ -151,7 +152,13 @@ export class DayBookingsService {
       const changedIds = changes.flatMap((c) => [c.from, c.to]).filter((b) => !!b).map((b) => idOf(b.product));
       const productIds = [...changedIds, travelId].filter((id): id is string => !!id);
       const products = await this.productModel.find({ _id: { $in: productIds } }).select('name price').exec();
-      const byId = new Map(products.map((p) => [String(p._id), { name: p.name, price: p.price }]));
+      // The customer's Pricing Overrides apply to any line added here.
+      const byId = new Map(
+        products.map((p) => [
+          String(p._id),
+          { name: p.name, price: overridePrice(customer?.pricingOverrides, p._id, p.price) },
+        ]),
+      );
       const travelProduct = travelId ? byId.get(travelId) : undefined;
       const travel: TravelContext | null = travelProduct
         ? { product: travelProduct, visits: visitTravel, walks: walkTravel }

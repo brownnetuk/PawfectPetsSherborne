@@ -8,7 +8,7 @@ import CustomerRiskAssessmentsCard from '../components/CustomerRiskAssessmentsCa
 import DocumentFormModal from '../components/DocumentFormModal';
 import EditAnimalModal from '../components/EditAnimalModal';
 import EditCustomerModal from '../components/EditCustomerModal';
-import { PencilIcon, TrashIcon } from '../components/icons';
+import { PencilIcon, PlusIcon, TrashIcon } from '../components/icons';
 import IncomeChart from '../components/IncomeChart';
 import Modal from '../components/Modal';
 import AddPetChoiceModal from '../components/AddPetChoiceModal';
@@ -33,6 +33,7 @@ import type {
   FormSubmissionRecord,
   IncomeMonth,
   Invoice,
+  PricingOverride,
   Product,
   VisitMapping,
 } from '../types';
@@ -2100,6 +2101,7 @@ function CustomerDefaultsTab({ customer, onChange }: { customer: Customer; onCha
     <div>
       <DefaultProductCard customer={customer} products={products} onChange={onChange} />
       <TravelCard customer={customer} products={products} onChange={onChange} />
+      <PricingOverrideCard customer={customer} products={products} onChange={onChange} />
       <RegularDaysCard customer={customer} onChange={onChange} />
       <CustomerPortalCard customer={customer} onChange={onChange} />
     </div>
@@ -2674,6 +2676,250 @@ function TravelCard({
         )}
       </div>
     </div>
+  );
+}
+
+// Customer Defaults > Pricing Override: this customer's own unit price for
+// a product. Whenever that product goes onto their invoices or quotes (a
+// manual line, Generate Invoices, a booking's invoice) the override price is
+// used instead of the product's standard price. Each add/edit/remove saves
+// straight away.
+function PricingOverrideCard({
+  customer,
+  products,
+  onChange,
+}: {
+  customer: Customer;
+  products: Product[] | null;
+  onChange: () => void;
+}) {
+  const overrides = customer.pricingOverrides ?? [];
+  // null = closed, '' = adding a new one, otherwise the product being edited.
+  const [editing, setEditing] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<PricingOverride | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const productName = (id: string) => products?.find((p) => p._id === id)?.name ?? 'Unknown product';
+  const productPrice = (id: string) => products?.find((p) => p._id === id)?.price;
+
+  async function save(next: PricingOverride[]) {
+    setSaving(true);
+    setError(null);
+    try {
+      await api.updateCustomer(customer._id, { pricingOverrides: next });
+      onChange();
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save pricing overrides');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRemove(o: PricingOverride) {
+    if (await save(overrides.filter((x) => x.product !== o.product))) setRemoving(null);
+  }
+
+  const sorted = [...overrides].sort((a, b) => productName(a.product).localeCompare(productName(b.product)));
+
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <h2 style={{ margin: 0 }}>Pricing Override</h2>
+        <button
+          type="button"
+          className="icon-btn"
+          title="Add a pricing override"
+          aria-label="Add a pricing override"
+          onClick={() => setEditing('')}
+          disabled={!products}
+        >
+          <PlusIcon />
+        </button>
+      </div>
+      <p style={{ color: 'var(--muted)', fontSize: '0.88rem' }}>
+        This customer's own price for a product. It's used instead of the standard price whenever
+        that product is added to their invoices or quotes.
+      </p>
+      {error && <div className="error-banner">{error}</div>}
+      {sorted.length === 0 ? (
+        <p style={{ color: 'var(--muted)', fontSize: '0.88rem', margin: 0 }}>No pricing overrides.</p>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table-compact">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th style={{ textAlign: 'right' }}>Standard price</th>
+                <th style={{ textAlign: 'right' }}>Customer price</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((o) => {
+                const standard = productPrice(o.product);
+                return (
+                  <tr key={o.product}>
+                    <td>{productName(o.product)}</td>
+                    <td style={{ textAlign: 'right', color: 'var(--muted)' }}>
+                      {standard === undefined ? '' : `£${standard.toFixed(2)}`}
+                    </td>
+                    <td style={{ textAlign: 'right', fontWeight: 600 }}>£{o.price.toFixed(2)}</td>
+                    <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                      <span style={{ display: 'inline-flex', gap: 6 }}>
+                        <button type="button" className="icon-btn" title="Edit" onClick={() => setEditing(o.product)}>
+                          <PencilIcon />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn icon-btn-danger"
+                          title="Remove"
+                          onClick={() => setRemoving(o)}
+                        >
+                          <TrashIcon />
+                        </button>
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {editing !== null && products && (
+        <PricingOverrideModal
+          products={products}
+          overrides={overrides}
+          editingProduct={editing || null}
+          onClose={() => setEditing(null)}
+          onSave={async (next) => {
+            if (await save(next)) setEditing(null);
+          }}
+          saving={saving}
+          error={error}
+        />
+      )}
+      {removing && (
+        <Modal title="Remove pricing override" onClose={() => setRemoving(null)}>
+          <p>
+            Remove the override for <strong>{productName(removing.product)}</strong>? New invoice and quote
+            lines will go back to the standard price. Existing invoices and quotes aren't changed.
+          </p>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setRemoving(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" onClick={() => handleRemove(removing)} disabled={saving}>
+              {saving ? 'Removing…' : 'Remove'}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function PricingOverrideModal({
+  products,
+  overrides,
+  editingProduct,
+  onClose,
+  onSave,
+  saving,
+  error,
+}: {
+  products: Product[];
+  overrides: PricingOverride[];
+  editingProduct: string | null;
+  onClose: () => void;
+  onSave: (next: PricingOverride[]) => void;
+  saving: boolean;
+  error: string | null;
+}) {
+  const existing = editingProduct ? overrides.find((o) => o.product === editingProduct) : undefined;
+  const [productId, setProductId] = useState(editingProduct ?? '');
+  const [price, setPrice] = useState(existing ? existing.price.toFixed(2) : '');
+  const [localError, setLocalError] = useState<string | null>(null);
+  // A product can only have one override, so already-overridden products are
+  // left out of the list when adding.
+  const taken = new Set(overrides.map((o) => o.product));
+  const choices = products.filter((p) => p._id === editingProduct || !taken.has(p._id));
+  const standard = products.find((p) => p._id === productId)?.price;
+
+  function handleProductChange(id: string) {
+    setProductId(id);
+    // Start from the standard price so it's easy to adjust.
+    const p = products.find((x) => x._id === id);
+    if (p && price === '') setPrice(p.price.toFixed(2));
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const value = Number(price.replace(/[£,\s]/g, ''));
+    if (!productId) {
+      setLocalError('Choose a product.');
+      return;
+    }
+    if (price.trim() === '' || !Number.isFinite(value) || value < 0) {
+      setLocalError('Enter a price of £0.00 or more.');
+      return;
+    }
+    setLocalError(null);
+    const rounded = Math.round(value * 100) / 100;
+    const rest = overrides.filter((o) => o.product !== productId && o.product !== editingProduct);
+    onSave([...rest, { product: productId, price: rounded }]);
+  }
+
+  return (
+    <Modal title={editingProduct ? 'Edit pricing override' : 'Add pricing override'} onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        {(localError || error) && <div className="error-banner">{localError || error}</div>}
+        <div className="field">
+          <label>Product</label>
+          <select
+            value={productId}
+            onChange={(e) => handleProductChange(e.target.value)}
+            disabled={!!editingProduct}
+            autoFocus={!editingProduct}
+          >
+            <option value="">Select a product…</option>
+            {choices.map((p) => (
+              <option key={p._id} value={p._id}>
+                {p.name} (£{p.price.toFixed(2)})
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label>Customer price (£)</label>
+          <input
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.01"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            autoFocus={!!editingProduct}
+          />
+          {standard !== undefined && (
+            <p style={{ color: 'var(--muted)', fontSize: '0.85rem', margin: '6px 0 0' }}>
+              Standard price £{standard.toFixed(2)}
+            </p>
+          )}
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

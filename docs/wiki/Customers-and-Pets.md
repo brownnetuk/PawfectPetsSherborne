@@ -16,7 +16,7 @@ What's stored on a customer:
 - Emergency vet and the signed alternative vet care authorisation.
 - Security: keys provided, the alarm / key-safe code (encrypted; only staff with `customers.viewSecurity` can reveal it), further information.
 - The signed agreement: name, signature, date, and the terms version and document date at the time of signing.
-- **Customer Defaults**: default product, travel charging (see below), regular days (used for "Recommended" on the calendar and for income projections), and app access.
+- **Customer Defaults**: default product, travel charging and pricing overrides (see below), regular days (used for "Recommended" on the calendar and for income projections), and app access.
 
 ### Travel
 
@@ -28,6 +28,12 @@ The **Travel** card on Customer Defaults has two settings that share one travel 
 | **Travel Chargeable for Walks** | One travel line per dog walk: 1 x Walk adds 1 x Travel, 2 x Walk adds 2 x Travel. |
 
 Tick either or both. Day care and boarding never carry travel. Travel is counted from the bookings when invoices are generated, and kept in step when a booking on a draft or scheduled invoice changes.
+
+### Pricing Override
+
+The **Pricing Override** card on Customer Defaults gives a customer their own price for a product. Press **+**, pick the product and enter the customer's price. Overrides can be edited or removed from the list, and each product can have one override per customer.
+
+Whenever that product goes onto the customer's invoices or quotes in the admin dashboard, the override price is used instead of the product's standard price. That covers lines added by hand in the Item Table, the Visits / Day Care / Boarding builders, the travel line, **Generate Invoice**, a booking's invoice prompt, invoices raised for a new or changed boarding/day care booking, and lines kept in step on a draft or scheduled invoice. Existing invoices and quotes aren't repriced when an override is added, changed or removed. The staff app doesn't use overrides yet.
 
 Every change is written to the customer's **Activity** tab (the audit log). **Notes** is for the team's own CRM entries: notes, calls, emails and tasks, with image attachments.
 

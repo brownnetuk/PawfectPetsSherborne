@@ -9,6 +9,7 @@ import {
   withTravelQuantity,
 } from '../utils/travelLines';
 import { bookingInvoiceDueDate } from '../utils/invoiceDueDate';
+import { customerPrice } from '../utils/customerPricing';
 
 function productIdOf(product: DayBooking['product']): string {
   return typeof product === 'string' ? product : product._id;
@@ -124,7 +125,7 @@ export default function BookingInvoicePrompt({
           byProduct.set(pid, {
             description: product?.name ?? 'Booking',
             quantity: b.quantity,
-            unitPrice: product?.price ?? 0,
+            unitPrice: customerPrice(customer, { _id: pid, price: product?.price ?? 0 }),
             discountPercent: 0,
           });
       }
