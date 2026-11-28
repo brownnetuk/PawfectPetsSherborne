@@ -84,12 +84,16 @@ function FilterBar({
   searchPlaceholder,
   statusOptions,
   dateLabel,
+  quickStatuses,
 }: {
   filters: Filters;
   onChange: (next: Filters) => void;
   searchPlaceholder: string;
   statusOptions: { value: string; label: string }[];
   dateLabel: string;
+  // One-click shortcuts for the Status dropdown. Clicking the active one
+  // switches back to "All statuses".
+  quickStatuses?: { value: string; label: string; count: number }[];
 }) {
   const set = (patch: Partial<Filters>) => onChange({ ...filters, ...patch });
   const active = filters.search || filters.status || filters.from || filters.to;
@@ -118,6 +122,24 @@ function FilterBar({
         <label>{dateLabel} to</label>
         <input type="date" value={filters.to} min={filters.from || undefined} onChange={(e) => set({ to: e.target.value })} />
       </div>
+      {quickStatuses && quickStatuses.length > 0 && (
+        <div role="group" aria-label="Quick status filters" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 2 }}>
+          {quickStatuses.map((q) => {
+            const on = filters.status === q.value;
+            return (
+              <button
+                key={q.value}
+                type="button"
+                className={`toggle-pill${on ? ' active' : ''}`}
+                aria-pressed={on}
+                onClick={() => set({ status: on ? '' : q.value })}
+              >
+                {q.label} ({q.count})
+              </button>
+            );
+          })}
+        </div>
+      )}
       {active && (
         <button className="btn btn-secondary btn-sm" style={{ marginBottom: 6 }} onClick={() => onChange(EMPTY_FILTERS)}>
           Clear filters
@@ -132,6 +154,7 @@ const INVOICE_FILTER_STATUSES = [
   ...INVOICE_STATUSES.map((s) => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) })),
   { value: 'partially_paid', label: 'Partially paid' },
 ];
+const QUICK_INVOICE_STATUSES: InvoiceStatus[] = ['paid', 'sent', 'draft'];
 const QUOTE_FILTER_STATUSES = QUOTE_STATUSES.map((s) => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }));
 
 type InvoiceSortKey = 'invoiceNumber' | 'customer' | 'issueDate' | 'dueDate' | 'total' | 'amountPaid' | 'balance' | 'status';
@@ -406,6 +429,15 @@ function InvoicesTab() {
     }
   }
 
+  // Counts on the quick status pills follow the search and date filters but
+  // ignore the status filter, so each pill shows what clicking it would give.
+  const quickStatusInvoices = (invoices ?? []).filter((inv) => matchesInvoiceFilters(inv, { ...filters, status: '' }));
+  const quickStatuses = QUICK_INVOICE_STATUSES.map((s) => ({
+    value: s,
+    label: s.charAt(0).toUpperCase() + s.slice(1),
+    count: quickStatusInvoices.filter((inv) => inv.status === s).length,
+  }));
+
   const visibleInvoices = sortRows(
     (invoices ?? []).filter((inv) => matchesInvoiceFilters(inv, filters)),
     sortKey,
@@ -469,6 +501,7 @@ function InvoicesTab() {
           searchPlaceholder="Invoice number or customer…"
           statusOptions={INVOICE_FILTER_STATUSES}
           dateLabel="Invoice date"
+          quickStatuses={quickStatuses}
         />
         <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
           <ActionsMenu
