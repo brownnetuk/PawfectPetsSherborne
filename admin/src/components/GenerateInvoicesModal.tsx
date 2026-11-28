@@ -13,6 +13,7 @@ import {
 } from '../utils/travelLines';
 import { bookingInvoiceDueDate } from '../utils/invoiceDueDate';
 import { customerPrice } from '../utils/customerPricing';
+import { mergeLineItems, openInvoicesFor } from './BookingInvoicePrompt';
 
 function lineItemAmount(item: LineItem): number {
   return item.quantity * item.unitPrice * (1 - (item.discountPercent ?? 0) / 100);
@@ -84,8 +85,8 @@ interface CustomerGroup {
   // The customer's latest booked date this month -- the generated invoice
   // falls due on it, unless the payment term gives a later date.
   lastDate: string;
-  // This customer's non-cancelled invoices, offered for matching instead of
-  // creating a new one.
+  // This customer's open (unpaid, not cancelled) invoices, offered to add the
+  // bookings to instead of creating a new one.
   invoices: Invoice[];
   // A fully-paid invoice already covering this month (generated for it, or
   // linked from one of its bookings) -- such customers are skipped by default.
@@ -205,7 +206,8 @@ export default function GenerateInvoicesModal({
             travel,
             travelQuantity,
             lastDate,
-            invoices: custInvoices,
+            // Paid ones aren't offered: adding lines would reopen them.
+            invoices: openInvoicesFor(custInvoices, cid),
             paidInvoice,
           });
         }
@@ -245,7 +247,19 @@ export default function GenerateInvoicesModal({
     return invoice;
   }
 
+  // Adds the group's lines (bookings plus travel) to an existing invoice,
+  // the same way a new booking's "Add to INV…" does (BookingInvoicePrompt),
+  // then links each booking to it. Linking alone leaves the bookings showing
+  // the invoice number while the invoice never bills them.
   async function matchTo(group: CustomerGroup, invoiceId: string) {
+    // Re-read it so lines added since the list loaded aren't lost.
+    const current = await api.getInvoice(invoiceId);
+    const currentDue = dateKey(new Date(current.dueDate));
+    await api.updateInvoice(invoiceId, {
+      lineItems: mergeLineItems(current.lineItems, linesFor(group)),
+      // Still due on the last date it covers, if these bookings run later.
+      ...(group.lastDate > currentDue ? { dueDate: group.lastDate } : {}),
+    });
     for (const bookingId of group.bookingIds) {
       await api.updateDayBooking(bookingId, { invoice: invoiceId });
     }
@@ -294,7 +308,7 @@ export default function GenerateInvoicesModal({
       if (matchId) {
         await matchTo(group, matchId);
         const inv = group.invoices.find((i) => i._id === matchId);
-        setNotice(`Matched ${group.customerName}'s bookings to invoice ${inv?.invoiceNumber ?? ''}.`);
+        setNotice(`Added ${group.customerName}'s bookings to invoice ${inv?.invoiceNumber ?? ''}.`);
       } else {
         const invoice = await createFor(group, await defaultTermForCreate());
         if (mode === 'send') {
@@ -341,7 +355,7 @@ export default function GenerateInvoicesModal({
             {[
               result.invoiceCount > 0 && `Created ${result.invoiceCount} invoice${result.invoiceCount === 1 ? '' : 's'}`,
               result.matchedCount > 0 &&
-                `matched ${result.matchedCount} customer${result.matchedCount === 1 ? '' : 's'} to existing invoices`,
+                `added ${result.matchedCount} customer${result.matchedCount === 1 ? '' : 's'}’ bookings to existing invoices`,
             ]
               .filter(Boolean)
               .join(' and ')}
@@ -355,7 +369,7 @@ export default function GenerateInvoicesModal({
           <>
             <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginTop: -6 }}>
               One invoice per ticked customer, covering every not-yet-invoiced Walk and Visit booked in {monthLabel}. Pick
-              an existing invoice to match the bookings to it instead of creating a new one.
+              an existing invoice to add the bookings to it instead of creating a new one.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
               {groups.map((g) => {
@@ -424,7 +438,7 @@ export default function GenerateInvoicesModal({
                         }}
                         title={
                           matchInvoice[g.customerId]
-                            ? `Match ${g.customerName}'s bookings to the picked invoice now`
+                            ? `Add ${g.customerName}'s bookings to the picked invoice now`
                             : `Create ${g.customerName}'s invoice now`
                         }
                         aria-label={`Create invoice for ${g.customerName}`}
@@ -454,7 +468,7 @@ export default function GenerateInvoicesModal({
                             <option value="">New invoice</option>
                             {g.invoices.map((inv) => (
                               <option key={inv._id} value={inv._id}>
-                                {inv.invoiceNumber} · £{inv.total.toFixed(2)} · {inv.status}
+                                Add to {inv.invoiceNumber} · £{inv.total.toFixed(2)} · {inv.status}
                               </option>
                             ))}
                           </select>
@@ -506,7 +520,7 @@ export default function GenerateInvoicesModal({
               {[
                 `${toCreate.length} invoice${toCreate.length === 1 ? '' : 's'} will be created`,
                 toMatch.length > 0 &&
-                  `${toMatch.length} customer${toMatch.length === 1 ? '' : 's'} matched to existing invoices`,
+                  `${toMatch.length} customer${toMatch.length === 1 ? '' : 's'} added to existing invoices`,
               ]
                 .filter(Boolean)
                 .join(', ')}

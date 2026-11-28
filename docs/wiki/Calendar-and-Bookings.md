@@ -27,10 +27,10 @@ Visit prices come from **Settings > Bookings > Visits**, which maps 1 or 2 visit
 
 ## Monthly invoicing
 
-**Generate Invoice** gathers every uninvoiced booking in the month, groups it per customer into line items, and shows a running total of what's selected. It offers to add new bookings to a customer's existing open invoice instead of creating another one. Travel is charged per visit and per walk, following the customer's **Travel Chargeable for Visits** and **Travel Chargeable for Walks** settings (see [Customers and pets](Customers-and-Pets#travel)).
+**Generate Invoice** gathers every uninvoiced booking in the month, groups it per customer into line items, and shows a running total of what's selected. It offers to add new bookings to a customer's existing open invoice instead of creating another one: their lines (and any travel) are added to that invoice's Item Table, a line for the same item at the same price just gaining quantity, and its due date moves later if the bookings run past it. Travel is charged per visit and per walk, following the customer's **Travel Chargeable for Visits** and **Travel Chargeable for Walks** settings (see [Customers and pets](Customers-and-Pets#travel)).
 
 Each customer card shows the customer's dog names under their name. The calendar button beside the total opens a month calendar of just that customer's bookings, coloured like the Bookings calendar, with already-invoiced days ticked.
 
-The create button next to it invoices just that customer, whether or not they're ticked. It first asks whether to **Save as Draft**, **Create & Send** (email it now) or **Schedule Send** (opens the usual Schedule Send dialog; cancelling that leaves a draft). If an existing invoice is picked in their dropdown, it skips the question and matches their bookings to that invoice. The customer then drops off the list so **Confirm & Create** doesn't invoice them twice.
+The create button next to it invoices just that customer, whether or not they're ticked. It first asks whether to **Save as Draft**, **Create & Send** (email it now) or **Schedule Send** (opens the usual Schedule Send dialog; cancelling that leaves a draft). If an existing invoice is picked in their dropdown, it skips the question and adds their bookings to that invoice. The customer then drops off the list so **Confirm & Create** doesn't invoice them twice.
 
 Invoice due dates never come before the payment terms allow. See [Invoicing and finance](Invoicing-and-Finance).
