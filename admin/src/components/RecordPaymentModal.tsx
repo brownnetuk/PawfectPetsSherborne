@@ -70,6 +70,8 @@ export default function RecordPaymentModal({ invoice, onClose, onSaved }: Props)
         paymentMethod: paymentMethod || undefined,
         account,
         skipThankYouEmail: thank,
+        // Only reached for a paid invoice after the "already paid" prompt.
+        allowPaidInvoice: isInvoicePaid(invoice),
       });
       if (thank) setRecorded({ payment, invoice });
       else onSaved();

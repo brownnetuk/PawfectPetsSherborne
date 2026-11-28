@@ -40,4 +40,11 @@ export class CreatePaymentDto {
   @IsOptional()
   @IsBoolean()
   skipThankYouEmail?: boolean;
+
+  // Staff confirmed "Invoice already paid -- record another payment anyway?".
+  // Without it, create() refuses (409) a payment against an invoice that's
+  // already paid, which is how duplicate payments are stopped.
+  @IsOptional()
+  @IsBoolean()
+  allowPaidInvoice?: boolean;
 }

@@ -824,6 +824,7 @@ class Repository {
     required String accountId,
     String? paymentMethod,
     double? charges,
+    bool allowPaidInvoice = false,
   }) async {
     final created = await _client.post('/payments', {
       'invoice': invoiceId,
@@ -833,6 +834,10 @@ class Repository {
       if (paymentMethod != null && paymentMethod.isNotEmpty) 'paymentMethod': paymentMethod,
       if (charges != null && charges > 0) 'charges': charges,
       'skipThankYouEmail': true,
+      // Staff confirmed "Invoice already paid -- record another payment?".
+      // Without it the server refuses a payment on an already-paid invoice,
+      // so the same payment can't be recorded twice.
+      if (allowPaidInvoice) 'allowPaidInvoice': true,
     });
     return created['_id'] as String? ?? '';
   }

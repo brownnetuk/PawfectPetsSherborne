@@ -235,6 +235,10 @@ class _RecordPaymentSheetState extends State<RecordPaymentSheet> {
         accountId: _account!.id,
         paymentMethod: _paymentMethod?.name,
         charges: double.tryParse(_chargesController.text.trim()),
+        // Only reached for a paid invoice after confirmPaymentOnPaidInvoice.
+        // A SumUp charge has already taken the money, so it must always be
+        // recorded.
+        allowPaidInvoice: widget.invoice.isPaid || _chargeViaSumup,
       );
       if (!mounted) return;
       await _offerThankYouEmail(repo, messenger, paymentId);
