@@ -36,7 +36,9 @@ export default function NewBoardingBookingModal({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const customerAnimals = animals.filter((a) => a.customer === custId);
+  const customerAnimals = animals
+    .filter((a) => a.customer === custId)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   function toggleAnimal(id: string) {
     setAnimalIds((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]));

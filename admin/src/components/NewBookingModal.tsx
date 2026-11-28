@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import * as apiClient from '../api/client';
 import BookingInvoicePrompt from './BookingInvoicePrompt';
 import CustomerPicker from './CustomerPicker';
@@ -31,6 +32,9 @@ function productIdOf(product: DayBooking['product']): string {
 // (a multi-pet Visits booking is a single row per day).
 function bookingAnimalIds(b: DayBooking): string[] {
   return [animalId(b.animal), ...(b.additionalAnimals ?? []).map(animalId)];
+}
+function invoiceIdOf(invoice: DayBooking['invoice']): string | null {
+  return !invoice ? null : typeof invoice === 'string' ? invoice : invoice._id;
 }
 
 // Passed when reopening this modal from an animal already booked in the
@@ -168,7 +172,9 @@ export default function NewBookingModal({
     },
   };
 
-  const customerAnimals = animals.filter((a) => a.customer === custId);
+  const customerAnimals = animals
+    .filter((a) => a.customer === custId)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   function handleCustomerChange(id: string) {
     setCustId(id);
@@ -200,22 +206,52 @@ export default function NewBookingModal({
     }
   }
 
-  // The invoice the booking being edited is on, if any.
-  async function invoiceOfEditedBooking(): Promise<string | null> {
-    const invoiceIdOf = (b: DayBooking) => (!b.invoice ? null : typeof b.invoice === 'string' ? b.invoice : b.invoice._id);
+  // Every saved row of the booking being edited (none for a new booking).
+  async function rowsOfEditedBooking(): Promise<DayBooking[]> {
     const stayId = service === 'boarding' ? editingStayId : service === 'daycare' ? editingDayCareStayId : undefined;
-    if (stayId) {
-      const rows = await api.getBoardingStay(stayId);
-      return rows.map(invoiceIdOf).find((id) => !!id) ?? null;
-    }
+    if (stayId) return api.getBoardingStay(stayId);
     if (initial && initial.editEntries.length > 0) {
       const ids = new Set(initial.editEntries.map((e) => e.bookingId));
       const dates = initial.editEntries.map((e) => e.date).sort();
       const rows = await api.listDayBookings(dates[0], dateKey(addDays(parseYmd(dates[dates.length - 1]), 1)));
-      return rows.filter((b) => ids.has(b._id)).map(invoiceIdOf).find((id) => !!id) ?? null;
+      return rows.filter((b) => ids.has(b._id));
     }
-    return null;
+    return [];
   }
+
+  // The invoice the booking being edited is on, if any.
+  async function invoiceOfEditedBooking(): Promise<string | null> {
+    const rows = await rowsOfEditedBooking();
+    return rows.map((b) => invoiceIdOf(b.invoice)).find((id) => !!id) ?? null;
+  }
+
+  // The invoice(s) the booking being edited is already on, shown as links
+  // beside "Update booking". Usually one; a booking billed across several
+  // invoices lists each.
+  const [linkedInvoices, setLinkedInvoices] = useState<{ _id: string; invoiceNumber: string }[]>([]);
+  useEffect(() => {
+    if (!isEditing) return;
+    let cancelled = false;
+    rowsOfEditedBooking()
+      .then((rows) => {
+        if (cancelled) return;
+        const seen = new Map<string, string>();
+        for (const b of rows) {
+          if (b.invoice && typeof b.invoice !== 'string' && !seen.has(b.invoice._id)) {
+            seen.set(b.invoice._id, b.invoice.invoiceNumber);
+          }
+        }
+        setLinkedInvoices([...seen].map(([_id, invoiceNumber]) => ({ _id, invoiceNumber })));
+      })
+      .catch(() => {
+        // Only informational -- the form still works without the links.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Loads once for the booking this modal was opened on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Finds an owner's travel product when they're Travel Chargeable for
   // Visits, so Visits can auto-add it alongside the main product, same as the
@@ -639,7 +675,7 @@ export default function NewBookingModal({
   }
 
   return (
-    <Modal title={initial || boardingInitial || dayCareInitial ? 'Update Booking' : 'New Booking'} onClose={onClose}>
+    <Modal title={initial || boardingInitial || dayCareInitial ? 'Update Booking' : 'New Booking'} onClose={onClose} wide={linkedInvoices.length > 0}>
       {error && <div className="error-banner">{error}</div>}
       {result && (
         <div className="error-banner" style={{ background: 'var(--sage-badge, #d9f2e3)', color: 'var(--brand-green)' }}>
@@ -850,13 +886,24 @@ export default function NewBookingModal({
               Delete booking
             </button>
           )}
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <button type="button" className="btn btn-secondary" onClick={onClose}>
               {result ? 'Close' : 'Cancel'}
             </button>
             <button type="submit" className="btn btn-primary" disabled={busy}>
               {busy ? (isEditing ? 'Updating…' : 'Creating…') : isEditing ? 'Update booking' : 'Create booking'}
             </button>
+            {linkedInvoices.map((inv) => (
+              <Link
+                key={inv._id}
+                to={`/invoices?view=${inv._id}`}
+                className="btn-link"
+                title={`Open invoice ${inv.invoiceNumber}`}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                {inv.invoiceNumber}
+              </Link>
+            ))}
           </div>
         </div>
       </form>

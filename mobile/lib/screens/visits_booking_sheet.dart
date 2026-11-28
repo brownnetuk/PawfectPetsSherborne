@@ -9,6 +9,7 @@ import '../models/day_booking.dart';
 import '../models/invoice.dart';
 import '../models/product.dart';
 import '../models/visit_mapping.dart';
+import '../theme.dart';
 import '../utils/customer_pricing.dart';
 import '../utils/travel_lines.dart';
 import '../utils/visit_plan.dart';
@@ -143,15 +144,14 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
     setState(() => _busy = true);
     try {
       final repo = context.read<Repository>();
-      // Skip days already booked for a dog (same as the admin create path).
+      // What's already on the calendar for these days (same window as the
+      // admin create path).
       final existing = await repo.listDayBookings(
         from: start,
         to: DateTime(end.year, end.month, end.day + 1),
       );
-      final existingKeys = {
-        for (final b in existing)
-          for (final id in [b.animalId, ...b.additionalAnimalIds]) '$id|${_ymd(b.date.toLocal())}',
-      };
+      String keyOf(DayBooking b) => _ymd(b.date.toLocal());
+      bool isInvoiced(DayBooking b) => b.invoiceId != null && b.invoiceId!.isNotEmpty;
 
       // One booking per day for all the selected pets (one product, billed
       // once) -- the first pet is the booking's animal, the rest ride along
@@ -163,14 +163,39 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
       final owner = animal == null ? null : _ownerOf(animal.customerId);
       final travelId = chargesVisitTravel(owner) ? owner?.travelProductId : null;
 
-      // Every row created this time round -- what the invoice prompt bills.
+      // Anything this customer already has on a planned day (travel rows and
+      // a stay's pick-up placeholder aside). A 2nd or 3rd visit on a day is
+      // allowed -- it's booked for a reason -- but staff are shown what's
+      // there first and can add anyway, skip those days, or stop.
+      final planKeys = plan.map((e) => _ymd(e.date)).toSet();
+      final clashes = <String, List<DayBooking>>{};
+      for (final b in existing) {
+        final key = keyOf(b);
+        if (b.customerId != custId || !planKeys.contains(key) || b.placeholder) continue;
+        if (travelId != null && b.productId == travelId) continue;
+        (clashes[key] ??= []).add(b);
+      }
+      var addToClashDays = true;
+      if (clashes.isNotEmpty) {
+        setState(() => _busy = false);
+        final choice = await _confirmClashes(clashes);
+        if (choice == null || !mounted) return;
+        addToClashDays = choice;
+        setState(() => _busy = true);
+      }
+
+      // Every row created or changed this time round -- what the invoice
+      // prompt bills.
       final createdRows = <DayBooking>[];
+      var created = 0;
       var skipped = 0;
       for (final entry in plan) {
-        if (ids.any((id) => existingKeys.contains('$id|${_ymd(entry.date)}'))) {
+        final key = _ymd(entry.date);
+        if (!addToClashDays && clashes.containsKey(key)) {
           skipped++;
           continue;
         }
+        created++;
         createdRows.add(await repo.createDayBooking(
           animalId: primaryId,
           additionalAnimalIds: otherIds,
@@ -180,22 +205,31 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
           visitTime: entry.visitTime,
         ));
         if (travelId != null && travelId.isNotEmpty && travelId != entry.productId) {
-          createdRows.add(await repo.createDayBooking(
-            animalId: primaryId,
-            date: entry.date,
-            productId: travelId,
-            // One travel per visit: 2 x Visit (AM & PM) -> 2 x Travel.
-            quantity: widget.visitMapping.visitCountForProduct(entry.productId) ?? 1,
-          ));
+          // One travel per visit: 2 x Visit (AM & PM) -> 2 x Travel.
+          final travelQty = widget.visitMapping.visitCountForProduct(entry.productId) ?? 1;
+          // A day that already carries this pet's travel row gets its
+          // quantity topped up rather than a second travel row.
+          final travelRow = existing
+              .where((t) => keyOf(t) == key && t.animalId == primaryId && t.productId == travelId && !isInvoiced(t))
+              .firstOrNull;
+          if (travelRow != null) {
+            createdRows.add(await repo.updateDayBooking(travelRow.id, quantity: travelRow.quantity + travelQty));
+          } else {
+            createdRows.add(await repo.createDayBooking(
+              animalId: primaryId,
+              date: entry.date,
+              productId: travelId,
+              quantity: travelQty,
+            ));
+          }
         }
       }
-      final created = createdRows.length;
       setState(() {
         _busy = false;
         _result = 'Created $created booking${created == 1 ? '' : 's'}'
-            '${skipped > 0 ? ', skipped $skipped already booked' : ''}.';
+            '${skipped > 0 ? ', skipped $skipped already-booked day${skipped == 1 ? '' : 's'}' : ''}.';
       });
-      if (created > 0 && mounted) {
+      if (createdRows.isNotEmpty && mounted) {
         await _offerInvoice(repo, custId, createdRows);
       }
     } catch (e) {
@@ -204,6 +238,72 @@ class _VisitsBookingSheetState extends State<VisitsBookingSheet> {
         _error = e is ApiException ? e.message : 'Failed to save the booking';
       });
     }
+  }
+
+  /// Shows what the customer already has booked on the planned days and asks
+  /// how to proceed: true = add the visits anyway (as extra rows), false =
+  /// book only the clear days, null = stop without booking anything.
+  Future<bool?> _confirmClashes(Map<String, List<DayBooking>> clashes) {
+    final dayFmt = DateFormat('EEE d MMM');
+    final keys = clashes.keys.toList()..sort();
+    final days = keys.length;
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Already booked'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              Text(
+                'This customer already has something on $days of the day${days == 1 ? '' : 's'} '
+                'you\'re booking. Add the visits as well?',
+              ),
+              const SizedBox(height: 12),
+              for (final key in keys) ...[
+                Text(
+                  dayFmt.format(clashes[key]!.first.date),
+                  style: const TextStyle(fontWeight: FontWeight.w700, color: brandBlue, fontSize: 13),
+                ),
+                for (final b in clashes[key]!)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8, top: 2, bottom: 2),
+                    child: Text(
+                      '• ${b.animalName} · ${b.productName.isEmpty ? '(product)' : b.productName}'
+                      '${b.visitTime != null && b.visitTime!.isNotEmpty ? ' · ${b.visitTime}' : ''}'
+                      '${b.quantity > 1 ? ' · Qty ${b.quantity}' : ''}',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+          if (days < _planLength)
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Skip those days'),
+            ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Add anyway'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Days in the range being booked -- "Skip those days" only makes sense
+  // when there'd be something left to book.
+  int get _planLength {
+    final start = _startDate;
+    final end = _endDate;
+    if (start == null || end == null) return 0;
+    return end.difference(start).inDays + 1;
   }
 
   /// A yes/no question on top of the sheet. Pops with the dialog's own

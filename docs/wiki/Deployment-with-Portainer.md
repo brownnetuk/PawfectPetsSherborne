@@ -37,7 +37,7 @@ The `VITE_*` values are baked into the web apps when they're built, so after cha
 ```mermaid
 flowchart LR
     Dev[Developer] -->|merge to main| GH[GitHub]
-    GH -->|webhook on push| CFw["Cloudflare Tunnel<br/>portainer hostname (HTTPS)"]
+    GH -->|Deploy workflow calls webhook| CFw["Cloudflare Tunnel<br/>portainer hostname (HTTPS)"]
     CFw --> P["Portainer<br/>GitOps updates"]
     GH -. or polling .-> P
     P -->|git pull, then docker compose up with rebuild| Stack[backend, admin, frontend, portal rebuilt]
@@ -45,9 +45,14 @@ flowchart LR
 
 ### Setting up automatic updates
 
-1. In Portainer: **Stacks > the stack > Edit > GitOps updates**. Turn it on and choose **Webhook** (or Polling). Copy the webhook URL.
-2. In GitHub: **Settings > Webhooks > Add webhook**. Paste the URL, content type `application/json`, "Just the push event".
+1. In Portainer: **Stacks > the stack > Edit > GitOps updates**. Turn it on and choose **Webhook**. Copy the webhook URL.
+2. In GitHub: **Settings > Secrets and variables > Actions > New repository secret**. Name it `PORTAINER_WEBHOOK_URL` and paste the URL.
 3. In Cloudflare Zero Trust, the `portainer.pawfectpetssherborne.co.uk` public hostname must point at `https://<host>:9443` with the **HTTPS** service type. An HTTP route fails with `connection reset by peer`.
+4. The **Deploy** workflow (`.github/workflows/deploy.yml`) calls that URL once for each push to `main`. You can also run it by hand from the Actions tab.
+
+Don't also add the URL under **Settings > Webhooks**. A repository webhook fires for every push, including the branch auto-delete after a PR merge. The two calls arrive within a second, both of Portainer's fresh clones of the same commit fail ("repository already exists"), and nothing deploys.
+
+If a merge doesn't show up, open the Deploy run in the Actions tab, then check the Portainer logs on the server: `docker logs --since <time> portainer 2>&1 | grep -iE 'stack|git|webhook|redeploy|error' | tail -n 50`. **Pull and redeploy** on the stack deploys by hand.
 
 ### Cloudflare Tunnel hostnames
 
@@ -62,7 +67,7 @@ In Zero Trust > Networks > Tunnels > the tunnel > **Public Hostnames**, map each
 
 ## Rolling back
 
-`git revert` the unwanted commit on `main` and push. The next webhook or poll redeploys the previous code.
+`git revert` the unwanted commit on `main` and push. The Deploy workflow then redeploys the previous code.
 
 ## Checking it's healthy
 
