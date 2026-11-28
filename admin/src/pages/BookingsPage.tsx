@@ -1470,6 +1470,11 @@ function DayDetailPanel({
               <option value="">Select a dog…</option>
               {animals
                 .filter((a) => a.species === 'dog')
+                .sort(
+                  (a, b) =>
+                    a.name.localeCompare(b.name) ||
+                    (ownerOf(a.customer)?.name ?? '').localeCompare(ownerOf(b.customer)?.name ?? ''),
+                )
                 .map((a) => (
                   <option key={a._id} value={a._id}>
                     {a.name} ({ownerOf(a.customer)?.name ?? 'unknown owner'})
