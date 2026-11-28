@@ -7,6 +7,7 @@ import { DragHandleIcon } from '../components/icons';
 import { bankAccountTypeLabel } from '../utils/bankAccountType';
 import { dateKey } from '../utils/visitPlan';
 import { oneVisitProductIds, twoVisitProductIds } from '../utils/visitMapping';
+import { bookingUnitPrice, customerPrice, customersById } from '../utils/customerPricing';
 import type {
   BankAccount,
   Customer,
@@ -537,7 +538,7 @@ function ExpectedRevenueCard() {
         category: 'walks',
         productName: product.name,
         occurrences,
-        revenue: occurrences * product.price,
+        revenue: occurrences * customerPrice(customer, product),
       });
     }
 
@@ -549,6 +550,7 @@ function ExpectedRevenueCard() {
     // the calendar isn't counted on top of the regular-days projection above.
     const categoryByProduct = visitMapping ? bookingCategoryByProduct(visitMapping) : new Map<string, RevenueCategory>();
     const customerNameById = new Map(customers.map((c) => [c._id, c.name]));
+    const customerById = customersById(customers);
     const grouped = new Map<string, ExpectedRevenueRow>();
     for (const b of dayBookings.rows) {
       // A populated ref comes back null if its product/customer was deleted.
@@ -556,8 +558,7 @@ function ExpectedRevenueCard() {
       const productId = typeof b.product === 'string' ? b.product : b.product._id;
       const category = categoryByProduct.get(productId);
       if (!category) continue;
-      const price =
-        typeof b.product === 'string' ? (products.find((p) => p._id === b.product)?.price ?? 0) : b.product.price;
+      const price = bookingUnitPrice(b, customerById, products);
       const customerId = typeof b.customer === 'string' ? b.customer : b.customer._id;
       const key = `${category}-${customerId}`;
       const existing = grouped.get(key);
@@ -710,7 +711,7 @@ function dailyExpectedRevenue(
     if (!product) continue;
     for (const day of customer.regularDays) {
       const weekdayIndex = WEEKDAY_JS_INDEX[day];
-      if (weekdayIndex !== undefined) walksByWeekday[weekdayIndex] += product.price;
+      if (weekdayIndex !== undefined) walksByWeekday[weekdayIndex] += customerPrice(customer, product);
     }
   }
   for (let d = from; d < toExclusive; d = addDaysTo(d, 1)) {
@@ -718,11 +719,12 @@ function dailyExpectedRevenue(
   }
 
   const categoryByProduct = mapping ? bookingCategoryByProduct(mapping) : new Map<string, RevenueCategory>();
+  const customerById = customersById(customers);
   for (const b of bookings) {
     if (b.placeholder || !b.product || !b.customer) continue;
     const productId = typeof b.product === 'string' ? b.product : b.product._id;
     if (!categoryByProduct.has(productId)) continue;
-    const price = typeof b.product === 'string' ? (productById.get(productId)?.price ?? 0) : b.product.price;
+    const price = bookingUnitPrice(b, customerById, products);
     add(dateKey(new Date(b.date)), b.quantity * price);
   }
   return byDay;

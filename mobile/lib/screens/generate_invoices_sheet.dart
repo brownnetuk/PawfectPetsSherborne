@@ -8,6 +8,7 @@ import '../models/day_booking.dart';
 import '../models/invoice.dart';
 import '../models/product.dart';
 import '../models/visit_mapping.dart';
+import '../utils/customer_pricing.dart';
 import '../utils/travel_lines.dart';
 
 /// One invoice-to-be for a customer, from their uninvoiced day bookings.
@@ -114,12 +115,14 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
       }
       final groups = <_CustomerGroup>[];
       byCustomer.forEach((cid, custBookings) {
-        // Sum quantity per product into one line item each.
+        // Sum quantity per product into one line item each, at the
+        // customer's Pricing Override where they have one.
+        final customer = customers[cid];
         final byProduct = <String, ({String name, double price, int qty})>{};
         for (final b in custBookings) {
           final existing = byProduct[b.productId];
           byProduct[b.productId] = existing == null
-              ? (name: b.productName, price: b.productPrice, qty: b.quantity)
+              ? (name: b.productName, price: bookingUnitPrice(customer, b), qty: b.quantity)
               : (name: existing.name, price: existing.price, qty: existing.qty + b.quantity);
         }
         final booked = byProduct.values
@@ -128,7 +131,6 @@ class _GenerateInvoicesSheetState extends State<GenerateInvoicesSheet> {
         // Travel is counted from the Visits (2 x Visit -> 2 x Travel) and/or
         // Walks (one each) the customer is chargeable for, not from travel
         // rows booked -- older ones also sit on Day Care and Boarding days.
-        final customer = customers[cid];
         final travel = travelProductForCustomer(customer, products);
         final travelQuantity = travel == null
             ? 0
