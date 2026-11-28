@@ -1519,3 +1519,29 @@ table input:focus {
     padding: 1px 2px !important;
   }
 }
+
+/* Generate Invoices > a customer's create button: Draft / Send / Schedule choices. */
+.create-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.create-choice:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+.create-choice span {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
