@@ -20,7 +20,9 @@ Admin dashboard: **Invoices & Quotes**. Staff app: **Business > Invoicing**.
 
 "Partially paid" and "Outstanding" are filters worked out from the payments.
 
-Actions on an invoice: View, Edit, Send (with a preview of the email), Payments, Request Deposit, **Overdue Payment** reminder, Delete. Every invoice has an **Activity** trail: created, sent, read (from a tracking pixel), payments, reminders, schedule changes.
+Actions on an invoice: View, Edit, Send (with a preview of the email), Payments, Request Deposit, **Link to Calendar Item**, **Overdue Payment** reminder, Delete.
+
+**Link to Calendar Item** lists the customer's calendar bookings (walks, visits, day care, and boarding stays as one item), newest first with a month filter. Ticking a booking links it to the invoice, so the calendar day panel shows the invoice number and Generate Invoices skips it; unticking one unlinks it. Bookings already on another invoice are shown greyed out. Linking leaves the invoice's lines alone, unless the invoice is Draft or Scheduled and **Add lines** is ticked, which adds the bookings (and any travel) as lines. Every invoice has an **Activity** trail: created, sent, read (from a tracking pixel), payments, reminders, schedule changes.
 
 Quotes can be **accepted** or **declined** by the customer from the emailed link or the customer app, and can be converted to an invoice.
 
