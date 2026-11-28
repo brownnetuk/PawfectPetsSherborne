@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import * as api from '../api/client';
 import AddAppointmentModal from '../components/AddAppointmentModal';
 import GenerateInvoicesModal from '../components/GenerateInvoicesModal';
@@ -118,6 +119,31 @@ function bookingAnimalsLabel(b: DayBooking): string {
   const names = [animalLabel(b.animal), ...(b.additionalAnimals ?? []).map(animalLabel)];
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}` : names[0];
 }
+// The invoice(s) a dog's bookings on this day are on, as links that open
+// them -- shown beside the owner's name on each day-panel card.
+function InvoiceLinks({ bookings }: { bookings: DayBooking[] }) {
+  const invoices = new Map<string, string>();
+  for (const b of bookings) {
+    if (b.invoice && typeof b.invoice !== 'string') invoices.set(b.invoice._id, b.invoice.invoiceNumber);
+  }
+  if (invoices.size === 0) return null;
+  return (
+    <>
+      {[...invoices].map(([id, number]) => (
+        <Link
+          key={id}
+          to={`/invoices?view=${id}`}
+          className="btn-link"
+          title={`Open invoice ${number}`}
+          style={{ fontSize: '0.75rem', whiteSpace: 'nowrap', flexShrink: 0 }}
+        >
+          {number}
+        </Link>
+      ))}
+    </>
+  );
+}
+
 function customerLabel(customer: DayBooking['customer']): string {
   return typeof customer === 'string' ? customer : customer.name;
 }
@@ -1048,17 +1074,21 @@ function DayDetailPanel({
                     <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {animalLabel(group[0].animal)}
                     </span>
-                    <span
-                      style={{
-                        fontSize: '0.75rem',
-                        color: 'var(--muted)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        flexShrink: 1,
-                      }}
-                    >
-                      {customerLabel(group[0].customer)}
+                    <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+                      <InvoiceLinks bookings={group} />
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          color: 'var(--muted)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          minWidth: 0,
+                          flexShrink: 1,
+                        }}
+                      >
+                        {customerLabel(group[0].customer)}
+                      </span>
                     </span>
                   </div>
                   {group.map((b) => (
@@ -1160,17 +1190,21 @@ function DayDetailPanel({
                     >
                       {bookingAnimalsLabel(group[0])}
                     </button>
-                    <span
-                      style={{
-                        fontSize: '0.75rem',
-                        color: 'var(--muted)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        flexShrink: 1,
-                      }}
-                    >
-                      {customerLabel(group[0].customer)}
+                    <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+                      <InvoiceLinks bookings={group} />
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          color: 'var(--muted)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          minWidth: 0,
+                          flexShrink: 1,
+                        }}
+                      >
+                        {customerLabel(group[0].customer)}
+                      </span>
                     </span>
                   </div>
                   {group.map((b) => {
@@ -1243,17 +1277,21 @@ function DayDetailPanel({
                       {animalLabel(b.animal)}
                     </span>
                   )}
-                  <span
-                    style={{
-                      fontSize: '0.75rem',
-                      color: 'var(--muted)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      flexShrink: 1,
-                    }}
-                  >
-                    {customerLabel(b.customer)}
+                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+                    <InvoiceLinks bookings={[b]} />
+                    <span
+                      style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--muted)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        minWidth: 0,
+                        flexShrink: 1,
+                      }}
+                    >
+                      {customerLabel(b.customer)}
+                    </span>
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
@@ -1318,17 +1356,21 @@ function DayDetailPanel({
                       {animalLabel(b.animal)}
                     </span>
                   )}
-                  <span
-                    style={{
-                      fontSize: '0.75rem',
-                      color: 'var(--muted)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      flexShrink: 1,
-                    }}
-                  >
-                    {customerLabel(b.customer)}
+                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+                    <InvoiceLinks bookings={[b]} />
+                    <span
+                      style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--muted)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        minWidth: 0,
+                        flexShrink: 1,
+                      }}
+                    >
+                      {customerLabel(b.customer)}
+                    </span>
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
