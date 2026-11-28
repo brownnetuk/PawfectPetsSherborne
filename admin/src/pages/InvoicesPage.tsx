@@ -5,6 +5,7 @@ import ActionsMenu from '../components/ActionsMenu';
 import DocumentFormModal from '../components/DocumentFormModal';
 import { MailIcon, MailOpenIcon } from '../components/icons';
 import InvoiceActivityPanel from '../components/InvoiceActivityPanel';
+import LinkCalendarItemsModal from '../components/LinkCalendarItemsModal';
 import Modal from '../components/Modal';
 import OverduePaymentModal, { invoiceBalanceDue } from '../components/OverduePaymentModal';
 import RecordPaymentModal from '../components/RecordPaymentModal';
@@ -233,6 +234,8 @@ function InvoicesTab() {
   const [sendPreview, setSendPreview] = useState<Invoice | null>(null);
   const [recordingPayment, setRecordingPayment] = useState<Invoice | null>(null);
   const [requestingDeposit, setRequestingDeposit] = useState<Invoice | null>(null);
+  const [linkingCalendar, setLinkingCalendar] = useState<Invoice | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [remindingOverdue, setRemindingOverdue] = useState<Invoice | null>(null);
   const [viewing, setViewing] = useState<Invoice | null>(null);
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
@@ -339,6 +342,13 @@ function InvoicesTab() {
         : []),
       { label: 'Payments', onClick: () => setRecordingPayment(inv) },
       { label: 'Request Deposit', onClick: () => setRequestingDeposit(inv) },
+      {
+        label: 'Link to Calendar Item',
+        onClick: () => {
+          setNotice(null);
+          setLinkingCalendar(inv);
+        },
+      },
       // Only once the invoice has actually gone overdue (the day after its
       // due date -- see InvoicesService.markOverdue()) and still has money
       // owing on it.
@@ -488,6 +498,7 @@ function InvoicesTab() {
         </div>
       </div>
       {error && <div className="error-banner">{error}</div>}
+      {notice && <div className="success-banner">{notice}</div>}
 
       <div className="card" style={{ padding: 0 }}>
         {!invoices || invoices.length === 0 ? (
@@ -687,6 +698,18 @@ function InvoicesTab() {
           onClose={() => setRecordingPayment(null)}
           onSaved={() => {
             setRecordingPayment(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {linkingCalendar && (
+        <LinkCalendarItemsModal
+          invoice={linkingCalendar}
+          onClose={() => setLinkingCalendar(null)}
+          onSaved={(message) => {
+            setLinkingCalendar(null);
+            setNotice(message);
             refresh();
           }}
         />
