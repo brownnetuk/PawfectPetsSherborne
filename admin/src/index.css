@@ -1504,3 +1504,18 @@ table input:focus {
 .statement-opening td {
   background: rgba(255, 255, 255, 0.6);
 }
+
+/* Generate Invoices > customer bookings calendar: on a phone the day cells are
+   too narrow for "Pet · Product", so badges show just the pets. */
+@media (max-width: 640px) {
+  .customer-calendar-detail {
+    display: none;
+  }
+  .customer-calendar-badge {
+    /* Break between words only, so "Max & Poppy" wraps as two whole lines. */
+    overflow-wrap: normal !important;
+    overflow: hidden;
+    font-size: 0.64rem !important;
+    padding: 1px 2px !important;
+  }
+}

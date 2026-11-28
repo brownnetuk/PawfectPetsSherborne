@@ -29,4 +29,6 @@ Visit prices come from **Settings > Bookings > Visits**, which maps 1 or 2 visit
 
 **Generate Invoice** gathers every uninvoiced booking in the month, groups it per customer into line items, and shows a running total of what's selected. It offers to add new bookings to a customer's existing open invoice instead of creating another one. Travel is charged per visit and per walk, following the customer's **Travel Chargeable for Visits** and **Travel Chargeable for Walks** settings (see [Customers and pets](Customers-and-Pets#travel)).
 
+Each customer card shows the customer's dog names under their name. The calendar button beside the total opens a month calendar of just that customer's bookings, coloured like the Bookings calendar, with already-invoiced days ticked.
+
 Invoice due dates never come before the payment terms allow. See [Invoicing and finance](Invoicing-and-Finance).
