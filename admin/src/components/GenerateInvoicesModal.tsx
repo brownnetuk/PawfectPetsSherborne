@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import Modal from './Modal';
 import CustomerBookingsCalendarModal from './CustomerBookingsCalendarModal';
+import ScheduleSendModal from './ScheduleSendModal';
 import { BookingsIcon, ChevronDownIcon, CreateInvoiceIcon } from './icons';
 import type { Animal, DayBooking, Invoice, InvoiceTerm, LineItem, Product, VisitMapping } from '../types';
 import {
@@ -56,6 +57,14 @@ function lineItemsTotal(lineItems: LineItem[]): number {
   return lineItems.reduce((sum, li) => sum + li.quantity * li.unitPrice, 0);
 }
 
+type CreateMode = 'draft' | 'send' | 'schedule';
+
+const CREATE_OPTIONS: { mode: CreateMode; label: string; hint: string }[] = [
+  { mode: 'draft', label: 'Save as Draft', hint: 'Create it now and send it later from Invoices.' },
+  { mode: 'send', label: 'Create & Send', hint: 'Create it and email it to the customer now.' },
+  { mode: 'schedule', label: 'Schedule Send', hint: 'Create it, then pick when it’s emailed.' },
+];
+
 interface CustomerGroup {
   customerId: string;
   customerName: string;
@@ -104,6 +113,10 @@ export default function GenerateInvoicesModal({
   const [calendarFor, setCalendarFor] = useState<CustomerGroup | null>(null);
   // A single customer just invoiced from their card's create button.
   const [notice, setNotice] = useState<string | null>(null);
+  // The customer whose create button was clicked, while asking draft / send / schedule.
+  const [choosing, setChoosing] = useState<CustomerGroup | null>(null);
+  // A just-created draft waiting on the Schedule Send dialog.
+  const [scheduling, setScheduling] = useState<{ invoice: Invoice; customerName: string } | null>(null);
 
   function linesFor(g: CustomerGroup): LineItem[] {
     if (!g.travel) return g.baseLineItems;
@@ -265,10 +278,14 @@ export default function GenerateInvoicesModal({
     }
   }
 
-  // The card's create button: invoices just this customer (or matches them to
-  // the invoice picked in their dropdown), whether or not they're ticked, then
-  // drops them from the list so Confirm & Create can't invoice them twice.
-  async function handleCreateOne(group: CustomerGroup) {
+  // The card's create button: invoices just this customer, whether or not
+  // they're ticked, then drops them from the list so Confirm & Create can't
+  // invoice them twice. A new invoice is created as a draft and then, as
+  // picked in the prompt, emailed now or handed to Schedule Send. With an
+  // existing invoice picked in their dropdown, the bookings are just matched
+  // to it (no prompt -- nothing new to send).
+  async function handleCreateOne(group: CustomerGroup, mode: CreateMode) {
+    setChoosing(null);
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -280,7 +297,22 @@ export default function GenerateInvoicesModal({
         setNotice(`Matched ${group.customerName}'s bookings to invoice ${inv?.invoiceNumber ?? ''}.`);
       } else {
         const invoice = await createFor(group, await defaultTermForCreate());
-        setNotice(`Created invoice ${invoice.invoiceNumber} for ${group.customerName}.`);
+        if (mode === 'send') {
+          try {
+            await api.sendInvoiceEmail(invoice._id);
+            setNotice(`Created invoice ${invoice.invoiceNumber} for ${group.customerName} and emailed it.`);
+          } catch (err) {
+            setError(
+              `Created invoice ${invoice.invoiceNumber} for ${group.customerName} as a draft, but it couldn't be sent: ${
+                err instanceof Error ? err.message : 'unknown error'
+              }`,
+            );
+          }
+        } else if (mode === 'schedule') {
+          setScheduling({ invoice, customerName: group.customerName });
+        } else {
+          setNotice(`Created invoice ${invoice.invoiceNumber} for ${group.customerName} as a draft.`);
+        }
       }
       setGroups((prev) => (prev ?? []).filter((g) => g.customerId !== group.customerId));
       if (expandedId === group.customerId) setExpandedId(null);
@@ -387,7 +419,8 @@ export default function GenerateInvoicesModal({
                         disabled={busy}
                         onClick={(e) => {
                           e.stopPropagation();
-                          void handleCreateOne(g);
+                          if (matchInvoice[g.customerId]) void handleCreateOne(g, 'draft');
+                          else setChoosing(g);
                         }}
                         title={
                           matchInvoice[g.customerId]
@@ -492,6 +525,50 @@ export default function GenerateInvoicesModal({
           )}
         </div>
       </Modal>
+      {choosing && (
+        <Modal title={`Create invoice: ${choosing.customerName}`} onClose={() => setChoosing(null)}>
+          <p style={{ marginTop: -6 }}>
+            {choosing.customerName}'s bookings for {monthLabel}, £{lineItemsTotal(linesFor(choosing)).toFixed(2)}. What should
+            happen to the new invoice?
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {CREATE_OPTIONS.map((opt) => (
+              <button
+                key={opt.mode}
+                type="button"
+                className="create-choice"
+                onClick={() => void handleCreateOne(choosing, opt.mode)}
+                disabled={busy}
+              >
+                <strong>{opt.label}</strong>
+                <span>{opt.hint}</span>
+              </button>
+            ))}
+          </div>
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => setChoosing(null)}>
+              Cancel
+            </button>
+          </div>
+        </Modal>
+      )}
+      {scheduling && (
+        <ScheduleSendModal
+          invoices={[scheduling.invoice]}
+          onClose={() => {
+            setNotice(
+              `Created invoice ${scheduling.invoice.invoiceNumber} for ${scheduling.customerName} as a draft (not scheduled).`,
+            );
+            setScheduling(null);
+          }}
+          onScheduled={() => {
+            setNotice(
+              `Created invoice ${scheduling.invoice.invoiceNumber} for ${scheduling.customerName} and scheduled it to send.`,
+            );
+            setScheduling(null);
+          }}
+        />
+      )}
       {calendarFor && (
         <CustomerBookingsCalendarModal
           customerName={calendarFor.customerName}
