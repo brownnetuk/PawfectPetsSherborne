@@ -31,4 +31,6 @@ Visit prices come from **Settings > Bookings > Visits**, which maps 1 or 2 visit
 
 Each customer card shows the customer's dog names under their name. The calendar button beside the total opens a month calendar of just that customer's bookings, coloured like the Bookings calendar, with already-invoiced days ticked.
 
+The create button next to it invoices just that customer straight away (or, if an existing invoice is picked in their dropdown, matches their bookings to it), whether or not they're ticked. The customer then drops off the list so **Confirm & Create** doesn't invoice them twice.
+
 Invoice due dates never come before the payment terms allow. See [Invoicing and finance](Invoicing-and-Finance).

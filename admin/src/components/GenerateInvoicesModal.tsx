@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import * as api from '../api/client';
 import Modal from './Modal';
 import CustomerBookingsCalendarModal from './CustomerBookingsCalendarModal';
-import { BookingsIcon, ChevronDownIcon } from './icons';
+import { BookingsIcon, ChevronDownIcon, CreateInvoiceIcon } from './icons';
 import type { Animal, DayBooking, Invoice, InvoiceTerm, LineItem, Product, VisitMapping } from '../types';
 import {
   travelProductForCustomer,
@@ -102,6 +102,8 @@ export default function GenerateInvoicesModal({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [visitMapping, setVisitMapping] = useState<VisitMapping | null>(null);
   const [calendarFor, setCalendarFor] = useState<CustomerGroup | null>(null);
+  // A single customer just invoiced from their card's create button.
+  const [notice, setNotice] = useState<string | null>(null);
 
   function linesFor(g: CustomerGroup): LineItem[] {
     if (!g.travel) return g.baseLineItems;
@@ -208,6 +210,34 @@ export default function GenerateInvoicesModal({
   const toMatch = selected.filter((g) => matchInvoice[g.customerId]);
   const selectedTotal = selected.reduce((sum, g) => sum + lineItemsTotal(linesFor(g)), 0);
 
+  async function defaultTermForCreate(): Promise<InvoiceTerm | undefined> {
+    const terms = await api.listInvoiceTerms();
+    return terms.find((t: InvoiceTerm) => t.isDefault);
+  }
+
+  // A new invoice for the group's bookings, then links each booking to it.
+  async function createFor(group: CustomerGroup, defaultTerm: InvoiceTerm | undefined): Promise<Invoice> {
+    const today = new Date();
+    const invoice = await api.createInvoice({
+      customer: group.customerId,
+      lineItems: linesFor(group),
+      issueDate: formatYmd(today),
+      dueDate: bookingInvoiceDueDate(today, defaultTerm, group.lastDate),
+      paymentTerms: defaultTerm?.text,
+      subject: `Bookings for ${monthLabel}`,
+    });
+    for (const bookingId of group.bookingIds) {
+      await api.updateDayBooking(bookingId, { invoice: invoice._id });
+    }
+    return invoice;
+  }
+
+  async function matchTo(group: CustomerGroup, invoiceId: string) {
+    for (const bookingId of group.bookingIds) {
+      await api.updateDayBooking(bookingId, { invoice: invoiceId });
+    }
+  }
+
   async function handleConfirm() {
     if (!groups || selected.length === 0) return;
     setBusy(true);
@@ -216,30 +246,14 @@ export default function GenerateInvoicesModal({
       let invoiceCount = 0;
       let matchedCount = 0;
       if (toCreate.length > 0) {
-        const terms = await api.listInvoiceTerms();
-        const defaultTerm = terms.find((t: InvoiceTerm) => t.isDefault);
-        const today = new Date();
-        const issueDate = formatYmd(today);
-
+        const defaultTerm = await defaultTermForCreate();
         for (const group of toCreate) {
-          const invoice = await api.createInvoice({
-            customer: group.customerId,
-            lineItems: linesFor(group),
-            issueDate,
-            dueDate: bookingInvoiceDueDate(today, defaultTerm, group.lastDate),
-            paymentTerms: defaultTerm?.text,
-            subject: `Bookings for ${monthLabel}`,
-          });
-          for (const bookingId of group.bookingIds) {
-            await api.updateDayBooking(bookingId, { invoice: invoice._id });
-          }
+          await createFor(group, defaultTerm);
           invoiceCount++;
         }
       }
       for (const group of toMatch) {
-        for (const bookingId of group.bookingIds) {
-          await api.updateDayBooking(bookingId, { invoice: matchInvoice[group.customerId] });
-        }
+        await matchTo(group, matchInvoice[group.customerId]);
         matchedCount++;
       }
       setResult({ invoiceCount, matchedCount });
@@ -251,10 +265,45 @@ export default function GenerateInvoicesModal({
     }
   }
 
+  // The card's create button: invoices just this customer (or matches them to
+  // the invoice picked in their dropdown), whether or not they're ticked, then
+  // drops them from the list so Confirm & Create can't invoice them twice.
+  async function handleCreateOne(group: CustomerGroup) {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const matchId = matchInvoice[group.customerId];
+      if (matchId) {
+        await matchTo(group, matchId);
+        const inv = group.invoices.find((i) => i._id === matchId);
+        setNotice(`Matched ${group.customerName}'s bookings to invoice ${inv?.invoiceNumber ?? ''}.`);
+      } else {
+        const invoice = await createFor(group, await defaultTermForCreate());
+        setNotice(`Created invoice ${invoice.invoiceNumber} for ${group.customerName}.`);
+      }
+      setGroups((prev) => (prev ?? []).filter((g) => g.customerId !== group.customerId));
+      if (expandedId === group.customerId) setExpandedId(null);
+      onGenerated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to invoice ${group.customerName}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       <Modal title={`Generate Invoices — ${monthLabel}`} onClose={onClose}>
         {error && <div className="error-banner">{error}</div>}
+        {notice && !result && (
+          <div
+            className="error-banner"
+            style={{ background: 'var(--sage-badge, #d9f2e3)', color: 'var(--brand-green)', borderColor: 'transparent' }}
+          >
+            {notice}
+          </div>
+        )}
         {result ? (
           <div className="error-banner" style={{ background: 'var(--sage-badge, #d9f2e3)', color: 'var(--brand-green)' }}>
             {[
@@ -327,9 +376,28 @@ export default function GenerateInvoicesModal({
                         }}
                         title={`${g.customerName}'s bookings this month`}
                         aria-label={`Show ${g.customerName}'s bookings on a calendar`}
-                        style={{ flexShrink: 0 }}
+                        // Sits snug against the create button beside it.
+                        style={{ flexShrink: 0, marginRight: -8 }}
                       >
                         <BookingsIcon />
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        disabled={busy}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleCreateOne(g);
+                        }}
+                        title={
+                          matchInvoice[g.customerId]
+                            ? `Match ${g.customerName}'s bookings to the picked invoice now`
+                            : `Create ${g.customerName}'s invoice now`
+                        }
+                        aria-label={`Create invoice for ${g.customerName}`}
+                        style={{ flexShrink: 0 }}
+                      >
+                        <CreateInvoiceIcon />
                       </button>
                       <div style={{ fontWeight: 700, flexShrink: 0 }}>£{lineItemsTotal(lineItems).toFixed(2)}</div>
                     </div>
