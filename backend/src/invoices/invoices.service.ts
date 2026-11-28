@@ -901,20 +901,57 @@ export class InvoicesService implements OnModuleInit {
   /** Adds a recorded payment's amount to amountPaid, flipping status to paid once it covers the total. */
   // `notify: false` is for the Recycle Bin putting a deleted payment back --
   // the customer was already told the invoice was paid the first time.
-  async applyPayment(id: string, amount: number, { notify = true } = {}): Promise<Invoice> {
-    const invoice = await this.invoiceModel.findById(id).exec();
-    if (!invoice) {
-      throw new NotFoundException(`Invoice ${id} not found`);
+  //
+  // `rejectIfPaid` is for a brand-new payment the staff member didn't knowingly
+  // record against a paid invoice: if the invoice is already paid by the time
+  // the request lands (e.g. someone else, or another device/tab, recorded the
+  // same payment a moment earlier), it throws ConflictException instead.
+  // The check and the $inc are one atomic update, so two requests arriving at
+  // once can't both get through, and neither can lose the other's amount.
+  async applyPayment(
+    id: string,
+    amount: number,
+    { notify = true, rejectIfPaid = false } = {},
+  ): Promise<Invoice> {
+    const filter: Record<string, unknown> = { _id: id };
+    if (rejectIfPaid) {
+      filter.status = { $ne: InvoiceStatus.PAID };
+      filter.$expr = {
+        $or: [
+          { $lte: ['$total', 0] },
+          { $lt: [{ $ifNull: ['$amountPaid', 0] }, '$total'] },
+        ],
+      };
     }
-    const amountPaid = (invoice.amountPaid ?? 0) + amount;
-    const update: Record<string, unknown> = { amountPaid };
-    const justPaid = invoice.status !== InvoiceStatus.PAID && amountPaid >= invoice.total;
-    if (amountPaid >= invoice.total) {
-      update.status = InvoiceStatus.PAID;
-      update.paidAt = new Date();
+    const incremented = await this.invoiceModel
+      .findOneAndUpdate(filter, { $inc: { amountPaid: amount } }, { new: true })
+      .exec();
+    if (!incremented) {
+      const existing = await this.invoiceModel.findById(id).exec();
+      if (!existing) {
+        throw new NotFoundException(`Invoice ${id} not found`);
+      }
+      const paid = existing.amountPaid ?? 0;
+      throw new ConflictException(
+        `${existing.invoiceNumber} is already paid (£${paid.toFixed(2)} received against £${existing.total.toFixed(2)}), ` +
+          'so this payment was not recorded. It may have just been recorded from another screen or device. ' +
+          'Refresh to check, and record it again only if it really is a second payment.',
+      );
+    }
+    const amountPaid = incremented.amountPaid ?? 0;
+    const justPaid = incremented.status !== InvoiceStatus.PAID && amountPaid >= incremented.total;
+    if (justPaid) {
+      // Only flips if it's still unpaid, so a concurrent payment doesn't
+      // overwrite an earlier paidAt.
+      await this.invoiceModel
+        .updateOne(
+          { _id: id, status: { $ne: InvoiceStatus.PAID } },
+          { $set: { status: InvoiceStatus.PAID, paidAt: new Date() } },
+        )
+        .exec();
     }
     const updated = await this.invoiceModel
-      .findByIdAndUpdate(id, update, { new: true })
+      .findById(id)
       .populate('customer', 'name email address phoneNumber')
       .exec();
     if (notify && justPaid && updated) {

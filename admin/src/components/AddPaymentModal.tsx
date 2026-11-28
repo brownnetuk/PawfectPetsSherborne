@@ -118,6 +118,8 @@ export default function AddPaymentModal({ onClose, onSaved, initialInvoiceId }: 
         paymentMethod: paymentMethod || undefined,
         account,
         skipThankYouEmail: thank,
+        // Only reached for a paid invoice after the "already paid" prompt.
+        allowPaidInvoice: !!selected && isInvoicePaid(selected),
       });
       if (thank && selected) setRecorded({ payment, invoice: selected });
       else onSaved();

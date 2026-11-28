@@ -861,6 +861,10 @@ export interface PaymentInput {
   // Stops the backend auto-sending the "Thank You" email, so the caller can
   // ask staff first (see PaymentThankYouPrompt).
   skipThankYouEmail?: boolean;
+  // Staff confirmed "Invoice already paid -- record another payment?". Without
+  // it the backend refuses a payment against an invoice that's already paid,
+  // so the same payment can't be recorded twice.
+  allowPaidInvoice?: boolean;
 }
 export function createPayment(input: PaymentInput): Promise<Payment> {
   return request('/payments', { method: 'POST', body: JSON.stringify(input) });

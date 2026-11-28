@@ -145,35 +145,47 @@ export class PaymentsService implements OnModuleInit {
   }
 
   async create(dto: CreatePaymentDto, actor = 'Staff'): Promise<Payment> {
-    const paymentId = await this.nextPaymentId();
-    // Any processing charge becomes a real Expense (its own create() already
-    // debits the account for us) rather than just being netted invisibly out
-    // of the payment's own balance adjustment below -- that way it shows up
-    // properly in the Expenses tab and Reports.
-    let chargesExpense: Types.ObjectId | undefined;
-    if (dto.charges) {
-      const expense = await this.expensesService.create({
-        date: dto.date,
-        category: 'Payment Charges',
-        description: `Processing charges on payment ${paymentId}`,
-        amount: dto.charges,
-        account: dto.account,
-      });
-      chargesExpense = expense._id;
-    }
-    const { skipThankYouEmail, ...paymentFields } = dto;
-    const created = new this.paymentModel({
-      ...paymentFields,
-      paymentId,
-      chargesExpense,
-    });
-    const saved = await created.save();
-    // Deducts from the invoice's balance and flips it to paid once fully
-    // covered -- see InvoicesService.applyPayment().
+    const { skipThankYouEmail, allowPaidInvoice, ...paymentFields } = dto;
+    // Applied to the invoice first, before anything else is written: unless
+    // staff confirmed "Invoice already paid -- record another payment?"
+    // (allowPaidInvoice), this refuses a payment against an invoice that's
+    // already paid, atomically -- so the same payment recorded twice (two
+    // tabs, two devices, or a stale invoice list) is stopped instead of
+    // creating a duplicate. See InvoicesService.applyPayment().
     const invoice = await this.invoicesService.applyPayment(
       dto.invoice,
       dto.amount,
+      { rejectIfPaid: !allowPaidInvoice },
     );
+    let saved: Payment;
+    try {
+      const paymentId = await this.nextPaymentId();
+      // Any processing charge becomes a real Expense (its own create() already
+      // debits the account for us) rather than just being netted invisibly out
+      // of the payment's own balance adjustment below -- that way it shows up
+      // properly in the Expenses tab and Reports.
+      let chargesExpense: Types.ObjectId | undefined;
+      if (dto.charges) {
+        const expense = await this.expensesService.create({
+          date: dto.date,
+          category: 'Payment Charges',
+          description: `Processing charges on payment ${paymentId}`,
+          amount: dto.charges,
+          account: dto.account,
+        });
+        chargesExpense = expense._id;
+      }
+      const created = new this.paymentModel({
+        ...paymentFields,
+        paymentId,
+        chargesExpense,
+      });
+      saved = await created.save();
+    } catch (err) {
+      // Nothing was recorded, so take the amount back off the invoice.
+      await this.invoicesService.reversePayment(dto.invoice, dto.amount);
+      throw err;
+    }
     // The full (gross) amount received -- the charge, if any, is already
     // accounted for separately via the linked expense above.
     await this.bankAccountsService.adjustBalance(dto.account, dto.amount);
