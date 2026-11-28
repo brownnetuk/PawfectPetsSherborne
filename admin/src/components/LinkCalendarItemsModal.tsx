@@ -192,8 +192,8 @@ export default function LinkCalendarItemsModal({ invoice, onClose, onSaved }: Pr
         <div className="empty-state">No calendar bookings for this customer.</div>
       ) : (
         <>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 8 }}>
-            <select value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Month">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 10 }}>
+            <select className="select-inline" value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Month">
               <option value="">All months</option>
               {months.map((m) => (
                 <option key={m} value={m}>
@@ -201,7 +201,7 @@ export default function LinkCalendarItemsModal({ invoice, onClose, onSaved }: Pr
                 </option>
               ))}
             </select>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.88rem' }}>
+            <label className="check-inline">
               <input
                 type="checkbox"
                 checked={allVisibleTicked}
@@ -213,7 +213,7 @@ export default function LinkCalendarItemsModal({ invoice, onClose, onSaved }: Pr
               Select all shown
             </label>
             {otherCount > 0 && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.88rem' }}>
+              <label className="check-inline">
                 <input type="checkbox" checked={showOther} onChange={(e) => setShowOther(e.target.checked)} />
                 Show {otherCount} on other invoices
               </label>
@@ -237,6 +237,7 @@ export default function LinkCalendarItemsModal({ invoice, onClose, onSaved }: Pr
                 return (
                   <label
                     key={i.key}
+                    className="check-row"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -285,7 +286,7 @@ export default function LinkCalendarItemsModal({ invoice, onClose, onSaved }: Pr
           </div>
 
           {canAddLines && toLink.length > 0 && (
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: '0.88rem' }}>
+            <label className="check-inline" style={{ marginTop: 10 }}>
               <input type="checkbox" checked={addLines} onChange={(e) => setAddLines(e.target.checked)} />
               Add lines to {invoice.invoiceNumber} for the newly linked bookings
             </label>
