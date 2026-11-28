@@ -172,7 +172,9 @@ export default function NewBookingModal({
     },
   };
 
-  const customerAnimals = animals.filter((a) => a.customer === custId);
+  const customerAnimals = animals
+    .filter((a) => a.customer === custId)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   function handleCustomerChange(id: string) {
     setCustId(id);
