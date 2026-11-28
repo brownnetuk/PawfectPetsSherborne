@@ -1,0 +1,47 @@
+# Tells Portainer to pull and redeploy the "pawfectpets" stack, once per push
+# to main. This replaces the old repository webhook, which GitHub fired for
+# every push, including the branch auto-delete after a merge. The two calls
+# arrived within a second of each other, raced on Portainer's fresh clone, and
+# both failed, so nothing deployed (5 Nov and 28 Nov 2026).
+#
+# Needs the repository secret PORTAINER_WEBHOOK_URL: the stack's webhook URL
+# from Portainer (Stacks > pawfectpets > Edit > GitOps updates).
+# See docs/wiki/Deployment-with-Portainer.md.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+# One deploy at a time. A newer push waits for the running call instead of
+# hitting Portainer at the same moment; Portainer always pulls the latest main.
+concurrency:
+  group: deploy-portainer
+  cancel-in-progress: false
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call the Portainer stack webhook
+        env:
+          PORTAINER_WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PORTAINER_WEBHOOK_URL}" ]; then
+            echo "::error::The PORTAINER_WEBHOOK_URL secret is not set."
+            exit 1
+          fi
+          status=$(curl -sS -o "$RUNNER_TEMP/response.txt" -w '%{http_code}' \
+            --retry 3 --retry-delay 10 --retry-all-errors --max-time 60 \
+            -X POST "${PORTAINER_WEBHOOK_URL}")
+          echo "Portainer answered HTTP ${status}"
+          if [ "${status}" -lt 200 ] || [ "${status}" -ge 300 ]; then
+            cat "$RUNNER_TEMP/response.txt" || true
+            exit 1
+          fi
+          echo "Redeploy of ${GITHUB_SHA::7} requested. Check the stack in Portainer for the build result."
